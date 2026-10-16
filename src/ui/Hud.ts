@@ -1,4 +1,4 @@
-import { onLocaleChange, t } from '../i18n/I18n';
+import { t } from '../i18n/I18n';
 import type { JoystickView } from '../core/Input';
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, className: string): HTMLElementTagNameMap[K] {
@@ -39,7 +39,6 @@ export class Hud implements JoystickView {
       this.onJump();
     });
     window.addEventListener('resize', () => this.hide());
-    onLocaleChange(() => this.refresh());
     this.refresh();
     this.hide();
   }

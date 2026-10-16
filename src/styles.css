@@ -10,8 +10,6 @@
   --shadow: 0 6px 18px rgba(60, 40, 30, 0.18);
   --font-ja: 'Hiragino Maru Gothic ProN', 'Hiragino Maru Gothic Pro', 'BIZ UDPGothic', 'Yu Gothic UI', 'Meiryo',
     'Noto Sans JP', system-ui, sans-serif;
-  --font-zh: 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', system-ui, sans-serif;
-  --font-en: ui-rounded, 'SF Pro Rounded', 'Arial Rounded MT Bold', 'Nunito', 'Segoe UI', system-ui, sans-serif;
 }
 
 * {
@@ -38,14 +36,6 @@ body {
 body {
   font-family: var(--font-ja);
   color: var(--ink);
-}
-
-html:lang(en) body {
-  font-family: var(--font-en);
-}
-
-html:lang(zh-Hans) body {
-  font-family: var(--font-zh);
 }
 
 #app {

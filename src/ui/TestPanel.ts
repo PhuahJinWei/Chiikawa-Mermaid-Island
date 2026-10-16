@@ -1,4 +1,4 @@
-import { LOCALES, onLocaleChange, t, type Locale, type StringKey } from '../i18n/I18n';
+import { t, type StringKey } from '../i18n/I18n';
 import { CHARACTER_IDS, EXPRESSION_IDS, type CharacterId, type ExpressionId } from '../characters/types';
 import { ACTION_IDS, type ActionId } from '../characters/Actions';
 import { DEFINITIONS } from '../characters/definitions';
@@ -8,7 +8,6 @@ export interface TestPanelState {
   lineup: boolean;
   outfit: boolean;
   expression: ExpressionId | null;
-  locale: Locale;
 }
 
 export interface TestPanelHandlers {
@@ -18,13 +17,12 @@ export interface TestPanelHandlers {
   resetCamera(): void;
   action(id: ActionId | 'jump'): void;
   expression(id: ExpressionId | null): void;
-  locale(locale: Locale): void;
 }
 
 const escapeHtml = (s: string) =>
   s.replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch] ?? ch);
 
-/** Bottom sheet for trying every action, expression and language on the phone. */
+/** Bottom sheet for trying every action and expression on the phone. */
 export class TestPanel {
   onToggle: (open: boolean) => void = () => {};
   private readonly el = document.createElement('div');
@@ -42,7 +40,6 @@ export class TestPanel {
     this.el.addEventListener('click', this.onClick);
     this.el.addEventListener('pointerdown', (e) => e.stopPropagation());
     ui.append(this.el);
-    onLocaleChange(() => this.render());
     this.render();
   }
 
@@ -89,10 +86,6 @@ export class TestPanel {
         chip('expr', 'auto', t('expr.auto'), s.expression === null) +
           EXPRESSION_IDS.map((e) => chip('expr', e, t(`expr.${e}` as StringKey), s.expression === e)).join(''),
       ),
-      section(
-        'panel.language',
-        LOCALES.map((l) => chip('locale', l, t(`lang.${l}` as StringKey), l === s.locale)).join(''),
-      ),
       `<section><h3>${escapeHtml(t('panel.info'))}</h3><div class="info" data-info></div></section>`,
     ].join('');
     this.info = this.el.querySelector('[data-info]');
@@ -111,7 +104,6 @@ export class TestPanel {
     else if (d.reset) this.handlers.resetCamera();
     else if (d.action) this.handlers.action(d.action as ActionId | 'jump');
     else if (d.expr) this.handlers.expression(d.expr === 'auto' ? null : (d.expr as ExpressionId));
-    else if (d.locale) this.handlers.locale(d.locale as Locale);
     if (!d.close) this.render();
   };
 }

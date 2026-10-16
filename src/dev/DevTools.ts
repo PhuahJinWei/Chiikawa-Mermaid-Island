@@ -64,13 +64,14 @@ export const SHOTS: Record<string, StagedShot> = {
   // Lineup of the main cast at eye level, for checking proportions side by side.
   cast: {
     characters: {
-      chiikawa: { x: -2.0, z: 0, yaw: 0 },
-      hachiware: { x: -1.0, z: 0, yaw: 0 },
-      usagi: { x: 0.0, z: 0, yaw: 0 },
-      momonga: { x: 1.05, z: 0, yaw: 0 },
-      islander: { x: 2.15, z: 0, yaw: 0 },
+      chiikawa: { x: -2.5, z: 0, yaw: 0 },
+      hachiware: { x: -1.5, z: 0, yaw: 0 },
+      usagi: { x: -0.5, z: 0, yaw: 0 },
+      momonga: { x: 0.55, z: 0, yaw: 0 },
+      hitoha: { x: 1.6, z: 0, yaw: 0 },
+      futaba: { x: 2.6, z: 0, yaw: 0 },
     },
-    camera: { position: [0, 0.6, 8.5], target: [0, 0.55, 0], fov: 25 },
+    camera: { position: [0, 0.6, 9.5], target: [0, 0.55, 0], fov: 27 },
   },
 };
 

@@ -5,9 +5,9 @@ import type { CharacterDef, CharacterId, FaceStyle } from './types';
  *
  * Chiikawa, Hachiware, Usagi and Momonga come from the downloaded Blender models,
  * converted by art/blender/import_characters.py, and their faces are painted by hand
- * (art/faces/), so the face styles below are only fallbacks for them. The islanders,
- * Hitoha and Futaba, are converted from Chiikawa's model; their faces are only the cheek
- * marks, drawn from the style below.
+ * (art/faces/), so the face styles below are only fallbacks for them. The islanders are
+ * converted from the cast's models too; their faces are only the cheek marks, drawn from
+ * islanderFace below.
  */
 const roundFace: FaceStyle = {
   cheeksOnly: false,
@@ -26,6 +26,16 @@ const roundFace: FaceStyle = {
   mouthY: -0.21,
   mouthScale: 1.3,
   neutralMouth: 'cat',
+};
+
+/** Every islander's face: four bold hatch strokes on each cheek, where Chiikawa's cheeks are, and nothing else. */
+const islanderFace: FaceStyle = {
+  ...roundFace,
+  cheeksOnly: true,
+  blushX: 0.6,
+  blushY: -0.15,
+  blushPink: false,
+  hatchWidth: 0.036,
 };
 
 export const DEFINITIONS: Record<CharacterId, CharacterDef> = {
@@ -65,13 +75,21 @@ export const DEFINITIONS: Record<CharacterId, CharacterDef> = {
     walkSpeed: 2.0,
     runSpeed: 3.7,
   },
-  // Hitoha, the islander with one leaf. The background crowd is Hitoha and Futaba (two leaves).
-  islander: {
-    id: 'islander',
-    nameKey: 'char.islander',
+  // The island's two named islanders, always together, and the only ones with leaves:
+  // Hitoha has one, Futaba two. There is one of each.
+  hitoha: {
+    id: 'hitoha',
+    nameKey: 'char.hitoha',
     model: 'models/islander_hitoha.glb',
-    // Four bold hatch strokes on each cheek, where Chiikawa's cheeks are, and nothing else.
-    face: { ...roundFace, cheeksOnly: true, blushX: 0.6, blushY: -0.15, blushPink: false, hatchWidth: 0.036 },
+    face: islanderFace,
+    walkSpeed: 1.7,
+    runSpeed: 3.0,
+  },
+  futaba: {
+    id: 'futaba',
+    nameKey: 'char.futaba',
+    model: 'models/islander_futaba.glb',
+    face: islanderFace,
     walkSpeed: 1.7,
     runSpeed: 3.0,
   },
@@ -83,18 +101,15 @@ export interface CrowdKind {
   outfit?: string;
 }
 
-const EARED: CrowdKind = {
-  model: 'models/islander_eared.glb',
-  outfit: 'models/outfits/island_islander_eared.glb',
-};
+/** A generic islander: ears instead of leaves, and a grey flower crown. */
+const generic = (ears: string): CrowdKind => ({
+  model: `models/islander_${ears}_crowd.glb`,
+  outfit: `models/outfits/island_islander_${ears}_crowd.glb`,
+});
 
 /**
- * The background crowd, in turn: generic islanders with round ears and grey flower crowns,
- * Futaba (two leaves) and Hitoha (one).
+ * The background crowd, in turn: generic islanders with round, cat or bunny ears and grey
+ * flower crowns, as in the film's crowds. Never leaves: those are Hitoha's and Futaba's alone.
+ * All are light copies, built for being seen from a distance.
  */
-export const CROWD_KINDS: CrowdKind[] = [
-  EARED,
-  { model: 'models/islander_futaba.glb' },
-  EARED,
-  { model: 'models/islander_hitoha.glb' },
-];
+export const CROWD_KINDS: CrowdKind[] = [generic('round'), generic('cat'), generic('bunny')];

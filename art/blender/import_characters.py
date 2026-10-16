@@ -20,7 +20,9 @@ and tail, grey all over, with a leaf sprout and a grass skirt of their own and n
 faces are only cheek marks, which the game draws, so they have no painted face. The generic
 islanders in the crowd have ears instead of leaves: round from Chiikawa's model, cat from
 Hachiware's and bunny from Usagi's. Their island outfit is only a grey flower crown, since the
-skirt is their own.
+skirt is their own. Hitoha and Futaba are the only islanders with leaves, and there is one
+of each. The background crowd is generic islanders only, as light copies (CROWD_DETAIL), so a
+beach full of islanders stays cheap on a phone.
 
 What the conversion does:
 - Poses the T-pose arms down to a relaxed rest, then bakes subdivision and the armature.
@@ -151,24 +153,33 @@ ISLANDER = {
 }
 GREY_CROWN = {"mode": "level", "frac": 0.72, "count": 18, "size": 0.28, "colors": ["#B8ADB0", "#C9BFC2"]}
 
+# The background crowd is never seen up close, so its islanders are light copies: each piece
+# collapsed to this fraction of its triangles, no feet (always under the skirt, and the crowd
+# never sits), and a coarser skirt and crown.
+CROWD_DETAIL = {"Head": 0.25, "Body": 0.25, "Arm": 0.5, "Ear": 0.5}
+CROWD_SKIRT = {"rows": 5, "segments": 40}
+CROWD_STEPS = 16  # outline points per crown flower
+
 
 def generic_islander(cid, cast_id):
     """A generic islander built from a cast member's model: its head, body and ears, without
     the tail, in the islanders' grey with a grey flower crown. Only the model's shape settings
     (subdivision, two-part ears) come from the cast member, not its colours, masks or crown."""
     cast = next(c for c in CHARACTERS if c["id"] == cast_id)
-    cfg = dict(ISLANDER, id=cid, file=cast["file"], drop=("Tail",), sprout=None, crown=GREY_CROWN)
+    cfg = dict(ISLANDER, id=cid, file=cast["file"], drop=("Tail",), sprout=None, crown=GREY_CROWN, crowd=True)
     cfg.update({k: cast[k] for k in ("levels", "long_ears") if k in cast})
     return cfg
 
 
 CHARACTERS += [
+    # The island's two named islanders, the only ones with leaves: Hitoha (one) and Futaba (two).
     dict(ISLANDER, id="islander_hitoha"),
     dict(ISLANDER, id="islander_futaba", sprout=dict(ISLANDER["sprout"], leans=[-0.6, 0.6])),
-    # Generic islanders in the crowd, as in the film's crowds: ears instead of leaves.
-    generic_islander("islander_round", "chiikawa"),
-    generic_islander("islander_cat", "hachiware"),
-    generic_islander("islander_bunny", "usagi"),
+    # The background crowd: generic islanders with ears instead of leaves, as in the film's
+    # crowds, as light copies.
+    generic_islander("islander_round_crowd", "chiikawa"),
+    generic_islander("islander_cat_crowd", "hachiware"),
+    generic_islander("islander_bunny_crowd", "usagi"),
 ]
 
 
@@ -834,9 +845,12 @@ def convert(cfg, source):
     body_col = L.hex_color(cfg["body"])
     colors = {k: L.hex_color(v) for k, v in cfg.get("parts_color", {}).items()}
 
+    crowd = cfg.get("crowd", False)
     pieces, anchors = [], {}
     ear_axes = {}
     for o, k in body_objs.items():
+        if crowd and k == "Leg":
+            continue  # always under the skirt
         bm = src[o]
         lo, hi = bounds([bm])
         side = -1 if (lo.x + hi.x) / 2 < 0 else 1
@@ -893,7 +907,8 @@ def convert(cfg, source):
         else:  # Tail
             def attr(co, i, col=col):
                 return L.attrs(col, L.TAIL)
-        pieces.append(L.Piece(bm.copy(), attr, indexed=True))
+        detail = CROWD_DETAIL.get(k, 1.0) if crowd else 1.0
+        pieces.append(L.Piece(L.decimate_bm(bm, detail) if detail < 1.0 else bm.copy(), attr, indexed=True))
 
     # ------------------------------------------------------------------ leaf sprout
     # Islanders' leaves grow from the top of the head, each turned out to the side by its lean.
@@ -957,7 +972,8 @@ def convert(cfg, source):
 
     def grass_skirt(color):
         return O.skirt_piece(envelope, waist, SKIRT["bottom"], r_top, r_hem, gap, bell=SKIRT["bell"],
-                             count=SKIRT["count"], wave=SKIRT["wave"], color=color)
+                             count=SKIRT["count"], wave=SKIRT["wave"], color=color,
+                             **(CROWD_SKIRT if crowd else {}))
 
     # Islanders wear a grass skirt of their own, in their own grey.
     own_skirt = None
@@ -1029,7 +1045,8 @@ def convert(cfg, source):
         def height_at(theta, zc=zc):
             return zc
     outfit_pieces = O.crown_pieces(head_bvh, height_at, cr["count"], size, thickness, cr["colors"],
-                                   arc=cr.get("arc"), push=cr.get("push", 1.4))
+                                   arc=cr.get("arc"), push=cr.get("push", 1.4),
+                                   **({"steps": CROWD_STEPS} if crowd else {}))
     # A character with a skirt of its own wears only the crown.
     skirt_info = None
     if own_skirt is None:

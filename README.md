@@ -50,7 +50,7 @@ To install it like an app, open the page and use **Add to Home Screen**
 | Drag on the right half | Drag with the mouse | Turn the camera |
 | Pinch on the right half | Mouse wheel | Zoom |
 | Jump button | Space | Jump |
-| Test (テスト) button | Test (テスト) button | Test panel: actions, expressions, lineup, language |
+| Test (テスト) button | Test (テスト) button | Test panel: actions, expressions, lineup |
 
 ## Rebuild the models
 
@@ -61,9 +61,12 @@ Every model comes out of Blender, driven by a Python script:
   `public/models/`. It also packs each face's artwork into
   `public/models/faces/`, writes the cap and inner-ear masks to
   `public/models/masks/`, and fits each character's island outfit. The
-  islanders are converted from Chiikawa's model as well: grey, with a grass
-  skirt of their own, and leaves (Hitoha and Futaba) or round ears and a
-  grey flower crown (the generic islanders in the crowd).
+  islanders are converted from the cast's models as well: grey, with a
+  grass skirt of their own. Hitoha and Futaba, one of each, are the only
+  ones with leaves. The generic islanders in the crowd have round, cat or
+  bunny ears (from Chiikawa's, Hachiware's and Usagi's models) and a grey
+  flower crown, and are light copies (`islander_*_crowd`), simplified for
+  being seen from a distance.
 - `art/blender/build_characters.py` is the parts kit for characters that have
   no downloaded model. None is in the game yet, so it builds nothing for
   now.

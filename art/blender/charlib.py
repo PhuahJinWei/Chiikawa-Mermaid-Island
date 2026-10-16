@@ -279,6 +279,28 @@ def append_bm(dst, src):
     bpy.data.meshes.remove(tmp)
 
 
+def decimate_bm(bm, ratio):
+    """A copy of a mesh collapsed to about `ratio` of its triangles, keeping its shape and its
+    left-right symmetry: for background characters, never seen up close."""
+    mesh = bpy.data.meshes.new("_dec")
+    bm.to_mesh(mesh)
+    obj = bpy.data.objects.new("_dec", mesh)
+    bpy.context.scene.collection.objects.link(obj)
+    dec = obj.modifiers.new("decimate", "DECIMATE")
+    dec.decimate_type = "COLLAPSE"
+    dec.ratio = ratio
+    dec.use_symmetry = True
+    dec.symmetry_axis = "X"
+    dg = bpy.context.evaluated_depsgraph_get()
+    final = bpy.data.meshes.new_from_object(obj.evaluated_get(dg), depsgraph=dg)
+    out = bmesh.new()
+    out.from_mesh(final)
+    bpy.data.objects.remove(obj)
+    for m in (mesh, final):
+        bpy.data.meshes.remove(m)
+    return out
+
+
 def fuse(bms, voxel=0.012, smooth_iterations=6, smooth_lambda=0.8, target_tris=6000):
     """Union overlapping closed shapes into one soft, plush-like surface.
 

@@ -180,13 +180,17 @@ review. There are two sources:
   the game's parts (body, arms, feet, ears, tail), turns every inside-out
   piece the right way, and bakes each face's own artwork and painted masks
   to textures.
-- **The islanders** (Hitoha and Futaba) are shaped like Chiikawa, so
+- **The islanders** are shaped like Chiikawa, so
   `import_characters.py` converts Chiikawa's model for them too: without the
   ears and tail, grey all over, with leaves on top and a fringed grass skirt
   of their own, and at the model's own height (not shortened), as tall as
   the official plush. The generic islanders in the crowd are built the same
-  way but keep Chiikawa's round ears instead of leaves, and wear a grey
-  flower crown as their island outfit.
+  way from Chiikawa's, Hachiware's and Usagi's models, so they have round,
+  cat or bunny ears instead of leaves, and wear a grey flower crown as their
+  island outfit. Everyone in the background crowd is a light copy, about a
+  quarter of the triangles, since the crowd is only seen from a distance.
+  Hitoha and Futaba are unique: one of each, and no other islander has
+  their leaves.
 - **Everyone else** will be modelled by `build_characters.py` from a parts
   kit: one soft blob, wider at the head, about one head tall overall; ears,
   leaves, claws, manes and fins from small capsules, cones or flat planes;
@@ -271,7 +275,7 @@ cheaper bob-only animation so phones stay smooth.
 
 | Character | Role on the island | Build notes |
 |---|---|---|
-| **Player** (nameless islander) | You. Lives here. | Grey-mauve islander body with a leaf sprout. Player picks the sprout style (one leaf, two leaves, ears, spike) and crown colour. |
+| **Player** (nameless islander) | You. Lives here. | Grey-mauve islander body. Player picks the head style (round, cat or bunny ears, or a spike; never leaves, which are Hitoha's and Futaba's alone) and crown colour. |
 | **Chiikawa** | Visiting guest. Anxious, kind, cries easily. | Warm white, two small round ears, pink crown. Most expression variants. |
 | **Hachiware** | Visiting guest. Cheerful, curious, talkative. | Warm white, blue cap with pointed cat ears, pale blue crown, blue tail tuft. |
 | **Usagi** | Visiting guest. Chaotic, loud, loves food. | Pale yellow, tall pink-lined ears, yellow crown. Often holds a torch. Appears where food is. |
@@ -282,7 +286,7 @@ cheaper bob-only animation so phones stay smooth.
 | **Furuhonya** (crab) | Visiting guest. Seen at the night beach. | Soft pink, coral claws on head, white crown. |
 | **Hitoha** | Islander. Timid but curious. Always with Futaba. | Islander body with **one** leaf sprout. |
 | **Futaba** | Islander. Steady, friendly. Always with Hitoha. | Islander body with **two** leaf sprouts. The two share a schedule. |
-| **Islanders** (10–20 generic) | Village life, stalls, feast, singing. | Same grey-mauve mesh with different head shapes: leaves, rabbit ears, cat ears, round ears, spike. Can be instanced. |
+| **Islanders** (10–20 generic) | Village life, stalls, feast, singing. | Same grey-mauve mesh with different head shapes: rabbit ears, cat ears, round ears, spike. Never leaves: only Hitoha and Futaba have those. Can be instanced. |
 | **Food-shop owner** | Runs the food stall, toasts at the feast. | Large mustached figure in a 味自慢 loincloth, about twice Chiikawa's height. Name to be confirmed. |
 | **Small mermaids** (2) | Rare sightings in the deep and the cave. | White round head with rust cap and antennae, startled O mouth, pink band, rust scaled tail. Shy: dart away if approached fast. |
 | **Siren** (optional) | Silhouette with red eyes peeking from the sea at night. | Large, about 2.5× Chiikawa. Only if you choose option (b) or (c). |
@@ -421,37 +425,25 @@ is high, say a short bark line if you walk past without talking.
 - Tone is the manga's: short, soft, a little absurd. Chiikawa mostly says
   "ワ…" and "うん". Hachiware chats. Usagi says "ウラ" and "ヤハ". Islanders
   are warm and slightly formal.
-- **Languages: Japanese by default, with English and Simplified Chinese
-  selectable in settings.** Details below.
+- **Language: Japanese only.** Details below.
 
-#### Languages
+#### Language
 
-- Three locales: `ja` (default), `en`, `zh-Hans`. The first launch picks
-  Japanese unless the phone's language is English or Chinese, and the
-  choice can be changed any time in settings.
-- Every string the player sees, UI and dialogue alike, lives in a locale
-  file keyed by an ID. Code never contains display text. A missing
-  translation falls back to Japanese, and a debug check lists missing keys.
-- Japanese is written first and is the source of truth. English and Chinese
-  are translations of it.
-- Catchphrases stay as written in every language. ワ…, ヤハ, ウラ and
-  similar sounds are part of the characters, so the English and Chinese
-  versions keep them in katakana and translate only the surrounding words.
-- Character names are shown in each language's official form where one
-  exists, for example ちいかわ, Chiikawa, 吉伊卡哇. I will confirm the official
-  Chinese names before using them.
-- **Fonts.** Japanese and Chinese fonts are several megabytes each, which
-  would blow the 5 MB load budget. The game uses the phone's built-in fonts,
-  which already cover all three languages, with a rounded style preferred
-  where the system has one. A subset of a rounded web font is a later
-  polish option.
-- **Text layout.** Japanese and Chinese have no spaces, so the dialogue box
-  wraps by character, and the typewriter effect reveals one character at a
-  time. English wraps by word. Text boxes are sized for the longest of the
-  three languages.
-- **My limits.** I write natural Japanese and Chinese, but not at the level
-  of a native writer reproducing the manga's voice. You are the reviewer for
-  tone in at least one of them before I write the full set of lines.
+- The game is in Japanese only, with no language setting.
+- Every string the player sees, UI and dialogue alike, lives in
+  `locales/ja.json`, keyed by an ID, so the words stay in one place. Code
+  never contains display text.
+- Character names are their katakana or hiragana forms: ちいかわ, ハチワレ,
+  うさぎ, モモンガ, ヒトハ, フタバ.
+- **Fonts.** Japanese fonts are several megabytes, which would blow the 5 MB
+  load budget. The game uses the phone's built-in Japanese fonts, with a
+  rounded style preferred where the system has one. A subset of a rounded
+  web font is a later polish option.
+- **Text layout.** Japanese has no spaces, so the dialogue box wraps by
+  character, and the typewriter effect reveals one character at a time.
+- **My limits.** I write natural Japanese, but not at the level of a native
+  writer reproducing the manga's voice. You review the tone on a sample
+  before I write the full set of lines.
 
 ### 6.6 "Monitoring" the island
 
@@ -511,15 +503,13 @@ src/
     Game.ts            * owns scene, loop, resize, visibility handling
     Input.ts           * touch joystick, camera drag, pinch, keyboard
     CameraRig.ts       * follow and orbit camera
-    Settings.ts        * language and character choice, saved locally
+    Settings.ts        * character choice, saved locally
     toon.ts            * shared toon light ramp
     Save.ts            versioned save game
   i18n/
-    I18n.ts            * locale detection, lookup, fallback, missing-key check
+    I18n.ts            * text lookup by key
   locales/
-    ja.json            * Japanese UI text (source of truth)
-    en.json            *
-    zh-Hans.json       *
+    ja.json            * all the Japanese text the player sees
   world/
     Stage.ts           * M0 test beach: sand, sea, sky, clouds, and the Blender props
     Ink.ts             * the world's pen: one stroke width for every outline
@@ -553,7 +543,7 @@ src/
     Audio.ts           ambient, positional, underwater filter
   ui/
     Hud.ts             * title, stats, joystick ring, jump button
-    TestPanel.ts       * actions, expressions, lineup, language
+    TestPanel.ts       * actions, expressions, lineup
     DialogueBox.ts
     JournalPanel.ts
     PhotoMode.ts
@@ -669,7 +659,7 @@ Each milestone ends with something you can open on your phone.
 | **M2** | Sea | Wade, swim, dive, surface. Bright lagoon and dark deep, bubbles, caustics, breath ring. Fish shoals. Rowboat, and the forbidden cave with its moonlit pond. | Medium |
 | **M3** | Cast | The rest of the named characters built from the parts kit, with their own actions, props and expressions. Standing around on the beach. | Medium |
 | **M4** | Life | Schedules, pathing, reactions. Characters go about their day. Night feast with bonfire and gathering. | Large |
-| **M5** | Talk | Dialogue system, first pass of lines for every character, friendship, journal with Now / Friends tabs. Japanese first, then English and Chinese. | Medium |
+| **M5** | Talk | Dialogue system, first pass of lines for every character, friendship, journal with Now / Friends tabs, all in Japanese. | Medium |
 | **M6** | Texture | Sitting, picking, giving, feeding fish, photo mode, Discoveries tab, mermaid sightings, song tap-along, audio pass. | Large |
 | **M7** | Polish | Performance tuning on your real device, settings, save export, icons, loading screen, the small bugs list. | Medium |
 
@@ -690,7 +680,7 @@ desktop sizes. It still needs a check on a real phone. See `CHANGELOG.md`.
 | Procedural animation feels stiff | Medium | Lean on squash-and-stretch and bobbing, which suits round characters; keep timing data-driven so I can tune quickly. |
 | Water and underwater shaders eat the frame budget | Medium | Cheap surface shader, no reflections or refraction on mobile, fog instead of volumetrics. |
 | Dialogue tone misses the manga's voice | Medium | Short lines, you read a sample set early and correct the voice before I write hundreds. |
-| Japanese or Chinese lines read as stiff or unnatural | Medium | Japanese written first and reviewed by you on a sample; Chinese reviewed the same way. Short lines keep the risk small. |
+| Japanese lines read as stiff or unnatural | Medium | Reviewed by you on a sample before the full set is written. Short lines keep the risk small. |
 | Scope creep from "comfy" ideas | High | Section 1 pillars and not-goals; new ideas go to an `IDEAS.md` backlog, not the current milestone. |
 | Public repo with the Chiikawa name draws attention | Low | Non-commercial and personal. Keep the repo description modest. Can move to a private repo on Cloudflare Pages at any time. |
 
@@ -703,8 +693,8 @@ Answered on 2026-10-16.
 | Question | Decision |
 |---|---|
 | The Siren | Silhouette with red eyes peeking from the sea at night. Never interacts. |
-| Who is the player | A nameless islander with a customisable sprout and crown colour. |
-| Language | Japanese by default. English and Simplified Chinese selectable in settings. |
+| Who is the player | A nameless islander with a customisable head style (ears or a spike) and crown colour. |
+| Language | Japanese only. |
 | Hosting | Public GitHub repository, served by GitHub Pages. Reference images stay local. |
 | Day length | 24 real minutes per game day, adjustable in settings. |
 | The deep | Eerie mood only: dark water, looming decorations, creepy sounds. Nothing moves at you. |

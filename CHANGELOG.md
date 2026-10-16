@@ -39,15 +39,26 @@ phone.
   with leaves on top (Hitoha one, Futaba two) and a fringed grass skirt of
   their own in the same grey. They stand about 2.5 head radii tall, like
   the official plush. Their faces are only cheek marks, four bold strokes a
-  side, with no eyes, brows or mouth. The background crowd mixes Futaba and
-  Hitoha with generic islanders built the same way, who keep Chiikawa's
-  round ears instead of leaves and wear a grey flower crown. Every islander
-  in the crowd shows their cheek marks.
+  side, with no eyes, brows or mouth.
+- Hitoha and Futaba are unique: there is one of each, standing together on
+  the beach, and no other islander has their leaves. Both are in the Test
+  panel as characters of their own; Hitoha replaces the old "Islander".
+- The background crowd is generic islanders only, built the same way from
+  Chiikawa's, Hachiware's and Usagi's models: round, cat or bunny ears
+  instead of leaves, and a grey flower crown, as in the film's crowds.
+  Every islander in the crowd shows their cheek marks.
+- The background crowd's islanders are light copies, about a quarter of the
+  triangles of the full models: simplified head, body, arms and ears, no
+  feet (always under the skirt), and coarser skirts and crowns. They look
+  the same from the game's camera. Hitoha and Futaba keep the full models.
 - Chiikawa's brows, cheeks and closed mouth are repainted.
 - Leaf veins are drawn as the film draws them, rising at about 45 degrees
   from the midrib, and fade out on leaves too small on screen to hold them.
 - `build_characters.py` builds no character for now: it is the parts kit for
   characters without a downloaded model.
+- The game is in Japanese only. English and Simplified Chinese are gone,
+  along with the Test panel's language choice. Hitoha and Futaba are
+  written in katakana: ヒトハ and フタバ.
 - Sitting is a real sit. The body settles onto its bottom with a little
   bounce and keeps its shape, and the legs stretch out in front with the
   soles just out from under the tummy. Before, it only squashed the body
@@ -100,21 +111,23 @@ phone.
   camera, so their triangles cannot fold over at inward corners and show
   through.
 
-**Measured** in the desktop browser on the test beach, with the four cast
-members, the player and four background islanders on screen:
+**Measured** in the browser on the test beach, with the four cast members,
+Hitoha, Futaba and five background islanders on screen. The frame rate could
+not be measured this time, because the browser pane was throttling every
+page.
 
 | Frame rate | Draw calls | Triangles | Download, compressed |
 |---|---|---|---|
-| 60 FPS | 55 | 200k | 1.5 MB |
+| not measured | 58 | 210k | 1.7 MB |
 
 **Known gaps**
 
-- 200k triangles is over the plan's 150k budget for a mid-range phone.
-  Measure on a real phone before cutting detail from the models.
+- 210k triangles is over the plan's 150k budget for a mid-range phone. The
+  five background islanders are only about 30k of it; the rest is the cast,
+  Hitoha and Futaba at full detail, with their outfits. Measure on a real
+  phone before cutting more.
 - The downloaded models came without an author or a licence. See the
   README before publishing.
-- Momonga's Chinese name (小桃鼠) is a fan name and has not been
-  confirmed.
 
 ## M0 — Scaffold and first characters (2026-10-16)
 

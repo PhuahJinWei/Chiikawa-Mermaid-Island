@@ -17,7 +17,7 @@ import { sharedUniforms } from '../characters/CharacterMaterial';
 import { updatePen } from '../world/Ink';
 import type { ActionId } from '../characters/Actions';
 import type { DevApi, StagedShot } from '../dev/DevTools';
-import { detectLocale, getLocale, reportMissingKeys, setLocale, t } from '../i18n/I18n';
+import { t } from '../i18n/I18n';
 
 /** Where each character stands when you are not controlling it: x, z, facing. */
 const HOMES: Record<CharacterId, [number, number, number]> = {
@@ -25,14 +25,20 @@ const HOMES: Record<CharacterId, [number, number, number]> = {
   hachiware: [-1.7, -1.3, 0.35],
   usagi: [1.8, -1.1, -0.3],
   momonga: [-0.9, -2.9, 0.2],
-  islander: [1.1, -3.1, -0.2],
+  // Hitoha and Futaba stand together, turned a little toward each other.
+  hitoha: [1.1, -3.1, -0.35],
+  futaba: [0.25, -3.25, 0.35],
 };
-/** Background islanders on the beach: x, z, facing. Tinted grey-teal like the film's extras. */
+/**
+ * Background islanders on the beach: x, z, facing, one of each kind in CROWD_KINDS. Tinted
+ * grey-teal like the film's extras.
+ */
 const CROWD: [number, number, number][] = [
   [-2.9, -3.8, 0.5],
   [3.1, -3.4, -2.5],
   [0.2, -5.4, 3.1],
   [-4.2, -1.6, 1.3],
+  [2.3, -6.3, 2.7],
 ];
 const CROWD_COLOR = '#6E8783';
 const LINEUP_SPACING = 1.0;
@@ -77,8 +83,7 @@ export class Game {
 
   constructor(canvas: HTMLCanvasElement, ui: HTMLElement) {
     this.settings = loadSettings();
-    setLocale(this.settings.locale ?? detectLocale());
-    if (import.meta.env.DEV) reportMissingKeys();
+    document.title = t('app.title');
     this.controlled = this.settings.character;
 
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
@@ -97,18 +102,12 @@ export class Game {
         resetCamera: () => this.resetCamera(),
         action: (id) => this.playAction(id),
         expression: (e) => this.setExpression(e),
-        locale: (l) => {
-          setLocale(l);
-          this.settings.locale = l;
-          saveSettings(this.settings);
-        },
       },
       () => ({
         character: this.controlled,
         lineup: this.lineup,
         outfit: this.outfitOn,
         expression: this.expression,
-        locale: getLocale(),
       }),
     );
     this.hud.onJump = () => this.input.queueJump();
@@ -143,7 +142,8 @@ export class Game {
       });
       for (const [i, [x, z, yaw]] of CROWD.entries()) {
         const [model, outfit] = crowdKinds[i % crowdKinds.length];
-        const extra = new Character(DEFINITIONS.islander, model, new THREE.Group(), {
+        // Background islanders share the islanders' face and pace.
+        const extra = new Character(DEFINITIONS.hitoha, model, new THREE.Group(), {
           crowd: { color: CROWD_COLOR },
           outfit,
         });
