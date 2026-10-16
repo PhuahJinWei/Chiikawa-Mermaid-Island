@@ -1,0 +1,10 @@
+# Usagi: which layers make up each expression (see ../README.md).
+# cheeks.png shows on every face. Usagi stays calm, so most faces are alike.
+Neutral: brows 1 + eyes open + mouth closed
+Smile: brows 1 + eyes open + mouth open
+Happy: brows 1 + eyes open + mouth half-open 2
+Determined: brows 1 + eyes open + mouth closed
+Worried: brows 1 + eyes open + mouth half-open 2
+Teary: brows 1 + eyes open + mouth closed
+Sobbing: brows 1 + eyes open + mouth closed
+Shocked: brows 1 + eyes sleep + mouth closed

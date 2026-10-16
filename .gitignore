@@ -1,0 +1,21 @@
+node_modules/
+dist/
+dev-dist/
+*.log
+.DS_Store
+Thumbs.db
+
+# Film artwork and downloaded material stays local: never pushed.
+reference images/
+images that can be use/
+Chiikawa Models-*/
+
+# Blender's backup copies and Python caches from the build scripts
+*.blend1
+__pycache__/
+
+# Local-only tool settings
+.claude/settings.local.json
+
+# Screenshots taken while testing
+screenshots/

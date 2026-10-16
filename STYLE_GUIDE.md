@@ -1,0 +1,229 @@
+# Style Guide — Mermaid Island
+
+Distilled from the 61 images in `reference images/`. This is the visual
+contract for every model, colour and scene I build. Colours are my estimates
+from the images, to be tuned by eye once things render.
+
+The `reference images/` folder stays local. It is listed in `.gitignore` and
+never pushed, because it is other people's artwork.
+
+---
+
+## 1. The overall look
+
+- **Two moods, one island.** Daytime is bright, saturated and cheerful:
+  turquoise sea, white sand, lush greens, festival confetti. Night is deep
+  blue, starry, moonlit, quiet, with warm bonfire light. The film leans on
+  this contrast and so will we.
+- **Lines are dark brown, not black.** Every character outline in the anime
+  is a warm dark brown. Black is reserved for the Siren's hair.
+- **One bold pen for everything.** Thick strokes are Chiikawa's look, so
+  every line in the world is drawn with the same pen: characters and their
+  outfits, crown flowers, skirt strokes, props, clouds, the horizon and the
+  waterline. The pen is 1.8 cm in the world (2% of a cast member's height,
+  a little heavier than the film's 1.4%), the same on everything at the same
+  distance. Nearer things get bolder lines and further ones lighter, never
+  under half the pen where the camera is looking; the sky, clouds and
+  horizon use the pen where the camera is looking. Lines painted into
+  textures (emotes, a log's cut ends) use the same width, except on the
+  tiniest effects such as tears, where it is capped so their shape reads.
+  See `src/world/Ink.ts`.
+- **Characters are flat; backgrounds are painterly.** Characters are flat
+  colour with almost no shading. Backgrounds have soft gradients, dappled
+  light and rich foliage. In 3D this means: characters get a 2-step toon ramp
+  that is nearly flat, the environment gets fuller lighting. Unlike the film,
+  whose backgrounds have no lines, everything here is outlined with the pen.
+- **Everyone is a round blob.** Head and body are one soft shape, wider at
+  the head, with tiny stub arms and almost invisible feet. Heights are close
+  to one head tall. This is a gift for procedural modelling.
+
+## 2. Shared costume: the island outfit
+
+On the island almost every character wears the same two items. In the
+game they are one asset per wearer, fitted to that character and kept
+separate from the character model (see `art/blender/outfits.py`).
+
+- **Flower crown.** A tight garland of small clovers with three round,
+  knobbed petals, alternating Y and upside-down Y, each outlined in brown.
+  It sits at the top of the head, just under the ears. Hachiware's sits on
+  his cap, and Usagi's is a small cluster at the base of her ears. The film
+  draws every flower face-on, even at the edges of the head, and the
+  garland dips toward the sides from whichever angle it is seen. Each crown
+  alternates two tints of one colour. The plush toys add a tiny pearl to
+  each flower; the film does not.
+- **Grass skirt.** Light green (#C6EE86), short: tied just below the hands
+  and hanging to the ground, about as wide as the lower body. Brown
+  fringe strokes drawn with the pen, with rounded ends, start a little
+  above the hem and rise about halfway. There is no line along the hem: the grass simply ends, and
+  the side outlines taper off just above it. The characters' arms rest on
+  top of the skirt, never inside it.
+
+On arrival day (pier scene) the trio wear their normal look: no crown, no
+skirt, Chiikawa with a pink bear pouch, weapons strapped on. That could be a
+"first day" outfit, but the island outfit is the default.
+
+## 3. Character sheets
+
+Scale unit: **1 = Chiikawa's height.**
+
+| Character | Height | Body | Head features | Crown | Notes |
+|---|---|---|---|---|---|
+| **Chiikawa** | 1.0 | Warm white #FBF7EE | Two small round ears on top | Pink #F9DCE1 / #FFF1F3 | Most expressive face; often teary or anxious. |
+| **Hachiware** | 1.0 | Warm white | Blue cap shape over top of head #5E8FC4 with two pointed cat ears; split down the forehead. Its edge sits about 0.4 head radii above the eyes, well clear of the brows | Pale aqua #D3F2EE / #EAFBF7 | Small blue tail tuft at the back. |
+| **Usagi** | 1.15 | Pale yellow #F8E4B4 | Two tall upright ears, pink inside #F3A9B8; two arched brow lines on forehead | Yellow #FBF5A8 / #FFFBD2, small, at ear base | Often carries a torch or food. Energetic, mid-jump poses. |
+| **Rakko-sensei** | 1.1 | Cream #F1E3C4, short fur ticks around the edge | Small dark brown ears #3E2A23, dark brown paws, tan 4-point star scar on forehead #C9A46A | White | Calm half-lidded eyes. Carries a sword and wears a cape when not in island outfit. Plays a small ukulele at the bonfire. |
+| **Momonga** | 1.0 | White, fluffy cheek tufts | Round ears with pale blue insides, small blue nose dot | Lavender #D4CEF4 / #E9E5FB | Huge fluffy pale-blue tail #BDE7EA behind. Sly, cute-acting. |
+| **Kurimanju** | 1.0 | Peach #F6D8B8 | Brown chestnut cap #7A4B2E covering top of head, tiny round ears | Pale green #CDEBB0 | Holds a drink, relaxed. |
+| **Shisa** | 1.0 | Cream #F7EDCB | Cat-like ears, orange flame-shaped mane on both sides #F2A65A, thick orange brows | Peach #F6B99A | Cheerful. |
+| **Furuhonya** (crab) | 1.0 | Soft pink #F6CFCF | Coral crab claws on top of head #F28B8B, two tiny antennae, pink cap | White with pale blue | Present at the beach at night. |
+| **Islanders** (incl. Hitoha, Futaba) | 1.1 | Grey-mauve #988584 (sampled from the film) | Leaf sprout on top of head (same grey, dark vein lines). No eyes, brows or mouth: only cheek marks, four bold hatch strokes a side | Grey crown of the same flowers in daily scenes | Shaped like Chiikawa: a round head on a fringed grass skirt of the same grey, stub arms at the waist. About 2.5 head radii tall, like the official plush. **Hitoha has one leaf, Futaba has two.** Generic islanders vary: some have rabbit-like ears, cat ears, round ears or a small spike instead of leaves. |
+| **Small mermaids** | 0.6 | White round head #FFFFFF | Rust-red cap patch on top #C8462E with two tiny black antennae; startled "O" mouth; small dot eyes | None | White fin-hands with three lines, pink waist band #F5B3BE, rust scaled tail #C2553E with a curled fin. There are at least two; they ride on the Siren's head. |
+| **Siren** | ~2.5 | White #FFFFFF | Black hair cap with a widow's peak down the forehead #141214; two black fluffy bun-ears with red fan inserts #C8361F; whiskers; big round eyes, red irises when angry | None | White body, broad white fin-hands, pink waist band, coral scaled fish tail #C8584A. Looks cute when calm, menacing when angry: red eyes, open toothy mouth. |
+| **Big mustached man** | ~2.0 | Peach/orange, human-like large body | Mustache, lightning-bolt scar, small topknot | None | Wears a dark loincloth printed 味自慢 ("proud of our flavour"). Sits at the night feast toasting. Very likely the island's food-shop owner (島二郎); I'll confirm before naming him in game. |
+
+### Faces (all cute characters)
+
+- Eyes: vertical black ovals with one white highlight. Half-lidded or
+  arc-closed when happy or sleepy.
+- Cheeks: pink oval blush #F4A6A6 with three or four short dark hatch
+  lines. Islanders have the hatch lines without the pink.
+- Mouth: a tiny "ω" cat mouth, or a small open mouth with pink tongue.
+- These live on a face texture atlas, swapped per expression.
+
+## 4. The island
+
+### From above (`mermaid island 1`)
+
+- **Shape:** a rounded, slightly wide island, sandy ring all around.
+- **Karst pillars:** six or seven tall pale grey-white limestone towers
+  #C9D6D9 with green tufts on top, clustered across the north and middle.
+  These are the island's signature silhouette.
+- **Interior:** dense rounded tree canopy. A turquoise pool with a waterfall
+  sits between the pillars near the centre.
+- **South coast:** the main beach, a small village with colourful stalls
+  right behind it, and a long wooden pier pointing out to sea. Farm plots
+  to the west of the village.
+- **Sea:** brilliant turquoise near the island #2FD1B8, deepening to blue.
+  Small rock spires stick out of the water around the edges, especially to
+  the east and west.
+
+### Village (`islanders 1`, `siren 2`, `chiikawa 3`, `chiikawa 7`)
+
+- Huts raised on short wooden posts, plank walls, **large mushroom-shaped
+  thatched roofs** in straw brown. Some walls have colourful scale or
+  diamond patterns in teal, orange and red.
+- Round beehive thatched huts with a topknot also appear.
+- Sandy packed-earth paths with scattered confetti during the festival.
+- Festival stalls along the beach front: coloured signboards (pink crêpe
+  stall, purple, orange), triangle bunting strung between palms.
+- A tall wooden welcome post reading 島へようこそ ("Welcome to the island").
+- Potted plants, baskets of fruit, logs as benches.
+
+### Pier (`chiikawa 8`)
+
+Rough wide planks, round log posts at the edges, sitting right on vivid
+green-turquoise water you can see sparkles in. Confetti welcome on arrival.
+
+### Jungle (`chiikawa 2`, `11`, `13`, `15`)
+
+- Tall palms with striped trunks, ferns, cycads, big monstera leaves.
+- Flower bushes everywhere: purple violets, white jasmine, yellow
+  hibiscus, red flowers, birds-of-paradise.
+- Soft clover ground cover and bright green grass clearings.
+- Blue butterflies; bubbles float in one clearing.
+- Golden backlight through the canopy in the late afternoon.
+
+### Beaches at night (`beach 1`, `2`, `3`, `fire by the beach`)
+
+- Navy sky full of stars, a bright full moon with a long reflection streak
+  on calm water.
+- Dark rocky headland at the east end of the beach, palms leaning over the
+  sand. **The forbidden cave entrance is at the foot of this headland**,
+  with a No Entry sign in front.
+- Starfish scattered on the sand. Bonfire of crossed logs with a big soft
+  cartoon flame casting an orange pool of light.
+
+### Night feast (`chiikawa 10`)
+
+Dozens of islanders seated in rows on the sand in warm firelight, plates of
+food and cups on the ground, everyone toasting. This is the festival.
+
+### The forbidden cave (`cave 1`, `cave 2`, `cave 3`, `chiikawa 17`)
+
+- Reached by rowing a small wooden boat in from the beach.
+- Dark blue rock walls with cyan rim light on the edges.
+- **The heart of the cave:** a round opening in the ceiling, ringed by
+  hanging vines, with the full moon directly above. A wide shaft of
+  moonlight falls onto a still, glowing pond. Sparkling particles drift in
+  the beam and low mist hugs the water.
+- A flat stone ledge beside the water, lit by a small fire, where the Siren
+  and the mermaids sit.
+
+### Underwater (`underwater 1`)
+
+Near-black navy, a few streaks of pale blue light, bubbles. The Siren's red
+eyes in the dark. You described decorations and fish, and that it is the
+scariest place on the island. No reference for the decorations.
+
+### Arrival ferry (`boat`)
+
+A large white duck- or goose-shaped ferry with a yellow beak. Cabin windows
+and a door in its body, an open deck on its back. Moored near the bay.
+
+## 5. Palette
+
+| Use | Day | Night |
+|---|---|---|
+| Sky | #6EC6F0 → #CFEFFF, white puffy clouds | #0F2350 → #1E3A7A, stars |
+| Sea, shallow | #2FD1B8 | #1B3C6E with moon streak #E8F1FF |
+| Sea, deep | #1AA6C9 → #0B3D7A | #050B1E |
+| Sand | #EBC48F | #3A3F66 |
+| Foliage | #3FA34D, #8FD16A, #1F6B3A | #1A2B3A |
+| Karst rock | #C9D6D9 | #3B4A66 |
+| Thatch / wood | #C9A46A / #8A5A3B | — |
+| Fire light | — | #FFB347 core #FFE58A |
+| Moon | — | #F5F1C9 |
+| Character outline | #5A3A2E | same |
+
+## 6. Gaps I still have
+
+Nothing here blocks Milestone 0. These would sharpen later milestones.
+
+- The forbidden cave's No Entry sign and the tunnel between the entrance and
+  the moonlit chamber.
+- Any underwater frame with the decorations and fish you remember.
+- A clear look at the food-shop building and its owner.
+- What sits at the top of the karst pillars and the waterfall pool, if the
+  film ever goes there.
+
+Where reference is missing, I will invent in the same style and flag it.
+
+## 7. Online reference: expressions and poses
+
+**Chiikawa Comic Studio**, https://nankachiisakutekawaiiyatsu.comic.studio/
+A fan-run comic maker. Most of its sprites are cut from the official LINE
+stickers and official illustrations, so they are Nagano's own drawings.
+I browse it in the built-in browser while building faces and actions;
+nothing is downloaded.
+
+| Character | Sprites, approx. |
+|---|---|
+| Chiikawa | 135 |
+| Hachiware | 120 |
+| Usagi | 75 |
+| Rakko | 12 |
+| Shisa | 6 |
+
+Momonga, Kani (Furuhonya) and Kurimanju also have sets, not counted.
+
+- **Use it for** the face-part library: eye shapes, brows, mouths, tears,
+  sweat drops and symbols. Also for action poses such as bowing, cheering,
+  lying in bed, peeking round a corner, trembling, rolling and Usagi's
+  upside-down ヤハ, and for how ears and bodies squash in motion.
+- **Not covered:** the Siren, the mermaids, the islanders and the food-shop
+  owner, even with the site's spoiler switch on. The plush photos and film
+  frames stay the reference for those, and for all 3D proportions.
+- Sprites are small thumbnails: good for shapes, not fine detail.
+- A few sprites may be fan edits. When one looks off-model, trust the film
+  frames.
+- Reference only. No image from the site goes into the game or the repo.
