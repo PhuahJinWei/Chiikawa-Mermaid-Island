@@ -30,20 +30,23 @@ its room and up the stage. Not yet checked on a real phone.
   its depth.
 - A No Entry sign stands at the east end of the main beach, before the
   cave. Its words, 立入禁止, come from the game's Japanese text.
-- The bay is the festival street, as in the film's arrival: the long
+- The bay is the festival, laid out as in the film's arrival: the long
   wooden pier (rough planks on log posts, over turquoise water, the white
-  duck ferry moored beside it, bobbing) leads straight onto a sandy plaza
-  lined with stalls, then through the welcome arch, a wooden board reading
-  島へようこそ!! wreathed in big yellow flowers with ウェルカム・トゥ・シマ
-  on the banner below, into a street of more stalls rising gently inland.
-  Sixteen stalls (ケバブ, 冷しパイン, 大判焼き, じゃがバター, たこ焼き,
-  りんごアメ, 浜焼, やきそば, クレープ, お好み焼き, ジュース, チョコバナナ,
-  アイスクリーム, パフェ, ジャンボ串焼, かき氷) under signboards, long
-  bunting with paper lanterns strung across, white banners reading
-  いらっしゃいませ!! and たのしんでね, poles of pink lanterns, palms behind
-  the stalls and confetti all over the ground. Built in Blender by
-  `art/blender/build_village.py` (the arch and banners by
-  `art/blender/houses.py`).
+  duck ferry moored beside it, bobbing) reaches the middle of the beach.
+  Behind the beach, two long rows of stalls stand side by side facing the
+  bay, following its curve, either side of an opening in line with the
+  pier. The welcome arch spans the opening: a wooden board reading
+  島へようこそ!! wreathed in big yellow flowers, with ウェルカム・トゥ・シマ
+  on the banner below. Through it, a street runs inland, rising gently,
+  with stalls down both sides facing in and two at its far end facing back
+  toward the arch, either side of the path on to the village. Twenty-six
+  stalls in all under signboards (じゃがバター, たこ焼き, いか焼き, りんごアメ,
+  ケバブ, 冷しパイン, わたあめ, クレープ, やきそば and more), long bunting
+  with paper lanterns strung along the rows and across the street, white
+  banners reading いらっしゃいませ!! and たのしんでね, poles of pink lanterns,
+  palms behind the stalls and confetti over the beach and the street.
+  Built in Blender by `art/blender/build_village.py` (the arch and banners
+  by `art/blender/houses.py`).
 - The village is a clearing deep in the jungle, on the path from the
   festival street to the waterfall. Eight big huts stand round it, each
   one you can walk into, after the film's village frames: log stairs up to

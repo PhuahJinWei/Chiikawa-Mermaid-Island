@@ -458,10 +458,10 @@ export class Stage {
   /** Paper confetti from the welcome festival, scattered over its plaza and street. */
   private makeConfetti(): THREE.InstancedMesh {
     const count = 900;
-    // The plaza at the head of the pier, and the street through the arch: x, z, half sizes.
+    // The beach in front of the stalls, and the street through the arch: x, z, half sizes.
     const areas: [number, number, number, number][] = [
-      [0, -7, 11, 9],
-      [0, -31, 6.5, 14],
+      [0, -5, 26, 7],
+      [0, -30, 6.2, 13],
     ];
     const geo = new THREE.PlaneGeometry(0.07, 0.05).rotateX(-Math.PI / 2);
     this.confettiMaterial = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });

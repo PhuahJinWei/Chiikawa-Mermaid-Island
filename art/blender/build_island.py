@@ -54,10 +54,11 @@ COAST = {"radii": (140.0, 112.5), "wobble": [(3, 0.045, 0.6), (5, 0.03, 2.1), (7
 # Features, in game coordinates. Directions are angles of (x, z) from the island's centre.
 # The coast swells out round the rocky headland at the east end of the main beach.
 HEADLAND = {"centre": (122.5, -19.5), "bulge": 19.0}
-# The festival street at the bay, after the film: a sandy plaza at the head of the pier lined with
-# stalls, then, through the welcome arch, a street of stalls running inland, rising gently.
-PLAZA = {"centre": (0.0, -7.0), "half": (14.0, 9.5), "feather": 4.0}
-STREET = {"centre": (0.0, -31.5), "half": (8.5, 15.5), "feather": 4.0}
+# The festival at the bay, after the film: the beach in front of two long rows of stalls along its
+# back, facing the bay, and through the welcome arch in the opening between them, a street of
+# stalls running inland, rising gently.
+PLAZA = {"centre": (0.0, -5.5), "half": (31.0, 8.5), "feather": 3.0}
+STREET = {"centre": (0.0, -31.0), "half": (8.5, 15.0), "feather": 4.0}
 # The village: a round clearing deep in the jungle, its huts round the watchtower stage.
 VILLAGE = {"centre": (0.0, -84.0), "radius": 22.0, "feather": 6.0}
 FIELDS = {"centre": (-72.5, -39.5), "half": (27.5, 17.5), "feather": 10.0, "height": 0.85}

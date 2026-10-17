@@ -325,7 +325,7 @@ across (225 from north to south), with a sandy ring all the way around.
 | Zone | What happens there | Swim / dive |
 |---|---|---|
 | **Pier and ferry** | Long wooden pier on vivid turquoise water, leading straight onto the festival street. The white duck-shaped ferry is moored at the bay beside it. Confetti welcome for new guests. | Jump off the end. |
-| **Festival street** | Behind the main beach, from the pier: a sandy plaza lined with stalls, the welcome arch (島へようこそ!! in yellow flowers), then a street of stalls running inland under banners, bunting and lanterns. Usagi runs about. | Dry. |
+| **Festival** | Behind the main beach: two long rows of stalls facing the bay either side of the pier, the welcome arch (島へようこそ!! in yellow flowers) in the opening between them, and through it a street of stalls running inland under banners, bunting and lanterns. Usagi runs about. | Dry. |
 | **Main beach** | Wide sand either side of the pier. Palms, starfish on the sand. | Wade in gradually. |
 | **Village** | A clearing deep in the jungle on the path to the waterfall: big stilt huts you can walk into, with mushroom-shaped thatched roofs and patterned walls, a few plank and round beehive huts, round the tall wooden watchtower stage where announcements are made, torches in front of it. Potted plants, fruit baskets, log benches. Most conversations happen here. | Dry. |
 | **Fields** | Farm plots on the west side of the village. Islanders tending crops. | Dry. |
