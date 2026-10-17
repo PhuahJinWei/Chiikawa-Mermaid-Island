@@ -47,7 +47,17 @@ real phone.
 - The bay is the festival, laid out as in the film's arrival: a short
   wooden pier (rough planks on log posts, over turquoise water) reaches out
   from the middle of the beach, and the white duck ferry lies at anchor out
-  in the bay, bobbing, as in the film's aerial shot.
+  in the bay, bobbing, as in the film's aerial shot. The ferry is built
+  after the film's and sketches of it from the front, both sides and above:
+  simple and round all over, no hard edges, a bell in section and an egg
+  from above, widest at the cabin's front wall. A tall, bendy neck rises
+  from its bow into a round head with dot eyes and a long, flat yellow
+  bill; behind it an open-air deck with a railing round its open sides;
+  behind that the cabin, its rounded front wall inked round (a door at
+  the bottom, a small window high up) and its round roof curving down to
+  a little flat tail. Paned windows of
+  pale blue glass lie on the cabin's curved sides and light up at night;
+  a door in the hull's left side.
   Behind the beach, two long rows of stalls stand side by side facing the
   bay, awning touching awning, following its curve, either side of an
   opening in line with the pier. The welcome arch spans the opening: a

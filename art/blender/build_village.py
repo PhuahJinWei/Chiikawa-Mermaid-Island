@@ -26,6 +26,7 @@ import bmesh
 import bpy
 import numpy as np
 from mathutils import Matrix, Vector
+from mathutils.bvhtree import BVHTree
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import build_props as P  # noqa: E402
@@ -62,11 +63,11 @@ C = {k: L.hex_color(v) for k, v in {
     "purple": "#B68FD6",
     "blue": "#7EC3EA",
     "ink": "#66432F",
-    "duck": "#FBFAF6",
-    "duckShade": "#DCE6EE",
-    "beak": "#F2C14E",
-    "glass": "#35507A",
-    "deck": "#E6E2D8",
+    "duck": "#F6F9FC",
+    "duckShade": "#CBD9E8",
+    "beakLight": "#F8DA6A",
+    "beakDark": "#E9A93A",
+    "glass": "#8DB3DD",
     "lantern": "#F2734E",
     "basket": "#C9A06A",
     "basketDark": "#A07A48",
@@ -307,74 +308,279 @@ def build_pier(collection):
 
 
 # ---------------------------------------------------------------------------- ferry
-def build_ferry(collection):
-    """The white duck ferry the guests arrive on: a round body with cabin windows and a door, a
-    long neck, a yellow beak, an open deck on its back with a railing. Its origin is at the
-    waterline; it faces -Y."""
-    blobs = [L.ellipsoid_bm(V(0.0, 0.8, 1.2), (3.0, 7.0, 2.8), u=28, v=16),
-             L.ellipsoid_bm(V(0.0, 2.6, 2.3), (2.75, 4.2, 2.3), u=24, v=14),
-             L.ellipsoid_bm(V(0.0, -4.3, 1.7), (2.7, 3.2, 2.6), u=24, v=14),
-             L.ellipsoid_bm(V(0.0, 8.0, 2.4), (1.0, 1.6, 0.9), u=14, v=9)]
-    # The neck: a smooth curve of overlapping balls from the chest up to the head.
-    p0, p1, p2 = V(0.0, -4.7, 3.0), V(0.0, -6.4, 5.4), V(0.0, -6.75, 8.7)
-    steps = 14
-    for i in range(steps + 1):
-        t = i / steps
-        c = p0 * (1 - t) ** 2 + p1 * (2 * (1 - t) * t) + p2 * t * t
-        r = 1.6 + (1.12 - 1.6) * t
-        blobs.append(L.ellipsoid_bm(c, (r, r, r), u=16, v=10))
-    blobs.append(L.ellipsoid_bm(V(0.0, -6.85, 9.25), (1.62, 1.62, 1.6), u=18, v=12))
-    body = L.fuse(blobs, voxel=0.14, smooth_iterations=8, smooth_lambda=0.8, target_tris=3200)
-    body.normal_update()
-    cols = [C["duckShade"] if v.co.z < 0.35 else C["duck"] for v in body.verts]
-    pieces = [(body, cols)]
-    pieces.append((L.ellipsoid_bm(V(0.0, -8.55, 9.05), (0.78, 1.25, 0.44), u=14, v=9), C["beak"]))
-    for s in (-1.0, 1.0):
-        pieces.append((L.ellipsoid_bm(V(s * 1.42, -7.45, 9.85), (0.1, 0.18, 0.2), u=8, v=6), C["ink"]))
+# The duck ferry, after the film's (`boat`) and the sketches of it: front, both sides and top.
+# Heights are the side sketches'; the top sketch gives its outline from above, and the front
+# sketches its cross-section.
+#
+# The body is lofted through cross-sections along the boat: (y, half width, bottom, top, deck),
+# each a bell from `bottom` to `top`, sliced flat at `deck` where the open-air deck is. From above
+# it is an egg, widest at the cabin's front wall, its narrow end round the head at the bow. The
+# bow rises under the neck; the deck runs from the neck to the cabin's front wall; behind it the
+# cabin's round roof curves down to the stern.
+FERRY_BODY = [
+    (-6.75, 0.4, 1.9, 3.0, 99.0), (-6.55, 1.4, 1.3, 3.5, 99.0), (-6.2, 2.2, 0.75, 3.9, 99.0),
+    (-5.6, 2.8, 0.25, 4.1, 99.0), (-4.8, 3.34, -0.3, 4.2, 99.0), (-4.0, 3.7, -0.55, 4.25, 99.0),
+    (-3.4, 3.9, -0.6, 8.25, 4.28), (-2.0, 4.23, -0.6, 8.25, 4.28), (-0.5, 4.58, -0.6, 8.25, 4.28),
+    (0.8, 4.73, -0.6, 8.25, 4.28), (1.5, 4.78, -0.6, 8.25, 4.28),
+    (1.62, 4.79, -0.6, 8.25, 99.0), (2.5, 4.79, -0.6, 8.2, 99.0), (3.4, 4.74, -0.6, 8.14, 99.0),
+    (4.5, 4.57, -0.6, 7.99, 99.0), (5.6, 4.18, -0.6, 7.6, 99.0), (6.6, 3.62, -0.55, 7.07, 99.0),
+    (7.3, 2.88, -0.4, 6.5, 99.0), (7.8, 2.0, -0.1, 5.7, 99.0), (8.1, 1.35, 0.25, 4.6, 99.0),
+    (8.3, 0.8, 0.55, 3.4, 99.0), (8.42, 0.3, 0.8, 2.4, 99.0),
+]
+FERRY_DECK = {"floor": 4.28, "front": -3.4, "wall": 1.55, "rail": 0.7}
+# The neck and head, ring by ring up the side sketches' outline: (height, middle along the boat,
+# half width, half length). Broad where it rises from the bow, its back curving in to a slim waist,
+# then out into the head, round from above as the top sketch draws it.
+FERRY_NECK = [
+    (1.0, -4.6, 1.85, 1.9), (2.0, -4.6, 1.85, 1.9), (3.1, -4.63, 1.8, 1.8), (3.95, -4.55, 1.7, 1.7),
+    (4.8, -4.55, 1.55, 1.55), (5.25, -4.52, 1.5, 1.52), (5.7, -4.64, 1.32, 1.32), (6.0, -4.72, 1.22, 1.21),
+    (6.5, -4.74, 1.18, 1.16), (7.2, -4.69, 1.2, 1.2), (7.9, -4.63, 1.3, 1.31), (8.45, -4.66, 1.45, 1.45),
+    (8.8, -4.68, 1.6, 1.57), (9.1, -4.73, 1.71, 1.71), (9.55, -4.84, 1.79, 1.84), (10.15, -4.9, 1.8, 1.86),
+    (10.8, -4.82, 1.6, 1.61), (11.25, -4.77, 1.13, 1.13), (11.45, -4.6, 0.65, 0.65),
+]
+FERRY_TOP = 11.52   # the top of the head
 
-    def side_point(y, z):
-        """A point on the body's side (x > 0) at y, z, and the outward normal there."""
-        a, b, c, cy, cz = 3.0, 7.0, 2.8, 0.8, 1.2
-        k = 1.0 - ((y - cy) / b) ** 2 - ((z - cz) / c) ** 2
-        x = a * math.sqrt(max(k, 0.05))
-        n = Vector((x / a ** 2, (y - cy) / b ** 2, (z - cz) / c ** 2)).normalized()
-        return Vector((x, y, z)), n
+
+def blend(a, b, t):
+    """Colour a blended toward b by t."""
+    return tuple(a[i] + (b[i] - a[i]) * t for i in range(3))
+
+
+def bell(h):
+    """The ferry's cross-section after the front sketch: its half width at height fraction h (0 at
+    the bottom, 1 at the top), round over the top, widest low down, rounded under the bottom."""
+    h = min(max(h, 0.0), 1.0)
+    under = min(h / 0.14, 1.0)
+    return math.sqrt(max(1.0 - h ** 3, 0.0)) * math.sqrt(max(1.0 - (1.0 - under) ** 2, 0.0))
+
+
+def section_ring(w, bottom, top, deck, count):
+    """`count` points (x, z) round a cross-section, at even angles about a point inside it, starting
+    at the bottom and going up the +x side: the bell, sliced flat at `deck` if that is below its top."""
+    lid = min(top, deck)
+    half = [(w * bell((z - bottom) / (top - bottom)), z) for z in np.linspace(bottom, lid, 48)]
+    half[0] = (0.0, bottom)
+    if deck < top:
+        half.append((0.0, lid))
+    else:
+        half[-1] = (0.0, lid)
+    mid = bottom + 0.45 * (lid - bottom)
+    angles = [math.atan2(x, mid - z) for x, z in half]   # 0 straight down, pi straight up
+    ring = []
+    for k in range(count):
+        a = 2.0 * math.pi * k / count
+        side = 1.0 if a <= math.pi else -1.0
+        a = a if a <= math.pi else 2.0 * math.pi - a
+        x = float(np.interp(a, angles, [p[0] for p in half]))
+        z = float(np.interp(a, angles, [p[1] for p in half]))
+        ring.append((side * x, z))
+    return ring
+
+
+def loft_bm(rings):
+    """A closed surface through rings of points, each ring's first point matching the next's;
+    its ends closed round their middles."""
+    bm = bmesh.new()
+    verts = [[bm.verts.new(p) for p in ring] for ring in rings]
+    n = len(rings[0])
+    for a, b in zip(verts, verts[1:]):
+        for k in range(n):
+            j = (k + 1) % n
+            bm.faces.new((a[k], a[j], b[j], b[k]))
+    for ring in (verts[0], verts[-1]):
+        middle = bm.verts.new(sum((v.co for v in ring), Vector()) / n)
+        for k in range(n):
+            bm.faces.new((ring[k], ring[(k + 1) % n], middle))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    return bm
+
+
+def decal_bm(cast, u, v, lift, thickness, steps=(4, 4)):
+    """A thin plate laid on a curved surface, following it like paint: `cast(a, b)` gives the
+    surface's point and normal under each point of a grid over a in u = (u0, u1) and b in v; the
+    plate stands `lift` off the surface and is `thickness` thick. Its face keeps its own corners,
+    so it shades as smoothly as the surface under it."""
+    su, sv = steps
+    bm = bmesh.new()
+    lo, hi = [], []
+    for j in range(sv + 1):
+        lo.append([])
+        hi.append([])
+        for i in range(su + 1):
+            p, n = cast(u[0] + (u[1] - u[0]) * i / su, v[0] + (v[1] - v[0]) * j / sv)
+            lo[j].append(bm.verts.new(p + n * lift))
+            hi[j].append(bm.verts.new(p + n * (lift + thickness)))
+    for j in range(sv):
+        for i in range(su):
+            bm.faces.new((hi[j][i], hi[j][i + 1], hi[j + 1][i + 1], hi[j + 1][i]))
+            bm.faces.new((lo[j][i], lo[j + 1][i], lo[j + 1][i + 1], lo[j][i + 1]))
+    rim = ([(0, i) for i in range(su)] + [(j, su) for j in range(sv)] +
+           [(sv, i) for i in range(su, 0, -1)] + [(j, 0) for j in range(sv, 0, -1)])
+    for (ja, ia), (jb, ib) in zip(rim, rim[1:] + rim[:1]):
+        bm.faces.new((lo[ja][ia], lo[jb][ib], hi[jb][ib], hi[ja][ia]))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    bm.normal_update()
+    bmesh.ops.split_edges(bm, edges=[e for e in bm.edges if e.calc_face_angle(0.0) > 1.0])
+    return bm
+
+
+def loop_tube_bm(points, radius, normal, segments=6):
+    """A round tube through a closed loop of points lying across `normal`: a line painted round."""
+    bm = bmesh.new()
+    count = len(points)
+    rings = []
+    for i, p in enumerate(points):
+        t = (points[(i + 1) % count] - points[i - 1]).normalized()
+        side = t.cross(normal).normalized()
+        up = side.cross(t)
+        rings.append([bm.verts.new(p + (side * math.cos(a) + up * math.sin(a)) * radius)
+                      for a in np.linspace(0.0, 2.0 * math.pi, segments, endpoint=False)])
+    for i in range(count):
+        a, b = rings[i], rings[(i + 1) % count]
+        for k in range(segments):
+            bm.faces.new((a[k], a[(k + 1) % segments], b[(k + 1) % segments], b[k]))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    return bm
+
+
+def build_ferry(collection):
+    """The white duck ferry the guests arrive on, after the film's and the sketches of it: one round
+    body, a bell in section and an egg from above, with a tall bendy neck and round head at its
+    front, a long flat yellow bill and dot eyes; an open-air deck behind the neck with a railing
+    round its open sides; the cabin behind, its rounded front wall (a door and a small window)
+    facing the deck and its round roof curving down to a little flat tail; paned windows along the
+    cabin's sides, and a door in the hull's left side under the deck. No hard edges anywhere. Its
+    origin is at the waterline; it faces -Y (so its left side is +x)."""
+    rings = []
+    for y, w, bottom, top, deck in FERRY_BODY:
+        rings.append([(x, y, z) for x, z in section_ring(w, bottom, top, deck, 64)])
+    body = loft_bm(rings)
+    neck_rings = []
+    for z, y, rx, ry in FERRY_NECK:
+        neck_rings.append([(rx * math.cos(t), y + ry * math.sin(t), z)
+                           for t in np.linspace(0.0, 2.0 * math.pi, 40, endpoint=False)])
+    neck = loft_bm(neck_rings + [[(0.0, -4.6, FERRY_TOP)] * 40])
+    deck = FERRY_DECK
+    floor = deck["floor"]
+    shapes = [body, neck,
+              L.ellipsoid_bm(V(0.0, -2.9, floor), (1.3, 1.0, 0.95), u=18, v=10),   # the neck flaring into the deck
+              L.ellipsoid_bm(V(0.0, 8.4, 1.6), (0.9, 0.6, 0.32), u=14, v=8)]       # the flat little tail
+    duck = L.fuse(shapes, voxel=0.12, smooth_iterations=8, smooth_lambda=0.8, target_tris=5000)
+    duck.normal_update()
+
+    def colour(v):
+        if v.normal.z > 0.9 and abs(v.co.z - floor) < 0.08 and deck["front"] < v.co.y < deck["wall"]:
+            return C["plankLight"]     # the deck
+        # White, with the sea's blue in it toward the water, as in the film.
+        return blend(C["duck"], C["duckShade"], L.smoothstep(2.0, -0.3, v.co.z))
+
+    pieces = [(duck, [colour(v) for v in duck.verts])]
+    tree = BVHTree.FromBMesh(duck)
+
+    def surface(origin, direction):
+        """Where a ray meets the body, and the surface's normal there."""
+        hit, normal, _, _ = tree.ray_cast(origin, direction)
+        return hit, normal
+
+    def facing(n):
+        """A turn taking the -y axis to point along n: for flat things laid on the surface."""
+        return Vector((0.0, -1.0, 0.0)).rotation_difference(n).to_matrix()
+
+    # The long, flat bill, yellow on top and deeper orange underneath, and a dot eye either side.
+    front, _ = surface(V(0.0, -20.0, 9.69), V(0.0, 1.0, 0.0))
+    bill = L.ellipsoid_bm(front + V(0.0, -0.77, 0.0), (0.8, 1.02, 0.37), u=20, v=12)
+    bill.normal_update()
+    pieces.append((bill, [blend(C["beakDark"], C["beakLight"], L.smoothstep(-0.5, 0.6, v.normal.z))
+                          for v in bill.verts]))
+    for s in (-1.0, 1.0):
+        eye, n = surface(V(s * 1.13, -20.0, 10.32), V(0.0, 1.0, 0.0))
+        pieces.append((L.ellipsoid_bm(eye + n * 0.03, (0.13, 0.07, 0.15), rot=facing(n), u=8, v=6), C["ink"]))
 
     glow = []
-    for s in (-1.0, 1.0):
-        flip = Vector((s, 1.0, 1.0))
-        for y in (0.9, 2.6, 4.3):
-            p, n = side_point(y, 2.35)
-            p, n = p * flip, n * flip
-            p = p + n * 0.03
-            pieces.append((flat_panel_bm(p - n * 0.01, n, UP, 1.35, 0.82, 0.05), C["ink"]))
-            glow.append((flat_panel_bm(p + n * 0.02, n, UP, 1.2, 0.68, 0.03), C["glass"]))
-            for k in (-1, 0, 1):
-                side = UP.cross(n).normalized()
-                pieces.append((flat_panel_bm(p + n * 0.04 + side * (k * 0.3), n, UP, 0.05, 0.68, 0.02), C["white"]))
-        p, n = side_point(-1.2, 1.0)
-        p, n = p * flip, n * flip
-        pieces.append((flat_panel_bm(p + n * 0.02, n, UP, 0.82, 1.32, 0.04), C["ink"]))
-        pieces.append((flat_panel_bm(p + n * 0.045, n, UP, 0.7, 1.2, 0.03), C["white"]))
-        side = UP.cross(n).normalized()
-        pieces.append((L.ellipsoid_bm(p + n * 0.09 + side * (0.22 * s), (0.05, 0.05, 0.05), u=6, v=4), C["ink"]))
 
-    # The open deck on its back: a low deckhouse rising out of the body, ringed by a railing.
-    deck = bmesh.new()
-    bmesh.ops.create_cone(deck, cap_ends=True, cap_tris=False, segments=24, radius1=1.0, radius2=1.0, depth=1.0)
-    L.transformed(deck, Matrix.Translation(V(0.0, 3.3, 3.55)) @ L.scale4(1.7, 2.6, 1.0))
-    pieces.append((deck, [C["deck"] if v.co.z > 4.0 else C["duck"] for v in deck.verts]))
+    # Windows and doors lie on the body like paint, following its curve, square on from the side
+    # (or, on the cabin's front wall, from the front) as the sketches draw them.
+    def frame(cast, u, v, steps=(4, 4)):
+        """The ink round a window or door over the patch u, v that `cast` lays on the body."""
+        pieces.append((decal_bm(cast, (u[0] - 0.07, u[1] + 0.07), (v[0] - 0.07, v[1] + 0.07), 0.02, 0.03, steps),
+                       C["ink"]))
+
+    def inside(cast, u, v, glass):
+        """The glass that lights at night, or the white door, inside a frame."""
+        (glow if glass else pieces).append((decal_bm(cast, u, v, 0.05, 0.02), C["glass"] if glass else C["white"]))
+
+    for s in (-1.0, 1.0):
+        def side(y, z):
+            return surface(V(s * 20.0, y, z), V(-s, 0.0, 0.0))
+
+        def window(ya, yb, za, zb, panes):
+            """Panes side by side in one frame, from ya to yb along the boat and za to zb up it."""
+            frame(side, (ya + 0.05, yb - 0.05), (za + 0.05, zb - 0.05), (2 * panes, 4))
+            w = (yb - ya) / panes
+            for k in range(panes):
+                inside(side, (ya + w * k + 0.05, ya + w * (k + 1) - 0.05), (za + 0.05, zb - 0.05), True)
+
+        window(2.96, 6.04, 4.78, 6.32, 4)
+        window(2.25, 6.38, 1.29, 3.68, 5)
+        if s > 0:
+            # The door in the hull's left side under the deck, with its knob.
+            u, v = (-0.1, 1.21), (0.76, 2.44)
+            frame(side, u, v)
+            inside(side, u, v, False)
+            p, n = side(0.26, 1.5)
+            pieces.append((L.ellipsoid_bm(p + n * 0.12, (0.08, 0.08, 0.08), u=6, v=4), C["ink"]))
+        # The railing round the deck's open side: across its front from the neck to the side, then
+        # along the side to the cabin. Posts stand on the deck (or the neck's flare) under a level rail.
+        edge = []
+        for y in np.linspace(deck["front"] + 0.8, deck["wall"] - 0.1, 12):
+            p, _ = surface(V(s * 20.0, y, floor - 0.25), V(-s, 0.0, 0.0))
+            edge.append(V(p.x - s * 0.3, y, 0.0))
+        path = [V(s * 1.75, deck["front"] + 0.1, 0.0)] + edge
+        spaced = [path[0]]
+        for a, b in zip(path, path[1:]):
+            steps = max(1, int((b - a).length / 0.36))
+            spaced += [a.lerp(b, (i + 1) / steps) for i in range(steps)]
+        top = floor + deck["rail"]
+        rail = []
+        for q in spaced:
+            ground, _ = surface(V(q.x, q.y, 20.0), V(0.0, 0.0, -1.0))
+            foot = V(q.x, q.y, ground.z if ground else floor)
+            if foot.z < top - 0.06:
+                pieces.append((cylinder_bm(foot, V(q.x, q.y, top), 0.04, 6), C["white"]))
+            rail.append(V(q.x, q.y, top))
+        for a, b in zip(rail, rail[1:]):
+            pieces.append((cylinder_bm(a, b, 0.05, 6), C["white"]))
+    # The cabin's front wall inked round its arch, as the front sketches draw it: up from the deck
+    # on either side a hand's breadth in from its rounded edge, over the top, and along its foot.
+    def wall(x, z):
+        return surface(V(x, 0.0, z), V(0.0, 1.0, 0.0))
+
+    _, w, bottom, top, _ = next(s for s in FERRY_BODY if s[0] > deck["wall"])    # the front wall's section
+    edge = [(w * bell((z - bottom) / (top - bottom)), z)
+            for z in (top - (top - floor - 0.08) * (1.0 - t) ** 2 for t in np.linspace(0.0, 1.0, 24))]
+    edge = [(-x, z) for x, z in edge] + [(x, z) for x, z in reversed(edge[:-1])]
+    arch = []
+    for i, (x, z) in enumerate(edge):
+        (xa, za), (xb, zb) = edge[max(i - 1, 0)], edge[min(i + 1, len(edge) - 1)]
+        n = Vector((zb - za, xa - xb)).normalized()      # along the edge, turned a quarter inward
+        arch.append((x + n.x * 0.32, max(z + n.y * 0.32, floor + 0.08)))
+    foot = [(x, floor + 0.08) for x in np.linspace(arch[-1][0], arch[0][0], 12)[1:-1]]
     ring = []
-    for k in range(20):
-        a = 2.0 * math.pi * k / 20
-        p = V(1.55 * math.sin(a), 3.3 - 2.45 * math.cos(a), 4.05)
-        ring.append(p)
-        pieces.append((cylinder_bm(p, p + V(0.0, 0.0, 0.7), 0.04, 6), C["white"]))
-    for a, b in zip(ring, ring[1:] + ring[:1]):
-        pieces.append((cylinder_bm(a + V(0.0, 0.0, 0.7), b + V(0.0, 0.0, 0.7), 0.045, 6), C["white"]))
-    duck = join("ferry", pieces, collection)
+    for x, z in arch + foot:
+        hit, n = wall(x, z)
+        if hit is not None and hit.y > 1.0:
+            ring.append(hit + n * 0.03)
+    pieces.append((loop_tube_bm(ring, 0.06, V(0.0, -1.0, 0.0)), C["ink"]))
+    # On the front wall, the door at the bottom in the middle, and a small window high up to the
+    # right as you face it, just showing past the neck from in front.
+    for u, v, glass in (((-0.6, 0.6), (floor + 0.12, floor + 1.57), False), ((0.74, 1.42), (6.3, 7.12), True)):
+        frame(wall, u, v)
+        inside(wall, u, v, glass)
+    p, n = wall(-0.3, floor + 0.8)
+    pieces.append((L.ellipsoid_bm(p + n * 0.12, (0.07, 0.07, 0.07), u=6, v=4), C["ink"]))
+    body_obj = join("ferry", pieces, collection)
     lights = join("ferry_glow", glow, collection)
-    return [duck, lights], {"height": 11.0}
+    return [body_obj, lights], {"height": FERRY_TOP}
 
 
 # ---------------------------------------------------------------------------- festival

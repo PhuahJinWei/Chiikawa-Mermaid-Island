@@ -176,8 +176,26 @@ scariest place on the island. No reference for the decorations.
 
 ### Arrival ferry (`boat`)
 
-A large white duck- or goose-shaped ferry with a yellow beak. Cabin windows
-and a door in its body, an open deck on its back. Moored near the bay.
+A big white duck ferry, outlined like everything else, after the film and
+the user's sketches of it from the front, both sides and above (the side
+sketches set its heights and the neck's line, the top one its outline
+from above, the front ones its cross-section). Simple and round all over,
+with no hard edges and nothing boxy: the body is a bell in section,
+widest low down and rounded underneath, and an egg from above, widest at
+the cabin's front wall and narrowing round the head at the bow. At its
+front a tall, bendy neck, broad where it rises from the bow, its back
+curving in to a slim waist and out into a head that is round from above,
+a small dot eye on each side and a long, flat yellow bill. Behind the
+neck an open-air deck with no roof, where the passengers sit, a railing
+across its front from the neck and along its open sides. Behind the deck
+the cabin: its rounded front wall faces the deck, inked round its arch
+and along its foot, with a door at the bottom
+in the middle and a small window high up to the right as you face it,
+just showing past the neck from in front. Its round roof curves down to a
+little flat tail at the waterline. Paned windows of pale blue glass lie
+on the cabin's curved sides like paint. A door in the hull's left side
+under the deck, none on the right. White with the sea's blue in its
+shading toward the water. At anchor out in the bay.
 
 ## 5. Palette
 
