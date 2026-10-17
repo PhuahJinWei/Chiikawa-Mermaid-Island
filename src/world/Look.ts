@@ -47,6 +47,237 @@ export const CANOPY_SHADE = new THREE.Color('#8A8E74');
 /** Toward the sun (or the moon), for painting what faces it; the stage keeps it with the hour. */
 export const sunUniform = { value: new THREE.Vector3(0, 1, 0) };
 
+/**
+ * How much of the sky's light reaches under the middle of a tree's crown: the film's jungle floor,
+ * and all that grows on it, lies in deep shade, the sun's dapples bright on it.
+ */
+const UNDER_CANOPY = 0.3;
+/** The trees' cover is kept in this many texels across the map, its crowns' heights from COVER_LOW
+ * over COVER_SPAN metres and their radii up to COVER_RADIUS. */
+const COVER_TEXELS = 512;
+const COVER_LOW = -10;
+const COVER_SPAN = 64;
+const COVER_RADIUS = 16;
+/** How far round a point, in metres, the crowns hide its sky: most of the sky's light comes from
+ * well off straight up, so a small gap among the crowns lets little of it through. */
+const COVER_SPREAD = 4;
+
+/** The trees' cover over the map (see coverTrees), for everything shaded under it. */
+const coverUniforms = {
+  uCover: { value: null as THREE.DataTexture | null },
+  uCoverMap: { value: new THREE.Vector3(0, 0, 1) },
+};
+/** The same cover as laid (see coverTrees), for reading it at a point (see coverAt). */
+let cover: { data: Uint8Array; origin: [number, number]; size: number } | null = null;
+
+/** Blurs n x n values in place: a box `reach` texels each way, along the rows, then the columns. */
+function blurSquare(values: Float32Array, n: number, reach: number): void {
+  const line = new Float32Array(n);
+  for (const across of [true, false]) {
+    for (let a = 0; a < n; a++) {
+      const at = (b: number) => (across ? a * n + b : b * n + a);
+      for (let b = 0; b < n; b++) line[b] = values[at(b)];
+      let sum = 0;
+      for (let b = -reach; b <= reach; b++) sum += line[Math.min(Math.max(b, 0), n - 1)];
+      for (let b = 0; b < n; b++) {
+        values[at(b)] = sum / (2 * reach + 1);
+        sum += line[Math.min(b + reach + 1, n - 1)] - line[Math.max(b - reach, 0)];
+      }
+    }
+  }
+}
+
+/**
+ * Lays the trees' crowns (x, y, z, radius) over the map (its origin x, z and size in metres) as
+ * their cover, for shadeUnderTrees: in each texel how much of the sky the crowns hide (all of it
+ * deep in the jungle, less in a clearing and toward the jungle's edge), and the crowns' height and
+ * radius there.
+ */
+export function coverTrees(crowns: [number, number, number, number][], origin: [number, number], size: number): void {
+  const n = COVER_TEXELS;
+  const texel = size / n;
+  const foot = new Float32Array(n * n);
+  const heights = new Float32Array(n * n);
+  const radii = new Float32Array(n * n);
+  for (const [cx, cy, cz, r] of crowns) {
+    const i0 = Math.max(Math.floor((cx - r - origin[0]) / texel), 0);
+    const i1 = Math.min(Math.ceil((cx + r - origin[0]) / texel), n - 1);
+    const j0 = Math.max(Math.floor((cz - r - origin[1]) / texel), 0);
+    const j1 = Math.min(Math.ceil((cz + r - origin[1]) / texel), n - 1);
+    for (let j = j0; j <= j1; j++) {
+      for (let i = i0; i <= i1; i++) {
+        const d = Math.hypot(origin[0] + (i + 0.5) * texel - cx, origin[1] + (j + 0.5) * texel - cz);
+        const k = 1 - THREE.MathUtils.smoothstep(d, r * 0.5, r);
+        const at = j * n + i;
+        if (k <= foot[at]) continue;
+        foot[at] = k;
+        heights[at] = cy;
+        radii[at] = r;
+      }
+    }
+  }
+  // Spread over the sky round each point; the heights and radii carried out into the gaps, weighed
+  // by the crowns they come from.
+  for (let i = 0; i < n * n; i++) {
+    heights[i] *= foot[i];
+    radii[i] *= foot[i];
+  }
+  const reach = Math.max(Math.round(COVER_SPREAD / texel), 1);
+  for (const values of [foot, heights, radii]) {
+    blurSquare(values, n, reach);
+    blurSquare(values, n, reach);
+  }
+  const data = new Uint8Array(n * n * 4);
+  for (let i = 0; i < n * n; i++) {
+    const k = foot[i];
+    const height = k > 1e-4 ? heights[i] / k : COVER_LOW;
+    const r = k > 1e-4 ? radii[i] / k : 0;
+    data[i * 4] = Math.round(Math.min(k * 1.3, 1) * 255);
+    data[i * 4 + 1] = Math.round(THREE.MathUtils.clamp((height - COVER_LOW) / COVER_SPAN, 0, 1) * 255);
+    data[i * 4 + 2] = Math.round(Math.min(r / COVER_RADIUS, 1) * 255);
+    data[i * 4 + 3] = 255;
+  }
+  const texture = new THREE.DataTexture(data, n, n, THREE.RGBAFormat);
+  texture.minFilter = texture.magFilter = THREE.LinearFilter;
+  texture.generateMipmaps = false;
+  texture.needsUpdate = true;
+  coverUniforms.uCover.value = texture;
+  coverUniforms.uCoverMap.value.set(origin[0], origin[1], size);
+  cover = { data, origin: [origin[0], origin[1]], size };
+}
+
+/**
+ * How deep under the trees' crowns the point (x, y, z) lies, as shadeUnderTrees reads it: 1 under a
+ * closed canopy, 0 out in the open, above the crowns or before the island has loaded.
+ */
+export function coverAt(x: number, y: number, z: number): number {
+  if (!cover) return 0;
+  const n = COVER_TEXELS;
+  const u = THREE.MathUtils.clamp(((x - cover.origin[0]) / cover.size) * n - 0.5, 0, n - 1.001);
+  const v = THREE.MathUtils.clamp(((z - cover.origin[1]) / cover.size) * n - 0.5, 0, n - 1.001);
+  const i = Math.floor(u);
+  const j = Math.floor(v);
+  const { data } = cover;
+  // One of the texels' values, blended between them as the GPU filters the texture.
+  const read = (c: number): number => {
+    const a = data[(j * n + i) * 4 + c];
+    const b = data[(j * n + i + 1) * 4 + c];
+    const d = data[((j + 1) * n + i) * 4 + c];
+    const e = data[((j + 1) * n + i + 1) * 4 + c];
+    return ((a + (b - a) * (u - i)) * (1 - (v - j)) + (d + (e - d) * (u - i)) * (v - j)) / 255;
+  };
+  const middle = COVER_LOW + COVER_SPAN * read(1);
+  const r = Math.max(COVER_RADIUS * read(2), 0.5);
+  return read(0) * (1 - THREE.MathUtils.smoothstep(y, middle - 0.5 * r, middle + 0.2 * r));
+}
+
+/**
+ * The film's haze in a jungle clearing: humid air the light pours into, glowing pale and warm
+ * round where it comes in over the falling water while what stands near the camera stays clear. A
+ * ball of haze (`centre` and `radius` in metres, its height squashed by `flat`) is worked into the
+ * fog of every material: the farther a view runs through it, the more of the haze's colour it
+ * takes, from the ball's middle up, where the light comes in; it fades away as the camera draws
+ * far off. Set before anything is first drawn.
+ */
+export function hazeClearing(centre: [number, number, number], radius: number, flat: number, density: number): void {
+  const at = `vec3(${centre.map((v) => v.toFixed(2)).join(', ')})`;
+  THREE.ShaderChunk.fog_pars_vertex = /* glsl */ `
+#ifdef USE_FOG
+  varying float vFogDepth;
+  varying vec3 vFogRay;
+#endif
+`;
+  THREE.ShaderChunk.fog_vertex = /* glsl */ `
+#ifdef USE_FOG
+  vFogDepth = - mvPosition.z;
+  // From the camera to the point, in the world.
+  vFogRay = transpose(mat3(viewMatrix)) * mvPosition.xyz;
+#endif
+`;
+  THREE.ShaderChunk.fog_pars_fragment = /* glsl */ `
+#ifdef USE_FOG
+  uniform vec3 fogColor;
+  varying float vFogDepth;
+  varying vec3 vFogRay;
+  #ifdef FOG_EXP2
+    uniform float fogDensity;
+  #else
+    uniform float fogNear;
+    uniform float fogFar;
+  #endif
+  // How much haze the view to a point passes through: its way through the ball, where the point
+  // stands high (from a little under the ball's middle up), gone as the camera draws far off.
+  float hazeThrough(vec3 ray) {
+    vec3 squash = vec3(1.0, ${(1 / flat).toFixed(3)}, 1.0);
+    vec3 o = (cameraPosition - ${at}) * squash;
+    vec3 r = ray * squash;
+    float len = length(r);
+    vec3 d = r / max(len, 1e-4);
+    float b = dot(o, d);
+    float disc = b * b - dot(o, o) + ${(radius * radius).toFixed(1)};
+    if (disc <= 0.0) return 0.0;
+    float s = sqrt(disc);
+    float t0 = max(-b - s, 0.0);
+    float t1 = min(-b + s, len);
+    if (t1 <= t0) return 0.0;
+    float high = smoothstep(${(centre[1] - 1.5).toFixed(2)}, ${(centre[1] + 4.0).toFixed(2)}, cameraPosition.y + ray.y);
+    float away = smoothstep(${(2.2 * radius).toFixed(1)}, ${(3.6 * radius).toFixed(1)}, length(o));
+    return (t1 - t0) * high * (1.0 - away);
+  }
+#endif
+`;
+  THREE.ShaderChunk.fog_fragment = /* glsl */ `
+#ifdef USE_FOG
+  #ifdef FOG_EXP2
+    float fogFactor = 1.0 - exp( - fogDensity * fogDensity * vFogDepth * vFogDepth );
+  #else
+    float fogFactor = smoothstep( fogNear, fogFar, vFogDepth );
+  #endif
+  gl_FragColor.rgb = mix( gl_FragColor.rgb, fogColor, fogFactor );
+  // The clearing's haze, the fog's colour warmed by the light in it.
+  float hazeFactor = 1.0 - exp(-${density.toFixed(4)} * hazeThrough(vFogRay));
+  gl_FragColor.rgb = mix( gl_FragColor.rgb, fogColor * vec3(1.06, 1.03, 0.86), hazeFactor );
+#endif
+`;
+}
+
+/** GLSL: how deep under the trees' crowns a point in the world lies (see coverTrees): 1 under a
+ * crown's middle, easing to 0 toward its edge and up through the crown, nothing above it. */
+const COVER_GLSL = /* glsl */ `
+uniform sampler2D uCover;
+uniform vec3 uCoverMap;
+float underTrees(vec3 p) {
+  vec4 c = texture2D(uCover, (p.xz - uCoverMap.xy) / uCoverMap.z);
+  float middle = ${COVER_LOW.toFixed(1)} + ${COVER_SPAN.toFixed(1)} * c.g;
+  float r = max(${COVER_RADIUS.toFixed(1)} * c.b, 0.5);
+  return c.r * (1.0 - smoothstep(middle - 0.5 * r, middle + 0.2 * r, p.y));
+}
+`;
+
+/**
+ * Shades a toon material's scenery under the trees, from its onBeforeCompile: the sky's light dims
+ * under their crowns (the sun's is the shadows' to take, dappled through them). Worked out at each
+ * vertex, or, given `perPixel` (the GLSL name of the fragment's place in the world), at each pixel,
+ * for the ground's wide triangles.
+ */
+export function shadeUnderTrees(shader: THREE.WebGLProgramParametersWithUniforms, perPixel?: string): void {
+  Object.assign(shader.uniforms, coverUniforms);
+  const dim = `reflectedLight.indirectDiffuse *= mix(1.0, ${UNDER_CANOPY.toFixed(2)}, ${perPixel ? `underTrees(${perPixel})` : 'vCover'});
+  #include <aomap_fragment>`;
+  if (perPixel) {
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', `#include <common>\n${COVER_GLSL}`)
+      .replace('#include <aomap_fragment>', dim);
+    return;
+  }
+  shader.vertexShader = shader.vertexShader
+    .replace('#include <common>', `#include <common>\n${COVER_GLSL}\nvarying float vCover;`)
+    .replace('#include <project_vertex>', 'vCover = underTrees((modelMatrix * vec4(transformed, 1.0)).xyz);\n#include <project_vertex>');
+  shader.fragmentShader = shader.fragmentShader
+    .replace('#include <common>', '#include <common>\nvarying float vCover;')
+    .replace('#include <aomap_fragment>', dim);
+}
+
 const warm = new THREE.Color('#FFE3BC');
 const hazeTop = new THREE.Color('#B4E1F4');
 const hazeHorizon = new THREE.Color('#E6FAF6');
@@ -150,9 +381,12 @@ bool clusterCut(vec3 normalView, vec3 toCamera, float border) {
  * GLSL: the film's foliage (needs CLUSTER_GLSL): round puffs of leaves overlapping like scales, the
  * higher ones over the lower, each lit on its side toward the sun. `p` is in puffs and `n` is the
  * surface's normal in the world. Returns 1 where p is in a puff, with the puff's light (-1 to 1),
- * how near its edge p is (0 to 1) and the puff's own hash.
+ * how near its edge p is (0 to 1) and the puff's own hash. PUFF_FILL, if defined, swells the puffs.
  */
 export const PUFF_GLSL = /* glsl */ `
+#ifndef PUFF_FILL
+#define PUFF_FILL 1.0
+#endif
 uniform vec3 uSun;
 float leafPuffs(vec3 p, vec3 n, out float lit, out float edge, out vec3 tint) {
   vec3 i = floor(p);
@@ -168,7 +402,7 @@ float leafPuffs(vec3 p, vec3 n, out float lit, out float edge, out vec3 tint) {
         vec3 g = vec3(float(x), float(y), float(z));
         vec3 h = cellHash3(i + g);
         vec3 r = g + h * 0.85 - f;
-        float radius = 0.5 + 0.32 * h.x;
+        float radius = (0.5 + 0.32 * h.x) * PUFF_FILL;
         float d = length(r);
         float priority = g.y + h.y + 0.5 * h.z;
         if (d < radius && priority > best) {
@@ -188,7 +422,8 @@ float leafPuffs(vec3 p, vec3 n, out float lit, out float edge, out vec3 tint) {
 /**
  * GLSL: the film's painted bark (needs LEAF_GLSL and PUFF_GLSL's uSun): furrows running up the wood,
  * wandering a little, the ridges between them lighter and, on the side toward the sun, warm orange;
- * moss on what faces up. `woody` picks out the plants' browns, leaving leaves and flowers alone.
+ * lichen in patches, moss on what faces up. `woody` picks out the plants' browns, leaving leaves and
+ * flowers alone.
  */
 export const BARK_GLSL = /* glsl */ `
 float woody(vec3 c) {
@@ -201,6 +436,9 @@ vec3 paintBark(vec3 base, vec3 p, vec3 n) {
   vec3 col = base * mix(0.6, 1.1, smoothstep(0.32, 0.68, furrows));
   float sunny = smoothstep(0.3, 0.8, dot(n, uSun));
   col = mix(col, col * vec3(1.42, 1.22, 0.86), sunny * smoothstep(0.5, 0.72, furrows));
+  // Pale grey-green lichen in patches up the wood, as on the film's jungle trunks.
+  float lichen = smoothstep(0.5, 0.62, leafNoise(p * vec3(1.2, 0.45, 1.2) + 7.0)) * smoothstep(0.3, 0.6, furrows);
+  col = mix(col, vec3(0.42, 0.44, 0.28) * mix(0.85, 1.1, furrows), lichen * 0.8);
   float moss = smoothstep(0.5, 0.85, n.y) * smoothstep(0.55, 0.62, leafNoise(p * 1.4 + 3.0));
   return mix(col, vec3(0.16, 0.33, 0.06), moss);
 }
@@ -304,7 +542,9 @@ export function paintLeaves(shader: THREE.WebGLProgramParametersWithUniforms, cl
 
 /**
  * The film look's shadow for a crown painted in puffs (see paintLeaves): the sun passes through
- * the gaps between its puffs, so the ground and the rock under the trees lie in dappled light.
+ * the gaps between its puffs, so the ground and the rock under the trees lie in dappled light. Its
+ * puffs are fuller than the crown's painted ones: light passes only where the leaves part widely, so
+ * under the trees it is mostly shade, the dapples few and bright.
  * `clusters` is the puffs' size; `before` adds anything the crown's own material does to its
  * vertices first (such as the wind's sway), so the shadow moves with it. Only leaves let the light
  * through: their colours are told from the wood's as the crown's material tells them.
@@ -321,7 +561,7 @@ export function puffShadow(clusters: number, before?: (shader: THREE.WebGLProgra
         'vLeaf = (modelMatrix * vec4(transformed, 1.0)).xyz;\nvLeafColour = color;\n#include <project_vertex>',
       );
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', `#include <common>\nvarying vec3 vLeaf;\nvarying vec3 vLeafColour;\n${CLUSTER_GLSL}\n${PUFF_GLSL}`)
+      .replace('#include <common>', `#include <common>\nvarying vec3 vLeaf;\nvarying vec3 vLeafColour;\n#define PUFF_FILL 1.3\n${CLUSTER_GLSL}\n${PUFF_GLSL}`)
       .replace(
         'void main() {',
         `void main() {
@@ -496,6 +736,10 @@ vec3 paintStone(vec3 base, vec3 p, vec3 n) {
   col = mix(col, col * vec3(0.8, 0.86, 0.76), smoothstep(0.5, 0.54, stain));
   float streak = leafNoise(vec3(p.x * 2.2, p.y * 0.12, p.z * 2.2));
   col = mix(col, col * vec3(0.88, 0.9, 0.84), smoothstep(0.6, 0.66, streak) * 0.8);
+  // Low limestone, down in the jungle's damp, is filmed green in broad soft patches, as the film's
+  // mossy cliffs are; the pillars' heights stay pale.
+  float damp = smoothstep(0.4, 0.62, roundNoise(p * 0.2 + 2.4)) * (1.0 - smoothstep(24.0, 34.0, p.y)) * smoothstep(0.8, 1.0, uMoss);
+  col = mix(col, col * vec3(0.7, 0.86, 0.6), damp * 0.75);
   // Cracks taper and widen along their length; only some blocks break from the one above.
   float wide = 0.3 + 1.4 * leafNoise(p * vec3(0.9, 0.22, 0.9));
   float joint = step(0.45, cellHash3(vec3(cid, floor(rise + 0.5)) + 3.0).z);
@@ -722,8 +966,7 @@ const FOCUS = {
 /**
  * Draws the scene through the film's finishing passes: rendered with antialiasing into a
  * high-precision picture, what is nearest the camera softened, the scenery's brushwork, a soft glow
- * round the brightest light (sky, sun on white, the waterfall), the colour grade, then out to the
- * screen.
+ * round the brightest light (the hazy sky, sun on white), the colour grade, then out to the screen.
  */
 export class FilmPost {
   private readonly composer: EffectComposer;
@@ -747,7 +990,7 @@ export class FilmPost {
     this.paint = new ShaderPass(PAINT);
     this.paint.uniforms.uTexel.value.set(1 / size.x, 1 / size.y);
     this.composer.addPass(this.paint);
-    // Only light brighter than white glows (the sun, the waterfall), not white things in daylight.
+    // Only light brighter than white glows (the sun, the hazy sky), not white things in daylight.
     this.bloom = new UnrealBloomPass(new THREE.Vector2(size.x / 2, size.y / 2), 0.32, 0.75, 1.0);
     this.composer.addPass(this.bloom);
     this.composer.addPass(new ShaderPass(GRADE));

@@ -34,14 +34,18 @@ never pushed, because it is other people's artwork.
   film's backgrounds (`src/world/Look.ts`): the ground, rocks, trees,
   houses, stalls, sky and clouds, in warm sunlight with cool blue shadows
   that the rocks, trees and houses cast, dappled where the sun comes
-  through the leaves, soft gradients across the turn from light to shade,
-  haze into the distance, a soft glow round the brightest light and the
-  film's colour grade. Stone splits into slabs or beds, each its own shade,
-  stained and streaked, with dark cracks between and moss in cushions lit
-  along their tops. Leaves gather in round puffs overlapping like scales,
+  through the leaves, the jungle under its canopy in deep shade with the
+  dapples bright in it, soft gradients across the turn from light to shade,
+  haze into the distance and a warm haze where the light comes into a
+  clearing, a soft glow round the brightest light and the film's colour
+  grade. Stone splits into slabs or beds, each its own shade, stained and
+  streaked, with dark cracks between and moss in cushions lit along their
+  tops; low down in the jungle's damp it is filmed green in broad patches. Leaves gather in round puffs overlapping like scales,
   yellow-green toward the sun and blue-green away from it, the crown's edge
-  broken into puffs. Bark is furrowed and lit warm orange on the sun's
-  side. Still water mirrors what stands round it, darker and greener.
+  broken into puffs. Bark is furrowed, patched with pale lichen and lit
+  warm orange on the sun's side. Still water mirrors what stands round it,
+  darker and greener; falling water is a soft veil of streaks, glowing
+  over its lip.
 - **Everyone is a round blob.** Head and body are one soft shape, wider at
   the head, with tiny stub arms and almost invisible feet. Heights are close
   to one head tall. This is a gift for procedural modelling.

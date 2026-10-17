@@ -43,8 +43,10 @@ C = {k: np.array(L.hex_color(v)[:3]) for k, v in {
     "brom": "#7BB84E",
     "bromRed": "#E0483C",
     "bromOrange": "#F28A3A",
-    "bigTrunk": "#9C744A",
-    "bigTrunkDark": "#7A5636",
+    "bromPink": "#EE6F95",
+    "bromYellow": "#F5C842",
+    "bigTrunk": "#AC8C62",
+    "bigTrunkDark": "#8A6D4A",
     "vine": "#5E9E3E",
     "root": "#8C6A48",
     "rootLight": "#A8865E",
@@ -512,13 +514,21 @@ def ti_plant(rng):
     return merge(pieces)
 
 
-def bromeliad(rng):
-    """A bromeliad: a rosette of stiff pointed leaves round a bright red and orange heart."""
+def bromeliad(rng, heart=None):
+    """A bromeliad: a rosette of stiff pointed leaves round a bright red and orange heart; or, given
+    `heart` (two colours of C), the film's showier kind, a star of long upright bracts in those
+    colours standing out of the green."""
     pieces = []
     for i in range(7):
         a = 2 * math.pi * i / 7 + rng.uniform(-0.2, 0.2)
         direction = Vector((math.cos(a), math.sin(a), rng.uniform(0.5, 1.1)))
         pieces.append(leaf_blade(Vector((0.0, 0.0, 0.02)), direction, rng.uniform(0.35, 0.5), 0.12, C["brom"], 0.3))
+    if heart:
+        for i in range(8):
+            a = 2 * math.pi * i / 8 + rng.uniform(-0.15, 0.15)
+            direction = Vector((math.cos(a) * 0.55, math.sin(a) * 0.55, rng.uniform(1.0, 1.5)))
+            pieces.append(leaf_blade(Vector((0.0, 0.0, 0.05)), direction, rng.uniform(0.4, 0.55), 0.1, C[heart[i % 2]], 0.4))
+        return merge(pieces)
     for i in range(3):
         a = 2 * math.pi * i / 3 + 0.4
         direction = Vector((math.cos(a) * 0.5, math.sin(a) * 0.5, 1.0))

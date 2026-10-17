@@ -4,7 +4,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { sceneryRamp } from '../core/toon';
 import { SWAY_GLSL, addOutline, windUniforms } from './Ink';
 import type { TerrainInfo } from './Island';
-import { FILM, paintLeaves, puffShadow } from './Look';
+import { FILM, paintLeaves, puffShadow, shadeUnderTrees } from './Look';
 import { addCircle, addCrown } from './Obstacles';
 
 /** Plants under the canopy are drawn only this close to the camera, in metres; the canopy and the
@@ -30,7 +30,10 @@ function plantMaterial(clusters = 0): THREE.MeshToonMaterial {
   const material = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: sceneryRamp() });
   material.onBeforeCompile = (shader) => {
     swayVertices(shader);
-    if (FILM) paintLeaves(shader, clusters);
+    if (FILM) {
+      paintLeaves(shader, clusters);
+      shadeUnderTrees(shader);
+    }
   };
   // Each cluster size compiles its own shader: the setup above reads the same for all of them.
   material.customProgramCacheKey = () => `plant:${clusters}`;

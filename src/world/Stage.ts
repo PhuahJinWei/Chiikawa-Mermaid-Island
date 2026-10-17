@@ -5,7 +5,7 @@ import { glowUniforms } from './Glow';
 import { inkUniforms, windUniforms } from './Ink';
 import { FLOOR_GLSL, WATER_EDGE, groundHeight, loadTerrain, terrainHeight, type Terrain } from './Island';
 import { Landmarks } from './Landmarks';
-import { FILM, filmLights, filmSky, lightShafts, sunUniform } from './Look';
+import { FILM, coverAt, filmLights, filmSky, lightShafts, sunUniform } from './Look';
 import { canopyShade } from './Obstacles';
 import { Butterflies } from './Butterflies';
 import { Props, type Placed } from './Props';
@@ -77,6 +77,11 @@ export class Stage {
   private pool: { surface: THREE.Mesh; probe: THREE.CubeCamera } | null = null;
   /** In the film look, the sunlight slanting into the waterfall's clearing. */
   private shafts: THREE.Mesh | null = null;
+  /** In the film look, how far in under the trees the camera is, eased as it goes (see update),
+   * and where and when it was last looked at. */
+  private enclosed = 0;
+  private readonly enclosedAt = new THREE.Vector3();
+  private enclosedTime = 0;
   /** The island's named places, once the layout has loaded. */
   zones: Zones | null = null;
 
@@ -288,6 +293,19 @@ export class Stage {
       this.light.position.copy(this.ahead).addScaledVector(this.lightDir, 140);
     }
     this.skyMaterial.uniforms.uHorizonY.value = Math.sin(-Math.atan2(above, SEA_RADIUS * reach));
+    if (FILM) {
+      // The film exposes for where its camera is: seen from under the trees the sky glows, out in
+      // the open it is a plain pale blue. The sky eases between the two as the camera goes in and
+      // out of the trees, at once when it jumps.
+      const p = camera.position;
+      const target = coverAt(p.x, p.y, p.z);
+      const step = THREE.MathUtils.clamp(time - this.enclosedTime, 0, 0.5);
+      this.enclosed =
+        p.distanceTo(this.enclosedAt) > 6 ? target : this.enclosed + (target - this.enclosed) * (1 - Math.exp(-step / 0.8));
+      this.enclosedAt.copy(p);
+      this.enclosedTime = time;
+      this.skyMaterial.uniforms.uEnclosed.value = this.enclosed;
+    }
   }
 
   private makeWaterMaterial(): THREE.ShaderMaterial {
@@ -432,6 +450,7 @@ export class Stage {
         uStarColor: { value: new THREE.Color(COLORS.star) },
         uNight: { value: 0 },
         uTime: { value: 0 },
+        uEnclosed: { value: 0 },
       },
       vertexShader: /* glsl */ `
         varying vec3 vDir;
@@ -454,6 +473,7 @@ export class Stage {
         uniform vec3 uInk;
         uniform float uPen;
         uniform float uHorizonY;
+        uniform float uEnclosed;
         varying vec3 vDir;
         float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
         void main() {
@@ -463,10 +483,14 @@ export class Stage {
           float s = max(dot(dir, uSunDir), 0.0);
           col += uSunColor * (pow(s, 400.0) * 1.5 + pow(s, 12.0) * 0.12) * (1.0 - uNight) * step(0.0, uSunDir.y);
           #ifdef FILM
-          // The film's hazy daylight: brighter than white, most of all toward the sun and low down,
-          // so it glows round the trees standing against it.
+          // The film's hazy daylight seen from under the trees (uEnclosed): brighter than white,
+          // most of all toward the sun and low down, so it glows round the trees standing against
+          // it. Out in the open, the plain pale blue of the film's open skies, a soft glow round the
+          // sun.
           float day = (1.0 - uNight) * smoothstep(-0.05, 0.15, uSunDir.y);
-          col = col * mix(1.0, 1.12, day) + vec3(1.0, 0.97, 0.88) * day * (0.35 * pow(s, 4.0) + 0.2 * (1.0 - smoothstep(0.0, 0.45, h)));
+          float glow = day * uEnclosed;
+          col = col * mix(1.0, 1.2, glow) + vec3(1.0, 0.97, 0.88)
+            * (glow * (0.38 * pow(s, 4.0) + 0.2 * (1.0 - smoothstep(0.0, 0.45, h))) + day * 0.25 * pow(s, 24.0));
           #endif
           if (uNight > 0.0) {
             // Stars: dots scattered over the sky's directions, a few twinkling.

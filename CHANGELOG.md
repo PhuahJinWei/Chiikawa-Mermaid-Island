@@ -279,6 +279,47 @@ outlined is drawn twice, once for its pen line. To get there:
   the bromeliads crown a tall mossy rock in the water just behind where
   the cast stands, beside the big tree, and the white flowers sit in the
   bank's near right corner. About 16.7 ms a frame there on this PC.
+- The film look's shade under the trees. The trees' crowns hide the sky's
+  light from what lies under them: under a closed canopy the jungle's
+  floor, its plants and the trunks get under a third of it, a little more
+  in a gap and toward the jungle's edge, so the jungle lies in deep shade
+  with the sun's dapples bright on it, as in the film; the crowns' tops,
+  the beaches and the clearings are lit as before. The crowns' shadows are
+  fuller, so the sun comes through only where the leaves part widely. At
+  the waterfall, as in its frame, the bank in front of the cast is dark
+  against the sunlit fall, one of the trees over it now standing at the
+  left over the plants there. The waterfall is wider and softer: finer
+  streaks thinning away at its sides, white and glowing over the lip,
+  misting where it lands in a bigger cloud of spray, no longer burned out
+  to white; the sky's glow is set to the frame's. The wall has fourteen
+  curtains of hanging moss and ninety ferns and small plants on its ledges,
+  and bark has patches of pale lichen. Measured against the frame, the sky,
+  the lip, the canopy, the ground and the frame's average brightness are
+  within a few points of the film's. About 16.6 ms a frame at the waterfall
+  and 16.7 ms in the jungle on this PC.
+- The waterfall's sides, after its frame. On the right the stump by the
+  big tree is pale limestone, mossy only on top, crowned with the film's
+  showy bromeliads, stars of long pink, red, orange and yellow bracts
+  standing out of their green, a cycad's fronds arching over them from
+  behind; the big trees' bark is a paler tan. At the far left a low tree
+  and big monstera, cycads and ferns fill the view where the pale foot of
+  the pillar showed between the trunks. Low limestone, down in the jungle's
+  damp, is filmed green in broad soft patches, darkening the waterfall's
+  wall toward the film's mossy rock, and the falling water's body is
+  greyer. A warm haze glows round the top of the falling water, softening
+  the crowns over the wall into the light (a ball of haze worked into every
+  material's fog; it fades away as the camera draws off). The plants at the
+  waterfall's left now measure as the film's, and its wall and falling
+  water are a step nearer. About 16.6 ms a frame at the waterfall and
+  16.7 ms in the jungle on this PC.
+- The film look's open sky. Looking out to sea, the sky's glow had washed
+  everything near the horizon to white: the sky brighter than white
+  belongs under the trees, as the film exposes for where its camera is.
+  Seen from under the canopy the sky still glows round the trees; out in
+  the open, on the beaches, the sea and in the clearings, it is the plain
+  pale blue of the film's open skies, with white clouds, the deep blue sea
+  out to the horizon and a soft glow only round the sun. The sky eases
+  between the two as the camera goes in and out of the trees.
 - Building the props or the village with `--only` no longer overwrites
   their .blend file with just the one prop.
 - The offline cache now keeps the island's height grid and layout file,

@@ -68,8 +68,8 @@ function waterfallMaterial(): THREE.ShaderMaterial {
       uWater: { value: new THREE.Color(COLORS.water) },
       uShade: { value: new THREE.Color(COLORS.shade) },
       uFoam: { value: new THREE.Color(COLORS.foam) },
-      // In the film look the falling water is a little brighter than white, so it glows.
-      uBright: { value: FILM ? 1.05 : 1 },
+      // In the film look the falling water is a soft white, its streaks showing, short of glowing.
+      uBright: { value: FILM ? 0.66 : 1 },
     },
     vertexShader: /* glsl */ `
       #include <common>
@@ -94,21 +94,23 @@ function waterfallMaterial(): THREE.ShaderMaterial {
       float hash1(float n) { return fract(sin(n * 127.1) * 43758.5453); }
       void main() {
         #ifdef FILM
-        // A veil of fine streaks, each pouring at its own pace, thick down the middle and thin
-        // enough at the sides for the rock to show through, as the film paints it; white over the
-        // lip and where it lands.
-        float columns = 16.0;
+        // A soft veil of fine streaks, each pouring at its own pace, thinning away at its sides
+        // to show the rock, as the film paints it: white and glowing over the lip (v 0), greyer
+        // as it falls, misting white where it lands.
+        float columns = 26.0;
         float c = floor(vUv.x * columns);
         float across = fract(vUv.x * columns);
         float run = fract(vUv.y * (3.0 + 2.0 * hash1(c + 4.0)) - uTime * (0.9 + 0.6 * hash1(c)) + hash1(c + 9.0));
-        float dash = smoothstep(0.0, 0.05, run) * (1.0 - smoothstep(0.35, 0.55, run));
-        float line = 1.0 - smoothstep(0.1, 0.3, abs(across - 0.5 - 0.15 * (hash1(c + 2.0) - 0.5)));
-        float veil = smoothstep(0.0, 0.4, vUv.x) * smoothstep(1.0, 0.6, vUv.x);
-        float white = max(smoothstep(0.1, 0.0, vUv.y), smoothstep(0.8, 1.0, vUv.y));
-        vec3 col = mix(uShade, uWater, 0.3 + 0.4 * veil + 0.3 * line);
-        col = mix(col, uFoam, max(dash * line * 0.9, white));
-        float alpha = clamp(0.2 + 0.55 * veil + 0.5 * line * (0.4 + 0.6 * dash) + white, 0.0, 1.0);
-        gl_FragColor = vec4(col * uAmbient * uBright, alpha);
+        float dash = smoothstep(0.0, 0.1, run) * (1.0 - smoothstep(0.3, 0.65, run));
+        float line = 1.0 - smoothstep(0.05, 0.4, abs(across - 0.5 - 0.2 * (hash1(c + 2.0) - 0.5)));
+        float veil = smoothstep(0.0, 0.35, vUv.x) * smoothstep(1.0, 0.65, vUv.x);
+        float lip = smoothstep(0.12, 0.0, vUv.y);
+        float white = max(lip, smoothstep(0.75, 1.0, vUv.y));
+        vec3 col = mix(uShade, uWater, 0.4 + 0.3 * veil);
+        col = mix(col, uFoam, 0.3 + 0.2 * veil + 0.35 * line * dash);
+        col = mix(col, uFoam, white);
+        float alpha = veil * clamp(0.3 + 0.4 * veil + 0.25 * line * dash + white, 0.0, 1.0);
+        gl_FragColor = vec4(col * uAmbient * uBright * (1.0 + 0.6 * lip), alpha);
         #else
         // Columns of water side by side, each pouring at its own pace in white dashes.
         float columns = 7.0;
@@ -269,7 +271,7 @@ export class Landmarks {
     this.fall.uniforms.uTime.value = time;
     const t = time * 5;
     // In the film look the spray is a wider cloud of mist.
-    const k = FILM ? 1.6 : 1;
+    const k = FILM ? 2.1 : 1;
     for (const o of this.spray) o.scale.set(k * (1 + 0.05 * Math.sin(t)), k * (1 + 0.14 * Math.sin(t + 1.3)), k * (1 + 0.05 * Math.sin(t + 2.1)));
   }
 }

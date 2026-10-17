@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { sharedUniforms } from '../characters/CharacterMaterial';
 import { PEN_GLSL, inkUniforms } from './Ink';
-import { FILM, paintedRamp } from './Look';
+import { FILM, coverTrees, hazeClearing, paintedRamp, shadeUnderTrees } from './Look';
 import { addRing, blocked, cameraBlocked, deckUnder, outlineAt } from './Obstacles';
 
 /** What art/blender/build_island.py writes into the ground's glTF extras. */
@@ -292,6 +292,7 @@ function filmGroundMaterial(colours: THREE.Texture, info: TerrainInfo, floor: TH
           diffuseColor.rgb = mix(diffuseColor.rgb, uEdge, 1.0 - step(-0.5, above));
         }`,
       );
+    shadeUnderTrees(shader, 'vGroundWorld');
   };
   return material;
 }
@@ -310,6 +311,14 @@ export async function loadTerrain(): Promise<Terrain> {
   const raw = found.userData.terrain ?? found.parent?.userData.terrain;
   if (typeof raw !== 'string') throw new Error('No terrain data in terrain.glb');
   const info = JSON.parse(raw) as TerrainInfo;
+  // In the film look the ground and plants under the trees lie in their shade, and the waterfall's
+  // clearing is hazy round the top of the falling water, a little behind where it lands.
+  if (FILM) coverTrees(info.plants.crowns, info.origin, info.size);
+  if (FILM && info.pool && info.waterfall) {
+    const [px, pz] = info.pool.centre;
+    const [fx, fz] = info.waterfall.foot;
+    hazeClearing([fx + 0.6 * (fx - px), info.pool.level + 9, fz + 0.6 * (fz - pz)], 10, 0.75, 0.02);
+  }
 
   const [buffer, colours] = await Promise.all([
     fetch(info.height.url).then((r) => {

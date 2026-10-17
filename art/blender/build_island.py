@@ -94,44 +94,53 @@ POOL = {"centre": (2.0, -159.0), "radius": 11.0, "floor": 9.3, "level": 10.5, "b
 # `curtains` of hanging moss. Centre, radii, turn and the top's height. The notch is where the view across the pool meets the wall's face, and
 # the water pours from it toward the bank (`pour`, an angle as the notch's).
 FALL = {"centre": (15.91, -170.03), "radii": (16.0, 6.5), "turn": math.radians(65.0), "top": 22.0,
-        "notch": (math.radians(121.8), 1.3, 1.4), "pour": math.radians(POOL["view"] + 180.0), "vines": 110,
-        "curtains": 9, "seed": 41}
+        "notch": (math.radians(121.8), 1.6, 1.4), "pour": math.radians(POOL["view"] + 180.0), "vines": 110,
+        "curtains": 14, "seed": 41}
 # Ferns and small plants growing out of the waterfall's wall, on its ledges and in its cracks, as down
 # the film's cliff: how many.
-WALL_PLANTS = 40
+WALL_PLANTS = 90
 # Round the pool as in the film's frame, seen from its bank, where the plants close in on the view.
 # Places are (across, toward): metres to the right of the view from the pool's middle, and back
 # toward the viewer. A big tree with buttress roots at the water's edge on the right; plants (kind,
 # which of its shapes, across, toward, scale): monstera, red ti plants and cycads at the left, cycad
-# fronds, white flowers and ferns to the right, more along the far corners against the rock; a
-# leaning mossy slab of rock at the water on the left and a mossy stump of it at the water's edge on
-# the right, by the tree, crowded with bromeliads (across, toward, radii, turn, height, seed).
+# fronds, white flowers and ferns to the right, more along the far corners against the rock (big
+# ones at the far left, under a low tree, hiding the pale foot of the pillar there); a leaning mossy
+# slab of rock at the water on the left and a pale stump of it at the water's edge on the right, by
+# the tree, mossy only on top and crowded with the film's showy bromeliads, a cycad's fronds arching
+# over it from behind (across, toward, radii, turn, height, seed).
 POOL_TREE = (4.2, 11.6)
 POOL_PLANTS = [("monstera", 0, -3.4, 13.4, 1.5), ("monstera", 2, -4.4, 11.6, 1.35), ("monstera", 1, -6.2, 10.4, 1.3),
-               ("ti", 1, -1.5, 16.0, 1.1), ("ti", 3, -2.4, 14.6, 1.1), ("fern", 2, -5.6, 13.9, 1.3),
+               ("ti", 1, -1.9, 16.4, 0.85), ("ti", 3, -2.4, 14.6, 1.1), ("fern", 2, -5.6, 13.9, 1.3),
                ("fern", 1, 4.3, 13.0, 1.2), ("bush", 1, 3.6, 15.4, 1.2), ("bush", 1, 4.6, 12.9, 1.0),
                ("fern", 4, 2.6, 16.2, 1.2), ("fern", 0, 6.2, 9.8, 1.3), ("fern", 3, -7.0, 8.4, 1.25),
                # Closer in at the left: big monstera leaves and red ti, cycad fronds standing over them.
-               ("monstera", 3, -3.0, 15.4, 1.7), ("monstera", 0, -4.6, 12.8, 1.5), ("fern", 5, -2.8, 12.6, 1.3),
-               ("ti", 0, -1.7, 17.6, 1.15), ("cycad", 0, -6.4, 12.4, 1.2),
+               ("monstera", 3, -3.4, 15.6, 1.3), ("monstera", 0, -4.6, 12.8, 1.5), ("fern", 5, -2.8, 12.6, 1.3),
+               ("ti", 0, -2.4, 17.0, 0.9), ("cycad", 0, -6.4, 12.4, 1.2),
                # At the right: big arching cycad fronds, more white flowers, ferns at the water.
                ("cycad", 1, 3.8, 14.2, 1.5), ("fern", 2, 4.6, 11.2, 1.25), ("bush", 1, 2.8, 15.6, 1.2),
                # Along the far corners of the pool, against the rock.
                ("fern", 0, -10.5, -5.5, 1.4), ("monstera", 1, -11.6, -1.0, 1.5), ("ti", 2, -9.6, -7.5, 1.2),
-               ("fern", 3, 10.4, -5.8, 1.4), ("monstera", 2, 11.7, -1.5, 1.5), ("cycad", 2, 10.5, -8.0, 1.3)]
+               ("fern", 3, 10.4, -5.8, 1.4), ("monstera", 2, 11.7, -1.5, 1.5), ("cycad", 2, 10.5, -8.0, 1.3),
+               ("monstera", 2, -12.4, -6.6, 2.0), ("cycad", 3, -13.0, -4.0, 1.8), ("fern", 5, -11.0, -8.6, 1.8),
+               ("monstera", 0, -10.2, -3.2, 1.7),
+               # Behind the stump, its fronds arching over the bromeliads.
+               ("cycad", 1, 4.4, 8.4, 2.1)]
 POOL_ROCKS = [(-4.5, 10.5, (2.4, 1.4), 0.9, 1.7, 62), (3.0, 9.8, (1.0, 0.85), 0.2, 3.0, 63)]
 # Clumps of canopy trees framing the view as in the film, each tree's (across, toward, height): over
-# the bank, closing in overhead, so the bank lies in their shade while the pool and the waterfall
-# are in the sun (their trunks off to the sides of the view and behind it); and either side of the
-# pool, hiding the pillars beyond and the ends of the waterfall's wall. Other trees keep off the
-# bank out to `BANK_ROOM` metres past the water.
+# the bank, closing in overhead, so the bank lies in their shade, deepest over the plants at the
+# left, while the pool and the waterfall are in the sun (their trunks off to the sides of the view
+# and behind it); and either side of the pool, hiding the pillars beyond and the ends of the
+# waterfall's wall. Other trees keep off the bank out to `BANK_ROOM` metres past the water.
 POOL_GROVE = [
-    [(-8.6, 15.0, 13.0), (-5.0, 24.5, 14.5), (1.0, 25.5, 13.5), (6.0, 21.0, 12.5), (-12.5, 21.0, 12.0),
+    [(-8.6, 15.0, 13.0), (-5.0, 24.5, 14.5), (1.0, 25.5, 13.5), (-4.6, 17.6, 12.5), (-12.5, 21.0, 12.0),
      (-2.0, 22.8, 13.5), (4.5, 25.5, 14.0)],
     [(-14.5, -3.5, 14.5), (-16.5, 3.0, 13.0), (-13.5, -8.5, 13.5)],
     [(14.0, -5.0, 13.5), (12.5, -11.0, 14.0)],
 ]
 BANK_ROOM = 22.0
+# A low tree at the pool's far left, its crown filling the view across the water where the pillar's
+# pale foot would show between the trunks there (across, toward, height).
+POOL_LOW_TREE = [(-11.8, -6.2, 9.5)]
 
 
 def pool_spot(across, toward):
@@ -761,7 +770,7 @@ def rock_specs():
             "tip": 0.5, "rim": 0.22, "strata": 0.9, "stone": "sandstone", "crown": False, "moss": False, "wet": WATER,
             "group": "cliffs",
         })
-    # Mossy rocks on the waterfall pool's banks: a leaning slab and a squat stump, turned with the view.
+    # Rocks on the waterfall pool's banks: a leaning mossy slab and a stump, turned with the view.
     for k, (across, toward, radii, turn, height, seed) in enumerate(POOL_ROCKS):
         slab = k == 0
         specs.append({
@@ -769,7 +778,7 @@ def rock_specs():
             "height": height, "seed": seed, "segments": 14, "step": 0.4, "facets": 5 if slab else 6,
             "facet_w": 0.9 if slab else 0.7, "flutes": 3, "flute_depth": 0.05, "lumps": 0.12, "taper": 0.2, "bulge": 0.0,
             "lean": 0.25 if slab else 0.05, "shoulder": 0.4, "tip": 0.55, "rim": 0.25, "flat": slab, "crown": False,
-            "drape": 4.5, "group": "middle",
+            "drape": 4.5 if slab else 1.2, "group": "middle",
         })
     for cluster, ((mx, mz), seed, count) in enumerate(SPIRES):
         rng = np.random.default_rng(seed)
@@ -1055,12 +1064,13 @@ def build_plants(collection, outlines):
     trunks.append([round(x, 2), round(z, 2), 1.9])
     for lx, ly, lz, r in tops:
         crowns.append([round(x + lx, 2), round(y + lz, 2), round(z - ly, 2), round(r, 2)])
-    # The trees framing the view across it.
-    for grove in POOL_GROVE:
+    # The trees framing the view across it; the low tree from a generator of its own, so the jungle
+    # is grown as before.
+    for grove, grow in [*((g, rng) for g in POOL_GROVE), (POOL_LOW_TREE, np.random.default_rng(FALL["seed"] + 13))]:
         trees = [(*pool_spot(across, toward), height) for across, toward, height in grove]
         cx, cz = sum(t[0] for t in trees) / len(trees), sum(t[1] for t in trees) / len(trees)
         base = at(cx, cz)
-        built, tops, far = PL.clump(rng, [(tx - cx, -(tz - cz), height, at(tx, tz) - base) for tx, tz, height in trees])
+        built, tops, far = PL.clump(grow, [(tx - cx, -(tz - cz), height, at(tx, tz) - base) for tx, tz, height in trees])
         canopy.add(PL.to_arrays(built), cx, cz, base)
         canopy_far.add(PL.to_arrays(far), cx, cz, base)
         for tx, tz, height in trees:
@@ -1171,10 +1181,13 @@ def build_plants(collection, outlines):
             flowers.append((x, at(x, z), z))
     across, toward, _, _, height, _ = POOL_ROCKS[1]
     sx, sz = pool_spot(across, toward)
+    showy = np.random.default_rng(FALL["seed"] + 11)
+    bright = [variants.shape("brom", PL.to_arrays(PL.bromeliad(showy, heart)))
+              for heart in (("bromPink", "bromRed"), ("bromOrange", "bromYellow"), ("bromYellow", "bromOrange"))]
     for k in range(5):
         a = 2.0 * math.pi * k / 5 + 0.4
         x, z = sx + 0.42 * math.cos(a), sz + 0.42 * math.sin(a)
-        variants.plant("under", kinds["brom"][k % 3], x, at(sx, sz) + height - 0.12, z, rng.uniform(0, 2 * math.pi),
+        variants.plant("under", bright[k % 3], x, at(sx, sz) + height - 0.12, z, rng.uniform(0, 2 * math.pi),
                        rng.uniform(2.0, 2.6))
     for k in range(2):
         a = 2.0 * math.pi * k / 2 + 1.3
@@ -1199,7 +1212,7 @@ def build_plants(collection, outlines):
         x, z = mx + (r + 0.05) * math.cos(a), mz + (r + 0.05) * math.sin(a)
         kind = ("fern", "fern", "fern", "brom", "monstera", "ti")[int(grow.integers(0, 6))]
         variants.plant("under", kinds[kind][int(grow.integers(0, len(kinds[kind])))], x, y - 0.1, z,
-                       grow.uniform(0, 2 * math.pi), grow.uniform(0.8, 1.2))
+                       grow.uniform(0, 2 * math.pi), grow.uniform(1.0, 1.6))
         made += 1
     # A thicker ring of ferns, monstera and ti plants round the pool's sides, closing in on the water
     # as in the film's frame.
