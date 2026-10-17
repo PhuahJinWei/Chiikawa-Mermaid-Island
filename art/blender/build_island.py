@@ -56,9 +56,15 @@ COAST = {"radii": (140.0, 112.5), "wobble": [(3, 0.045, 0.6), (5, 0.03, 2.1), (7
 HEADLAND = {"centre": (122.5, -19.5), "bulge": 19.0}
 # The festival at the bay, after the film: the beach in front of two long rows of stalls along its
 # back, facing the bay, and through the welcome arch in the opening between them, a street of
-# stalls running inland, rising gently.
+# stalls running inland. PLAZA and STREET are where the sand is, between the stalls.
 PLAZA = {"centre": (0.0, -5.5), "half": (31.0, 8.5), "feather": 3.0}
-STREET = {"centre": (0.0, -31.0), "half": (8.5, 15.0), "feather": 4.0}
+STREET = {"centre": (0.0, -29.4), "half": (4.6, 15.6), "feather": 1.5}
+# Its ground is level, as in the film: a band along the front rows (which follow the back of the
+# beach, z = row[0] + row[1] x^2), from `behind` them to `front` of them, and the street box (centre,
+# half sizes); it eases into the ground round them over `feather` metres, and past the street's far
+# end over `ramp` metres, where the path climbs on into the jungle.
+FESTIVAL = {"level": 0.5, "row": (-13.6, 0.0022), "rows_half": 30.0, "behind": 5.5, "front": 2.0, "feather": 3.0,
+            "street": ((0.0, -29.6), (8.8, 16.4)), "ramp": 16.0}
 # The village: a round clearing deep in the jungle, its huts round the watchtower stage.
 VILLAGE = {"centre": (0.0, -84.0), "radius": 22.0, "feather": 6.0}
 FIELDS = {"centre": (-72.5, -39.5), "half": (27.5, 17.5), "feather": 10.0, "height": 0.85}
@@ -113,8 +119,8 @@ UNDERSTORY_PATCHES = 8  # what grows under them into 8 x 8, which the game draws
 # How much room each kind of placed prop keeps clear of trees, in metres from its middle.
 PROP_ROOM = {"hut_green": 7.0, "hut_warm": 7.0, "hut_plank": 5.5, "beehive": 3.8, "stage": 6.5, "torch": 1.0,
              "stall_pink": 3.2, "stall_purple": 3.2, "stall_orange": 3.2, "stall_blue": 3.2, "stall_red": 3.2,
-             "stall_white": 3.2, "arch": 2.5, "banner": 2.0, "bunting": 2.0, "bunting_long": 2.0, "lanterns": 1.2,
-             "palm": 2.0, "sign": 2.0}
+             "stall_white": 3.2, "arch": 2.5, "banner": 2.0, "bunting_row": 2.0, "bunting_street": 2.0,
+             "lanterns": 1.2, "palm": 2.0, "sign": 2.0}
 # Flowering bushes grow round the backs of the village's houses, this far from their middles.
 HUT_ROOM = {"hut_green": (5.6, 6.6), "hut_warm": (5.6, 6.6), "hut_plank": (4.4, 5.2), "beehive": (3.0, 3.6)}
 
@@ -223,6 +229,23 @@ def cave_basin(x, z):
     return 1.0 - smoothstep(reach - 2.5, reach, np.hypot(x - cx, z - cz))
 
 
+def festival_level(x, z):
+    """1 where the festival's ground is level, easing to 0 round it (see FESTIVAL)."""
+    f = FESTIVAL
+    # The band under the front rows, following the back of the beach.
+    dz = z - (f["row"][0] + f["row"][1] * x * x)
+    out_x = np.maximum(np.abs(x) - f["rows_half"], 0.0)
+    out_z = np.maximum(np.maximum(-f["behind"] - dz, dz - f["front"]), 0.0)
+    rows = 1.0 - smoothstep(0.0, f["feather"], np.hypot(out_x, out_z))
+    # The street: easing off over the feather at its sides and front, over the ramp past its far end.
+    (cx, cz), (hx, hz) = f["street"]
+    side = np.maximum(np.abs(x - cx) - hx, 0.0)
+    south = np.maximum(z - (cz + hz), 0.0)
+    north = np.maximum((cz - hz) - z, 0.0) * (f["feather"] / f["ramp"])
+    street = 1.0 - smoothstep(0.0, f["feather"], np.hypot(side, south + north))
+    return np.maximum(rows, street)
+
+
 def land_height(x, z):
     """The ground's natural height at points (x, z) on land, before any feature shapes it."""
     x, z = np.asarray(x, dtype=float), np.asarray(z, dtype=float)
@@ -254,19 +277,14 @@ def ground(x, z, natural=False):
     land = beach + hills
     h = np.where(s >= 0.0, land, sea)
 
-    # The festival street rises gently and evenly from the plaza to the jungle; the village's
-    # clearing is level; the fields are flat.
+    # The festival's ground is level; so is the village's clearing; the fields are flat.
     inland = smoothstep(0.0, 6.0, s)
     m_plaza = box_mask(x, z, PLAZA["centre"], PLAZA["half"], PLAZA["feather"]) * inland
     m_street = box_mask(x, z, STREET["centre"], STREET["half"], STREET["feather"]) * inland
     vx, vz = VILLAGE["centre"]
     m_village = (1.0 - smoothstep(VILLAGE["radius"], VILLAGE["radius"] + VILLAGE["feather"], np.hypot(x - vx, z - vz)))
     if not natural:
-        z_south = STREET["centre"][1] + STREET["half"][1]
-        z_north = STREET["centre"][1] - STREET["half"][1]
-        h_south, h_north = land_height(np.array([0.0, 0.0]), np.array([z_south, z_north - 4.0]))
-        along = np.clip((z - z_south) / (z_north - z_south), 0.0, 1.0)
-        h = h + (h_south + (h_north - h_south) * along - h) * m_street
+        h = h + (FESTIVAL["level"] - h) * festival_level(x, z) * inland
         h_village = float(land_height(np.array([vx]), np.array([vz]))[0])
         h = h + (h_village + 0.04 * noise(x, z, 9.0, 4.0) - h) * m_village
     m_fields = box_mask(x, z, FIELDS["centre"], FIELDS["half"], FIELDS["feather"]) * inland

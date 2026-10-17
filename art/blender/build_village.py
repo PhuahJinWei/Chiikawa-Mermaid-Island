@@ -223,15 +223,17 @@ STALL_WORDS = {"pink": "#C8325A", "purple": "#FFFFFF", "orange": "#FFFFFF", "blu
 def make_stall(colour):
     def build(collection):
         """A festival stall: a counter painted in its colour, a striped awning, a signboard for
-        the game to paint its name on, and a scalloped yellow fringe under the board."""
+        the game to paint its name on, and a scalloped yellow fringe under the board. Light, as
+        forty of them stand side by side along the festival. It is 2.9 metres wide, awning to
+        awning, so stalls placed that far apart touch, as in the film."""
         col, pieces = C[colour], []
-        pieces.append((P.box_bm(V(0.0, 0.0, 0.5), (2.6, 1.0, 1.0), bevel=0.03), C["plank"]))
+        pieces.append((P.box_bm(V(0.0, 0.0, 0.5), (2.6, 1.0, 1.0)), C["plank"]))
         pieces.append((P.box_bm(V(0.0, -0.51, 0.5), (2.5, 0.03, 0.85)), col))
         pieces.append((P.box_bm(V(0.0, -0.53, 0.5), (2.5, 0.03, 0.12)), C["white"]))
-        pieces.append((P.box_bm(V(0.0, 0.0, 1.03), (2.75, 1.15, 0.07), bevel=0.02), C["plankLight"]))
+        pieces.append((P.box_bm(V(0.0, 0.0, 1.03), (2.75, 1.15, 0.07)), C["plankLight"]))
         for x in (-1.25, 1.25):
             for y, top in ((-0.48, 2.45), (0.48, 2.7)):
-                pieces.append((P.segment_bm(V(x, y, 0.0), V(x, y, top), 0.06, 0.055, segments=8), C["post"]))
+                pieces.append((P.segment_bm(V(x, y, 0.0), V(x, y, top), 0.06, 0.055, segments=6), C["post"]))
         # The awning slopes down to the front in stripes.
         stripes = 7
         for k in range(stripes):
@@ -241,22 +243,22 @@ def make_stall(colour):
                           @ Matrix.Translation(V(0.0, 0.0, -2.6)))
             pieces.append((bm, col if k % 2 == 0 else C["white"]))
         # The signboard over the front.
-        pieces.append((P.box_bm(V(0.0, -0.62, 2.95), (2.4, 0.08, 0.7), bevel=0.03), col))
+        pieces.append((P.box_bm(V(0.0, -0.62, 2.95), (2.4, 0.08, 0.7)), col))
         for x in (-0.9, 0.9):
-            pieces.append((P.segment_bm(V(x, -0.62, 2.45), V(x, -0.62, 2.62), 0.035, 0.035, 6), C["post"]))
-        for k in range(12):
-            x = -1.1 + 0.2 * k
+            pieces.append((P.segment_bm(V(x, -0.62, 2.45), V(x, -0.62, 2.62), 0.035, 0.035, 5), C["post"]))
+        for k in range(11):
+            x = -1.1 + 0.22 * k
             fringe = bmesh.new()
             hub = fringe.verts.new((x, -0.67, 2.6))
-            arc = [fringe.verts.new((x + 0.1 * math.cos(math.pi * i / 4), -0.67, 2.6 - 0.11 * math.sin(math.pi * i / 4)))
-                   for i in range(5)]
+            arc = [fringe.verts.new((x + 0.11 * math.cos(math.pi * i / 3), -0.67, 2.6 - 0.11 * math.sin(math.pi * i / 3)))
+                   for i in range(4)]
             for a, b in zip(arc, arc[1:]):
                 fringe.faces.new((hub, b, a))
             pieces.append((fringe, C["yellow"]))
         # Things on the counter: cups and a jar.
         for x, c in ((-0.8, C["yellow"]), (-0.55, C["pink"]), (0.7, C["blue"])):
-            pieces.append((P.segment_bm(V(x, -0.1, 1.06), V(x, -0.1, 1.2), 0.07, 0.085, segments=8), c))
-        pieces.append((L.ellipsoid_bm(V(0.2, 0.05, 1.18), (0.14, 0.14, 0.13), u=10, v=7), C["cream"]))
+            pieces.append((P.segment_bm(V(x, -0.1, 1.06), V(x, -0.1, 1.2), 0.07, 0.085, segments=6), c))
+        pieces.append((L.ellipsoid_bm(V(0.2, 0.05, 1.18), (0.14, 0.14, 0.13), u=8, v=5), C["cream"]))
         body = join(f"stall_{colour}", pieces, collection)
         face, uvs = P.label_bm(V(0.0, -0.66, 2.95), 2.2, 0.56)
         label = P.object_with_uv(f"stall_{colour}_label", face, uvs, collection)
@@ -480,8 +482,10 @@ BUILDERS = {
     "stall_white": make_stall("white"),
     "pier": build_pier,
     "ferry": build_ferry,
-    "bunting": make_bunting(7.0, 2.75, 0.55, 13, "bunting"),
-    "bunting_long": make_bunting(19.0, 4.4, 1.0, 34, "bunting_long"),
+    # Along the front rows, pole to pole over four stalls; across the street, from behind one row
+    # to behind the other.
+    "bunting_row": make_bunting(11.68, 4.3, 0.45, 21, "bunting_row"),
+    "bunting_street": make_bunting(12.4, 4.4, 0.55, 22, "bunting_street"),
     "basket": build_basket,
     "pot": build_pot,
 }

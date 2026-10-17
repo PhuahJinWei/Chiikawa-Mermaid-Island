@@ -461,7 +461,7 @@ export class Stage {
     // The beach in front of the stalls, and the street through the arch: x, z, half sizes.
     const areas: [number, number, number, number][] = [
       [0, -5, 26, 7],
-      [0, -30, 6.2, 13],
+      [0, -29.5, 4.3, 14],
     ];
     const geo = new THREE.PlaneGeometry(0.07, 0.05).rotateX(-Math.PI / 2);
     this.confettiMaterial = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });

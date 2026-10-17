@@ -41,9 +41,11 @@ const INSIDE_REACH = 32;
  * drawn only this close. */
 const SMALL_SIZE = 1.5;
 const SMALL_REACH = 60;
-/** Painted words: pixels per metre of a label face, and the atlas's width. */
+/** Painted words go into one atlas this size, as sharp as fits: at most LABEL_PIXELS pixels per
+ * metre of a label face, fewer if every label would not fit otherwise. */
 const LABEL_PIXELS = 220;
 const ATLAS_WIDTH = 2048;
+const ATLAS_HEIGHT = 1024;
 
 /** Which pieces of a group are drawn when: always, near, inside (closer still), far, or at night. */
 type Level = 'always' | 'near' | 'small' | 'inside' | 'far' | 'night';
@@ -114,26 +116,35 @@ function placedGeometry(
  * one, as the HUD uses.
  */
 function paintLabels(labels: Label[]): THREE.CanvasTexture {
-  const sizes = labels.map((l) => [
-    Math.min(ATLAS_WIDTH, Math.round(l.info.size[0] * LABEL_PIXELS)),
-    Math.min(ATLAS_WIDTH, Math.round(l.info.size[1] * LABEL_PIXELS)),
-  ]);
-  // Shelves: left to right, then down.
-  const places: [number, number][] = [];
-  let x = 0;
-  let y = 0;
-  let shelf = 0;
-  for (const [w, h] of sizes) {
-    if (x + w > ATLAS_WIDTH) {
-      x = 0;
-      y += shelf;
-      shelf = 0;
+  // Shelves, tallest labels first: left to right, then down. Lower the density until all fit.
+  let sizes: number[][] = [];
+  let places: [number, number][] = [];
+  let used = 0;
+  for (let density = LABEL_PIXELS; density >= 100; density -= 10) {
+    sizes = labels.map((l) => [
+      Math.min(ATLAS_WIDTH, Math.round(l.info.size[0] * density)),
+      Math.min(ATLAS_WIDTH, Math.round(l.info.size[1] * density)),
+    ]);
+    const order = sizes.map((_, i) => i).sort((a, b) => sizes[b][1] - sizes[a][1]);
+    places = new Array(labels.length);
+    let x = 0;
+    let y = 0;
+    let shelf = 0;
+    for (const i of order) {
+      const [w, h] = sizes[i];
+      if (x + w > ATLAS_WIDTH) {
+        x = 0;
+        y += shelf;
+        shelf = 0;
+      }
+      places[i] = [x, y];
+      x += w;
+      shelf = Math.max(shelf, h);
     }
-    places.push([x, y]);
-    x += w;
-    shelf = Math.max(shelf, h);
+    used = y + shelf;
+    if (used <= ATLAS_HEIGHT) break;
   }
-  const height = THREE.MathUtils.ceilPowerOfTwo(Math.max(y + shelf, 1));
+  const height = THREE.MathUtils.ceilPowerOfTwo(Math.max(used, 1));
   const canvas = document.createElement('canvas');
   canvas.width = ATLAS_WIDTH;
   canvas.height = height;

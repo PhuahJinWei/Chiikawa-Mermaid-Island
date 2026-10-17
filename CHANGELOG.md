@@ -34,15 +34,17 @@ its room and up the stage. Not yet checked on a real phone.
   wooden pier (rough planks on log posts, over turquoise water, the white
   duck ferry moored beside it, bobbing) reaches the middle of the beach.
   Behind the beach, two long rows of stalls stand side by side facing the
-  bay, following its curve, either side of an opening in line with the
-  pier. The welcome arch spans the opening: a wooden board reading
-  島へようこそ!! wreathed in big yellow flowers, with ウェルカム・トゥ・シマ
-  on the banner below. Through it, a street runs inland, rising gently,
-  with stalls down both sides facing in and two at its far end facing back
-  toward the arch, either side of the path on to the village. Twenty-six
-  stalls in all under signboards (じゃがバター, たこ焼き, いか焼き, りんごアメ,
-  ケバブ, 冷しパイン, わたあめ, クレープ, やきそば and more), long bunting
-  with paper lanterns strung along the rows and across the street, white
+  bay, awning touching awning, following its curve, either side of an
+  opening in line with the pier. The welcome arch spans the opening: a
+  wooden board reading 島へようこそ!! wreathed in big yellow flowers, with
+  ウェルカム・トゥ・シマ on the banner below. Through it, a street as wide as
+  the arch runs inland, packed with stalls down both sides facing in, and
+  four across its far end facing back toward the arch, either side of the
+  path on to the village. The whole festival stands on level ground; the
+  path climbs to the jungle only past the street's end. Forty stalls in
+  all under signboards (じゃがバター, たこ焼き, いか焼き, りんごアメ, ケバブ,
+  冷しパイン, 金魚すくい, 射的, クレープ, やきそば and more), bunting with
+  paper lanterns strung along the rows and across the street, white
   banners reading いらっしゃいませ!! and たのしんでね, poles of pink lanterns,
   palms behind the stalls and confetti over the beach and the street.
   Built in Blender by `art/blender/build_village.py` (the arch and banners
@@ -117,10 +119,9 @@ its room and up the stage. Not yet checked on a real phone.
 **Performance**
 
 Measured in the browser. With the whole cast and crowd (11 characters) at
-the head of the pier, at the default camera: about 505k triangles in 101
-draw calls, 327k of them the island. Without the cast: the festival street
-400k, the village 375k, the jungle 210k, from high above 450k in 137 draw
-calls. The plan's phone budget is 150 draw calls (met) and 150k triangles
+the head of the pier, at the default camera: about 535k triangles in 105
+draw calls. Without the cast: the festival street 433k, the village 375k,
+the jungle 210k, from high above 450k in 137 draw calls. The plan's phone budget is 150 draw calls (met) and 150k triangles
 (not met, by two to three times); everything outlined is drawn twice, once
 for its pen line. To get there:
 
@@ -130,8 +131,12 @@ for its pen line. To get there:
 - The huts, the canopy and the palms come in two versions: in full near
   the camera, and light (roofs and walls; coarse crowns; plain palms)
   beyond. A hut's room is drawn only close up.
-- Palms, baskets, pots, the arch's flowers, the understory's leaves, the
-  rocks' crowns and the canopy have fewer triangles than at first.
+- Palms, baskets, pots, the stalls (half as many triangles each, so forty
+  cost little more than twenty), the arch's flowers, the understory's
+  leaves, the rocks' crowns and the canopy have fewer triangles than at
+  first.
+- Every sign's words share one 2048 x 1024 texture, packed tallest first,
+  as sharp as fits.
 - Props that never move are joined into a few meshes per group (the
   festival, the village) or patch of the island, with one outline each.
 - Plants planted many times are kept once each in the plants file, with

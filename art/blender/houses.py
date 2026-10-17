@@ -681,18 +681,19 @@ def build_arch(collection):
 
 
 def build_banner(collection):
-    """A white cloth banner strung across the festival street between two poles, for words in pink."""
-    half, pole_h = 5.6, 4.3
+    """A white cloth banner strung across the festival street between two poles standing just in
+    front of the stalls on either side, for words in pink."""
+    half, pole_h = 4.3, 4.3
     pieces = []
     for s in (-1.0, 1.0):
         pieces.append((log(V(s * half, 0.0, -0.3), V(s * half, 0.0, pole_h), 0.07, segments=6), C["torch"]))
         pieces.append((L.ellipsoid_bm(V(s * half, 0.0, pole_h + 0.08), (0.1, 0.1, 0.1), u=8, v=5), C["gold"]))
-    cloth, cloth_z = arc_strip(5.5, 3.45, 3.75, 0.62, 0.0, 0.03)
+    cloth, cloth_z = arc_strip(4.2, 3.45, 3.75, 0.62, 0.0, 0.03)
     pieces.append((cloth, C["white"]))
     body = P.join("banner", pieces, collection)
-    label = arc_label(5.5, cloth_z, 0.48, -0.02, "banner_label", collection)
+    label = arc_label(4.2, cloth_z, 0.48, -0.02, "banner_label", collection)
     blocks = [{"circle": [*g(s * half, 0.0), 0.14], "y": [-10, pole_h], "walk": True, "camera": True} for s in (-1, 1)]
-    return [body, label], {"blocks": blocks, "labels": [{"size": [10.2, 0.48], "colour": "#E8679A"}], "height": 4.4}
+    return [body, label], {"blocks": blocks, "labels": [{"size": [7.7, 0.48], "colour": "#E8679A"}], "height": 4.4}
 
 
 def build_lantern_pole(collection):
