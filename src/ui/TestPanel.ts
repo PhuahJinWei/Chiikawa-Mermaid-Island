@@ -8,7 +8,17 @@ export interface TestPanelState {
   lineup: boolean;
   outfit: boolean;
   expression: ExpressionId | null;
+  clockRunning: boolean;
+  freeCamera: boolean;
 }
+
+/** The test panel's times of day: dawn, midday, dusk and night, in hours past midnight. */
+const TIMES: [StringKey, number][] = [
+  ['time.morning', 6.3],
+  ['time.noon', 12],
+  ['time.evening', 18.1],
+  ['time.night', 22],
+];
 
 export interface TestPanelHandlers {
   selectCharacter(id: CharacterId): void;
@@ -17,6 +27,10 @@ export interface TestPanelHandlers {
   resetCamera(): void;
   action(id: ActionId | 'jump'): void;
   expression(id: ExpressionId | null): void;
+  setTime(hours: number): void;
+  toggleClock(): void;
+  toggleFreeCamera(): void;
+  moveHere(): void;
 }
 
 const escapeHtml = (s: string) =>
@@ -74,7 +88,14 @@ export class TestPanel {
         'panel.view',
         chip('lineup', '1', t('panel.lineup'), s.lineup) +
           chip('outfit', '1', t('panel.outfit'), s.outfit) +
-          chip('reset', '1', t('panel.resetCamera')),
+          chip('reset', '1', t('panel.resetCamera')) +
+          chip('freecam', '1', t('panel.freeCamera'), s.freeCamera) +
+          (s.freeCamera ? chip('movehere', '1', t('panel.moveHere')) : ''),
+      ),
+      section(
+        'panel.time',
+        TIMES.map(([key, hours]) => chip('time', String(hours), t(key))).join('') +
+          chip('clock', '1', t('time.stop'), !s.clockRunning),
       ),
       section(
         'panel.actions',
@@ -102,6 +123,10 @@ export class TestPanel {
     else if (d.lineup) this.handlers.toggleLineup();
     else if (d.outfit) this.handlers.toggleOutfit();
     else if (d.reset) this.handlers.resetCamera();
+    else if (d.freecam) this.handlers.toggleFreeCamera();
+    else if (d.movehere) this.handlers.moveHere();
+    else if (d.time) this.handlers.setTime(Number(d.time));
+    else if (d.clock) this.handlers.toggleClock();
     else if (d.action) this.handlers.action(d.action as ActionId | 'jump');
     else if (d.expr) this.handlers.expression(d.expr === 'auto' ? null : (d.expr as ExpressionId));
     if (!d.close) this.render();

@@ -75,6 +75,11 @@ export class Input {
     if (!on) this.releaseJoystick();
   }
 
+  /** Whether a key is held down, by its code ('KeyE', 'ShiftLeft'...). */
+  held(code: string): boolean {
+    return this.keys.has(code);
+  }
+
   consumeLook(out: THREE.Vector2): THREE.Vector2 {
     out.copy(this.look);
     this.look.set(0, 0);

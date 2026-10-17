@@ -70,8 +70,28 @@ Every model comes out of Blender, driven by a Python script:
 - `art/blender/build_characters.py` is the parts kit for characters that have
   no downloaded model. None is in the game yet, so it builds nothing for
   now.
-- `art/blender/build_props.py` builds the palm, log, starfish and onigiri
-  into `public/models/props/`.
+- `art/blender/build_island.py` builds the island into
+  `public/models/island/`: the ground's mesh, its painted colour map and the
+  height grid the game walks on, and the rock landmarks with the waterfall
+  (`art/blender/karst.py` shapes the rocks). `art/previews/island_map.png`
+  shows the colour map with each rock's foot outlined, for checking the
+  layout.
+  It also grows the jungle, the fields' crops and the flowers round the
+  village (`art/blender/plants.py` shapes the plants), keeping them clear of
+  the props placed in `public/data/layout.json`.
+- `art/blender/build_props.py` builds the palm, log, starfish, onigiri, the
+  No Entry sign and the butterfly into `public/models/props/`.
+- `art/blender/build_village.py` builds the village and the festival into
+  `public/models/props/`: the huts you can walk into, the stage, torches,
+  round thatched huts, the festival's stalls, arch, banners, bunting and
+  lantern poles, the pier, the duck ferry, baskets and potted plants.
+  `art/blender/houses.py` holds the houses, the stage, the arch and the
+  banners.
+
+Where everything stands is in `public/data/layout.json`: each prop's kind,
+place, turn and painted words (a key into `ja.json`), and the island's named
+places. Edit it and reload; rebuild the island too if props moved, so the
+jungle keeps clear of them.
 - `art/blender/outfits.py` holds the island outfit (flower crown and grass
   skirt) that both character scripts use.
 
@@ -94,7 +114,15 @@ Run a script from the project folder:
 ```
 
 ```bash
+"/c/Program Files/Blender Foundation/Blender 5.2/blender.exe" --background --factory-startup --python art/blender/build_island.py
+```
+
+```bash
 "/c/Program Files/Blender Foundation/Blender 5.2/blender.exe" --background --factory-startup --python art/blender/build_props.py
+```
+
+```bash
+"/c/Program Files/Blender Foundation/Blender 5.2/blender.exe" --background --factory-startup --python art/blender/build_village.py
 ```
 
 `--disable-autoexec` matters for the import: the downloaded .blend files

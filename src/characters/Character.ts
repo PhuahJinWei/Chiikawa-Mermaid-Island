@@ -26,8 +26,10 @@ export interface FrameContext {
   camera: THREE.Camera;
   viewHeight: number;
   pixelRatio: number;
-  groundHeight: (x: number, z: number) => number;
-  clamp: (p: THREE.Vector3) => void;
+  /** Height of what someone stands on at (x, z), within a step of where their feet were. */
+  groundHeight: (x: number, z: number, feet?: number) => number;
+  /** Keeps a character who moved from `from` (from.y: their feet) to `p` on ground they can stand on. */
+  clamp: (p: THREE.Vector3, from: THREE.Vector3) => void;
 }
 
 const GRAVITY = -24;
@@ -40,6 +42,7 @@ const _p = new THREE.Vector3();
 const _q = new THREE.Quaternion();
 const _e = new THREE.Euler();
 const _m = new THREE.Matrix4();
+const _from = new THREE.Vector3();
 const _s = new THREE.Vector3();
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
@@ -115,6 +118,8 @@ export class Character implements EmoteHost {
   private jumpY = 0;
   private vy = 0;
   private airborne = false;
+  /** Where the character's feet are when not jumping: the ground, or the deck they stand on. */
+  private feet = NaN;
   private crouch = -1;
 
   private readonly squash = new Spring(3.0, 0.2, 1);
@@ -224,6 +229,7 @@ export class Character implements EmoteHost {
 
   teleport(x: number, z: number, yaw: number): void {
     this.root.position.set(x, 0, z);
+    this.feet = NaN;
     this.velocity.set(0, 0, 0);
     this.desired.set(0, 0, 0);
     this.facing = this.targetFacing = yaw;
@@ -295,9 +301,12 @@ export class Character implements EmoteHost {
     this.velocity.add(_v);
 
     const pos = this.root.position;
+    if (Number.isNaN(this.feet)) this.feet = ctx.groundHeight(pos.x, pos.z);
+    _from.copy(pos);
+    _from.y = this.feet;
     pos.x += this.velocity.x * dt;
     pos.z += this.velocity.z * dt;
-    ctx.clamp(pos);
+    ctx.clamp(pos, _from);
 
     const inv = 1 / Math.max(dt, 1e-4);
     const k = Math.min(1, dt * 12);
@@ -333,8 +342,14 @@ export class Character implements EmoteHost {
         for (const s of this.earPitch) s.velocity += 2.5 * impact;
       }
     }
-    pos.y = ctx.groundHeight(pos.x, pos.z) + this.jumpY;
+    this.feet = ctx.groundHeight(pos.x, pos.z, this.feet);
+    pos.y = this.feet + this.jumpY;
     this.root.rotation.y = this.facing;
+  }
+
+  /** Height of the character's feet when not jumping: what they stand on. */
+  get feetY(): number {
+    return Number.isNaN(this.feet) ? this.root.position.y : this.feet;
   }
 
   private locomotionPose(): void {
@@ -524,7 +539,7 @@ export class Character implements EmoteHost {
 
   private updateShadowAndProp(ctx: FrameContext): void {
     const pos = this.root.position;
-    const ground = ctx.groundHeight(pos.x, pos.z);
+    const ground = Number.isNaN(this.feet) ? ctx.groundHeight(pos.x, pos.z) : this.feet;
     const lift = this.jumpY + Math.max(0, this.pose.rootY);
     const k = 1 - Math.min(0.55, lift * 0.9);
     this.shadow.position.set(pos.x, ground + 0.025, pos.z);

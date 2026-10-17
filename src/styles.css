@@ -179,6 +179,29 @@ body {
   opacity: 0;
 }
 
+/* The name of the place you walk into, under the title for a moment. */
+.hud-place {
+  position: absolute;
+  left: 50%;
+  top: calc(64px + env(safe-area-inset-top));
+  transform: translate(-50%, -6px);
+  background: rgba(255, 250, 242, 0.9);
+  border: 2px solid var(--ink);
+  padding: 5px 16px;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 15px;
+  box-shadow: var(--shadow);
+  opacity: 0;
+  transition: opacity 0.5s ease, transform 0.5s ease;
+  pointer-events: none;
+}
+
+.hud-place.shown {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
 .loading {
   position: absolute;
   inset: 0;

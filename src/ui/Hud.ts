@@ -19,6 +19,8 @@ export class Hud implements JoystickView {
   private readonly joyKnob = el('div', 'joy-knob');
   private readonly jumpButton = el('button', 'jump-btn');
   private readonly hint = el('div', 'hud-hint');
+  private readonly place = el('div', 'hud-place');
+  private placeTimer = 0;
   private readonly loading = el('div', 'loading');
 
   constructor(ui: HTMLElement) {
@@ -28,7 +30,7 @@ export class Hud implements JoystickView {
     titleBox.append(this.title, this.stats);
     top.append(titleBox, this.testButton);
     this.joyBase.append(this.joyKnob);
-    root.append(top, this.joyBase, this.jumpButton, this.hint, this.loading);
+    root.append(top, this.place, this.joyBase, this.jumpButton, this.hint, this.loading);
     ui.append(root);
 
     this.testButton.type = 'button';
@@ -72,9 +74,27 @@ export class Hud implements JoystickView {
     this.hint.classList.add('gone');
   }
 
+  /** Shows a hint in the hint's place, or hides it again with null. */
+  showHint(text: string | null): void {
+    if (text === null) {
+      this.hideHint();
+      return;
+    }
+    this.hint.textContent = text;
+    this.hint.classList.remove('gone');
+  }
+
   setControlsVisible(on: boolean): void {
     this.jumpButton.hidden = !on;
     this.joyBase.hidden = !on;
+  }
+
+  /** The name of the place just walked into, showing for a moment under the title. */
+  showPlace(name: string): void {
+    this.place.textContent = name;
+    this.place.classList.add('shown');
+    window.clearTimeout(this.placeTimer);
+    this.placeTimer = window.setTimeout(() => this.place.classList.remove('shown'), 2600);
   }
 
   setStats(text: string): void {

@@ -22,6 +22,8 @@ export interface StagedShot {
   /** Background islanders: x, z, facing. */
   crowd?: [number, number, number][];
   camera: { position: [number, number, number]; target: [number, number, number]; fov: number };
+  /** The time of day, in hours past midnight; late morning when left out. */
+  hour?: number;
 }
 
 export interface DevApi {

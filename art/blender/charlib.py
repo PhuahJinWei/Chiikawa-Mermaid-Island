@@ -279,9 +279,11 @@ def append_bm(dst, src):
     bpy.data.meshes.remove(tmp)
 
 
-def decimate_bm(bm, ratio):
-    """A copy of a mesh collapsed to about `ratio` of its triangles, keeping its shape and its
-    left-right symmetry: for background characters, never seen up close."""
+def decimate_bm(bm, ratio, symmetric=True, keep=None):
+    """A copy of a mesh collapsed to about `ratio` of its triangles, keeping its shape, and its
+    left-right symmetry when `symmetric`: for background characters never seen up close, and
+    for the island's ground. `keep` gives each vertex a weight from 0 to 1: the higher, the
+    longer its edges are kept as they are (the ground's waterline keeps its detail this way)."""
     mesh = bpy.data.meshes.new("_dec")
     bm.to_mesh(mesh)
     obj = bpy.data.objects.new("_dec", mesh)
@@ -289,8 +291,18 @@ def decimate_bm(bm, ratio):
     dec = obj.modifiers.new("decimate", "DECIMATE")
     dec.decimate_type = "COLLAPSE"
     dec.ratio = ratio
-    dec.use_symmetry = True
+    dec.use_symmetry = symmetric
     dec.symmetry_axis = "X"
+    if keep is not None:
+        # The modifier collapses the vertices in its group first; inverted, the kept ones last.
+        group = obj.vertex_groups.new(name="keep")
+        steps = [round(w, 1) for w in keep]
+        for w in sorted(set(steps)):
+            if w > 0.0:
+                group.add([i for i, s in enumerate(steps) if s == w], w, "REPLACE")
+        dec.vertex_group = "keep"
+        dec.invert_vertex_group = True
+        dec.vertex_group_factor = 1.0
     dg = bpy.context.evaluated_depsgraph_get()
     final = bpy.data.meshes.new_from_object(obj.evaluated_get(dg), depsgraph=dg)
     out = bmesh.new()

@@ -53,14 +53,64 @@ float penAt(float depth) {
 }
 `;
 
+/** The wind's clock, shared by everything that sways. */
+export const windUniforms = { uTime: { value: 0 } };
+
+/**
+ * GLSL: how far the wind moves a point of a plant, by its sway weight (0 where it is rooted, 1 at
+ * its tips). Slow and soft, a little different from plant to plant.
+ */
+export const SWAY_GLSL = /* glsl */ `
+uniform float uTime;
+vec3 sway(vec3 p, float weight) {
+  float ph = dot(p.xz, vec2(0.13, 0.09));
+  return weight * vec3(
+    0.09 * sin(uTime * 1.3 + ph) + 0.035 * sin(uTime * 2.9 + ph * 2.1),
+    0.0,
+    0.06 * sin(uTime * 1.1 + ph * 1.4));
+}
+`;
+
+/**
+ * GLSL: a butterfly's wings beating. Every vertex further than 6 mm from the body's middle (along
+ * x) is wing, and turns up and down about the body; each instance beats at its own phase.
+ */
+export const FLAP_GLSL = /* glsl */ `
+uniform float uTime;
+float flapAngle(float id) {
+  return 0.2 + 0.9 * sin(uTime * 15.0 + id * 2.3);
+}
+vec3 flapTurn(vec3 v, float side, float a) {
+  return vec3(v.x * cos(a) - side * v.y * sin(a), side * v.x * sin(a) + v.y * cos(a), v.z);
+}
+`;
+
 const OUTLINE_VERT = /* glsl */ `
 #include <common>
 #include <fog_pars_vertex>
 uniform vec2 uResolution;
 ${PEN_GLSL}
+#ifdef SWAY
+attribute float aSway;
+${SWAY_GLSL}
+#endif
+#ifdef FLAP
+${FLAP_GLSL}
+#endif
 void main() {
   vec3 p = position;
   vec3 n = normal;
+#ifdef SWAY
+  p += sway(p, aSway);
+#endif
+#ifdef FLAP
+  if (abs(p.x) > 0.006) {
+    float a = flapAngle(float(gl_InstanceID));
+    float side = sign(p.x);
+    p = flapTurn(p, side, a);
+    n = flapTurn(n, side, a);
+  }
+#endif
 #ifdef USE_INSTANCING
   p = (instanceMatrix * vec4(p, 1.0)).xyz;
   n = mat3(instanceMatrix) * n;
@@ -95,23 +145,36 @@ void main() {
 }
 `;
 
-let outlineMaterial: THREE.ShaderMaterial | null = null;
+/** How a hull moves with what it outlines: not at all, in the wind (plants), or beating (wings). */
+export type OutlineMotion = 'still' | 'sway' | 'flap';
 
-/** The pen's outline material for solid objects (props, held items): an inverted hull. */
-export function inkOutlineMaterial(): THREE.ShaderMaterial {
-  outlineMaterial ??= new THREE.ShaderMaterial({
-    uniforms: {
-      ...THREE.UniformsUtils.clone(THREE.UniformsLib.fog),
-      ...inkUniforms,
-      uResolution: sharedUniforms.uResolution,
-      uAmbient: sharedUniforms.uAmbient,
-    },
-    vertexShader: OUTLINE_VERT,
-    fragmentShader: OUTLINE_FRAG,
-    side: THREE.BackSide,
-    fog: true,
-  });
-  return outlineMaterial;
+const outlineMaterials = new Map<OutlineMotion, THREE.ShaderMaterial>();
+
+/**
+ * The pen's outline material for solid objects (props, held items): an inverted hull. A swaying
+ * hull moves in the wind with the plant it outlines (by its aSway weights); a flapping one beats
+ * with a butterfly's wings.
+ */
+export function inkOutlineMaterial(motion: OutlineMotion = 'still'): THREE.ShaderMaterial {
+  let material = outlineMaterials.get(motion);
+  if (!material) {
+    material = new THREE.ShaderMaterial({
+      uniforms: {
+        ...THREE.UniformsUtils.clone(THREE.UniformsLib.fog),
+        ...inkUniforms,
+        ...(motion === 'still' ? {} : windUniforms),
+        uResolution: sharedUniforms.uResolution,
+        uAmbient: sharedUniforms.uAmbient,
+      },
+      defines: motion === 'sway' ? { SWAY: '' } : motion === 'flap' ? { FLAP: '' } : {},
+      vertexShader: OUTLINE_VERT,
+      fragmentShader: OUTLINE_FRAG,
+      side: THREE.BackSide,
+      fog: true,
+    });
+    outlineMaterials.set(motion, material);
+  }
+  return material;
 }
 
 const hullGeometries = new WeakMap<THREE.BufferGeometry, THREE.BufferGeometry>();
@@ -128,6 +191,8 @@ export function outlineGeometry(geometry: THREE.BufferGeometry): THREE.BufferGeo
   const nrm = geometry.getAttribute('normal');
   const hull = new THREE.BufferGeometry();
   hull.setAttribute('position', pos);
+  const swayWeights = geometry.getAttribute('aSway');
+  if (swayWeights) hull.setAttribute('aSway', swayWeights);
   if (geometry.index) hull.setIndex(geometry.index);
   const key = (i: number) =>
     `${Math.round(pos.getX(i) * 1e4)},${Math.round(pos.getY(i) * 1e4)},${Math.round(pos.getZ(i) * 1e4)}`;
@@ -156,16 +221,17 @@ export function outlineGeometry(geometry: THREE.BufferGeometry): THREE.BufferGeo
  * Gives a solid mesh its outline: a hull sharing its shape (and, for instanced meshes, its
  * instances), added beside it. Returns the hull.
  */
-export function addOutline(mesh: THREE.Mesh): THREE.Mesh {
+export function addOutline(mesh: THREE.Mesh, motion?: OutlineMotion): THREE.Mesh {
   let hull: THREE.Mesh;
   const geometry = outlineGeometry(mesh.geometry);
+  const material = inkOutlineMaterial(motion ?? (geometry.getAttribute('aSway') !== undefined ? 'sway' : 'still'));
   if ((mesh as THREE.InstancedMesh).isInstancedMesh) {
     const src = mesh as THREE.InstancedMesh;
-    const inst = new THREE.InstancedMesh(geometry, inkOutlineMaterial(), src.count);
+    const inst = new THREE.InstancedMesh(geometry, material, src.count);
     inst.instanceMatrix = src.instanceMatrix;
     hull = inst;
   } else {
-    hull = new THREE.Mesh(geometry, inkOutlineMaterial());
+    hull = new THREE.Mesh(geometry, material);
   }
   hull.position.copy(mesh.position);
   hull.quaternion.copy(mesh.quaternion);

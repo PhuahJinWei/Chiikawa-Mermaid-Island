@@ -16,7 +16,11 @@ export class CameraRig {
   private readonly lookDelta = new THREE.Vector2();
   private goal: { yaw: number; pitch: number; distance: number } | null = null;
 
-  constructor(readonly camera: THREE.PerspectiveCamera) {}
+  constructor(
+    readonly camera: THREE.PerspectiveCamera,
+    private readonly ground: (x: number, z: number) => number = () => 0,
+    private readonly clear: (x: number, y: number, z: number) => boolean = () => true,
+  ) {}
 
   /** Glide to a framing; any drag or zoom by the player cancels it. */
   frame(yaw: number, pitch: number, distance: number): void {
@@ -54,12 +58,28 @@ export class CameraRig {
 
     this.target.lerp(focus, 1 - Math.exp(-dt * 10));
     const cp = Math.cos(this.pitch);
-    this.camera.position.set(
+    const p = this.camera.position.set(
       this.target.x + Math.sin(this.yaw) * cp * this.distance,
       this.target.y + Math.sin(this.pitch) * this.distance,
       this.target.z + Math.cos(this.yaw) * cp * this.distance,
     );
+    // Never behind a rock, a hut or a tree, nor inside a hill behind the player.
+    this.comeInFront(p);
+    p.y = Math.max(p.y, this.ground(p.x, p.z) + 0.6);
     this.camera.lookAt(this.target);
+  }
+
+  /** Brings the camera in along its line to the player until nothing stands between them. */
+  private comeInFront(p: THREE.Vector3): void {
+    const t = this.target;
+    const steps = 24;
+    for (let i = 1; i <= steps; i++) {
+      const k = i / steps;
+      if (this.clear(t.x + (p.x - t.x) * k, t.y + (p.y - t.y) * k, t.z + (p.z - t.z) * k)) continue;
+      const back = Math.max((i - 1) / steps, 0.15);
+      p.set(t.x + (p.x - t.x) * back, t.y + (p.y - t.y) * back, t.z + (p.z - t.z) * back);
+      return;
+    }
   }
 
   /** Direction the camera faces, flattened onto the ground. */

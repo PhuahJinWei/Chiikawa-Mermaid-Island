@@ -1,7 +1,9 @@
 import * as THREE from 'three';
-import { Stage, clampToPlayArea, groundHeight } from '../world/Stage';
+import { Stage } from '../world/Stage';
+import { cameraClear, clampToWalkable, groundHeight } from '../world/Island';
 import { Input } from './Input';
 import { CameraRig } from './CameraRig';
+import { FreeCamera } from './FreeCamera';
 import { loadSettings, saveSettings, type Settings } from './Settings';
 import { Hud } from '../ui/Hud';
 import { TestPanel } from '../ui/TestPanel';
@@ -18,6 +20,8 @@ import { updatePen } from '../world/Ink';
 import type { ActionId } from '../characters/Actions';
 import type { DevApi, StagedShot } from '../dev/DevTools';
 import { t } from '../i18n/I18n';
+import { zoneName, type ZoneId } from '../world/Zones';
+import { Clock } from '../world/DayNight';
 
 /** Where each character stands when you are not controlling it: x, z, facing. */
 const HOMES: Record<CharacterId, [number, number, number]> = {
@@ -45,6 +49,17 @@ const LINEUP_SPACING = 1.0;
 const LINEUP_PITCH = 0.04;
 const FOLLOW_PITCH = 0.16;
 const FOLLOW_DISTANCE = 7;
+/** Where the pen is sharpest while the free camera flies: this far ahead of it. */
+const FREE_FOCUS = 12;
+/**
+ * The drawing resolution, in device pixels per CSS pixel, adapts to keep the game smooth: it steps
+ * down when the frame rate stays under SLOW for a few seconds, and back up when it stays over FAST
+ * for longer. It never goes above the screen's own (or 2) nor below MIN_RATIO.
+ */
+const MIN_RATIO = 1;
+const RATIO_STEP = 0.25;
+const SLOW = 48;
+const FAST = 58;
 const ZERO = new THREE.Vector3();
 const _focus = new THREE.Vector3();
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
@@ -59,6 +74,9 @@ export class Game {
   private readonly hud: Hud;
   private readonly input: Input;
   private readonly rig: CameraRig;
+  /** Development: a camera that flies anywhere, while the character waits where it is. */
+  private readonly freeCam: FreeCamera;
+  private freeCamOn = false;
   private readonly player: PlayerController;
   private readonly emotes: EmoteSystem;
   private readonly panel: TestPanel;
@@ -76,6 +94,16 @@ export class Game {
   private time = 0;
   private fps = 60;
   private statsTimer = 0;
+  /** Seconds the frame rate has been too low, or comfortably high, for the drawing resolution. */
+  private slowFor = 0;
+  private fastFor = 0;
+  private pixelRatio = 1;
+  /** The island's time of day, and the time it was before a staged shot held it. */
+  private readonly clock = new Clock();
+  private hoursBeforeShot: number | null = null;
+  /** Where the character you control is, checked a few times a second. */
+  private zone: ZoneId | null = null;
+  private zoneTimer = 0;
   private running = false;
   /** 0..1: how far the view is lifted so characters stay visible above the open test panel. */
   private viewLift = 0;
@@ -90,7 +118,8 @@ export class Game {
     this.stage = new Stage(this.scene);
     this.hud = new Hud(ui);
     this.input = new Input(canvas, this.hud);
-    this.rig = new CameraRig(this.camera);
+    this.rig = new CameraRig(this.camera, groundHeight, cameraClear);
+    this.freeCam = new FreeCamera(this.camera, groundHeight);
     this.player = new PlayerController(this.input, this.rig);
     this.emotes = new EmoteSystem(this.scene);
     this.panel = new TestPanel(
@@ -102,12 +131,18 @@ export class Game {
         resetCamera: () => this.resetCamera(),
         action: (id) => this.playAction(id),
         expression: (e) => this.setExpression(e),
+        setTime: (hours) => this.clock.set(hours),
+        toggleClock: () => (this.clock.running = !this.clock.running),
+        toggleFreeCamera: () => this.setFreeCamera(!this.freeCamOn),
+        moveHere: () => this.moveHere(),
       },
       () => ({
         character: this.controlled,
         lineup: this.lineup,
         outfit: this.outfitOn,
         expression: this.expression,
+        clockRunning: this.clock.running,
+        freeCamera: this.freeCamOn,
       }),
     );
     this.hud.onJump = () => this.input.queueJump();
@@ -115,7 +150,7 @@ export class Game {
     this.panel.onToggle = (open) => (this.viewLiftTarget = open ? 1 : 0);
     this.input.onFirstMove = () => this.hud.hideHint();
 
-    this.ctx = { camera: this.camera, viewHeight: 1, pixelRatio: 1, groundHeight, clamp: clampToPlayArea };
+    this.ctx = { camera: this.camera, viewHeight: 1, pixelRatio: 1, groundHeight, clamp: clampToWalkable };
     this.timer.connect(document);
     window.addEventListener('resize', this.resize);
     document.addEventListener('visibilitychange', this.onVisibility);
@@ -131,7 +166,7 @@ export class Game {
         Promise.all(CHARACTER_IDS.map((id) => outfitFor(DEFINITIONS[id].outfit))),
         loadProp('onigiri'),
         Promise.all(CROWD_KINDS.map((k) => Promise.all([loadCharacterModel(k.model), outfitFor(k.outfit)]))),
-        this.stage.loadProps(),
+        this.stage.load(),
       ]);
       CHARACTER_IDS.forEach((id, i) => {
         const ch = new Character(DEFINITIONS[id], models[i], createOnigiri(onigiri), { outfit: outfits[i] });
@@ -201,6 +236,23 @@ export class Game {
     this.applyExpression();
   }
 
+  private setFreeCamera(on: boolean): void {
+    if (on && this.lineup) this.setLineup(false);
+    this.freeCamOn = on;
+    this.hud.setControlsVisible(!on);
+    this.hud.showHint(on ? t('hud.freeHint') : null);
+    this.input.setMoveEnabled(true);
+    if (on) this.freeCam.begin();
+    else this.rig.snapTo(this.focusPoint());
+  }
+
+  /** Puts the character you control on the ground under the free camera, and follows it again. */
+  private moveHere(): void {
+    const p = this.camera.position;
+    this.me().teleport(p.x, p.z, this.rig.yaw);
+    this.setFreeCamera(false);
+  }
+
   private setOutfit(on: boolean): void {
     this.outfitOn = on;
     for (const ch of this.characters.values()) ch.setOutfitVisible(on);
@@ -239,8 +291,9 @@ export class Game {
 
   private focusPoint(): THREE.Vector3 {
     if (this.lineup) return this.focus.set(0, 0.5, 0);
-    const p = this.me().position;
-    return this.focus.set(p.x, groundHeight(p.x, p.z) + 0.55, p.z);
+    const me = this.me();
+    const p = me.position;
+    return this.focus.set(p.x, me.feetY + 0.55, p.z);
   }
 
   // ------------------------------------------------------------------ loop
@@ -263,10 +316,10 @@ export class Game {
         ch.setDesiredVelocity(ZERO);
         ch.setFacing(this.staged.characters[id]?.yaw ?? 0);
       }
-    } else if (this.lineup) {
+    } else if (this.lineup || this.freeCamOn) {
       for (const ch of this.characters.values()) {
         ch.setDesiredVelocity(ZERO);
-        ch.setFacing(0);
+        if (this.lineup) ch.setFacing(0);
       }
     } else {
       this.player.update(me);
@@ -287,10 +340,15 @@ export class Game {
       const c = this.staged.camera;
       this.camera.position.set(...c.position);
       this.camera.lookAt(...c.target);
+    } else if (this.freeCamOn) {
+      this.freeCam.update(dt, this.input);
     } else {
       this.rig.update(dt, this.input, this.focusPoint());
     }
     this.updateViewLift(dt);
+    this.updateZone(dt);
+    this.clock.advance(dt);
+    this.stage.setHour(this.clock.hours);
     this.stage.update(this.camera, this.time);
     this.updateInk();
   }
@@ -299,7 +357,8 @@ export class Game {
   private updateInk(): void {
     this.camera.updateMatrixWorld();
     const focus = this.staged ? _focus.set(...this.staged.camera.target) : this.rig.focus;
-    updatePen(this.camera, this.camera.position.distanceTo(focus), this.ctx.viewHeight, this.ctx.pixelRatio);
+    const distance = this.freeCamOn && !this.staged ? FREE_FOCUS : this.camera.position.distanceTo(focus);
+    updatePen(this.camera, distance, this.ctx.viewHeight, this.ctx.pixelRatio);
     for (const ch of this.characters.values()) ch.updateOutline(this.ctx);
     for (const extra of this.crowd) extra.updateOutline(this.ctx);
   }
@@ -322,33 +381,75 @@ export class Game {
     else this.camera.setViewOffset(w, h, 0, h * 0.3 * k, w, h);
   }
 
+  /** Names the place the character you control walks into. */
+  private updateZone(dt: number): void {
+    this.zoneTimer -= dt;
+    if (this.zoneTimer > 0 || !this.stage.zones || this.staged || this.lineup) return;
+    this.zoneTimer = 0.25;
+    // Flying, the place named is the one under the camera.
+    const p = this.freeCamOn ? this.camera.position : this.me().position;
+    const zone = this.stage.zones.at(p.x, p.z);
+    if (zone === this.zone) return;
+    this.zone = zone;
+    this.hud.showPlace(zoneName(zone));
+  }
+
+  /** Steps the drawing resolution down when frames are slow, and back up when there is room. */
+  private adaptResolution(dt: number): void {
+    const best = Math.min(window.devicePixelRatio || 1, 2);
+    if (this.fps < SLOW) {
+      this.slowFor += dt;
+      this.fastFor = 0;
+    } else if (this.fps > FAST) {
+      this.fastFor += dt;
+      this.slowFor = 0;
+    } else {
+      this.slowFor = this.fastFor = 0;
+    }
+    let ratio = this.pixelRatio;
+    if (this.slowFor > 3 && ratio > MIN_RATIO) ratio = Math.max(MIN_RATIO, ratio - RATIO_STEP);
+    else if (this.fastFor > 12 && ratio < best) ratio = Math.min(best, ratio + RATIO_STEP);
+    if (ratio !== this.pixelRatio) {
+      this.slowFor = this.fastFor = 0;
+      this.setPixelRatio(ratio);
+    }
+  }
+
   private updateStats(dt: number): void {
     this.fps += (1 / Math.max(dt, 1e-4) - this.fps) * 0.1;
+    this.adaptResolution(dt);
     this.statsTimer -= dt;
     if (this.statsTimer > 0) return;
     this.statsTimer = 0.5;
     const info = this.renderer.info.render;
     const fps = Math.round(this.fps);
-    this.hud.setStats(`${t('info.fps')} ${fps}`);
+    this.hud.setStats(`${this.clock.label()} · ${t('info.fps')} ${fps}`);
+    const place = this.zone ? ` · ${t('info.zone')} ${zoneName(this.zone)}` : '';
     this.panel.setInfo(
-      `${t('info.fps')} ${fps} · ${t('info.draws')} ${info.calls} · ${t('info.tris')} ${(info.triangles / 1000).toFixed(1)}k`,
+      `${t('info.time')} ${this.clock.label()}${place} · ${t('info.fps')} ${fps} · ${t('info.draws')} ${info.calls} · ` +
+        `${t('info.tris')} ${(info.triangles / 1000).toFixed(1)}k`,
     );
   }
 
   private resize = () => {
     const w = window.innerWidth;
     const h = window.innerHeight;
-    const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
-    this.renderer.setPixelRatio(pixelRatio);
-    this.renderer.setSize(w, h, false);
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
     this.applyViewLift();
-    this.renderer.getDrawingBufferSize(sharedUniforms.uResolution.value);
     this.ctx.viewHeight = h;
-    this.ctx.pixelRatio = pixelRatio;
+    this.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     if (this.lineup) this.rig.frame(0, LINEUP_PITCH, this.lineupDistance());
   };
+
+  /** Draws at `ratio` device pixels per CSS pixel; the pen keeps its width on screen. */
+  private setPixelRatio(ratio: number): void {
+    this.pixelRatio = ratio;
+    this.renderer.setPixelRatio(ratio);
+    this.renderer.setSize(window.innerWidth, window.innerHeight, false);
+    this.renderer.getDrawingBufferSize(sharedUniforms.uResolution.value);
+    this.ctx.pixelRatio = ratio;
+  }
 
   /** Development only: stage a fixed shot to compare against a film frame. */
   devApi(): DevApi {
@@ -373,9 +474,16 @@ export class Game {
         }
         this.camera.fov = shot.camera.fov;
         this.camera.updateProjectionMatrix();
+        // A staged shot holds its time of day, so it looks the same each time.
+        this.hoursBeforeShot ??= this.clock.hours;
+        this.clock.set(shot.hour ?? 11);
+        this.clock.running = false;
       },
       release: () => {
         this.staged = null;
+        if (this.hoursBeforeShot !== null) this.clock.set(this.hoursBeforeShot);
+        this.hoursBeforeShot = null;
+        this.clock.running = true;
         this.camera.fov = 30;
         this.camera.updateProjectionMatrix();
         for (const [id, ch] of this.characters) {

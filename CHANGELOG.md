@@ -1,5 +1,153 @@
 # Changelog
 
+## M1 — Island (in progress, branch `m1-island`)
+
+Checked in the browser from the pier, the festival street, the village and
+inside a hut, the jungle, the fields, the waterfall pool and the cave, from
+high above, and at dawn, noon, dusk and night; walked up a hut's stairs into
+its room and up the stage. Not yet checked on a real phone.
+
+**Added**
+
+- The island's ground, built in Blender by `art/blender/build_island.py`
+  after the film's aerial shot and the plan's map: a rounded island about
+  280 metres across with a sandy ring all round, grass inland, the festival
+  street behind the main beach, the village's clearing deep in the jungle,
+  fields to the west and paths between them up to the waterfall pool. Its
+  colours are painted into one texture with soft hill shading, and its
+  heights come as a grid the game walks on.
+- The island's landmarks, built with the ground (`art/blender/karst.py`
+  shapes the rocks), after the film's aerial shot. Nine tall pale limestone
+  karst pillars rise round the waterfall pool, split into slabs and fluted
+  by rain, with ledges, moss hanging from their tops and a crown of jungle;
+  two stand as twins. The waterfall pours from a notch in the rock wall
+  between two of them into the pool and lands in a cloud of spray, with
+  rings spreading over the water. The headland at the east end of the main
+  beach is layered grey rock, with the forbidden cave's arched mouth at its
+  foot, opening dark onto the water. Fifteen sea spires stand in clusters
+  round the lagoon.
+- The waterfall pool has water, turquoise like the lagoon and coloured by
+  its depth.
+- A No Entry sign stands at the east end of the main beach, before the
+  cave. Its words, 立入禁止, come from the game's Japanese text.
+- The bay is the festival street, as in the film's arrival: the long
+  wooden pier (rough planks on log posts, over turquoise water, the white
+  duck ferry moored beside it, bobbing) leads straight onto a sandy plaza
+  lined with stalls, then through the welcome arch, a wooden board reading
+  島へようこそ!! wreathed in big yellow flowers with ウェルカム・トゥ・シマ
+  on the banner below, into a street of more stalls rising gently inland.
+  Sixteen stalls (ケバブ, 冷しパイン, 大判焼き, じゃがバター, たこ焼き,
+  りんごアメ, 浜焼, やきそば, クレープ, お好み焼き, ジュース, チョコバナナ,
+  アイスクリーム, パフェ, ジャンボ串焼, かき氷) under signboards, long
+  bunting with paper lanterns strung across, white banners reading
+  いらっしゃいませ!! and たのしんでね, poles of pink lanterns, palms behind
+  the stalls and confetti all over the ground. Built in Blender by
+  `art/blender/build_village.py` (the arch and banners by
+  `art/blender/houses.py`).
+- The village is a clearing deep in the jungle, on the path from the
+  festival street to the waterfall. Eight big huts stand round it, each
+  one you can walk into, after the film's village frames: log stairs up to
+  a plank porch with a railing, a doorway wide enough for three, lattice
+  windows over bands of coloured scales, a log-cabin room inside with a
+  straw mat, a pillow, a low table, a rug and a potted plant, and a big
+  mushroom-shaped thatched roof over the porch. Two are plank huts on the
+  ground under wide thatched roofs; two round thatched huts stand at the
+  edge. Built by `art/blender/houses.py`.
+- In the middle of the village, the tall wooden watchtower stage where
+  announcements are made: log legs braced with crossed boards, a platform
+  three metres up with a railing, stairs up its back and a conical
+  thatched roof. Four tiki torches stand in front of it, lit at night.
+- Logs to sit on round the stage, potted plants by the porches, baskets of
+  fruit, flowering bushes and grass round the huts.
+- The jungle fills the island's interior, dense like the film's: a
+  canopy of tree clumps whose round crowns run together, nearly two hundred
+  palms among them and thick along the beaches, a dozen big trees with
+  buttress roots and hanging vines, and under them all ferns, cycads, red
+  ti plants, bromeliads, monstera and flowering bushes (purple, white,
+  yellow, red, pink), thickest along the paths. The ground under the trees
+  is shaded. Everything sways gently in the wind, outlines and all.
+- Crops grow along the fields' rows, west of the village.
+- Blue butterflies flutter round flowering bushes, mostly near the beach
+  and the village.
+- The island's layout is a file, `public/data/layout.json`: where every
+  prop stands, which way it faces and what its signs say, which group it
+  is drawn with, and the island's named places. The Blender build reads it
+  too, to keep the jungle clear of the props.
+- Places have names. Walking into one shows its name for a moment under
+  the title: お祭り通り, 村, 浜辺, 畑, 桟橋, 滝つぼ, 東の浜, 洞くつの入り口,
+  and the sand, the jungle, the lagoon, the reef and the deep sea
+  elsewhere. The Test panel's info line shows it too.
+- A free camera in the Test panel (フリーカメラ), for looking round the
+  island quickly: fly the way the camera looks with the stick or WASD,
+  drag to look round, pinch, scroll or E and Q to rise and sink, Shift to
+  go faster. ここへ移動 puts the character you control down under it.
+- Day and night: a whole day passes in 24 minutes, starting at ten in the
+  morning. The sky goes from dawn pinks to bright blue, to a golden
+  afternoon, an orange and pink dusk and a deep navy night with twinkling
+  stars and a big full moon outlined with the pen, its light broken in a
+  road across the sea. The light, the sea, the clouds and everything on
+  the island follow the hour. At dusk the huts' windows, the ferry's
+  windows and the lanterns light up warm, and go out with the dawn. The
+  time shows by the title.
+- The Test panel has a 時間 section: 朝, 昼, 夕方 and 夜 jump to dawn, noon,
+  dusk and night, and 時間を止める stops the clock.
+- The sea is coloured by its real depth: pale aqua at the water's edge,
+  turquoise over the lagoon, blue past the reef, fading into the deep
+  beyond the island's map. The surf follows the coastline, and the
+  waterline is drawn with the pen wherever the ground meets the water,
+  round the island and the pool.
+- The sea and the clouds travel with the camera, so from anywhere on the
+  island the horizon line sits on the sea's far edge and the clouds stay
+  far off in the sky.
+- Characters walk up and down the island's slopes, wade only ankle-deep,
+  and stop at cliffs, steep rock and the foot of every rock landmark, hut,
+  stall, palm and tree trunk. They can walk out along the pier to its end.
+  They climb steps no higher than a stair's (so they walk up a hut's
+  stairs onto its porch and into its room, and up the stage, but not up
+  the porch's side), walk under roofs, and can't walk under a hut. The
+  camera never dips into a hill behind them, and comes in front of a rock,
+  a wall, a roof or a tree's crown rather than behind or inside it.
+- The waterline follows the height grid, the same edge the water stops at
+  and characters wade to, so it runs smoothly round every shore. The rocks
+  draw it too, where they stand in the sea or the pool.
+
+**Performance**
+
+Measured in the browser. With the whole cast and crowd (11 characters) at
+the head of the pier, at the default camera: about 505k triangles in 101
+draw calls, 327k of them the island. Without the cast: the festival street
+400k, the village 375k, the jungle 210k, from high above 450k in 137 draw
+calls. The plan's phone budget is 150 draw calls (met) and 150k triangles
+(not met, by two to three times); everything outlined is drawn twice, once
+for its pen line. To get there:
+
+- Rocks are grouped by where they stand, so a group out of view is not
+  drawn. Small props (baskets, pots, logs, starfish) and the plants under
+  the jungle's canopy are drawn only near the camera.
+- The huts, the canopy and the palms come in two versions: in full near
+  the camera, and light (roofs and walls; coarse crowns; plain palms)
+  beyond. A hut's room is drawn only close up.
+- Palms, baskets, pots, the arch's flowers, the understory's leaves, the
+  rocks' crowns and the canopy have fewer triangles than at first.
+- Props that never move are joined into a few meshes per group (the
+  festival, the village) or patch of the island, with one outline each.
+- Plants planted many times are kept once each in the plants file, with
+  where each copy stands, and joined at load: the file went from 9 MB to
+  1.9 MB.
+- The drawing resolution steps down when the frame rate stays under 48
+  for a few seconds, and back up when there is room again.
+
+**Changed**
+
+- Building the props or the village with `--only` no longer overwrites
+  their .blend file with just the one prop.
+- The offline cache now keeps the island's height grid and layout file,
+  and files up to 4 MB.
+
+**Removed**
+
+- The M0 test beach, a small disc of sand.
+
 ## M0.1 — Downloaded cast and the island outfit (2026-10-16)
 
 Checked in the browser against film frames 9 and 14 and the official

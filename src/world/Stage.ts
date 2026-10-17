@@ -1,221 +1,286 @@
 import * as THREE from 'three';
-import { toonRamp } from '../core/toon';
-import { loadProp } from './PropModels';
-import { PEN_GLSL, addOutline, inkUniforms } from './Ink';
+import { sharedUniforms } from '../characters/CharacterMaterial';
+import { newSkyLook, skyAt } from './DayNight';
+import { glowUniforms } from './Glow';
+import { inkUniforms, windUniforms } from './Ink';
+import { FLOOR_GLSL, WATER_EDGE, groundHeight, loadTerrain, terrainHeight, waterLevelAt, type Terrain } from './Island';
+import { Landmarks } from './Landmarks';
+import { Butterflies } from './Butterflies';
+import { Props, type Placed } from './Props';
+import { Zones, type ZoneDef } from './Zones';
+import { Vegetation } from './Vegetation';
 
-/** A small sandy test island for Milestone 0. The real island arrives in Milestone 1. */
-export const SAND_RADIUS = 19;
-export const PLAY_RADIUS = 18.5;
+/** The sea's surface; the island's own data says the same once it has loaded. */
 const WATER_LEVEL = -0.32;
-/** The sea is a disc this wide, so its far edge (the horizon line) is the same distance away all round. */
+/** The sea is a disc this wide around the camera, so its far edge (the horizon line) is the same distance away all round. */
 const SEA_RADIUS = 600;
 
 // Sampled from the film's beach frames.
 const COLORS = {
-  sand: '#F0C28B',
-  sandPatch: '#E3A770',
-  wetSand: '#D9A774',
   skyTop: '#3FA9F2',
   skyHorizon: '#BDE6F8',
   sun: '#FFF4E2',
-  shallow: '#0DAE9E',
+  // The sea by depth: pale aqua at the water's edge, turquoise over the lagoon, blue past the reef.
+  edge: WATER_EDGE,
+  shallow: '#1BC4B3',
   mid: '#1590C2',
   deep: '#1A6FB2',
   foam: '#F4FFFC',
   cloud: '#FFFFFF',
   cloudShade: '#DCE4EC',
+  moon: '#F5F1C9',
+  star: '#FFFBE8',
 };
 const CONFETTI = ['#F0C866', '#F4A9B8', '#9FD3F0', '#F29E6B', '#FFFFFF', '#B9E58C'];
 
-const smoothstep = (a: number, b: number, x: number) => {
-  const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
-  return t * t * (3 - 2 * t);
-};
-
-export function groundHeight(x: number, z: number): number {
-  const d = Math.hypot(x, z);
-  const beach = smoothstep(SAND_RADIUS, SAND_RADIUS + 8, d);
-  const ripple = 0.02 * Math.sin(x * 0.45 + 1.3) * Math.sin(z * 0.38 - 0.7) * (1 - beach);
-  return ripple - 1.7 * beach;
-}
-
-export function clampToPlayArea(p: THREE.Vector3): void {
-  const d = Math.hypot(p.x, p.z);
-  if (d > PLAY_RADIUS) {
-    p.x *= PLAY_RADIUS / d;
-    p.z *= PLAY_RADIUS / d;
-  }
-}
-
-function shoreRadius(): number {
-  let lo = SAND_RADIUS;
-  let hi = SAND_RADIUS + 8;
-  for (let i = 0; i < 30; i++) {
-    const mid = (lo + hi) / 2;
-    if (-1.7 * smoothstep(SAND_RADIUS, SAND_RADIUS + 8, mid) > WATER_LEVEL) lo = mid;
-    else hi = mid;
-  }
-  return lo;
-}
-
-function toon(params: THREE.MeshToonMaterialParameters = {}): THREE.MeshToonMaterial {
-  return new THREE.MeshToonMaterial({ gradientMap: toonRamp(), ...params });
-}
 
 export class Stage {
   private readonly water: THREE.ShaderMaterial;
+  private readonly sea: THREE.Mesh;
+  private readonly clouds: THREE.Group;
   private readonly sky: THREE.Mesh;
   private readonly skyMaterial: THREE.ShaderMaterial;
   private readonly world: THREE.Group;
+  private readonly scene: THREE.Scene;
+  private readonly hemi: THREE.HemisphereLight;
+  private readonly light: THREE.DirectionalLight;
+  private readonly cloudMaterial: THREE.ShaderMaterial;
+  /** Shared by the sea and the pool: how the hour tints the water, and the moon's road on it. */
+  private readonly waterLight = {
+    uTint: { value: new THREE.Color(1, 1, 1) },
+    uMoonDir: { value: new THREE.Vector3(0, -1, 0) },
+    uNight: { value: 0 },
+    uMoon: { value: new THREE.Color(COLORS.moon) },
+  };
+  private readonly look = newSkyLook();
+  private confettiMaterial: THREE.MeshBasicMaterial | null = null;
+  private landmarks: Landmarks | null = null;
+  private props: Props | null = null;
+  private vegetation: Vegetation | null = null;
+  private butterflies: Butterflies | null = null;
+  /** The island's named places, once the layout has loaded. */
+  zones: Zones | null = null;
 
   constructor(scene: THREE.Scene) {
+    this.scene = scene;
     scene.background = new THREE.Color(COLORS.skyHorizon);
-    scene.fog = new THREE.Fog(COLORS.skyHorizon, 60, 320);
+    // Light haze only: the karst pillars must read from anywhere on the island.
+    scene.fog = new THREE.Fog(COLORS.skyHorizon, 180, 900);
 
-    const hemi = new THREE.HemisphereLight('#DDF3FF', '#EBC48F', 1.6);
-    const sun = new THREE.DirectionalLight(COLORS.sun, 2.4);
-    sun.position.set(20, 40, 14);
-    scene.add(hemi, sun);
+    // The sun's light by day and the moon's by night, and soft light from the sky and the ground.
+    this.hemi = new THREE.HemisphereLight('#DDF3FF', '#EBC48F', 1.6);
+    this.light = new THREE.DirectionalLight(COLORS.sun, 2.4);
+    this.light.position.set(20, 40, 14);
+    scene.add(this.hemi, this.light);
 
-    this.skyMaterial = this.makeSkyMaterial(sun.position);
+    this.skyMaterial = this.makeSkyMaterial(this.light.position);
     this.sky = new THREE.Mesh(new THREE.SphereGeometry(500, 32, 16), this.skyMaterial);
     this.sky.renderOrder = -1;
     this.sky.frustumCulled = false;
     scene.add(this.sky);
 
     const world = new THREE.Group();
-    world.add(this.makeGround());
     this.water = this.makeWaterMaterial();
     const waterGeo = new THREE.CircleGeometry(SEA_RADIUS, 128).rotateX(-Math.PI / 2).translate(0, WATER_LEVEL, 0);
-    world.add(new THREE.Mesh(waterGeo, this.water));
-    world.add(this.makeClouds());
-    world.add(this.makeConfetti());
+    this.sea = new THREE.Mesh(waterGeo, this.water);
+    world.add(this.sea);
+    this.cloudMaterial = this.makeCloudMaterial();
+    this.clouds = this.makeClouds(this.cloudMaterial);
+    world.add(this.clouds);
     scene.add(world);
     this.world = world;
   }
 
-  /** Adds the Blender-made palms, starfish and log. */
-  async loadProps(): Promise<void> {
-    const [palm, starfish, log] = await Promise.all([loadProp('palm'), loadProp('starfish'), loadProp('log')]);
-    const palmMaterial = toon({ vertexColors: true });
-    const palms: [number, number, number, number][] = [
-      [-12.5, -9.5, 0.97, 0.4],
-      [13.5, -7, 1.07, 2.4],
-      [-7, 13, 0.86, 4.2],
-    ];
-    for (const [x, z, scale, turn] of palms) {
-      const mesh = new THREE.Mesh(palm, palmMaterial);
-      mesh.position.set(x, groundHeight(x, z) - 0.05, z);
-      mesh.scale.setScalar(scale);
-      mesh.rotation.y = turn;
-      this.world.add(mesh);
-      addOutline(mesh);
-    }
-    const stars = this.makeStarfish(starfish);
-    this.world.add(stars);
-    addOutline(stars);
-    const logMesh = new THREE.Mesh(log, toon({ vertexColors: true }));
-    logMesh.position.set(-3.8, groundHeight(-3.8, 2.2), 2.2);
-    logMesh.rotation.y = 0.5;
-    this.world.add(logMesh);
-    addOutline(logMesh);
+  /** Loads the island's ground, then what stands on it. */
+  async load(): Promise<void> {
+    const terrain = await loadTerrain();
+    this.world.add(terrain.mesh);
+    this.setSeaFloor(terrain);
+    this.landmarks = await Landmarks.load(terrain.info);
+    this.world.add(this.landmarks.group);
+    this.vegetation = await Vegetation.load(terrain.info);
+    this.world.add(this.vegetation.group);
+    this.butterflies = await Butterflies.load(terrain.info.plants.butterflies);
+    this.butterflies.attach(this.world);
+    const response = await fetch('data/layout.json');
+    if (!response.ok) throw new Error('Could not load data/layout.json');
+    const layout = (await response.json()) as { props: Placed[]; zones: ZoneDef[] };
+    this.zones = new Zones(layout.zones, groundHeight, waterLevelAt);
+    this.props = await Props.load(layout.props, terrain.info.water);
+    this.world.add(this.props.group);
+    this.world.add(this.makeConfetti());
+  }
+
+  /** The sea's colours and surf follow the real sea floor once it has loaded. */
+  private setSeaFloor(terrain: Terrain): void {
+    const u = this.water.uniforms;
+    const { origin, size } = terrain.info;
+    u.uFloor.value = terrain.texture;
+    u.uMap.value.set(origin[0], origin[1], size, terrain.info.height.grid);
+    u.uLevel.value = terrain.info.water;
+
+    // The waterfall pool: the same water at the pool's level, churned white where the fall lands.
+    const { pool, waterfall } = terrain.info;
+    const poolWater = this.water.clone();
+    for (const name of ['uTime', 'uFloor', 'uMap'] as const) poolWater.uniforms[name] = u[name];
+    Object.assign(poolWater.uniforms, this.waterLight);
+    poolWater.uniforms.uLevel = { value: pool.level };
+    poolWater.uniforms.uSplash = {
+      value: new THREE.Vector4(waterfall.foot[0], waterfall.foot[1], waterfall.splash, 0),
+    };
+    const poolGeo = new THREE.CircleGeometry(pool.radius + 4, 64).rotateX(-Math.PI / 2);
+    const poolMesh = new THREE.Mesh(poolGeo, poolWater);
+    poolMesh.position.set(pool.centre[0], pool.level, pool.centre[1]);
+    this.world.add(poolMesh);
+  }
+
+  /** Lights the island for `hours` past midnight: the sky, the sun or the moon, the sea, the
+   * clouds, everything drawn with the ambient tint, and the festival's lights. */
+  setHour(hours: number): void {
+    const look = skyAt(hours, this.look);
+    const u = this.skyMaterial.uniforms;
+    u.uTop.value.copy(look.top);
+    u.uHorizon.value.copy(look.horizon);
+    u.uSunDir.value.copy(look.sunDir);
+    u.uMoonDir.value.copy(look.moonDir);
+    u.uNight.value = look.night;
+    (this.scene.background as THREE.Color).copy(look.horizon);
+    (this.scene.fog as THREE.Fog).color.copy(look.horizon);
+    this.hemi.color.copy(look.hemiSky);
+    this.hemi.groundColor.copy(look.hemiGround);
+    this.hemi.intensity = look.hemiIntensity;
+    this.light.color.copy(look.light);
+    this.light.intensity = look.lightIntensity;
+    this.light.position.copy(look.lightDir).multiplyScalar(50);
+    sharedUniforms.uAmbient.value.copy(look.ambient);
+    this.cloudMaterial.uniforms.uTint.value.copy(look.cloud);
+    this.waterLight.uTint.value.copy(look.sea);
+    this.waterLight.uMoonDir.value.copy(look.moonDir);
+    this.waterLight.uNight.value = look.night;
+    glowUniforms.uGlow.value = look.glow;
+    this.confettiMaterial?.color.copy(look.ambient);
   }
 
   update(camera: THREE.Camera, time: number): void {
     this.water.uniforms.uTime.value = time;
+    this.skyMaterial.uniforms.uTime.value = time;
+    this.landmarks?.update(time);
+    this.props?.update(time, camera);
+    windUniforms.uTime.value = time;
+    this.vegetation?.update(camera);
+    this.butterflies?.update(time);
     this.sky.position.copy(camera.position);
-    // Where the sea's far edge meets the sky, as seen from the camera: the horizon line.
+    // The sea's colours come from where each point is in the world, so the disc can travel with
+    // the camera. Its far edge meets the sky at the horizon line.
+    this.sea.position.set(camera.position.x, 0, camera.position.z);
+    // The clouds hang far off in a ring around the camera, wherever it goes, as part of the sky.
+    this.clouds.position.copy(camera.position);
     const above = camera.position.y - WATER_LEVEL;
-    const reach = SEA_RADIUS - Math.hypot(camera.position.x, camera.position.z);
-    this.skyMaterial.uniforms.uHorizonY.value = Math.sin(-Math.atan2(above, reach));
-  }
-
-  private makeGround(): THREE.Mesh {
-    const geo = new THREE.PlaneGeometry(80, 80, 100, 100).rotateX(-Math.PI / 2);
-    const pos = geo.getAttribute('position') as THREE.BufferAttribute;
-    const colors = new Float32Array(pos.count * 3);
-    const sand = new THREE.Color(COLORS.sand);
-    const patch = new THREE.Color(COLORS.sandPatch);
-    const wet = new THREE.Color(COLORS.wetSand);
-    const c = new THREE.Color();
-    for (let i = 0; i < pos.count; i++) {
-      const x = pos.getX(i);
-      const z = pos.getZ(i);
-      pos.setY(i, groundHeight(x, z));
-      const d = Math.hypot(x, z);
-      // Soft painted patches, like the brushwork on the film's sand.
-      const blob =
-        Math.sin(x * 0.31 + 1.2) * Math.sin(z * 0.27 - 0.4) +
-        0.6 * Math.sin(x * 0.67 - z * 0.41 + 2.1) * Math.sin(z * 0.59 + x * 0.13);
-      c.copy(sand).lerp(patch, smoothstep(0.35, 1.1, blob) * 0.55);
-      c.lerp(wet, smoothstep(SAND_RADIUS + 0.6, SAND_RADIUS + 2.4, d));
-      colors.set([c.r, c.g, c.b], i * 3);
-    }
-    geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-    geo.computeVertexNormals();
-    // The sand sits a hair back in the depth test, so outlines where things touch the ground
-    // (a log's underside, a starfish's rim, a character's feet) are drawn over it, not under it.
-    const material = new THREE.MeshBasicMaterial({
-      vertexColors: true,
-      polygonOffset: true,
-      polygonOffsetFactor: 8,
-      polygonOffsetUnits: 8,
-    });
-    return new THREE.Mesh(geo, material);
+    this.skyMaterial.uniforms.uHorizonY.value = Math.sin(-Math.atan2(above, SEA_RADIUS));
   }
 
   private makeWaterMaterial(): THREE.ShaderMaterial {
-    // No fog: the sea keeps its blue right up to the horizon line, as in the film.
+    // A one-texel deep floor until the island loads, so the sea starts out deep blue.
+    const deep = new THREE.DataTexture(
+      new Uint16Array([THREE.DataUtils.toHalfFloat(-20)]),
+      1,
+      1,
+      THREE.RedFormat,
+      THREE.HalfFloatType,
+    );
+    deep.needsUpdate = true;
+    // No fog: the sea keeps its blue right up to the horizon line, as in the film. The water
+    // stops where the height grid says the ground rises out of it, rather than leaving the edge
+    // to the depth test: the ground sits a little back in it (for outlines where things touch
+    // it), by an amount that changes with every triangle's slope, which would make a ragged edge
+    // that covers the pen's waterline in places.
     return new THREE.ShaderMaterial({
       uniforms: {
-        ...inkUniforms,
         uTime: { value: 0 },
-        uShore: { value: shoreRadius() },
+        uFloor: { value: deep },
+        uMap: { value: new THREE.Vector4(-1, -1, 2, 2) },
+        uLevel: { value: WATER_LEVEL },
+        uSplash: { value: new THREE.Vector4(0, 0, 0, 0) },
+        uEdge: { value: new THREE.Color(COLORS.edge) },
         uShallow: { value: new THREE.Color(COLORS.shallow) },
         uMid: { value: new THREE.Color(COLORS.mid) },
         uDeep: { value: new THREE.Color(COLORS.deep) },
         uFoam: { value: new THREE.Color(COLORS.foam) },
+        ...this.waterLight,
       },
       vertexShader: /* glsl */ `
         varying vec3 vWorld;
-        varying float vDepth;
         void main() {
           vec4 wp = modelMatrix * vec4(position, 1.0);
           vWorld = wp.xyz;
-          vec4 mvPosition = viewMatrix * wp;
-          vDepth = -mvPosition.z;
-          gl_Position = projectionMatrix * mvPosition;
+          gl_Position = projectionMatrix * viewMatrix * wp;
         }`,
       fragmentShader: /* glsl */ `
-        ${PEN_GLSL}
-        uniform vec3 uInk;
         uniform float uTime;
-        uniform float uShore;
+        uniform vec3 uTint;
+        uniform vec3 uMoonDir;
+        uniform float uNight;
+        uniform vec3 uMoon;
+        ${FLOOR_GLSL}
+        uniform float uLevel;
+        uniform vec4 uSplash;
+        uniform vec3 uEdge;
         uniform vec3 uShallow;
         uniform vec3 uMid;
         uniform vec3 uDeep;
         uniform vec3 uFoam;
         varying vec3 vWorld;
-        varying float vDepth;
         float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
         void main() {
-          float d = length(vWorld.xz);
-          float t = clamp((d - uShore) / 45.0, 0.0, 1.0);
-          vec3 col = mix(uShallow, uMid, smoothstep(0.0, 0.3, t));
-          col = mix(col, uDeep, smoothstep(0.25, 1.0, t));
-          col += (sin(d * 1.3 - uTime * 0.9) * 0.5 + 0.5) * 0.035 * (1.0 - t);
-          float wave = uShore + 0.3 + 0.25 * sin(uTime * 0.8);
-          float foam = 1.0 - smoothstep(0.0, 0.4, abs(d - wave));
-          float foam2 = 1.0 - smoothstep(0.0, 0.22, abs(d - (wave + 1.2 + 0.2 * sin(uTime * 0.8 + 1.7))));
-          col = mix(col, uFoam, max(foam * 0.85, foam2 * 0.45));
+          // Beyond the island's map the sea floor falls away into the deep.
+          vec2 outside = max(uMap.xy - vWorld.xz, vWorld.xz - (uMap.xy + uMap.z));
+          float beyond = smoothstep(0.0, 40.0, max(outside.x, outside.y));
+          float depth = mix(uLevel - floorAt(vWorld.xz), 30.0, beyond);
+          if (depth < 0.01) discard;
+          // Distance to the shore, from the depth and how steeply the floor rises toward it, so
+          // the surf keeps its width on gentle beaches and steep rocks alike.
+          float e = 1.5;
+          vec2 slope = vec2(floorAt(vWorld.xz + vec2(e, 0.0)) - floorAt(vWorld.xz - vec2(e, 0.0)),
+                            floorAt(vWorld.xz + vec2(0.0, e)) - floorAt(vWorld.xz - vec2(0.0, e))) / (2.0 * e);
+          float shore = max(depth, 0.0) / max(length(slope), 0.02);
+
+          vec3 col = mix(uEdge, uShallow, smoothstep(0.1, 1.2, depth));
+          col = mix(col, uMid, smoothstep(2.6, 6.0, depth));
+          col = mix(col, uDeep, smoothstep(8.0, 16.0, depth));
+          float shallow = 1.0 - smoothstep(0.5, 3.0, depth);
+          col += (sin(shore * 1.3 - uTime * 0.9) * 0.5 + 0.5) * 0.035 * shallow;
+          // Surf: a band of foam just off the beach breathing in and out, and a fainter one beyond.
+          float wave = 0.3 + 0.25 * sin(uTime * 0.8);
+          float foam = 1.0 - smoothstep(0.0, 0.4, abs(shore - wave));
+          float foam2 = 1.0 - smoothstep(0.0, 0.22, abs(shore - (wave + 1.2 + 0.2 * sin(uTime * 0.8 + 1.7))));
+          col = mix(col, uFoam, max(foam * 0.85, foam2 * 0.45) * step(0.0, depth));
+          // Where a waterfall lands: churned white, with rings spreading out from it.
+          if (uSplash.z > 0.0) {
+            vec2 off = vWorld.xz - uSplash.xy;
+            float d = length(off) / uSplash.z;
+            float edge = 0.62 + 0.06 * sin(atan(off.y, off.x) * 7.0 + uTime * 2.0);
+            float churn = 1.0 - smoothstep(edge - 0.04, edge + 0.04, d);
+            float rings = smoothstep(0.6, 0.85, sin(d * 34.0 - uTime * 4.0) * 0.5 + 0.5) * (1.0 - smoothstep(0.6, 1.0, d));
+            col = mix(col, uFoam, max(churn, rings * 0.7));
+          }
+          col *= uTint;
           vec2 cell = floor(vWorld.xz * 1.6);
-          float sparkle = step(0.986, hash(cell + floor(uTime * 1.5))) * (1.0 - smoothstep(0.0, 0.8, t));
+          float sparkle = step(0.986, hash(cell + floor(uTime * 1.5))) * shallow * (1.0 - uNight);
           float dotMask = 1.0 - smoothstep(0.05, 0.18, length(fract(vWorld.xz * 1.6) - 0.5));
           col = mix(col, vec3(1.0), sparkle * dotMask);
-          // The waterline, drawn with the pen where the sea meets the sand.
-          float outside = (d - uShore) / max(fwidth(d), 1e-5);
-          float pen = penAt(vDepth);
-          col = mix(col, uInk, (1.0 - smoothstep(pen - 0.5, pen + 0.5, outside)) * step(-1.0, outside));
+          // The moon's road: a broken streak of light across the water toward the moon, widening
+          // into the distance, as in the film's night beach.
+          if (uNight > 0.0 && uMoonDir.y > 0.0) {
+            vec2 toward = vWorld.xz - cameraPosition.xz;
+            float dist = length(toward);
+            vec2 m = normalize(uMoonDir.xz);
+            float along = dot(toward, m);
+            float off = abs(toward.x * m.y - toward.y * m.x);
+            float width = 0.5 + along * 0.05;
+            float road = (1.0 - smoothstep(width * 0.55, width, off)) * smoothstep(0.0, 6.0, along);
+            float broken = step(0.42, fract(along * 0.09 + 0.35 * sin(vWorld.x * 0.23 + uTime * 0.6) + 0.25 * sin(vWorld.z * 0.31 - uTime * 0.4)));
+            col = mix(col, uMoon, road * broken * uNight * smoothstep(0.0, 0.12, uMoonDir.y) * 0.85);
+          }
           gl_FragColor = vec4(col, 1.0);
           #include <tonemapping_fragment>
           #include <colorspace_fragment>
@@ -234,6 +299,11 @@ export class Stage {
         uHorizon: { value: new THREE.Color(COLORS.skyHorizon) },
         uSunColor: { value: new THREE.Color(COLORS.sun) },
         uSunDir: { value: sunPosition.clone().normalize() },
+        uMoonDir: { value: new THREE.Vector3(0, -1, 0) },
+        uMoonColor: { value: new THREE.Color(COLORS.moon) },
+        uStarColor: { value: new THREE.Color(COLORS.star) },
+        uNight: { value: 0 },
+        uTime: { value: 0 },
       },
       vertexShader: /* glsl */ `
         varying vec3 vDir;
@@ -248,16 +318,42 @@ export class Stage {
         uniform vec3 uHorizon;
         uniform vec3 uSunColor;
         uniform vec3 uSunDir;
+        uniform vec3 uMoonDir;
+        uniform vec3 uMoonColor;
+        uniform vec3 uStarColor;
+        uniform float uNight;
+        uniform float uTime;
         uniform vec3 uInk;
         uniform float uPen;
         uniform float uHorizonY;
         varying vec3 vDir;
+        float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
         void main() {
           vec3 dir = normalize(vDir);
           float h = clamp(dir.y, 0.0, 1.0);
           vec3 col = mix(uHorizon, uTop, pow(h, 0.55));
           float s = max(dot(dir, uSunDir), 0.0);
-          col += uSunColor * (pow(s, 400.0) * 1.5 + pow(s, 12.0) * 0.12);
+          col += uSunColor * (pow(s, 400.0) * 1.5 + pow(s, 12.0) * 0.12) * (1.0 - uNight) * step(0.0, uSunDir.y);
+          if (uNight > 0.0) {
+            // Stars: dots scattered over the sky's directions, a few twinkling.
+            vec2 sky = vec2(atan(dir.z, dir.x) * 38.0, asin(clamp(dir.y, -1.0, 1.0)) * 38.0);
+            vec2 cell = floor(sky);
+            float pick = hash(cell);
+            vec2 at = cell + 0.25 + 0.5 * vec2(hash(cell + 7.1), hash(cell + 3.3));
+            float r = 0.06 + 0.1 * hash(cell + 1.9);
+            float star = (1.0 - smoothstep(r * 0.6, r, length(sky - at))) * step(0.9, pick);
+            star *= 0.65 + 0.35 * sin(uTime * (1.5 + 3.0 * hash(cell + 5.0)) + pick * 40.0);
+            col = mix(col, uStarColor, star * uNight * uNight * smoothstep(0.04, 0.2, dir.y));
+            // The full moon: a big pale disc in a soft halo, outlined with the pen.
+            float m = acos(clamp(dot(dir, uMoonDir), -1.0, 1.0));
+            float radius = 0.06;
+            col = mix(col, vec3(0.42, 0.52, 0.82), 0.4 * (1.0 - smoothstep(radius, radius * 4.0, m)) * uNight);
+            float edge = (m - radius) / max(fwidth(m), 1e-6);
+            float disc = 1.0 - smoothstep(-0.5, 0.5, edge);
+            vec3 moon = mix(uInk, uMoonColor, disc);
+            float drawn = 1.0 - smoothstep(uPen - 0.5, uPen + 0.5, edge);
+            col = mix(col, moon, drawn * uNight * step(0.0, dir.y - uHorizonY));
+          }
           // The horizon line, drawn with the pen just above the sea's far edge.
           float above = (dir.y - uHorizonY) / max(fwidth(dir.y), 1e-6);
           col = mix(col, uInk, (1.0 - smoothstep(uPen - 0.5, uPen + 0.5, above)) * step(-2.0, above));
@@ -269,9 +365,10 @@ export class Stage {
 
   /**
    * Cartoon clouds: round puffs on a flat base, white tops over a blue-grey underside, outlined
-   * with the pen. Drawn from circles in the shader, so the outline stays crisp at any size.
+   * with the pen. Drawn from circles in the shader, so the outline stays crisp at any size; tinted
+   * by the hour, pink at dusk and blue-grey at night.
    */
-  private makeClouds(): THREE.Group {
+  private makeCloudMaterial(): THREE.ShaderMaterial {
     // Puffs in a 512 x 256 box, y down: x, y, radius.
     const puffs: [number, number, number][] = [
       [120, 170, 70],
@@ -281,7 +378,7 @@ export class Stage {
       [430, 172, 52],
       [250, 175, 70],
     ];
-    const material = new THREE.ShaderMaterial({
+    return new THREE.ShaderMaterial({
       transparent: true,
       depthWrite: false,
       side: THREE.DoubleSide,
@@ -291,6 +388,8 @@ export class Stage {
         uPuffs: { value: puffs.map(([x, y, r]) => new THREE.Vector3(x, y, r)) },
         uCloud: { value: new THREE.Color(COLORS.cloud) },
         uShade: { value: new THREE.Color(COLORS.cloudShade) },
+        uTint: { value: new THREE.Color(1, 1, 1) },
+        uAmbient: sharedUniforms.uAmbient,
       },
       vertexShader: /* glsl */ `
         varying vec2 vUv;
@@ -302,6 +401,8 @@ export class Stage {
         uniform vec3 uPuffs[PUFFS];
         uniform vec3 uCloud;
         uniform vec3 uShade;
+        uniform vec3 uTint;
+        uniform vec3 uAmbient;
         uniform vec3 uInk;
         uniform float uPen;
         varying vec2 vUv;
@@ -322,11 +423,14 @@ export class Stage {
           float inside = 1.0 - smoothstep(-0.5, 0.5, px);
           float alpha = 1.0 - smoothstep(uPen - 0.5, uPen + 0.5, px);
           float top = 1.0 - smoothstep(-0.5, 0.5, white / max(fwidth(white), 1e-4));
-          vec3 col = mix(uInk, mix(uShade, uCloud, top), inside);
+          vec3 col = mix(uInk * uAmbient, mix(uShade, uCloud, top) * uTint, inside);
           gl_FragColor = vec4(col, alpha);
           #include <colorspace_fragment>
         }`,
     });
+  }
+
+  private makeClouds(material: THREE.ShaderMaterial): THREE.Group {
     const group = new THREE.Group();
     const spots: [number, number, number][] = [
       [0.15, 52, 210],
@@ -351,11 +455,17 @@ export class Stage {
     return group;
   }
 
-  /** Paper confetti from the welcome festival, scattered on the sand. */
+  /** Paper confetti from the welcome festival, scattered over its plaza and street. */
   private makeConfetti(): THREE.InstancedMesh {
-    const count = 320;
+    const count = 900;
+    // The plaza at the head of the pier, and the street through the arch: x, z, half sizes.
+    const areas: [number, number, number, number][] = [
+      [0, -7, 11, 9],
+      [0, -31, 6.5, 14],
+    ];
     const geo = new THREE.PlaneGeometry(0.07, 0.05).rotateX(-Math.PI / 2);
-    const mesh = new THREE.InstancedMesh(geo, new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }), count);
+    this.confettiMaterial = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
+    const mesh = new THREE.InstancedMesh(geo, this.confettiMaterial, count);
     const m = new THREE.Matrix4();
     const q = new THREE.Quaternion();
     const up = new THREE.Vector3(0, 1, 0);
@@ -367,10 +477,9 @@ export class Stage {
       return seed / 2147483647;
     };
     for (let i = 0; i < count; i++) {
-      const r = 7 * Math.pow(rand(), 0.7);
-      const a = rand() * Math.PI * 2;
-      pos.set(Math.cos(a) * r, 0, Math.sin(a) * r);
-      pos.y = groundHeight(pos.x, pos.z) + 0.006;
+      const [ax, az, hx, hz] = areas[i % 3 === 0 ? 1 : 0];
+      pos.set(ax + (rand() * 2 - 1) * hx, 0, az + (rand() * 2 - 1) * hz);
+      pos.y = terrainHeight(pos.x, pos.z) + 0.006;
       q.setFromAxisAngle(up, rand() * Math.PI);
       const k = 0.8 + rand() * 0.6;
       scale.set(k, 1, k);
@@ -381,29 +490,4 @@ export class Stage {
     return mesh;
   }
 
-  private makeStarfish(geometry: THREE.BufferGeometry): THREE.InstancedMesh {
-    const spots: [number, number][] = [
-      [3.2, 4.5],
-      [-5.5, 6.2],
-      [7.4, -3.1],
-      [-9.8, -2.4],
-      [11.6, 6.8],
-      [-2.4, -9.6],
-      [5.1, 12.4],
-      [-13.2, 7.7],
-    ];
-    const colors = ['#F29E7A', '#F7B58A', '#F48C8C'];
-    const mesh = new THREE.InstancedMesh(geometry, toon({ vertexColors: true }), spots.length);
-    const m = new THREE.Matrix4();
-    const q = new THREE.Quaternion();
-    const up = new THREE.Vector3(0, 1, 0);
-    const one = new THREE.Vector3(1, 1, 1);
-    spots.forEach(([x, z], i) => {
-      q.setFromAxisAngle(up, i * 1.7);
-      m.compose(new THREE.Vector3(x, groundHeight(x, z) + 0.005, z), q, one);
-      mesh.setMatrixAt(i, m);
-      mesh.setColorAt(i, new THREE.Color(colors[i % colors.length]));
-    });
-    return mesh;
-  }
 }

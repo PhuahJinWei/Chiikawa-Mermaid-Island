@@ -300,32 +300,34 @@ Then the rest of the cast.
 ## 5. The island
 
 Laid out after the film's aerial shot (`mermaid island 1`). A single
-contiguous map, roughly 300 × 300 metres including the surrounding sea,
+contiguous map, roughly 430 × 430 metres including the surrounding sea,
 small enough to cross on foot in about two minutes and to keep in memory
-with no streaming. The island itself is a rounded shape about 200 metres
-across, with a sandy ring all the way around.
+with no streaming. The island itself is a rounded shape about 280 metres
+across (225 from north to south), with a sandy ring all the way around.
 
 ```
                           N
    ~   ▲        ▲▲          ▲▲        ▲   ~      ▲  karst pillar / sea spire
    ~  ┌─────────────────────────────────┐  ~     ♣  jungle
-   ~  │ ▲▲   ♣♣♣  ▲▲   ♣♣♣  ▲▲▲   ♣♣♣   │  ~     ≋  waterfall pool
-   ~  │ ♣♣♣  ♣♣  ≋≋ waterfall ≋≋  ▲▲ ♣♣  │  ~     ░  fields
-   ~  │ ♣♣  ▲▲  ♣♣♣♣ clearing ♣♣♣  ♣  ▓▓ │  ~     ⌂  stilt huts
-   ~  │ ░░░  ⌂⌂ ⌂ ⌂⌂ ⌂⌂  ♣♣♣♣♣  ♣  ▓▓▓▓ │  ~     ✦  festival stalls
-   ~  │ ░░  ✦✦✦✦✦ ⊤ welcome post   ▓▓▓◘ │  ~     ▓  rocky headland
-   ~  └──── main beach ══╗══ night beach ⚠┘  ~     ◘  forbidden cave
-   ~ ▲     lagoon        ║ pier     rowboat   ~     ⚠  No Entry sign
-   ~      reef     🦆 ferry moored        ▲   ~
+   ~  │ ▲▲   ♣♣♣  ▲▲ ≋≋waterfall≋≋ ▲▲ ♣♣ │  ~     ≋  waterfall pool
+   ~  │ ♣♣♣  ♣♣♣♣  ⌂ ⌂ ⌂ ⌂ ♣♣♣  ▲▲ ♣♣♣  │  ~     ░  fields
+   ~  │ ♣♣  ▲▲  ♣ ⌂  ⊓stage  ⌂ ♣♣  ♣  ▓▓ │  ~     ⌂  stilt huts
+   ~  │ ░░░░  ♣♣♣  ⌂ ⌂ ⌂ ⌂  ♣♣♣♣♣  ♣ ▓▓▓▓ │  ~     ✦  festival stalls
+   ~  │ ░░░  ♣♣♣  ✦ ✦ ✦┃✦ ✦ ✦  ♣♣  ▓▓▓◘ │  ~     ▓  rocky headland
+   ~  │ ♣♣  ♣♣♣  ✦ ✦ ⌒arch⌒ ✦ ✦ ♣  ▓▓▓  │  ~     ◘  forbidden cave
+   ~  └──── main beach ══╗══ night beach ⚠┘  ~     ⚠  No Entry sign
+   ~ ▲     lagoon        ║ pier     rowboat   ~     ⌒  welcome arch
+   ~      reef     🦆 ferry moored        ▲   ~     ⊓  watchtower stage
    ~    ~ ~ ~ ~ ~ reef edge ~ ~ ~ ~ ~         ~
    ~          the deep (dark, eerie)          ~
 ```
 
 | Zone | What happens there | Swim / dive |
 |---|---|---|
-| **Pier and ferry** | Long wooden pier on vivid turquoise water. The white duck-shaped ferry is moored at the bay beside it. Confetti welcome for new guests. | Jump off the end. |
-| **Main beach** | Wide sand in front of the village. Festival stalls with coloured signboards and bunting. Usagi runs about. Starfish on the sand. | Wade in gradually. |
-| **Village** | Stilt huts with mushroom-shaped thatched roofs and patterned walls, a few round beehive huts. Welcome post reading 島へようこそ. Fruit baskets, potted plants, log benches. Most conversations happen here. | Dry. |
+| **Pier and ferry** | Long wooden pier on vivid turquoise water, leading straight onto the festival street. The white duck-shaped ferry is moored at the bay beside it. Confetti welcome for new guests. | Jump off the end. |
+| **Festival street** | Behind the main beach, from the pier: a sandy plaza lined with stalls, the welcome arch (島へようこそ!! in yellow flowers), then a street of stalls running inland under banners, bunting and lanterns. Usagi runs about. | Dry. |
+| **Main beach** | Wide sand either side of the pier. Palms, starfish on the sand. | Wade in gradually. |
+| **Village** | A clearing deep in the jungle on the path to the waterfall: big stilt huts you can walk into, with mushroom-shaped thatched roofs and patterned walls, a few plank and round beehive huts, round the tall wooden watchtower stage where announcements are made, torches in front of it. Potted plants, fruit baskets, log benches. Most conversations happen here. | Dry. |
 | **Fields** | Farm plots on the west side of the village. Islanders tending crops. | Dry. |
 | **Jungle** | Fills the interior. Striped palms, ferns, monstera, bright flower bushes, blue butterflies, clover clearings. Golden late-afternoon light. | Dry. |
 | **Karst pillars** | Six or seven tall pale limestone towers rising from the jungle, the island's silhouette from every angle. Not climbable. They are landmarks for finding your way. | — |
@@ -341,11 +343,13 @@ headland. Get in to row along the coast or into the forbidden cave. Rowing
 uses the same joystick; the context button gets you out at any shore or
 ledge.
 
-Terrain is a heightmap (one 256 × 256 texture) turned into a mesh with
-vertex colours for sand, grass and rock. Karst pillars, huts, palms, stalls
-and coral are props placed from a JSON layout file, so the map is editable
-without touching code. The cave interior is a separate small hand-built mesh
-joined to the headland.
+The ground is built in Blender from a height grid over the map, with its
+colours painted into one texture seen from above. The rock landmarks (karst
+pillars, the waterfall's wall, the headland with the cave mouth, sea
+spires) are built with it, so their feet fit the ground. Huts, palms,
+stalls and coral are props placed from a JSON layout file, so the map is
+editable without touching code. The cave interior is a separate small
+hand-built mesh joined to the headland.
 
 ---
 
@@ -489,10 +493,16 @@ art/
     outfits.py         * the island outfit: flower crown and grass skirt, fitted per wearer
     face_art.py        * painted faces: layers, expressions.txt, starter art for new characters
     build_characters.py* parts kit for characters without a downloaded model (none yet)
-    build_props.py     * palm, log, starfish, onigiri
+    build_island.py    * the island: the ground's heights, painted colours and mesh; the landmarks; the plants
+    karst.py           * the rock landmarks: karst pillars, the waterfall, the headland's cave mouth, sea spires
+    plants.py          * the jungle's plants: canopy clumps, palms, ferns, bushes, monstera, crops
+    build_props.py     * palm, log, starfish, onigiri, No Entry sign, butterfly
+    build_village.py   * the village and the festival: huts, stage, torches, stalls, arch, banners, bunting, pier, ferry
+    houses.py          * houses you can walk into, the watchtower stage, the festival's arch and banners
     cast.blend         * generated: the converted cast with their outfits, for viewing in Blender
   faces/<id>/          * each cast member's painted face: layers, expressions.txt and a guide
     props.blend        * generated: all props
+    village.blend      * generated: the village, the pier and the ferry
   previews/            * generated: front, three-quarter, side and back renders
 scripts/
   make-icons.mjs       * draws the app icons
@@ -503,6 +513,7 @@ src/
     Game.ts            * owns scene, loop, resize, visibility handling
     Input.ts           * touch joystick, camera drag, pinch, keyboard
     CameraRig.ts       * follow and orbit camera
+    FreeCamera.ts      * development: a camera that flies anywhere, from the Test panel
     Settings.ts        * character choice, saved locally
     toon.ts            * shared toon light ramp
     Save.ts            versioned save game
@@ -511,15 +522,19 @@ src/
   locales/
     ja.json            * all the Japanese text the player sees
   world/
-    Stage.ts           * M0 test beach: sand, sea, sky, clouds, and the Blender props
-    Ink.ts             * the world's pen: one stroke width for every outline
-    PropModels.ts      * loads Blender props
-    Terrain.ts         heightmap mesh, height sampling, vertex colours
-    Water.ts           water plane and shader, surface height query
-    Sky.ts             skydome, sun, moon, day-night tint
-    Props.ts           placement from layout.json, instancing
+    Stage.ts           * the island, the sea and the pool's water, the sky with sun, moon and stars, clouds
+    Ink.ts             * the world's pen: one stroke width for every outline; swaying and flapping hulls
+    PropModels.ts      * loads Blender props and what they tell the game: footprint, deck, label
+    Island.ts          * the island's ground: height grid, walking, the waterline; the rocks' feet
+    Landmarks.ts       * the rock landmarks and the waterfall
+    Props.ts           * placement from layout.json, merged by patch, painted signs, the bobbing ferry
+    Obstacles.ts       * what blocks walking and the camera: prop feet, decks, trunks, crowns
+    Vegetation.ts      * the jungle and crops, swaying in the wind
+    Butterflies.ts     * blue butterflies fluttering round flowering bushes
+    Glow.ts            * windows and lanterns that light up at night
+    DayNight.ts        * the island's clock and how it looks at every hour
+    Zones.ts           * named places from layout.json, then the sea by depth and the land
     Navigation.ts      grid, A*, walkable mask from terrain and props
-    Zones.ts           named volumes (lagoon, reef, deep, village...)
   characters/
     Model.ts           * loads a character .glb with its rig metadata, face art and masks; loads outfits
     CharacterMaterial.ts* soft-body toon shader and outline; cap, fringe and leaf patterns
@@ -535,15 +550,15 @@ src/
     types.ts           *
     Npc.ts             schedule runner, pathing, reactions
   systems/
-    Clock.ts           game time, phases, catch-up
+    Clock.ts           save catch-up for the day's clock (the clock itself is in world/DayNight.ts)
     Weather.ts
     Dialogue.ts        picks lines by context, runs the box
     Friendship.ts
     Journal.ts
     Audio.ts           ambient, positional, underwater filter
   ui/
-    Hud.ts             * title, stats, joystick ring, jump button
-    TestPanel.ts       * actions, expressions, lineup
+    Hud.ts             * title, time and stats, place names, joystick ring, jump button
+    TestPanel.ts       * actions, expressions, lineup, time of day
     DialogueBox.ts
     JournalPanel.ts
     PhotoMode.ts
@@ -556,11 +571,11 @@ public/
   models/outfits/*.glb * the island outfit, one per wearer
   models/props/*.glb   * props, generated by the Blender props script
   pwa-*.png, apple-touch-icon.png, favicon-64.png *
+  models/island/      * the ground, its colour map and height grid, the landmarks, the plants
   data/
-    layout.json        prop placement
+    layout.json        * prop placement and the named places
     schedules/*.json
     dialogue/*.json    line structure and context, keyed by string ID
-    heightmap.png
   textures/            caustics, normal maps
   audio/
 ```
@@ -666,8 +681,13 @@ Each milestone ends with something you can open on your phone.
 After M7 the game is "complete" in the sense of this plan. Anything further
 is a new plan.
 
-**Status (2026-10-16).** M0 is built and tested in the browser at phone and
-desktop sizes. It still needs a check on a real phone. See `CHANGELOG.md`.
+**Status (2026-10-17).** M0 is built and tested in the browser at phone and
+desktop sizes. It still needs a check on a real phone. M1 is under way on
+the `m1-island` branch: all seven steps are in (the ground and the sea, the
+landmarks, the village, beach and pier, the jungle and fields, the layout
+file and zones, the sky and the day, a performance pass). The scene is over
+the 150k-triangle phone budget, mostly from the cast and their outlines; a
+real phone test will say whether that matters. See `CHANGELOG.md`.
 
 ---
 
