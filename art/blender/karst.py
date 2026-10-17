@@ -41,10 +41,14 @@ SHARED = palette({
     "leavesMid": "#5EAD4A",
     "leavesDark": "#3F8A3C",
 })
-# Stone by kind: the karst pillars pale and cool like the film's, the headland a warmer grey.
+# Stone by kind: the karst pillars pale and cool like the film's, the headland a warmer grey, the
+# sea cliffs' bedded sandstone cream and tan.
 STONES = {
     "karst": palette({"stone": "#D5DFE2", "stoneMid": "#BECACF", "groove": "#8B9FAC", "streak": "#AFBDC3"}),
     "headland": palette({"stone": "#D4D1C6", "stoneMid": "#B9B6AB", "groove": "#8C8F8B", "streak": "#A8A9A2"}),
+    "sandstone": palette({"stone": "#E6D6B0", "stoneMid": "#CDB287", "groove": "#9A8260", "streak": "#BDA27A"}),
+    # Damp limestone in the jungle's shade, as behind the film's waterfall: grey with green in it.
+    "mossy": palette({"stone": "#B8C1AE", "stoneMid": "#A0AA95", "groove": "#6B7B6D", "streak": "#929E88"}),
 }
 
 DEFAULTS = {
@@ -371,6 +375,10 @@ class Rock:
             moss = mix(np.broadcast_to(C["moss"], theta.shape + (3,)), C["mossDark"],
                        smoothstep(0.3, 0.7, 0.5 + 0.5 * np.sin(11.0 * theta + p[6])))
             col = col + (moss - col) * m[..., None]
+            if s["stone"] == "mossy":
+                # Damp rock: moss in patches all down the face too, thickest in the hollows.
+                patch = (0.5 + 0.5 * np.sin(5.0 * theta + 1.3 * y + p[2])) * (0.5 + 0.5 * np.sin(9.0 * theta - 0.7 * y + p[3]))
+                col = col + (moss - col) * smoothstep(0.42, 0.62, patch + 0.35 * groove)[..., None]
         col = mix(col, C["foot"], smoothstep(1.4, 0.0, y - ground_y))
         if s["wet"] is not None:
             col = mix(col, C["wet"], smoothstep(1.0, 0.25, y - s["wet"]))
@@ -472,19 +480,199 @@ def waterfall(rock, level, rows=20, thickness=0.45):
     return bm, uv, (float(foot[0]), float(foot[1]))
 
 
+def vines(rock, around, count, seed, avoid=None):
+    """Vines hanging from a rock's rim down its face, as in the film's jungle waterfall: strands
+    lying a hand's breadth out from the stone, with leaves along them, some reaching most of the way
+    down. `around` is (angle, half arc in metres) of the face they hang on; `avoid` (angle, half
+    width) keeps them clear of a waterfall. Returns (bmesh, colours)."""
+    rng = np.random.default_rng(seed)
+    an, arc = around
+    face = float(rock.radius(np.array([an]), np.array([rock.top - 1.0]))[0][0])
+    bm = bmesh.new()
+    cols = []
+    stem, leaf_light, leaf_dark = np.array(L.hex_color("#55693A")[:3]), SHARED["moss"], SHARED["mossDark"]
+    height = rock.top - rock.foot
+    made = 0
+    for _ in range(count * 3):
+        if made >= count:
+            break
+        a = an + rng.uniform(-arc, arc) / face
+        if avoid and abs(float(angle_diff(a, avoid[0]))) * face < avoid[1] + 1.0:
+            continue
+        made += 1
+        top = rock.top - rock.s["rim"] * min(rock.rx, rock.rz) * 0.5 - 0.3
+        length = height * rng.uniform(0.2, 0.85) ** 0.7
+        ys = np.linspace(top, top - length, max(4, int(length / 1.2) + 1))
+        r = rock.radius(np.full(len(ys), a), ys)[0] + 0.12
+        mx, mz = rock.middle(ys)
+        sway = rng.uniform(-0.15, 0.15) * np.linspace(0.0, 1.0, len(ys)) ** 2
+        pts = [Vector((float(mx[i] + r[i] * math.cos(a + sway[i] / face)), float(-(mz[i] + r[i] * math.sin(a + sway[i] / face))),
+                       float(ys[i]))) for i in range(len(ys))]
+        thick = rng.uniform(0.025, 0.045)
+        for p, q in zip(pts, pts[1:]):
+            seg = P.segment_bm(p, q, thick, thick * 0.9, segments=4)
+            L.append_bm(bm, seg)
+            cols.extend([stem] * len(seg.verts))
+            seg.free()
+        # Leaves in pairs down the strand, thinning out toward its end.
+        out = Vector((math.cos(a), -math.sin(a), 0.0))
+        side = Vector((math.sin(a), math.cos(a), 0.0))
+        for t in np.arange(rng.uniform(0.02, 0.12), 1.0, rng.uniform(0.07, 0.12)):
+            if rng.random() < t * 0.6:
+                continue
+            k = t * (len(pts) - 1)
+            i = min(int(k), len(pts) - 2)
+            c = pts[i].lerp(pts[i + 1], k - i) + out * 0.04 + side * rng.uniform(-0.1, 0.1)
+            s = rng.uniform(0.09, 0.15)
+            leaf = L.ellipsoid_bm(c, (s, s * 0.3, s * 0.6), u=5, v=3)
+            L.append_bm(bm, leaf)
+            cols.extend([leaf_light if rng.random() < 0.55 else leaf_dark] * len(leaf.verts))
+            leaf.free()
+    return bm, cols
+
+
 def spray(level, seed=7):
     """White water thrown up where a waterfall lands: puffs fused into one cloud round its foot,
     built round its own origin (the foot, at the water) so the game can make it heave."""
     rng = np.random.default_rng(seed)
     blobs = []
-    for k in range(8):
-        a, d = 2.0 * math.pi * k / 8 + rng.uniform(-0.3, 0.3), rng.uniform(1.4, 2.6)
-        r = rng.uniform(0.75, 1.25)
-        blobs.append(L.ellipsoid_bm(Vector((d * math.cos(a), -d * math.sin(a), r * 0.2)), (r, r, r * 0.9), u=12, v=8))
-    bm = L.fuse(blobs, voxel=0.1, smooth_iterations=6, smooth_lambda=0.8, target_tris=600)
+    for k in range(7):
+        a, d = 2.0 * math.pi * k / 7 + rng.uniform(-0.3, 0.3), rng.uniform(0.55, 1.1)
+        r = rng.uniform(0.38, 0.62)
+        blobs.append(L.ellipsoid_bm(Vector((d * math.cos(a), -d * math.sin(a), r * 0.1)), (r, r, r * 0.8), u=12, v=8))
+    bm = L.fuse(blobs, voxel=0.06, smooth_iterations=6, smooth_lambda=0.8, target_tris=500)
     bm.normal_update()
     white, under = np.array(L.hex_color("#FFFFFF")[:3]), np.array(L.hex_color("#BDEFF7")[:3])
     cols = [under + (white - under) * float(smoothstep(-0.4, 0.3, v.normal.z)) for v in bm.verts]
+    return bm, cols
+
+
+def cliff(points, normals, tops, water, seed, base=-4.5, lip=2.6, column=1.2):
+    """Sea cliffs of bedded sandstone along a stretch of coast, after the film's frame of them:
+    `points` (x, z) along the foot of the face at the water, each with its outward normal (x, z) and
+    the height of the land on top. The face rises from below the water at `base`, stepped in and
+    out by level beds of stone and split into blocks by upright joints, leaning back a little; it
+    rounds over at the top into a lip of turf `lip` metres inland, then goes back down into the
+    ground. A closed solid, for the pen. Painted in bands bed by bed, darker in the joints and the
+    hollows, streaked from the top, greenery hanging over the edge in tongues, wet where the sea
+    laps. Returns (bmesh, colours)."""
+    rng = np.random.default_rng(seed)
+    C = {**SHARED, **STONES["sandstone"]}
+    grass, grass_dark = np.array(L.hex_color("#84C557")[:3]), np.array(L.hex_color("#5E9E44")[:3])
+    pts = np.asarray(points, dtype=float)
+    nrm = np.asarray(normals, dtype=float)
+    tops = np.asarray(tops, dtype=float)
+    # Resample the coast every `column` metres.
+    seg = np.hypot(*np.diff(pts, axis=0).T)
+    along = np.concatenate([[0.0], np.cumsum(seg)])
+    u = np.arange(0.0, along[-1] + 1e-6, column)
+    P = np.stack([np.interp(u, along, pts[:, 0]), np.interp(u, along, pts[:, 1])], axis=1)
+    N = np.stack([np.interp(u, along, nrm[:, 0]), np.interp(u, along, nrm[:, 1])], axis=1)
+    N /= np.linalg.norm(N, axis=1, keepdims=True)
+    T = np.interp(u, along, tops)
+    # Level beds of stone from below the water to the highest top: each sticks out or sits back.
+    beds, y = [], base
+    while y < T.max() + 1.0:
+        beds.append(y)
+        y += rng.uniform(0.7, 2.0)
+    beds.append(y)
+    jut = rng.uniform(-0.6, 0.6, len(beds))
+    shade = rng.choice([0.0, 0.0, 0.45, 0.8, 1.0], len(beds))
+    # Upright joints split the face into blocks, each standing in or out.
+    joints = [0.0]
+    while joints[-1] < u[-1]:
+        joints.append(joints[-1] + rng.uniform(3.5, 9.0))
+    block_jut = rng.uniform(-0.9, 0.7, len(joints) + 1)
+    streak_p = rng.uniform(0.0, 2.0 * math.pi, 3)
+    hang = 0.6 + 2.6 * rng.uniform(0.0, 1.0, len(u)) ** 2
+    hang = np.convolve(hang, np.ones(3) / 3.0, mode="same")
+    # Rows at fixed heights, with a pair at every bed's edge so the steps stay crisp; any row above a
+    # column's top folds down onto it.
+    levels = sorted({base, water - 0.9, water - 0.25, water + 0.3, *np.arange(base, T.max() + 0.7, 0.7),
+                     *[b + d for b in beds for d in (-0.05, 0.05)]})
+    levels = np.array([v for v in levels if base <= v <= T.max() - 0.6])
+
+    def face_offset(i, y):
+        """How far the face stands out to sea from the coast's point at column i, height y."""
+        k = np.clip(np.searchsorted(beds, y) - 1, 0, len(beds) - 1)
+        j = int(np.searchsorted(joints, u[i]))
+        d_joint = min(abs(u[i] - joints[max(j - 1, 0)]), abs(u[i] - joints[min(j, len(joints) - 1)]))
+        crack = -1.1 * (1.0 - smoothstep(0.25, 0.75, d_joint))
+        return 1.6 + jut[k] + block_jut[j] + crack - 0.02 * (np.asarray(y) - water), k, d_joint
+
+    bm = bmesh.new()
+    grid, cols = [], []
+    for i in range(len(u)):
+        top = T[i]
+        ys = list(np.minimum(levels, top - 0.6)) + [top - 0.3, top - 0.1, top]
+        pull = [0.0] * len(levels) + [0.15, 0.45, 0.9]
+        ring, ring_cols = [], []
+        for y, back in zip(ys, pull):
+            off, k, d_joint = face_offset(i, y)
+            p = P[i] + N[i] * (off - back)
+            ring.append(bm.verts.new((float(p[0]), float(-p[1]), float(y))))
+            # Paint: the bed's own tone, darker in a joint or a block set back, in shadow under a
+            # bed that juts out over it, streaked downward.
+            c = mix(C["stone"], C["stoneMid"], shade[k])
+            c = mix(c, C["groove"], 0.75 * (1.0 - smoothstep(0.15, 0.6, d_joint)) + 0.4 * max(-block_jut[min(
+                int(np.searchsorted(joints, u[i])), len(block_jut) - 1)], 0.0))
+            if k + 1 < len(beds):
+                over = min(max(jut[k + 1] - jut[k], 0.0) / 0.5, 1.0)
+                c = mix(c, C["groove"] * 0.9, 0.65 * over * smoothstep(beds[k + 1] - 0.7, beds[k + 1] - 0.08, y))
+            streak = (0.5 + 0.5 * math.sin(u[i] * 1.7 + streak_p[0])) * (0.5 + 0.5 * math.sin(u[i] * 0.53 + streak_p[1]))
+            c = mix(c, C["streak"], smoothstep(0.55, 0.85, streak) * smoothstep(water, top, y) * 0.8)
+            c = mix(c, mix(grass, grass_dark, 0.5 + 0.5 * math.sin(u[i] * 2.3 + y)), smoothstep(top - hang[i] - 0.1,
+                                                                                               top - hang[i] + 0.1, y))
+            c = mix(c, C["wet"], smoothstep(water + 0.9, water + 0.2, y))
+            ring_cols.append(c)
+        # The turf lip on top, running inland, then back down into the ground behind.
+        for inland, dy in ((0.5, 0.06), (1.4, 0.08), (lip, 0.05)):
+            p = P[i] - N[i] * inland
+            ring.append(bm.verts.new((float(p[0]), float(-p[1]), float(top + dy))))
+            ring_cols.append(mix(grass, grass_dark, 0.35))
+        p = P[i] - N[i] * lip
+        ring.append(bm.verts.new((float(p[0]), float(-p[1]), float(base))))
+        ring_cols.append(C["foot"])
+        grid.append(ring)
+        cols.extend(ring_cols)
+    rows = len(grid[0])
+    for a, b in zip(grid, grid[1:]):
+        for k in range(rows):
+            m = (k + 1) % rows
+            bm.faces.new((a[k], b[k], b[m], a[m]))
+    for ring in (grid[0], grid[-1]):
+        mid = bm.verts.new(sum((v.co for v in ring), Vector()) / rows)
+        cols.append(C["foot"])
+        for k in range(rows):
+            bm.faces.new((ring[k], ring[(k + 1) % rows], mid))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    # Shrubs along the top of the tall cliffs, spilling over the edge here and there (low cliffs
+    # keep a clear grassy edge): soft clumps fused a stretch at a time, leafy green, darker
+    # underneath.
+    leaves, mid_leaf, dark = SHARED["leaves"], SHARED["leavesMid"], SHARED["leavesDark"]
+    stretch = 12.0
+    for s0 in np.arange(0.0, u[-1], stretch):
+        blobs = []
+        for d in np.arange(s0 + rng.uniform(0.0, 1.0), min(s0 + stretch, u[-1]), rng.uniform(1.1, 1.7)):
+            i = min(int(round(d / column)), len(u) - 1)
+            if T[i] < water + 11.0:
+                continue
+            r = rng.uniform(0.55, 1.15)
+            over = rng.random() < 0.4
+            off = face_offset(i, T[i] - 0.6)[0] - (0.2 if over else 0.9)
+            p = P[i] + N[i] * off
+            y = T[i] + r * 0.15 - (rng.uniform(0.5, 1.4) if over else 0.0)
+            blobs.append(L.ellipsoid_bm(Vector((float(p[0]), float(-p[1]), float(y))), (r, r, r * 0.8), u=12, v=8))
+        if not blobs:
+            continue
+        lump = L.fuse(blobs, voxel=0.12, smooth_iterations=5, smooth_lambda=0.8, target_tris=700)
+        lump.normal_update()
+        for v in lump.verts:
+            up = v.normal.z
+            c = mid_leaf + (leaves - mid_leaf) * float(smoothstep(0.2, 0.9, up))
+            cols.append(c + (dark - c) * float(smoothstep(0.05, -0.6, up)))
+        L.append_bm(bm, lump)
+        lump.free()
     return bm, cols
 
 

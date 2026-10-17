@@ -106,7 +106,8 @@ Scale unit: **1 = Chiikawa's height.**
   middle of the ring of pillars, round turquoise water shows through the
   trees. It is not a pond: it is the forbidden cave's skylight, a round
   opening in the ground over the cave's water. There is no waterfall in
-  the middle of the island.
+  the middle of the island: a mist rises out of the trees in the west,
+  where the waterfall is (`waterfall`).
 - **South coast:** the main beach, the festival's colourful stalls right
   behind it, a short wooden pier pointing out to sea and the duck ferry at
   anchor out in the bay. Farm plots just west of the festival. Low layered
@@ -140,6 +141,31 @@ green-turquoise water you can see sparkles in. Confetti welcome on arrival.
 - Soft clover ground cover and bright green grass clearings.
 - Blue butterflies; bubbles float in one clearing.
 - Golden backlight through the canopy in the late afternoon.
+
+### Jungle waterfall (`waterfall`)
+
+- A narrow white waterfall pours from a gap in the top of a wide cliff of
+  pale, damp limestone, grey with green in it, many times wider than it is
+  tall: upright slabs, mossy ledges, curtains of vines hanging down, ferns
+  and moss draped over it, trees along its top.
+- It falls into a dark green pool at the cliff's foot, with a soft white
+  mist where it lands. Sunlight falls into the clearing from above.
+- On the bank: dark earth and moss; monstera leaves and a red ti plant to
+  the left, a leaning mossy slab of rock at the water; to the right a big
+  tree with buttress roots and hanging aerial roots, bromeliads (pink,
+  orange, red) on a mossy rock, ferns, white flowers.
+
+### Sea cliffs (`sea cliffs`)
+
+- Tall cliffs of level-bedded sandstone, cream and tan in bands, split
+  into blocks by upright joints, stepping in and out bed by bed. Grass and
+  rounded shrubs on top, greenery hanging over the edge in places.
+- They run away along the coast into the distance, their faces catching
+  the sun. Turquoise water at their foot, deep blue further out.
+- A tall sea stack of the same bedded rock stands off the coast, stepped,
+  narrowing and leaning a little, a smaller rock beside it.
+- Seen from a grassy headland lower than the cliffs, its edge dropping
+  sheer to the sea.
 
 ### Beaches at night (`beach 1`, `2`, `3`, `fire by the beach`)
 

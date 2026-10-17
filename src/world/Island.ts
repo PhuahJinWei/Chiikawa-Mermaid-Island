@@ -24,7 +24,9 @@ export interface TerrainInfo {
   landmarks: string;
   /** Each rock's foot: its middle (x, z), and how far it reaches at even angles round it from east toward south. */
   rocks: { centre: [number, number]; outline: number[] }[];
-  /** Where a waterfall lands (x, z), and how far its splash spreads, when the island has one. */
+  /** The jungle waterfall's pool: its water stands at `level` within `radius` of `centre` (x, z). */
+  pool?: { centre: [number, number]; radius: number; level: number };
+  /** Where the waterfall lands in its pool (x, z), and how far its splash spreads. */
   waterfall?: { foot: [number, number]; splash: number };
   /** The jungle and the crops: the meshes, each trunk (x, z, radius) and each crown (x, y, z,
    * radius), and the flowering bushes butterflies flutter round (x, y, z). */
@@ -121,6 +123,13 @@ export class Terrain {
     return a + (b - a) * fz;
   }
 
+  /** The surface of whatever water is at (x, z): the waterfall pool's, or the sea's. */
+  waterLevel(x: number, z: number): number {
+    const pool = this.info.pool;
+    if (pool && Math.hypot(x - pool.centre[0], z - pool.centre[1]) < pool.radius + 1) return pool.level;
+    return this.info.water;
+  }
+
   /** Whether (x, z) is within `margin` metres of a rock's foot. */
   nearRock(x: number, z: number, margin: number): boolean {
     for (const rock of this.rocks) {
@@ -146,7 +155,7 @@ export class Terrain {
     if (blocked(x, z, PROP_MARGIN, stand)) return false;
     if (deck !== null && deck > ground) return true;
     const h = ground;
-    if (h < this.info.water - WADE) return false;
+    if (h < this.waterLevel(x, z) - WADE) return false;
     const e = 0.5;
     const gx = (this.height(x + e, z) - this.height(x - e, z)) / (2 * e);
     const gz = (this.height(x, z + e) - this.height(x, z - e)) / (2 * e);
@@ -154,11 +163,20 @@ export class Terrain {
   }
 }
 
+/** The waterfall pool as a shader uniform: middle (x, z), the reach of its water, its level. */
+export function poolUniform(info: TerrainInfo): THREE.Vector4 {
+  const pool = info.pool;
+  return pool
+    ? new THREE.Vector4(pool.centre[0], pool.centre[1], pool.radius + 1, pool.level)
+    : new THREE.Vector4(0, 0, 0, info.water);
+}
+
 /**
  * The ground's look: the painted colour map, flat like the film's backgrounds, and the
- * waterline drawn with the world's pen on the sand. The waterline follows the height grid, the
- * same smooth edge the water stops at and characters wade to. The ground sits a hair back in the
- * depth test, so outlines where things touch it (feet, a log's underside) are drawn over it.
+ * waterline drawn with the world's pen on the sand and round the waterfall's pool. The waterline
+ * follows the height grid, the same smooth edge the water stops at and characters wade to. The
+ * ground sits a hair back in the depth test, so outlines where things touch it (feet, a log's
+ * underside) are drawn over it.
  */
 function groundMaterial(colours: THREE.Texture, info: TerrainInfo, floor: THREE.Texture): THREE.ShaderMaterial {
   return new THREE.ShaderMaterial({
@@ -171,6 +189,7 @@ function groundMaterial(colours: THREE.Texture, info: TerrainInfo, floor: THREE.
       uMap: { value: new THREE.Vector4(info.origin[0], info.origin[1], info.size, info.height.grid) },
       uEdge: { value: new THREE.Color(WATER_EDGE) },
       uSea: { value: info.water },
+      uPool: { value: poolUniform(info) },
     },
     vertexShader: /* glsl */ `
       #include <common>
@@ -197,15 +216,17 @@ function groundMaterial(colours: THREE.Texture, info: TerrainInfo, floor: THREE.
       uniform vec3 uInk;
       uniform vec3 uAmbient;
       uniform float uSea;
+      uniform vec4 uPool;
       varying vec2 vUv;
       varying vec3 vWorld;
       varying float vDepth;
       void main() {
         vec3 col = texture2D(uColours, vUv).rgb;
+        float level = distance(vWorld.xz, uPool.xy) < uPool.z ? uPool.w : uSea;
         // Pixels above the waterline, measured across the slope; the pen draws the first few.
         float h = floorAt(vWorld.xz);
-        if (abs(h - uSea) < 0.6) h = floorAtExact(vWorld.xz);
-        float above = (h - uSea) / max(fwidth(h), 1e-5);
+        if (abs(h - level) < 0.6) h = floorAtExact(vWorld.xz);
+        float above = (h - level) / max(fwidth(h), 1e-5);
         // Under the water the ground is hidden, but where the two meet at a glancing angle a
         // sliver of it can show. Painted the colour of the water's edge, it reads as water.
         col = mix(col, uEdge, 1.0 - step(-0.5, above));
@@ -284,6 +305,11 @@ export function groundHeight(x: number, z: number, feet = Infinity): number {
 /** The bare ground's height at (x, z), under any deck. */
 export function terrainHeight(x: number, z: number): number {
   return terrain ? terrain.height(x, z) : 0;
+}
+
+/** The surface of whatever water is at (x, z), the pool's or the sea's; the sea's until the island has loaded. */
+export function waterLevelAt(x: number, z: number): number {
+  return terrain ? terrain.waterLevel(x, z) : -0.32;
 }
 
 /** Whether the camera may be at (x, y, z): not inside a rock, a prop or a tree's crown. */

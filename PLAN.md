@@ -300,24 +300,25 @@ looks as the film draws it. A single contiguous map, roughly 430 × 430
 metres including the surrounding sea, small enough to cross on foot in
 about two minutes and to keep in memory with no streaming. The island
 itself is a rounded shape about 290 metres across (215 from north to
-south), with a sandy ring all the way around: narrow where the jungle runs
-down to the water in the west and north, widest on the night beach.
+south), with a sandy ring all the way around but for the sea cliffs on the
+north-east coast: narrow where the jungle runs down to the water in the west
+and north, widest on the night beach.
 
 ```
                             N
-   ~   ▲▲   ┌────────────────────────────────┐   ▲▲  ~     ▲  karst pillar / sea spire
+   ~   ▲▲   ┌──────────────────────▤▤▤▤▤▤▤▤▤▤┐   ▲▲  ~     ▲  karst pillar / sea spire
    ~        │   ■    ▲      ▲                │       ~     ■  mesa the jungle hides
    ~   ▲▲   │  ■■   (■■)    ◎◎    ▲▲   ■     │  ▲▲   ~     (■■) the great dome of trees
    ~        │     ■       ■  ⌂ ⌂  ▲    ■■    │       ~     ◎  the cave's skylight
    ~        │  ▴▴   ■  ⌂ ⊓stage ⌂ ▲    ■     │       ~     ▴  little white spires
-   ~   ▲    │  ■   ▲     ⌂ ⌂ ⌂          ▓    │  ▲    ~     ⌂  stilt huts
+   ~   ▲    │ ≋■   ▲     ⌂ ⌂ ⌂          ▓    │  ▲    ~     ⌂  stilt huts
    ~        │    ░░░  ✦ ✦┃✦ ✦  ♣♣♣  ▓▓       │       ~     ░  fields
    ~   ▲▲   │    ░░ ✦ ✦ ⌒arch⌒ ✦ ✦  ▓        │       ~     ✦  festival stalls
    ~        └── main beach ═╗═ night beach ──┘       ~     ⌒  welcome arch
    ~      lagoon            ║ pier   rowboat     ▲  ~     ▓  rocks behind the night beach
    ~            reef      🦆 ferry at anchor        ~     ⊓  watchtower stage
-   ~    ~ ~ ~ ~ ~ reef edge ~ ~ ~ ~ ~                ~
-   ~          the deep (dark, eerie)                 ~
+   ~    ~ ~ ~ ~ ~ reef edge ~ ~ ~ ~ ~                ~     ▤  the sea cliffs, their cove and sea stack
+   ~          the deep (dark, eerie)                 ~     ≋  the waterfall and its pool
 ```
 
 | Zone | What happens there | In the water |
@@ -328,6 +329,8 @@ down to the water in the west and north, widest on the night beach.
 | **Village** | A clearing deep in the jungle, in the middle of the ring of pillars on the path to the cave's skylight: big stilt huts you can walk into, with mushroom-shaped thatched roofs and patterned walls, a few plank and round beehive huts, round the tall wooden watchtower stage where announcements are made, torches in front of it. Potted plants, fruit baskets, log benches. Most conversations happen here. | Dry. |
 | **Fields** | Farm plots just west of the festival street, as in the film's aerial shot. Islanders tending crops. | Dry. |
 | **Jungle** | Fills the interior. Striped palms, ferns, monstera, bright flower bushes, blue butterflies, clover clearings. Golden late-afternoon light. | Dry. |
+| **Waterfall** | In the west, where the film's aerial shot shows its spray rising out of the trees, as in its frame of it: a narrow white waterfall pours from a notch in a long, low wall of mossy limestone hung with vines into a deep green pool at its foot, in a clearing open to the sky. Monstera, red ti plants, ferns, bromeliads on a mossy rock and a big tree with buttress roots crowd the banks. A path comes from the fields. | Wade at the pool's edge. |
+| **Sea cliffs** | The north-east coast, hidden behind the pillars in the aerial shot, as in the film's frame of it: tall cliffs of bedded cream-and-tan sandstone with grass and shrubs on top, running round a cove and away along the coast, a sea stack standing off them in turquoise water. A lower grassy headland at their west end, reached by a path from the skylight, looks across the cove at them. | Too high: look down from the top. |
 | **Karst pillars** | Seven tall pale limestone towers in a ring round the island's middle, jungle on their tops with white rock standing out of it, the island's silhouette from every angle. Many short, wide ones hide in the forest: mesas thick with trees on top, one under a great dome of them. Not climbable. They are landmarks for finding your way. | — |
 | **Cave skylight** | Between the pillars in the island's centre, as in the film's aerial shot: not a pond but a round opening in the jungle floor, in a gentle hollow where the trees stand back, ringed by a mossy lip with vines hanging down inside, in the middle of the ring of pillars. Far below lies the forbidden cave's water, the sea come in under the island. A calm, hidden spot. | Peer down from the lip. |
 | **Night beach** | East end of the main beach, the widest stretch of sand, below low layered rocks. Bonfire, the night feast with rows of islanders, Rakko's ukulele, moon on the water. | Wade. |
@@ -345,8 +348,9 @@ ledge.
 The ground is built in Blender from a height grid over the map, with its
 colours painted into one texture seen from above. The rock landmarks (karst
 pillars and mesas, the cave's skylight, the rocks behind the night beach,
-sea spires) are built with it, so their feet fit the ground. A waterfall
-is still to be placed; the film's aerial shot has none in the middle. Huts, palms,
+sea spires, the sea cliffs, the waterfall's wall) are built with it, so their feet fit the
+ground. The waterfall is in the west, where the aerial shot shows its spray over the trees;
+none stands in the middle of the island. Huts, palms,
 stalls and coral are props placed from a JSON layout file, so the map is
 editable without touching code. The cave under the skylight, its entrance
 and the passage in are to be planned with M2.
@@ -486,7 +490,7 @@ art/
     face_art.py        * painted faces: layers, expressions.txt, starter art for new characters
     build_characters.py* parts kit for characters without a downloaded model (none yet)
     build_island.py    * the island: the ground's heights, painted colours and mesh; the landmarks; the plants
-    karst.py           * the rock landmarks: karst pillars and mesas, the cave's skylight, sea spires; a waterfall for later
+    karst.py           * the rock landmarks: karst pillars and mesas, the cave's skylight, sea spires; the waterfall, its vines and spray; the sea cliffs
     plants.py          * the jungle's plants: canopy clumps, palms, ferns, bushes, monstera, crops
     build_props.py     * palm, log, starfish, onigiri, No Entry sign, butterfly
     build_village.py   * the village and the festival: huts, stage, torches, stalls, arch, banners, bunting, pier, ferry
@@ -518,7 +522,7 @@ src/
     Ink.ts             * the world's pen: one stroke width for every outline; swaying and flapping hulls
     PropModels.ts      * loads Blender props and what they tell the game: footprint, deck, label
     Island.ts          * the island's ground: height grid, walking, the waterline; the rocks' feet
-    Landmarks.ts       * the rock landmarks and the cave's skylight; a waterfall, when there is one
+    Landmarks.ts       * the rock landmarks, the cave's skylight, the sea cliffs; the waterfall and its spray
     Props.ts           * placement from layout.json, merged by patch, painted signs, the bobbing ferry
     Obstacles.ts       * what blocks walking and the camera: prop feet, decks, trunks, crowns
     Vegetation.ts      * the jungle and crops, swaying in the wind

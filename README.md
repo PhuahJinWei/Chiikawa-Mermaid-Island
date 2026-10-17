@@ -72,8 +72,9 @@ Every model comes out of Blender, driven by a Python script:
   now.
 - `art/blender/build_island.py` builds the island into
   `public/models/island/`: the ground's mesh, its painted colour map and the
-  height grid the game walks on, and the rock landmarks and the cave's
-  skylight (`art/blender/karst.py` shapes the rocks). `art/previews/island_map.png`
+  height grid the game walks on, and the rock landmarks, the cave's
+  skylight, the jungle waterfall with its pool and the sea cliffs
+  (`art/blender/karst.py` shapes the rocks). `art/previews/island_map.png`
   shows the colour map with each rock's foot outlined, for checking the
   layout.
   It also grows the jungle, the fields' crops and the flowers round the

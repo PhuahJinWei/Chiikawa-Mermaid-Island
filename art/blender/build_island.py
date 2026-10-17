@@ -8,7 +8,8 @@ Outputs:
     public/models/island/terrain.png    its painted colours, mapped from above
     public/models/island/height.bin     ground heights on a grid, for walking and the sea's colours
     public/models/island/landmarks.glb  the rocks (karst pillars and mesas, the rocks behind the
-                                        night beach, sea spires) and the cave's skylight
+                                        night beach, sea spires), the cave's skylight and the
+                                        jungle waterfall with its spray
     public/models/island/plants.glb     the jungle, the fields' crops and the village's flowers,
                                         joined into a mesh for each patch of the map
     art/previews/island_map.png          the colour map with the zones' outlines, for checking the layout
@@ -85,6 +86,47 @@ FIELDS = {"centre": (-45.0, -38.0), "half": (14.0, 12.0), "feather": 6.0, "heigh
 # is still to be planned.
 SKYLIGHT = {"centre": (2.0, -159.0), "radius": 12.0, "floor": -3.0, "bell": 2.5, "width": 5.5, "rim": 7.0,
             "slope": 14.0, "seed": 31}
+# The jungle waterfall, after the film's frame of it, where the aerial shot shows its spray rising
+# out of the trees in the west: it pours from a notch in the south rim of the mesa listed at `rock`
+# (angle from east toward south, half width, depth) down a face hung with `vines` into a round pool
+# at its foot. That mesa is reshaped for it into a long, low wall of rock, wide across the frame as
+# in the film: `centre`, `radii`, `turn` and `top`. The pool's water stands at `level` over a floor
+# at `floor`; round it the ground is a bank at least `bank` high out to `clearing` metres from its
+# middle, easing into the land over `feather`, open to the sky above the water.
+FALL = {"rock": (-90.0, -70.0), "centre": (-92.0, -70.0), "radii": (16.0, 10.5), "turn": 0.05, "top": 10.2,
+        "notch": (math.pi / 2, 1.0, 1.4), "vines": 84, "seed": 41}
+POOL = {"centre": (-92.0, -51.5), "radius": 8.0, "floor": 0.1, "level": 1.3, "bank": 1.8, "clearing": 13.0,
+        "feather": 8.0}
+# Round the pool as in the film's frame, seen from its south bank, where the plants close in on the
+# view: a big tree with buttress roots at the bank's east end (dx, dz from the pool's middle);
+# plants (kind, which of its shapes, dx, dz, scale): monstera and a red ti plant at its west end,
+# white flowers to the east, ferns at the water; a mossy slab of rock on the west bank and a mossy
+# stump of it at the water's edge on the east with bromeliads on top (dx, dz, radii, turn, height,
+# seed).
+POOL_TREE = (5.9, 7.6)
+POOL_PLANTS = [("ti", 1, -3.9, 9.2, 1.05), ("monstera", 0, -4.2, 7.4, 1.3), ("monstera", 2, -6.0, 6.6, 1.45),
+               ("monstera", 1, -8.4, 3.6, 1.3), ("ti", 3, -6.8, 9.6, 1.2), ("fern", 2, -5.4, 10.2, 1.3),
+               ("fern", 0, 6.6, 2.4, 1.3), ("fern", 3, -7.0, 2.2, 1.25), ("fern", 1, 7.4, 4.8, 1.2),
+               ("bush", 1, 4.4, 11.4, 1.25), ("bush", 1, 6.2, 10.4, 1.05), ("fern", 4, 3.6, 12.6, 1.2)]
+POOL_ROCKS = [(-6.6, 4.6, (2.4, 1.4), 0.9, 1.7, 62), (4.6, 7.4, (1.3, 1.1), 0.2, 1.3, 63)]
+# The sea cliffs on the north-east coast, after the film's frame of them, hidden behind the pillars
+# in its aerial shot: tall bedded sandstone with grass on top, the coast running away along them
+# and a sea stack standing off it. Along the coast between `start` and `end` (directions from the
+# coast's centre, degrees from east toward south) the land rises sheer out of deep water to a grassy
+# top `height` high, out to `depth` metres inland, then eases down into the jungle over `ease`. At
+# the west end a lower headland juts `reach` metres out to sea at `headland` (over `spread`
+# degrees), `low` high, where the cliffs are seen from: east of it the coast turns into a cove
+# (`cove`: where it starts, its back, where it rejoins the coast, degrees, and how deep in it cuts,
+# metres), so from the headland the cliffs along the cove's far side face you across the water as
+# they run away to the open sea. The top rises from the beach west of the headland by `west`, up to
+# the cliffs' full height across the back of the cove over `rise`, and falls back to the beach at
+# the east end over `fall`. The sea floor drops `deep` metres at the cliffs' foot.
+CLIFFS = {"start": -80.0, "west": -74.0, "headland": -70.0, "reach": 10.0, "spread": 4.0, "low": 6.5,
+          "cove": (-68.0, -64.0, -47.0, 26.0), "rise": (-66.0, -61.0), "height": 18.0, "fall": (-35.0, -26.0),
+          "end": -24.0, "depth": 18.0, "ease": 24.0, "deep": 3.6, "seed": 51}
+# The sea stack off the mouth of the cove and a smaller rock beside it: centre, radii, turn, height
+# above the water, seed.
+STACKS = [((76.0, -203.5), (2.9, 2.3), 0.4, 10.6, 71), ((74.0, -208.0), (1.5, 1.2), 1.1, 3.6, 72)]
 
 # Rock landmarks, after the film's aerial shot (each placed through a camera matched to it); karst.py
 # builds them. Tall limestone pillars stand in a ring round the cave's skylight, with white rock
@@ -164,6 +206,8 @@ PATHS = [
     ([(-22.0, -90.0), (-32.0, -72.0), (-40.0, -57.0), (-44.0, -50.0)], 2.6),            # the village to the fields
     ([(14.0, -1.0), (38.0, -8.0), (58.0, -16.0), (74.0, -24.0)], 2.6),                  # the plaza to the night beach
     ([(15.0, -74.0), (22.0, -56.0), (34.0, -34.0), (40.0, -14.0)], 2.4),                # the village down to the beach
+    ([(-59.0, -43.0), (-68.0, -45.5), (-76.0, -43.5), (-86.0, -40.5)], 2.2),           # the fields to the waterfall
+    ([(16.0, -172.0), (20.0, -184.0), (24.0, -195.0), (27.0, -204.0)], 2.2),           # the skylight to the sea cliffs
 ]
 
 COLOURS = {k: np.array(L.hex_color(v)[:3]) for k, v in {
@@ -183,6 +227,8 @@ COLOURS = {k: np.array(L.hex_color(v)[:3]) for k, v in {
     "rockDark": "#8F887D",
     "rubble": "#D8D9D0",
     "rubbleDark": "#BABDB5",
+    "bankEarth": "#86643F",
+    "bankMoss": "#5F9B43",
 }.items()}
 
 
@@ -220,6 +266,19 @@ def polyline_distance(x, z, points):
     return best
 
 
+def coast_radius(phi):
+    """How far the coast is from its centre in the direction phi (see COAST), with the cliffs'
+    headland jutting out and their cove cut in (see CLIFFS)."""
+    series = COAST["series"]
+    radius = series[0] + sum(a * np.cos(k * phi) + b * np.sin(k * phi) for k, (a, b) in enumerate(series[1:], 1))
+    radius = radius + COAST["wobble"] * noise(60.0 * np.cos(phi), 60.0 * np.sin(phi), 25.0, 5.0)
+    c = CLIFFS
+    radius = radius + c["reach"] * np.exp(-(angle_diff(phi, math.radians(c["headland"])) / math.radians(c["spread"])) ** 2)
+    start, back, rejoin, depth = c["cove"]
+    deg = np.degrees(phi)
+    return radius - depth * smoothstep(start, back, deg) * (1.0 - smoothstep(back + 1.0, rejoin, deg))
+
+
 def coast_distance(x, z):
     """Signed distance to the coast in metres, roughly: positive inland. Also the direction angle
     from the coast's centre."""
@@ -227,10 +286,62 @@ def coast_distance(x, z):
     dx, dz = x - cx, z - cz
     d = np.hypot(dx, dz) + 1e-6
     phi = np.arctan2(dz, dx)
-    series = COAST["series"]
-    radius = series[0] + sum(a * np.cos(k * phi) + b * np.sin(k * phi) for k, (a, b) in enumerate(series[1:], 1))
-    radius = radius + COAST["wobble"] * noise(60.0 * np.cos(phi), 60.0 * np.sin(phi), 25.0, 5.0)
-    return radius - d, phi
+    return coast_radius(phi) - d, phi
+
+
+def cliff_profile(phi):
+    """How much sea cliff the coast has in the direction phi (0 to 1), and the height of the land on
+    top of it (see CLIFFS)."""
+    c = CLIFFS
+    deg = np.degrees(phi)
+    mask = smoothstep(c["start"] - 3.0, c["start"] + 3.0, deg) * (1.0 - smoothstep(c["end"] - 3.0, c["end"] + 3.0, deg))
+    top = (c["low"] * smoothstep(c["start"], c["west"], deg) + (c["height"] - c["low"]) * smoothstep(*c["rise"], deg)
+           - c["height"] * smoothstep(*c["fall"], deg))
+    return mask, top
+
+
+_CLIFF_COAST = []
+
+
+def cliff_coast():
+    """The coast along the sea cliffs, as a fine polyline (x, z) from west to east."""
+    if not _CLIFF_COAST:
+        c = CLIFFS
+        cx, cz = COAST["centre"]
+        phi = np.radians(np.arange(c["start"] - 4.0, c["end"] + 4.0 + 1e-6, 0.1))
+        r = coast_radius(phi)
+        _CLIFF_COAST.extend(zip((cx + r * np.cos(phi)).tolist(), (cz + r * np.sin(phi)).tolist()))
+    return _CLIFF_COAST
+
+
+def cliff_distance(x, z, reach=48.0):
+    """How far (x, z) is from the shore along the sea cliffs, in metres (1e9 when far off): the true
+    distance, where the shore turns into the cove as much as anywhere."""
+    line = cliff_coast()
+    xs, zs = [p[0] for p in line], [p[1] for p in line]
+    out = np.full(np.shape(x), 1e9)
+    near = (x > min(xs) - reach) & (x < max(xs) + reach) & (z > min(zs) - reach) & (z < max(zs) + reach)
+    if near.any():
+        out[near] = polyline_distance(x[near], z[near], line)
+    return out
+
+
+def cliff_line(step=0.15):
+    """Points along the foot of the sea cliffs at the water, from west to east, with their outward
+    normals and the height of the land on top: where the cliffs stand more than a metre high."""
+    c = CLIFFS
+    cx, cz = COAST["centre"]
+    phi = np.radians(np.arange(c["start"], c["end"] + 1e-6, step))
+    r = coast_radius(phi)
+    pts = np.stack([cx + r * np.cos(phi), cz + r * np.sin(phi)], axis=1)
+    tangent = np.gradient(pts, axis=0)
+    normals = np.stack([tangent[:, 1], -tangent[:, 0]], axis=1)
+    normals /= np.linalg.norm(normals, axis=1, keepdims=True)
+    inland = pts - normals * 3.2
+    tops = ground(inland[:, 0], inland[:, 1])[0]
+    keep = np.nonzero(tops > WATER + 1.0)[0]
+    span = slice(keep.min(), keep.max() + 1)
+    return pts[span], normals[span], tops[span]
 
 
 def beach_width(phi):
@@ -283,12 +394,20 @@ def ground(x, z, natural=False):
     """Height of the ground (y) and the masks the painting needs. `natural` leaves out what the
     festival street and the village do to it."""
     s, phi = coast_distance(x, z)
-    beach_w = beach_width(phi) + 2.0 * noise(x, z, 30.0, 2.0)
+    m_cliff, cliff_top = cliff_profile(phi)
+    beach_w = (beach_width(phi) + 2.0 * noise(x, z, 30.0, 2.0)) * (1.0 - m_cliff)
+    # Along the sea cliffs, the true distance to the shore, signed like s (positive inland).
+    s_cliff = np.array(s, dtype=float, copy=True)
+    by_cliffs = m_cliff > 0.0
+    if by_cliffs.any():
+        s_cliff[by_cliffs] = np.sign(s[by_cliffs]) * cliff_distance(x[by_cliffs], z[by_cliffs])
 
-    # The sea floor: a gently shelving lagoon, then the reef edge dropping into the deep.
+    # The sea floor: a gently shelving lagoon, then the reef edge dropping into the deep; deeper at
+    # the foot of the sea cliffs.
     t = np.maximum(-s, 0.0)
     lagoon_w = 66.0 + 10.0 * np.sin(2.0 * phi + 0.7)
     sea = WATER - (0.02 * t + 2.0 * smoothstep(0.0, lagoon_w, t)) - 15.0 * smoothstep(lagoon_w, lagoon_w + 18.0, t)
+    sea = sea - CLIFFS["deep"] * m_cliff * (1.0 - smoothstep(0.0, 26.0, np.maximum(-s_cliff, 0.0)))
 
     # The land: a beach rising from the waterline, then soft hills, higher toward the north.
     b = np.clip(s / np.maximum(beach_w, 1.0), 0.0, 1.0)
@@ -306,6 +425,12 @@ def ground(x, z, natural=False):
         d = np.hypot(x - tx, z - tz) - 0.5 * (rx + rz)
         hills = hills + TALUS["height"] * (1.0 - smoothstep(0.0, TALUS["spread"], d)) * clear
     land = beach + hills
+    # The sea cliffs: the land rises sheer out of the water to a grassy top a couple of metres in,
+    # behind the face the cliffs' rock is built over, then eases down into the jungle inland.
+    plateau = cliff_top + 0.5 * noise(x, z, 9.0, 26.0) * smoothstep(3.0, 9.0, s_cliff)
+    cliff_land = WATER + (plateau - WATER) * smoothstep(1.3, 2.4, s_cliff)
+    hold = 1.0 - smoothstep(CLIFFS["depth"], CLIFFS["depth"] + CLIFFS["ease"], s_cliff)
+    land = land + (cliff_land - land) * m_cliff * hold
     h = np.where(s >= 0.0, land, sea)
 
     # The festival's ground is level; so is the village's clearing; the fields are flat.
@@ -340,8 +465,20 @@ def ground(x, z, natural=False):
         h = h + (sky["rim"] - h) * (1.0 - smoothstep(lip, lip + sky["slope"], r))
         h = h + (sky["floor"] - h) * (1.0 - smoothstep(sky["radius"] + sky["bell"] + 0.8, lip - 1.0, r))
 
+    # The waterfall's pool: a round basin at the mesa's foot, in a bank high enough to hold its
+    # water, which eases into the land round it.
+    m_pool = np.zeros_like(x)
+    m_bank = np.zeros_like(x)
+    if not natural:
+        r = np.hypot(x - POOL["centre"][0], z - POOL["centre"][1])
+        m_bank = 1.0 - smoothstep(POOL["clearing"], POOL["clearing"] + POOL["feather"], r)
+        h = h + (np.maximum(h, POOL["bank"] + 0.05 * noise(x, z, 4.0, 24.0)) - h) * m_bank
+        m_pool = 1.0 - smoothstep(POOL["radius"] - 2.5, POOL["radius"] + 0.6, r)
+        h = h + (POOL["floor"] - h) * m_pool
+
     masks = {"s": s, "beach_w": beach_w, "village": m_village, "plaza": m_plaza, "street": m_street,
-             "festival": np.maximum(m_plaza, m_street), "fields": m_fields, "path": m_path}
+             "festival": np.maximum(m_plaza, m_street), "fields": m_fields, "path": m_path, "pool": m_pool,
+             "bank": m_bank, "cliff": m_cliff, "s_cliff": s_cliff, "phi": phi}
     return h, masks
 
 
@@ -379,6 +516,12 @@ def paint(x, z, h, masks, normal_y, shade):
     field = mix(c("soil"), c("crop"), smoothstep(0.45, 0.65, rows))
     col = mix(col, field, smoothstep(0.6, 0.9, masks["fields"]))
 
+    # The waterfall pool's bank: dark earth and moss down to the water, as in the film's frame.
+    bank = mix(c("bankEarth"), c("bankMoss"), smoothstep(-0.25, 0.45, noise(x, z, 2.2, 23.0)))
+    bank = mix(bank, c("grassDark"), smoothstep(POOL["level"] + 1.2, POOL["level"] + 2.6, h) * 0.6)
+    near = 1.0 - smoothstep(POOL["radius"] + 3.5, POOL["clearing"] + 1.0,
+                            np.hypot(x - POOL["centre"][0], z - POOL["centre"][1]) + 1.5 * noise(x, z, 3.0, 25.0))
+    col = mix(col, bank, near * smoothstep(0.2, 0.7, masks["bank"]))
 
     # Shade under the jungle's trees: darker grass, with the clover gone.
     if "shade" in masks:
@@ -447,8 +590,12 @@ def build_mesh(collection):
             c, d = (j + 1) * n + i + 1, (j + 1) * n + i
             bm.faces.new((verts[a], verts[d], verts[c], verts[b]))
     tris = 2 * (n - 1) ** 2
-    # Ground right at the water's edge keeps its detail, so the pen's waterline runs smooth.
-    keep = (1.0 - smoothstep(0.1, 0.35, np.abs(h - WATER))).ravel().tolist()
+    # Ground right at the water's edge, the sea's or the pool's, keeps its detail, so the pen's
+    # waterline runs smooth.
+    near_sea = 1.0 - smoothstep(0.1, 0.35, np.abs(h - WATER))
+    pool_r = np.hypot(gx - POOL["centre"][0], gz - POOL["centre"][1])
+    near_pool = (1.0 - smoothstep(0.1, 0.35, np.abs(h - POOL["level"]))) * (pool_r < POOL["radius"] + 4.0)
+    keep = np.maximum(near_sea, near_pool).ravel().tolist()
     simplified = L.decimate_bm(bm, TRIANGLES / tris, symmetric=False, keep=keep)
     bm.free()
     bmesh.ops.triangulate(simplified, faces=simplified.faces[:])
@@ -547,12 +694,18 @@ def rock_specs():
             })
     for centre, radii, turn, top, seed, mound in MESAS:
         rng = np.random.default_rng(seed + 500)
-        specs.append({
+        spec = {
             "centre": centre, "radii": radii, "turn": turn, "top": top, "seed": seed, "segments": 32,
             "step": 2.5, "facets": int(rng.integers(5, 8)), "flutes": int(rng.integers(7, 10)), "lumps": 0.09,
             "taper": rng.uniform(0.04, 0.12), "bulge": rng.uniform(0.0, 0.05), "ledges": 1, "shoulder": 0.16,
             "rim": 0.1, "drape": 3.2, "mound": mound, "hang": 0.75, "group": group(centre[0]),
-        })
+        }
+        if centre == FALL["rock"]:
+            # The waterfall's wall of rock: finer rings round its notch, its foot dark where the
+            # pool laps.
+            spec.update(centre=FALL["centre"], radii=FALL["radii"], turn=FALL["turn"], top=FALL["top"],
+                        notch=FALL["notch"], wet=POOL["level"], segments=64, step=1.2, stone="mossy", drape=4.2)
+        specs.append(spec)
     for centre, r, top, seed in NEEDLES:
         specs.append({
             "centre": centre, "radii": (r, r * 0.85), "turn": 0.4, "top": top, "seed": seed, "segments": 14,
@@ -560,6 +713,27 @@ def rock_specs():
             "shoulder": 0.35, "tip": 0.85, "crown": False, "moss": False, "group": group(centre[0]),
         })
     specs.extend(dict(r, group="headland") for r in HEADLAND_ROCKS)
+    # The sea stack off the cliffs' headland and the smaller rock beside it: bedded sandstone like the
+    # cliffs, stepping in as it rises, bare of plants.
+    for k, (centre, radii, turn, height, seed) in enumerate(STACKS):
+        big = k == 0
+        specs.append({
+            "centre": centre, "radii": radii, "turn": turn, "top": WATER + height, "seed": seed, "segments": 24,
+            "step": 0.7, "facets": 5, "facet_w": 0.85, "flutes": 4, "flute_depth": 0.05, "lumps": 0.12,
+            "taper": 0.38 if big else 0.25, "bulge": 0.0, "lean": 0.07, "ledges": 2 if big else 0, "shoulder": 0.22,
+            "tip": 0.5, "rim": 0.22, "strata": 0.9, "stone": "sandstone", "crown": False, "moss": False, "wet": WATER,
+            "group": "cliffs",
+        })
+    # Mossy rocks on the waterfall pool's banks: a leaning slab and a squat stump.
+    px, pz = POOL["centre"]
+    for k, (dx, dz, radii, turn, height, seed) in enumerate(POOL_ROCKS):
+        slab = k == 0
+        specs.append({
+            "centre": (px + dx, pz + dz), "radii": radii, "turn": turn, "height": height, "seed": seed,
+            "segments": 14, "step": 0.4, "facets": 5 if slab else 6, "facet_w": 0.9 if slab else 0.7, "flutes": 3,
+            "flute_depth": 0.05, "lumps": 0.12, "taper": 0.2, "bulge": 0.0, "lean": 0.25 if slab else 0.05,
+            "shoulder": 0.4, "tip": 0.55, "rim": 0.25, "flat": slab, "crown": False, "drape": 4.5, "group": "west",
+        })
     for cluster, ((mx, mz), seed, count) in enumerate(SPIRES):
         rng = np.random.default_rng(seed)
         for k in range(count):
@@ -634,10 +808,29 @@ def join_painted(name, pieces, collection):
     return obj
 
 
+def object_with_uv(name, bm, uvs, collection):
+    """An object from a bmesh with one UV per vertex."""
+    mesh = bpy.data.meshes.new(name)
+    bm.to_mesh(mesh)
+    bm.free()
+    loop_vertex = [0] * len(mesh.loops)
+    mesh.loops.foreach_get("vertex_index", loop_vertex)
+    flat = []
+    for vi in loop_vertex:
+        u, v = uvs[vi]
+        flat.extend((u, 1.0 - v))  # the glTF exporter flips V
+    mesh.uv_layers.new(name="UVMap").data.foreach_set("uv", flat)
+    mesh.shade_smooth()
+    obj = bpy.data.objects.new(name, mesh)
+    collection.objects.link(obj)
+    return obj
+
+
 def build_landmarks(collection):
     """Every rock with its jungle crown, joined into one mesh for each group of rocks (so the game
-    can leave out a group it is not looking at), and the cave's skylight. Returns the objects, each
-    rock's foot outline (not the tips standing on top of others) and the skylight's edge."""
+    can leave out a group it is not looking at), the cave's skylight, and the waterfall with its
+    spray. Returns the objects, each rock's foot outline (not the tips standing on top of others),
+    the skylight's edge and where the waterfall lands in its pool."""
     groups, outlines = {}, []
     for spec in rock_specs():
         stand = spec.get("stand")
@@ -665,8 +858,22 @@ def build_landmarks(collection):
     bm, cols, edge = K.sinkhole(sky["centre"], sky["radius"], sky["rim"], WATER, sky["floor"], sky["seed"],
                                 sky["bell"], sky["width"], sheer=sheer)
     groups.setdefault("middle", []).append((bm, cols, True))
+    # The waterfall's mesa: vines hanging down its face either side of the water, the water itself
+    # and the spray where it lands in the pool.
+    wall = next(r for r, _ in outlines if r.s["notch"])
+    an, half, _ = wall.s["notch"]
+    bm, cols = K.vines(wall, (an, 17.0), FALL["vines"], FALL["seed"], avoid=(an, half))
+    groups[wall.s["group"]].append((bm, cols, True))
+    # The sea cliffs along the north-east coast.
+    pts, normals, tops = cliff_line()
+    bm, cols = K.cliff(pts, normals, tops, WATER, CLIFFS["seed"], base=WATER - CLIFFS["deep"] - 1.0)
+    groups.setdefault("cliffs", []).append((bm, cols, True))
     rocks = [join_painted(f"rocks_{name}", pieces, collection) for name, pieces in groups.items()]
-    return rocks, outlines, edge
+    bm, uvs, foot = K.waterfall(wall, POOL["level"])
+    fall = object_with_uv("waterfall", bm, uvs, collection)
+    spray = join_painted("spray", [(*K.spray(POOL["level"]), True)], collection)
+    spray.location = (foot[0], -foot[1], POOL["level"])
+    return [*rocks, fall, spray], outlines, edge, foot
 
 
 # ---------------------------------------------------------------------------- plants
@@ -699,6 +906,13 @@ def plant_ground(outlines, props):
         "x": gx, "z": gz, "h": h, "inland": masks["s"] - masks["beach_w"], "village": masks["village"],
         "festival": masks["festival"], "fields": masks["fields"], "path": d_path, "rock": d_rock, "prop": d_prop,
         "skylight": np.hypot(gx - SKYLIGHT["centre"][0], gz - SKYLIGHT["centre"][1]) - SKYLIGHT["radius"],
+        "pool": np.hypot(gx - POOL["centre"][0], gz - POOL["centre"][1]) - POOL["radius"],
+        "pool_side": angle_diff(np.arctan2(gz - POOL["centre"][1], gx - POOL["centre"][0]), math.pi / 2),
+        # The sea cliffs' grassy top near their edge, and their headland, all grass.
+        "cliff_top": (masks["cliff"] > 0.25) & (masks["s_cliff"] > 0.0) & (masks["s_cliff"] < 15.0),
+        "headland": (masks["cliff"] > 0.25) & (masks["s_cliff"] > 0.0) & (masks["s_cliff"] < 22.0)
+                    & (np.abs(np.degrees(angle_diff(masks["phi"], math.radians(CLIFFS["headland"])))) < 6.0),
+        "cliff_in": masks["s_cliff"],
         "slope": np.hypot(gxr, gzr),
     }
 
@@ -772,9 +986,15 @@ def build_plants(collection, outlines):
         return float(ground_height(np.array([x]), np.array([z]))[0])
 
     clearing = noise(G["x"], G["z"], 32.0, 31.0) > JUNGLE["clearings"]
-    # Trees stand back from the skylight, so it shows through the canopy from above as in the shot.
-    open_ground = ((G["village"] < 0.02) & (G["festival"] < 0.02) & (G["fields"] < 0.02)
-                   & (G["skylight"] > SKYLIGHT["width"] + 12.5))
+    # Trees stand back from the skylight, so it shows through the canopy from above as in the shot,
+    # and from the waterfall's pool, so it lies open to the sky.
+    pool_room = POOL["clearing"] - POOL["radius"] - 1.0
+    # No trees on the sea cliffs' top near the edge or on their headland: grass and shrubs, as in
+    # the film's frame.
+    treeless = G["cliff_top"] | G["headland"]
+    G["treeless"] = treeless.astype(float)
+    open_ground =((G["village"] < 0.02) & (G["festival"] < 0.02) & (G["fields"] < 0.02)
+                   & (G["skylight"] > SKYLIGHT["width"] + 12.5) & (G["pool"] > pool_room) & ~treeless)
     jungle = ((G["inland"] > 3.0) & open_ground & (G["path"] > 2.2) & (G["rock"] > 2.0) & (G["prop"] > 0.0)
               & (G["slope"] < 0.7))
 
@@ -791,6 +1011,19 @@ def build_plants(collection, outlines):
         trunks.append([round(x, 2), round(z, 2), 1.9])
         for lx, ly, lz, r in tops:
             crowns.append([round(x + lx, 2), round(y + lz, 2), round(z - ly, 2), round(r, 2)])
+    # And one on the waterfall pool's east bank, as in the film's frame.
+    x, z = POOL["centre"][0] + POOL_TREE[0], POOL["centre"][1] + POOL_TREE[1]
+    y = at(x, z)
+    built, tops = PL.big_tree(rng, lambda dx, dy, x=x, z=z, y=y: at(x + dx, z - dy) - y)
+    canopy.add(PL.to_arrays(built), x, z, y)
+    far = L.fuse([L.ellipsoid_bm(Vector((cx, cy, cz)), (r, r, r * 0.8), u=8, v=5) for cx, cy, cz, r in tops],
+                 voxel=0.7, smooth_iterations=3, smooth_lambda=0.8, target_tris=40)
+    far_cols = PL.leafy(far, 0.0, 0.0, PL.C["canopyLight"], PL.C["canopy"], PL.C["canopyDark"])
+    canopy_far.add(PL.to_arrays((far, far_cols, [0.4] * len(far_cols))), x, z, y)
+    stems.take(x, z)
+    trunks.append([round(x, 2), round(z, 2), 1.9])
+    for lx, ly, lz, r in tops:
+        crowns.append([round(x + lx, 2), round(y + lz, 2), round(z - ly, 2), round(r, 2)])
 
     # Palms: thick along the jungle's edge by the beaches, and scattered among the trees.
     palms = []
@@ -817,6 +1050,7 @@ def build_plants(collection, outlines):
             if grid_at(G, "inland", tx, tz) < 2.5 or grid_at(G, "path", tx, tz) < 1.8 or grid_at(G, "rock", tx, tz) < 1.8 \
                     or grid_at(G, "prop", tx, tz) < 0.0 or grid_at(G, "village", tx, tz) > 0.05 \
                     or grid_at(G, "festival", tx, tz) > 0.05 or grid_at(G, "skylight", tx, tz) < SKYLIGHT["width"] + 12.5 \
+                    or grid_at(G, "pool", tx, tz) < pool_room or grid_at(G, "treeless", tx, tz) > 0.5 \
                     or not stems.free(tx, tz, 3.0):
                 continue
             stems.take(tx, tz)
@@ -846,9 +1080,11 @@ def build_plants(collection, outlines):
     mix_shade = [("fern", 0.42), ("monstera", 0.18), ("cycad", 0.12), ("ti", 0.12), ("brom", 0.1), ("bush", 0.06)]
     mix_edge = [("bush", 0.3), ("fern", 0.22), ("ti", 0.16), ("cycad", 0.12), ("brom", 0.1), ("monstera", 0.1)]
     near_edge = (G["path"] < 6.0) | (G["inland"] < 9.0) | clearing | (G["village"] > 0.0) | (G["festival"] > 0.0)
+    # Round the pool the plants keep to its sides, leaving its south bank open to stand on.
+    bank = (G["pool"] < POOL["clearing"] - POOL["radius"] + 0.5) & (np.abs(G["pool_side"]) < 0.8)
     under_ok = ((G["inland"] > 1.0) & (G["village"] < 0.12) & (G["festival"] < 0.12) & (G["fields"] < 0.1)
                 & (G["path"] > 0.9) & (G["rock"] > 1.0) & (G["prop"] > -0.6) & (G["skylight"] > SKYLIGHT["width"] + 0.3)
-                & (G["slope"] < 0.85))
+                & (G["pool"] > 1.2) & ~bank & ~G["headland"] & (G["slope"] < 0.85))
     gap = np.where(near_edge, JUNGLE["understory"][0], JUNGLE["understory"][1])
     crown_hash = Spacing(8.0)
     for x, _, z, r in crowns:
@@ -872,6 +1108,31 @@ def build_plants(collection, outlines):
         if kind == "bush":
             flowers.append((x, y, z))
 
+    # The waterfall pool's own plants and the bromeliads on its stump (see POOL_PLANTS and POOL_ROCKS).
+    px, pz = POOL["centre"]
+    for kind, index, dx, dz, scale in POOL_PLANTS:
+        x, z = px + dx, pz + dz
+        variants.plant("under", kinds[kind][index], x, at(x, z) - 0.04, z, rng.uniform(0, 2 * math.pi), scale)
+        if kind == "bush":
+            flowers.append((x, at(x, z), z))
+    dx, dz, _, _, height, _ = POOL_ROCKS[1]
+    for k in range(3):
+        a = 2.0 * math.pi * k / 3 + 0.4
+        x, z = px + dx + 0.45 * math.cos(a), pz + dz + 0.45 * math.sin(a)
+        variants.plant("under", kinds["brom"][k], x, at(px + dx, pz + dz) + height - 0.12, z, rng.uniform(0, 2 * math.pi),
+                       rng.uniform(1.0, 1.25))
+    # A thicker ring of ferns, monstera and ti plants round the pool's sides, closing in on the water
+    # as in the film's frame.
+    approach = (G["pool"] < 13.0) & (np.abs(G["pool_side"]) < 0.55)    # the way onto the bank, kept clear
+    ring = ((G["pool"] > 1.4) & (G["pool"] < 11.0) & ~bank & ~approach & (G["rock"] > 0.8) & (G["path"] > 0.9)
+            & (G["slope"] < 1.3))
+    for x, z in scatter(rng, G, ring, 1.7, taken=None, stride=1):
+        if not stems.free(x, z, 1.2):
+            continue
+        kind = ("fern", "fern", "monstera", "monstera", "ti", "brom")[int(rng.integers(0, 6))]
+        variants.plant("under", kinds[kind][int(rng.integers(0, len(kinds[kind])))], x, at(x, z) - 0.04, z,
+                       rng.uniform(0, 2 * math.pi), rng.uniform(0.9, 1.35))
+
     # Grass tufts in the village's clearing, thickest toward its edge.
     tufts = [variants.shape("grass", PL.to_arrays(PL.grass(rng))) for _ in range(4)]
     tuft_ok = (G["village"] > 0.05) & (G["path"] > 1.0) & (G["prop"] > 0.5) & (G["slope"] < 0.8)
@@ -881,6 +1142,17 @@ def build_plants(collection, outlines):
             continue
         variants.plant("under", tufts[int(rng.integers(0, len(tufts)))], x, at(x, z) - 0.02, z,
                        rng.uniform(0, 2 * math.pi), rng.uniform(0.8, 1.3))
+    # And here and there over the sea cliffs' headland and along their top; rounded green shrubs
+    # line the cliffs' edge, as in the film's frame.
+    tuft_top = treeless & (G["slope"] < 0.8) & (G["cliff_in"] > 2.8) & (G["path"] > 1.0)
+    for x, z in scatter(rng, G, tuft_top, np.where(G["headland"], 3.0, 2.6), taken=None, stride=1, limit=600):
+        variants.plant("under", tufts[int(rng.integers(0, len(tufts)))], x, at(x, z) - 0.02, z,
+                       rng.uniform(0, 2 * math.pi), rng.uniform(0.8, 1.3))
+    shrubs = [variants.shape("shrub", PL.to_arrays(PL.bush(rng, None))) for _ in range(4)]
+    edge_ok = G["cliff_top"] & ~G["headland"] & (G["cliff_in"] > 2.7) & (G["cliff_in"] < 6.5) & (G["slope"] < 0.85)
+    for x, z in scatter(rng, G, edge_ok, 1.9, taken=None, stride=1):
+        variants.plant("under", shrubs[int(rng.integers(0, len(shrubs)))], x, at(x, z) - 0.06, z,
+                       rng.uniform(0, 2 * math.pi), rng.uniform(1.1, 1.8))
 
     # Crops in the fields, along every other planted row of the painted soil.
     crops = [variants.shape("crop", PL.to_arrays(PL.crop(rng))) for _ in range(6)]
@@ -989,8 +1261,8 @@ def main():
     with open(os.path.join(OUT_DIR, "height.bin"), "wb") as f:
         f.write(q.tobytes())
 
-    # The rocks standing on it.
-    landmarks, outlines, edge = build_landmarks(collection)
+    # The rocks standing on it, and the waterfall.
+    landmarks, outlines, edge, foot = build_landmarks(collection)
     export_objects(landmarks, os.path.join(OUT_DIR, "landmarks.glb"))
     rock_tris = sum(len(p.vertices) - 2 for o in landmarks if o.name.startswith("rocks") for p in o.data.polygons)
 
@@ -1022,12 +1294,14 @@ def main():
                      "top": round(SKYLIGHT["rim"] + K.SINKHOLE_LIP, 3)},
         "landmarks": "models/island/landmarks.glb",
         "rocks": [{"centre": [round(r.cx, 2), round(r.cz, 2)], "outline": reach} for r, reach in outlines],
+        "pool": {"centre": list(POOL["centre"]), "radius": POOL["radius"], "level": POOL["level"]},
+        "waterfall": {"foot": [round(foot[0], 2), round(foot[1], 2)], "splash": 3.6},
         "plants": {"url": "models/island/plants.glb", "trunks": trunks, "crowns": crowns, "butterflies": butterflies,
                    "patches": {"canopy": CANOPY_PATCHES, "understory": UNDERSTORY_PATCHES}, "placed": placed},
     }
     L.export_glb(obj, os.path.join(OUT_DIR, "terrain.glb"), info, key="terrain")
     print(f"BUILT terrain: {tris} triangles, heights {lo:.2f} to {hi:.2f} m")
-    print(f"BUILT landmarks: {len(outlines)} rocks, {rock_tris} triangles")
+    print(f"BUILT landmarks: {len(outlines)} rocks, {rock_tris} triangles, waterfall lands at {foot[0]:.1f}, {foot[1]:.1f}")
     print(f"BUILT plants: {len(plant_objects)} patches, {plant_tris} triangles")
 
 

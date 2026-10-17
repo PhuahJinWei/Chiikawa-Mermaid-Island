@@ -4,6 +4,8 @@ import { t, type StringKey } from '../i18n/I18n';
 export type ZoneId =
   | 'pier'
   | 'skylight'
+  | 'waterfall'
+  | 'cliffs'
   | 'fields'
   | 'village'
   | 'festival'

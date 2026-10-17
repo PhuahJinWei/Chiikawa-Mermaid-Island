@@ -3,17 +3,18 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { sharedUniforms } from '../characters/CharacterMaterial';
 import { toonRamp } from '../core/toon';
 import { PEN_GLSL, addOutline, inkUniforms } from './Ink';
-import type { TerrainInfo } from './Island';
+import { poolUniform, type TerrainInfo } from './Island';
 
+// The jungle waterfall's water: white, with pale grey-blue between its streaks, as in the film.
 const COLORS = {
-  water: '#A6E8F2',
-  shade: '#62C3D8',
+  water: '#F4FBFC',
+  shade: '#BFDCE3',
   foam: '#FFFFFF',
 };
 
 /**
  * Toon-shaded stone with its painted colours, and the pen's waterline drawn where the rock
- * meets the sea, as the ground draws it on the sand.
+ * meets the sea or the waterfall's pool, as the ground draws it on the sand.
  */
 function rockMaterial(info: TerrainInfo): THREE.MeshToonMaterial {
   const material = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: toonRamp() });
@@ -21,6 +22,7 @@ function rockMaterial(info: TerrainInfo): THREE.MeshToonMaterial {
     Object.assign(shader.uniforms, inkUniforms, {
       uAmbient: sharedUniforms.uAmbient,
       uSea: { value: info.water },
+      uPool: { value: poolUniform(info) },
     });
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vRockWorld;\nvarying float vRockDepth;')
@@ -36,6 +38,7 @@ function rockMaterial(info: TerrainInfo): THREE.MeshToonMaterial {
         uniform vec3 uInk;
         uniform vec3 uAmbient;
         uniform float uSea;
+        uniform vec4 uPool;
         varying vec3 vRockWorld;
         varying float vRockDepth;`,
       )
@@ -43,7 +46,8 @@ function rockMaterial(info: TerrainInfo): THREE.MeshToonMaterial {
         '#include <opaque_fragment>',
         `#include <opaque_fragment>
         {
-          float above = (vRockWorld.y - uSea) / max(fwidth(vRockWorld.y), 1e-5);
+          float level = distance(vRockWorld.xz, uPool.xy) < uPool.z ? uPool.w : uSea;
+          float above = (vRockWorld.y - level) / max(fwidth(vRockWorld.y), 1e-5);
           float pen = penAt(vRockDepth);
           gl_FragColor.rgb = mix(gl_FragColor.rgb, uInk * uAmbient,
             (1.0 - smoothstep(pen - 0.5, pen + 0.5, above)) * step(-0.5, above));
@@ -107,8 +111,8 @@ function waterfallMaterial(): THREE.ShaderMaterial {
 /**
  * The island's rock landmarks, built in Blender with the ground (art/blender/build_island.py):
  * limestone karst pillars and mesas crowned with jungle, the cave's skylight, the rocks behind the
- * night beach, and sea spires round the lagoon; and a waterfall with its spray, when the island has
- * one.
+ * night beach, and sea spires round the lagoon; and the jungle waterfall pouring off a mesa into
+ * its pool, with its spray.
  */
 export class Landmarks {
   readonly group = new THREE.Group();

@@ -347,7 +347,8 @@ def fern(rng):
 
 
 def bush(rng, flower):
-    """A round flowering bush: two or three soft blobs with flowers dotted over the top."""
+    """A round flowering bush: two or three soft blobs with flowers dotted over the top; a plain
+    green shrub when `flower` is None."""
     blobs = []
     for _ in range(int(rng.integers(2, 4))):
         a, d = rng.uniform(0, 2 * math.pi), rng.uniform(0.0, 0.35)
@@ -359,7 +360,7 @@ def bush(rng, flower):
     pieces = [(mass, cols, sway)]
     # Flowers: little five-pointed stars facing out from the top half.
     bvh_pts = [v.co.copy() for v in mass.verts if v.normal.z > 0.2]
-    for k in range(4):
+    for k in range(4 if flower else 0):
         if not bvh_pts:
             break
         p = bvh_pts[int(rng.integers(0, len(bvh_pts)))]

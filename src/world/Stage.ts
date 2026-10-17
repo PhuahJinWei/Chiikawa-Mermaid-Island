@@ -29,6 +29,10 @@ const COLORS = {
   mid: '#1590C2',
   deep: '#1A6FB2',
   foam: '#F4FFFC',
+  // The jungle waterfall's pool: deep green under the trees, as in the film's frame.
+  poolEdge: '#5DA88B',
+  pool: '#2C6658',
+  poolDeep: '#22554A',
   cloud: '#FFFFFF',
   cloudShade: '#DCE4EC',
   moon: '#F5F1C9',
@@ -114,16 +118,32 @@ export class Stage {
     this.world.add(this.makeConfetti());
   }
 
-  /** The sea's colours and surf follow the real sea floor once it has loaded. */
+  /**
+   * The sea's colours and surf follow the real sea floor once it has loaded. The waterfall's pool
+   * is the same water at its own level, deep green and without surf, churned white where the
+   * waterfall lands.
+   */
   private setSeaFloor(terrain: Terrain): void {
     const u = this.water.uniforms;
-    const { origin, size } = terrain.info;
+    const { origin, size, pool, waterfall } = terrain.info;
     u.uFloor.value = terrain.texture;
     u.uMap.value.set(origin[0], origin[1], size, terrain.info.height.grid);
     u.uLevel.value = terrain.info.water;
-    // Churned white where a waterfall lands, when the island has one.
-    const fall = terrain.info.waterfall;
-    if (fall) u.uSplash.value.set(fall.foot[0], fall.foot[1], fall.splash, 0);
+    if (!pool) return;
+    const water = this.water.clone();
+    for (const name of ['uTime', 'uFloor', 'uMap'] as const) water.uniforms[name] = u[name];
+    Object.assign(water.uniforms, this.waterLight, {
+      uLevel: { value: pool.level },
+      uSurf: { value: 0 },
+      uEdge: { value: new THREE.Color(COLORS.poolEdge) },
+      uShallow: { value: new THREE.Color(COLORS.pool) },
+      uMid: { value: new THREE.Color(COLORS.poolDeep) },
+      uDeep: { value: new THREE.Color(COLORS.poolDeep) },
+    });
+    if (waterfall) water.uniforms.uSplash.value.set(waterfall.foot[0], waterfall.foot[1], waterfall.splash, 0);
+    const surface = new THREE.Mesh(new THREE.CircleGeometry(pool.radius + 4, 64).rotateX(-Math.PI / 2), water);
+    surface.position.set(pool.centre[0], pool.level, pool.centre[1]);
+    this.world.add(surface);
   }
 
   /** Lights the island for `hours` past midnight: the sky, the sun or the moon, the sea, the
@@ -199,6 +219,7 @@ export class Stage {
         uFloor: { value: deep },
         uMap: { value: new THREE.Vector4(-1, -1, 2, 2) },
         uLevel: { value: WATER_LEVEL },
+        uSurf: { value: 1 },
         uSplash: { value: new THREE.Vector4(0, 0, 0, 0) },
         uEdge: { value: new THREE.Color(COLORS.edge) },
         uShallow: { value: new THREE.Color(COLORS.shallow) },
@@ -222,6 +243,7 @@ export class Stage {
         uniform vec3 uMoon;
         ${FLOOR_GLSL}
         uniform float uLevel;
+        uniform float uSurf;
         uniform vec4 uSplash;
         uniform vec3 uEdge;
         uniform vec3 uShallow;
@@ -252,7 +274,7 @@ export class Stage {
           float wave = 0.3 + 0.25 * sin(uTime * 0.8);
           float foam = 1.0 - smoothstep(0.0, 0.4, abs(shore - wave));
           float foam2 = 1.0 - smoothstep(0.0, 0.22, abs(shore - (wave + 1.2 + 0.2 * sin(uTime * 0.8 + 1.7))));
-          col = mix(col, uFoam, max(foam * 0.85, foam2 * 0.45) * step(0.0, depth));
+          col = mix(col, uFoam, max(foam * 0.85, foam2 * 0.45) * step(0.0, depth) * uSurf);
           // Where a waterfall lands: churned white, with rings spreading out from it.
           if (uSplash.z > 0.0) {
             vec2 off = vWorld.xz - uSplash.xy;

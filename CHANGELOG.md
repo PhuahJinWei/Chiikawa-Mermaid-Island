@@ -31,8 +31,29 @@ real phone.
   pillars hide in the forest, mesas thick with trees on top, one under a
   great dome of them; two little white spires poke out of the canopy in
   the west. Low layered rocks stand behind the night beach, and eighteen
-  sea spires in six clusters round the lagoon. There is no waterfall for
-  now: the shot has none in the middle of the island.
+  sea spires in six clusters round the lagoon. No waterfall stands in the
+  middle of the island, as in the shot.
+- The jungle waterfall, after the film's frame of it, in the west where
+  the aerial shot shows its spray rising out of the trees. A narrow white
+  waterfall, streaming down and churning white where it lands, pours from
+  a notch in a long, low wall of damp, mossy limestone (one of the mesas,
+  reshaped), hung with curtains of vines, into a deep green pool at its
+  foot, in a clearing open to the sky. The pool is water of its own,
+  higher than the sea and without surf: characters wade only at its edge,
+  and the pen draws its waterline on the bank and the rock. Round it, as in
+  the frame: dark earth and moss on the bank, monstera and red ti plants,
+  ferns, a leaning mossy slab of rock, bromeliads on a mossy stump, white
+  flowers and a big tree with buttress roots. A path comes from the
+  fields; the place is named 森の滝.
+- The sea cliffs on the north-east coast, after the film's frame of them,
+  where the aerial shot hides the coast behind the pillars. Tall cliffs of
+  level-bedded cream-and-tan sandstone, stepping in and out bed by bed and
+  split into blocks by upright joints, with grass, rounded shrubs and
+  hanging greenery along their top, rise sheer out of deep turquoise water
+  round a cove and run away along the coast. A sea stack of the same
+  bedded rock stands off the cove's mouth with a smaller rock beside it. A
+  lower grassy headland at the west end, reached by a path from the cave's
+  skylight, looks across the cove at the cliffs; the place is named 北の崖.
 - The round water in the middle of the ring of pillars is not a pond: as in
   the film, it is the forbidden cave's skylight, a round opening in the
   jungle floor about 24 metres across, in a gentle hollow with the trees
