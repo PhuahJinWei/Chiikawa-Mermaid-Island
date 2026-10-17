@@ -48,7 +48,7 @@ export const CANOPY_SHADE = new THREE.Color('#8A8E74');
 export const sunUniform = { value: new THREE.Vector3(0, 1, 0) };
 
 const warm = new THREE.Color('#FFE3BC');
-const hazeTop = new THREE.Color('#9FD6F2');
+const hazeTop = new THREE.Color('#B4E1F4');
 const hazeHorizon = new THREE.Color('#E6FAF6');
 
 /**
@@ -58,7 +58,7 @@ const hazeHorizon = new THREE.Color('#E6FAF6');
  */
 export function filmSky(top: THREE.Color, horizon: THREE.Color, night: number): void {
   const day = 1 - night;
-  top.lerp(hazeTop, 0.45 * day);
+  top.lerp(hazeTop, 0.6 * day);
   horizon.lerp(hazeHorizon, 0.6 * day);
 }
 const cool = new THREE.Color('#9DC2EC');
@@ -595,21 +595,160 @@ const GRADE = {
 };
 
 /**
+ * The film's brushwork, on the scenery as rendered: each point takes the average colour of whichever
+ * corner of the patch round it is most even (a Kuwahara filter), so fine render detail settles into
+ * flat painted shapes while the edges between them stay sharp. Characters, marked in the picture's
+ * alpha (see CharacterMaterial), are left as drawn and kept out of the scenery's averages, so their
+ * lines stay crisp.
+ */
+const PAINT = {
+  defines: { RADIUS: 2 },
+  uniforms: {
+    tDiffuse: { value: null },
+    uTexel: { value: new THREE.Vector2(1, 1) },
+  },
+  vertexShader: /* glsl */ `
+    varying vec2 vUv;
+    void main() {
+      vUv = uv;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }`,
+  fragmentShader: /* glsl */ `
+    uniform sampler2D tDiffuse;
+    uniform vec2 uTexel;
+    varying vec2 vUv;
+    void main() {
+      vec4 here = texture2D(tDiffuse, vUv);
+      if (here.a < 0.75) {
+        gl_FragColor = vec4(here.rgb, 1.0);
+        return;
+      }
+      vec3 sum[4];
+      vec3 squares[4];
+      float count[4];
+      for (int k = 0; k < 4; k++) {
+        sum[k] = vec3(0.0);
+        squares[k] = vec3(0.0);
+        count[k] = 0.0;
+      }
+      for (int j = -RADIUS; j <= RADIUS; j++) {
+        for (int i = -RADIUS; i <= RADIUS; i++) {
+          vec4 c = texture2D(tDiffuse, vUv + vec2(float(i), float(j)) * uTexel);
+          if (c.a < 0.75) continue;
+          vec3 v = c.rgb / (1.0 + c.rgb);
+          if (i <= 0 && j <= 0) { sum[0] += v; squares[0] += v * v; count[0] += 1.0; }
+          if (i >= 0 && j <= 0) { sum[1] += v; squares[1] += v * v; count[1] += 1.0; }
+          if (i <= 0 && j >= 0) { sum[2] += v; squares[2] += v * v; count[2] += 1.0; }
+          if (i >= 0 && j >= 0) { sum[3] += v; squares[3] += v * v; count[3] += 1.0; }
+        }
+      }
+      float best = 1e9;
+      vec3 picked = here.rgb / (1.0 + here.rgb);
+      for (int k = 0; k < 4; k++) {
+        if (count[k] < 1.0) continue;
+        vec3 mean = sum[k] / count[k];
+        vec3 spread = squares[k] / count[k] - mean * mean;
+        float variance = spread.r + spread.g + spread.b;
+        if (variance < best) {
+          best = variance;
+          picked = mean;
+        }
+      }
+      // Averaged with highlights tamed, so a bright point does not smear; back to full light.
+      gl_FragColor = vec4(picked / max(1.0 - picked, 1e-3), 1.0);
+    }`,
+};
+
+/**
+ * The film's depth of field: leaves and stems hanging right in front of the camera go soft, as the
+ * film blurs what is nearest its camera, while everything from a few metres on stays sharp, the
+ * characters always. Reads the scene's depth; keeps the picture's alpha (the characters' mark) for
+ * the brushwork after it.
+ */
+const FOCUS = {
+  uniforms: {
+    tDiffuse: { value: null },
+    tDepth: { value: null },
+    uTexel: { value: new THREE.Vector2(1, 1) },
+    uNear: { value: 0.1 },
+    uFar: { value: 2000 },
+    uSharp: { value: 3.5 },
+    uRadius: { value: 9.0 },
+  },
+  vertexShader: /* glsl */ `
+    varying vec2 vUv;
+    void main() {
+      vUv = uv;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }`,
+  fragmentShader: /* glsl */ `
+    #include <packing>
+    uniform sampler2D tDiffuse;
+    uniform sampler2D tDepth;
+    uniform vec2 uTexel;
+    uniform float uNear;
+    uniform float uFar;
+    uniform float uSharp;
+    uniform float uRadius;
+    varying vec2 vUv;
+    float softness(vec2 uv) {
+      float metres = -perspectiveDepthToViewZ(texture2D(tDepth, uv).x, uNear, uFar);
+      return clamp((uSharp - metres) / (uSharp - 0.4), 0.0, 1.0);
+    }
+    void main() {
+      vec4 here = texture2D(tDiffuse, vUv);
+      float soft = softness(vUv);
+      if (here.a < 0.75 || soft < 0.01) {
+        gl_FragColor = here;
+        return;
+      }
+      vec3 sum = here.rgb;
+      float weight = 1.0;
+      for (int ring = 1; ring <= 3; ring++) {
+        for (int k = 0; k < 8; k++) {
+          float a = 6.2831853 * (float(k) + 0.5 * float(ring)) / 8.0;
+          vec2 uv = vUv + vec2(cos(a), sin(a)) * (float(ring) / 3.0) * uRadius * soft * uTexel;
+          vec4 c = texture2D(tDiffuse, uv);
+          // Sharp things behind do not bleed forward into the blur, nor do the characters.
+          float w = step(0.75, c.a) * max(softness(uv), 0.25);
+          sum += c.rgb * w;
+          weight += w;
+        }
+      }
+      gl_FragColor = vec4(sum / weight, here.a);
+    }`,
+};
+
+/**
  * Draws the scene through the film's finishing passes: rendered with antialiasing into a
- * high-precision picture, a soft glow round the brightest light (sky, sun on white, the
- * waterfall), the colour grade, then out to the screen.
+ * high-precision picture, what is nearest the camera softened, the scenery's brushwork, a soft glow
+ * round the brightest light (sky, sun on white, the waterfall), the colour grade, then out to the
+ * screen.
  */
 export class FilmPost {
   private readonly composer: EffectComposer;
   private readonly bloom: UnrealBloomPass;
+  /** The depth of field (see FOCUS). */
+  readonly focus: ShaderPass;
+  /** The brushwork (see PAINT). */
+  readonly paint: ShaderPass;
+  private readonly camera: THREE.Camera;
 
   constructor(renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.Camera) {
+    this.camera = camera;
     const size = renderer.getDrawingBufferSize(new THREE.Vector2());
     const target = new THREE.WebGLRenderTarget(size.x, size.y, { type: THREE.HalfFloatType, samples: 4 });
+    target.depthTexture = new THREE.DepthTexture(size.x, size.y);
     this.composer = new EffectComposer(renderer, target);
     this.composer.addPass(new RenderPass(scene, camera));
+    this.focus = new ShaderPass(FOCUS);
+    this.focus.uniforms.uTexel.value.set(1 / size.x, 1 / size.y);
+    this.composer.addPass(this.focus);
+    this.paint = new ShaderPass(PAINT);
+    this.paint.uniforms.uTexel.value.set(1 / size.x, 1 / size.y);
+    this.composer.addPass(this.paint);
     // Only light brighter than white glows (the sun, the waterfall), not white things in daylight.
-    this.bloom = new UnrealBloomPass(new THREE.Vector2(size.x / 2, size.y / 2), 0.2, 0.6, 1.0);
+    this.bloom = new UnrealBloomPass(new THREE.Vector2(size.x / 2, size.y / 2), 0.32, 0.75, 1.0);
     this.composer.addPass(this.bloom);
     this.composer.addPass(new ShaderPass(GRADE));
     this.composer.addPass(new OutputPass());
@@ -618,9 +757,17 @@ export class FilmPost {
   setSize(width: number, height: number, pixelRatio: number): void {
     this.composer.setPixelRatio(pixelRatio);
     this.composer.setSize(width, height);
+    this.paint.uniforms.uTexel.value.set(1 / (width * pixelRatio), 1 / (height * pixelRatio));
+    this.focus.uniforms.uTexel.value.set(1 / (width * pixelRatio), 1 / (height * pixelRatio));
   }
 
   render(): void {
+    const camera = this.camera as THREE.PerspectiveCamera;
+    this.focus.uniforms.uNear.value = camera.near;
+    this.focus.uniforms.uFar.value = camera.far;
+    // The scene is drawn into whichever picture is being read when the frame starts; the depth of
+    // field reads that one's depth.
+    this.focus.uniforms.tDepth.value = this.composer.readBuffer.depthTexture;
     this.composer.render();
   }
 }

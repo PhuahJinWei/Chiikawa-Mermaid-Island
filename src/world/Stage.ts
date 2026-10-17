@@ -18,8 +18,8 @@ const WATER_LEVEL = -0.32;
 const SEA_RADIUS = 600;
 /** Where the haze starts and where it hides everything, from near the ground; nearer in the film
  * look, whose distant jungle and hills fade into a pale blue haze. */
-const FOG_NEAR = FILM ? 30 : 180;
-const FOG_FAR = FILM ? 440 : 900;
+const FOG_NEAR = FILM ? 18 : 180;
+const FOG_FAR = FILM ? 320 : 900;
 /** The film look's sun shadows: how far round the spot ahead of the camera they reach, in metres. */
 const SHADOW_REACH = 42;
 
@@ -462,6 +462,12 @@ export class Stage {
           vec3 col = mix(uHorizon, uTop, pow(h, 0.55));
           float s = max(dot(dir, uSunDir), 0.0);
           col += uSunColor * (pow(s, 400.0) * 1.5 + pow(s, 12.0) * 0.12) * (1.0 - uNight) * step(0.0, uSunDir.y);
+          #ifdef FILM
+          // The film's hazy daylight: brighter than white, most of all toward the sun and low down,
+          // so it glows round the trees standing against it.
+          float day = (1.0 - uNight) * smoothstep(-0.05, 0.15, uSunDir.y);
+          col = col * mix(1.0, 1.12, day) + vec3(1.0, 0.97, 0.88) * day * (0.35 * pow(s, 4.0) + 0.2 * (1.0 - smoothstep(0.0, 0.45, h)));
+          #endif
           if (uNight > 0.0) {
             // Stars: dots scattered over the sky's directions, a few twinkling.
             vec2 sky = vec2(atan(dir.z, dir.x) * 38.0, asin(clamp(dir.y, -1.0, 1.0)) * 38.0);

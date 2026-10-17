@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { FILM } from '../world/Look';
 import { MAX_PARTS, type OutfitInfo, type Rig, type SkirtPattern } from './Model';
 
 /**
@@ -281,6 +282,9 @@ void main() {
   }
 
   gl_FragColor = vec4(col * uAmbient * uShade, 1.0);
+  #ifdef FILM_MASK
+  gl_FragColor.a = 0.5;
+  #endif
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
   #include <fog_fragment>
@@ -295,6 +299,9 @@ uniform vec3 uAmbient;
 uniform vec3 uShade;
 void main() {
   gl_FragColor = vec4(uLineColor * uAmbient * uShade, 1.0);
+  #ifdef FILM_MASK
+  gl_FragColor.a = 0.5;
+  #endif
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
   #include <fog_fragment>
@@ -310,6 +317,9 @@ export function createCharacterMaterials(
   outline: THREE.ShaderMaterial;
 } {
   const extra: Record<string, number> = options.billboard ? { BILLBOARD: 1 } : {};
+  // In the film look characters mark themselves in the picture's alpha, so the scenery's
+  // brushwork leaves them (and their lines) as drawn.
+  if (FILM) extra.FILM_MASK = 1;
   const body = new THREE.ShaderMaterial({
     uniforms: { ...THREE.UniformsUtils.clone(THREE.UniformsLib.fog), ...uniforms },
     vertexShader: VERT,

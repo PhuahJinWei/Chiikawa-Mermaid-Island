@@ -252,6 +252,33 @@ outlined is drawn twice, once for its pen line. To get there:
   coverage) rather than throwing points away, which kept the depth test
   that skips leaves hidden behind others: thrown away, a frame at the
   waterfall took 35 to 120 ms; now it takes about 17 ms on this PC.
+- The film look's haze and the jungle's floor. By day the sky is brighter
+  than white toward the sun and low down, so its light glows round the
+  trees standing against it, and the haze thickens sooner, fading far
+  trees and pillars into the pale sky. Under the canopy the floor is
+  crowded as in the film's jungle: about four times as many ferns,
+  monstera, cycads, ti plants, bromeliads and flowering bushes, larger than
+  before and with more of the big-leaved kinds, on a dark olive, earthy
+  floor; palms fill the gaps the canopy leaves (the canopy is planted
+  first, about a thousand crowns), standing a few metres from the trees'
+  trunks as well as along the beaches.
+- The film look's brushwork: a last pass over the scenery as rendered
+  gives each point the average colour of whichever corner of the patch
+  round it is most even (a Kuwahara filter), so fine render detail settles
+  into flat painted shapes with sharp edges between them, as the film's
+  backgrounds are painted. Characters mark themselves in the picture's
+  alpha and are left as drawn, so their lines stay crisp. It costs under a
+  millisecond a frame on this PC. The waterfall's wall has nine curtains of
+  hanging moss, and forty ferns and small plants grow out of its ledges and
+  cracks. A frame in the jungle takes about 15.7 ms on this PC.
+- The film look's depth of field: what hangs nearest the camera (closer
+  than about three and a half metres) goes soft, as the film blurs the
+  leaves nearest its camera, while the rest stays sharp, the characters
+  always. At the waterfall, as in its frame: two more trees close the
+  canopy over the bank, so the foreground lies in shade; the sky is paler;
+  the bromeliads crown a tall mossy rock in the water just behind where
+  the cast stands, beside the big tree, and the white flowers sit in the
+  bank's near right corner. About 16.7 ms a frame there on this PC.
 - Building the props or the village with `--only` no longer overwrites
   their .blend file with just the one prop.
 - The offline cache now keeps the island's height grid and layout file,
