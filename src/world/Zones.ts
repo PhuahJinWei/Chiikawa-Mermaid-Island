@@ -3,7 +3,6 @@ import { t, type StringKey } from '../i18n/I18n';
 /** The island's named places, from the most particular to the most general. */
 export type ZoneId =
   | 'pier'
-  | 'skylight'
   | 'waterfall'
   | 'cliffs'
   | 'fields'

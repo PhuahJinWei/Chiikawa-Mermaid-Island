@@ -14,6 +14,7 @@ import { ACTIONS, type ActionContext, type ActionId } from './Actions';
 import type { EmoteHost, EmoteSystem } from './Emotes';
 import { t } from '../i18n/I18n';
 import { penAt } from '../world/Ink';
+import { CANOPY_SHADE } from '../world/Look';
 
 export interface CharacterOptions {
   /** Background extra: flat tint, and a drawn face on a small canvas (the islanders' cheek marks). */
@@ -30,6 +31,8 @@ export interface FrameContext {
   groundHeight: (x: number, z: number, feet?: number) => number;
   /** Keeps a character who moved from `from` (from.y: their feet) to `p` on ground they can stand on. */
   clamp: (p: THREE.Vector3, from: THREE.Vector3) => void;
+  /** How deep in the trees' shade a point is, 0 in the sun to 1: in the film look only. */
+  shade?: (x: number, y: number, z: number) => number;
 }
 
 const GRAVITY = -24;
@@ -120,6 +123,8 @@ export class Character implements EmoteHost {
   private airborne = false;
   /** Where the character's feet are when not jumping: the ground, or the deck they stand on. */
   private feet = NaN;
+  /** How deep in the trees' shade they stand (see FrameContext.shade); NaN until first measured. */
+  private shaded = NaN;
   private crouch = -1;
 
   private readonly squash = new Spring(3.0, 0.2, 1);
@@ -230,6 +235,7 @@ export class Character implements EmoteHost {
   teleport(x: number, z: number, yaw: number): void {
     this.root.position.set(x, 0, z);
     this.feet = NaN;
+    this.shaded = NaN;
     this.velocity.set(0, 0, 0);
     this.desired.set(0, 0, 0);
     this.facing = this.targetFacing = yaw;
@@ -263,6 +269,7 @@ export class Character implements EmoteHost {
     this.root.updateMatrixWorld(true);
     this.updateFace(dt, ctx);
     this.updateShadowAndProp(ctx);
+    this.updateShade(dt, ctx);
   }
 
   /** World position of a rig anchor, following the current pose and squash. */
@@ -535,6 +542,15 @@ export class Character implements EmoteHost {
   updateOutline(ctx: FrameContext): void {
     _w.set(0, this.height * 0.5, 0).applyMatrix4(this.root.matrixWorld).applyMatrix4(ctx.camera.matrixWorldInverse);
     this.uniforms.uOutlineWidth.value = penAt(-_w.z);
+  }
+
+  /** The trees' shade on the character, easing as they walk into it and out into the sun. */
+  private updateShade(dt: number, ctx: FrameContext): void {
+    if (!ctx.shade) return;
+    const pos = this.root.position;
+    const shade = ctx.shade(pos.x, this.feetY + this.height * 0.55, pos.z);
+    this.shaded = Number.isNaN(this.shaded) ? shade : this.shaded + (shade - this.shaded) * Math.min(1, dt * 5);
+    this.uniforms.uShade.value.setRGB(1, 1, 1).lerp(CANOPY_SHADE, this.shaded);
   }
 
   private updateShadowAndProp(ctx: FrameContext): void {

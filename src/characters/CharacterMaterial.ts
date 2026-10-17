@@ -21,6 +21,8 @@ export interface CharacterUniforms {
   uFace: THREE.IUniform<THREE.Texture>;
   uFaceOn: THREE.IUniform<number>;
   uColorOverride: THREE.IUniform<THREE.Vector4>;
+  /** The trees' shade on the character (white in the sun), which their outfit shares. */
+  uShade: THREE.IUniform<THREE.Color>;
 }
 
 const NO_TEXTURE = new THREE.Texture();
@@ -49,6 +51,7 @@ export function makeCharacterUniforms(
     uFace: { value: face },
     uFaceOn: { value: 1 },
     uColorOverride: { value: new THREE.Vector4(1, 1, 1, 0) },
+    uShade: { value: new THREE.Color(1, 1, 1) },
     uMaskOn: { value: mask ? 1 : 0 },
     uMaskColor: { value: new THREE.Color(mask ?? '#ffffff') },
     uMaskTex: { value: maskTexture ?? NO_TEXTURE },
@@ -184,6 +187,7 @@ const FRAG = /* glsl */ `
 #include <fog_pars_fragment>
 
 uniform vec3 uAmbient;
+uniform vec3 uShade;
 uniform vec3 uLineColor;
 uniform float uOutlineWidth;
 uniform sampler2D uFace;
@@ -276,7 +280,7 @@ void main() {
     col = mix(col, uLineColor, max(topLine, strokes));
   }
 
-  gl_FragColor = vec4(col * uAmbient, 1.0);
+  gl_FragColor = vec4(col * uAmbient * uShade, 1.0);
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
   #include <fog_fragment>
@@ -288,8 +292,9 @@ const OUTLINE_FRAG = /* glsl */ `
 #include <fog_pars_fragment>
 uniform vec3 uLineColor;
 uniform vec3 uAmbient;
+uniform vec3 uShade;
 void main() {
-  gl_FragColor = vec4(uLineColor * uAmbient, 1.0);
+  gl_FragColor = vec4(uLineColor * uAmbient * uShade, 1.0);
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
   #include <fog_fragment>

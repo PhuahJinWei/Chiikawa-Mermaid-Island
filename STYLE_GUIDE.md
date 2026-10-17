@@ -17,22 +17,31 @@ never pushed, because it is other people's artwork.
   this contrast and so will we.
 - **Lines are dark brown, not black.** Every character outline in the anime
   is a warm dark brown. Black is reserved for the Siren's hair.
-- **One bold pen for everything.** Thick strokes are Chiikawa's look, so
-  every line in the world is drawn with the same pen: characters and their
-  outfits, crown flowers, skirt strokes, props, clouds, the horizon and the
-  waterline. The pen is 1.8 cm in the world (2% of a cast member's height,
-  a little heavier than the film's 1.4%), the same on everything at the same
+- **One bold pen for what moves.** As in the film, line art belongs to
+  what is animated: the characters and their outfits, crown flowers, skirt
+  strokes, the props they hold and the duck ferry are drawn with the same
+  pen. The pen is 1.8 cm in the world (2% of a cast member's height, a
+  little heavier than the film's 1.4%), the same on everything at the same
   distance. Nearer things get bolder lines and further ones lighter, never
-  under half the pen where the camera is looking; the sky, clouds and
-  horizon use the pen where the camera is looking. Lines painted into
+  under half the pen where the camera is looking. Lines painted into
   textures (emotes, a log's cut ends) use the same width, except on the
   tiniest effects such as tears, where it is capped so their shape reads.
   See `src/world/Ink.ts`.
-- **Characters are flat; backgrounds are painterly.** Characters are flat
-  colour with almost no shading. Backgrounds have soft gradients, dappled
-  light and rich foliage. In 3D this means: characters get a 2-step toon ramp
-  that is nearly flat, the environment gets fuller lighting. Unlike the film,
-  whose backgrounds have no lines, everything here is outlined with the pen.
+- **Characters are flat; backgrounds are painted.** Characters are flat
+  colour with almost no shading, made darker and warmer only where they
+  stand in the trees' shade (in the jungle's shade the film's white comes
+  out a dark olive beige). The scenery is painted without lines, like the
+  film's backgrounds (`src/world/Look.ts`): the ground, rocks, trees,
+  houses, stalls, sky and clouds, in warm sunlight with cool blue shadows
+  that the rocks, trees and houses cast, dappled where the sun comes
+  through the leaves, soft gradients across the turn from light to shade,
+  haze into the distance, a soft glow round the brightest light and the
+  film's colour grade. Stone splits into slabs or beds, each its own shade,
+  stained and streaked, with dark cracks between and moss in cushions lit
+  along their tops. Leaves gather in round puffs overlapping like scales,
+  yellow-green toward the sun and blue-green away from it, the crown's edge
+  broken into puffs. Bark is furrowed and lit warm orange on the sun's
+  side. Still water mirrors what stands round it, darker and greener.
 - **Everyone is a round blob.** Head and body are one soft shape, wider at
   the head, with tiny stub arms and almost invisible feet. Heights are close
   to one head tall. This is a gift for procedural modelling.
@@ -104,10 +113,8 @@ Scale unit: **1 = Chiikawa's height.**
   silhouette.
 - **Interior:** dense rounded tree canopy, darker in the north-west. In the
   middle of the ring of pillars, round turquoise water shows through the
-  trees. It is not a pond: it is the forbidden cave's skylight, a round
-  opening in the ground over the cave's water. There is no waterfall in
-  the middle of the island: a mist rises out of the trees in the west,
-  where the waterfall is (`waterfall`).
+  trees: the pool of the jungle waterfall (`waterfall`), deep in the
+  jungle.
 - **South coast:** the main beach, the festival's colourful stalls right
   behind it, a short wooden pier pointing out to sea and the duck ferry at
   anchor out in the bay. Farm plots just west of the festival. Low layered
@@ -149,7 +156,9 @@ green-turquoise water you can see sparkles in. Confetti welcome on arrival.
   tall: upright slabs, mossy ledges, curtains of vines hanging down, ferns
   and moss draped over it, trees along its top.
 - It falls into a dark green pool at the cliff's foot, with a soft white
-  mist where it lands. Sunlight falls into the clearing from above.
+  mist where it lands. Sunlight falls into the clearing from above, onto
+  the cliff and the pool; the bank it is seen from lies in the shade of
+  dense trees, and the characters standing there are darker for it.
 - On the bank: dark earth and moss; monstera leaves and a red ti plant to
   the left, a leaning mossy slab of rock at the water; to the right a big
   tree with buttress roots and hanging aerial roots, bromeliads (pink,
@@ -196,22 +205,22 @@ food and cups on the ground, everyone toasting. This is the festival.
 
 ### Arrival ferry (`boat`)
 
-A big white duck ferry, outlined like everything else, after the film and
-the user's sketches of it from the front, both sides and above (the side
-sketches set its heights and the neck's line, the top one its outline
-from above, the front ones its cross-section). Simple and round all over,
-with no hard edges and nothing boxy: the body is a bell in section,
-widest low down and rounded underneath, and an egg from above, widest at
-the cabin's front wall and narrowing round the head at the bow. At its
-front a tall, bendy neck, broad where it rises from the bow, its back
-curving in to a slim waist and out into a head that is round from above,
-a small dot eye on each side and a long, flat yellow bill. Behind the
-neck an open-air deck with no roof, where the passengers sit, a railing
-across its front from the neck and along its open sides. Behind the deck
-the cabin: its rounded front wall faces the deck, inked round its arch
-and along its foot, with a door at the bottom
-in the middle and a small window high up to the right as you face it,
-just showing past the neck from in front. Its round roof curves down to a
+A big white duck ferry, outlined with the pen as the film draws it, after
+the film and the user's sketches of it from the front, both sides and
+above (the side sketches set its heights and the neck's line, the top one
+its outline from above, the front ones its cross-section). Simple and
+round all over, with no hard edges and nothing boxy: the body is a bell
+in section, widest low down and rounded underneath, and an egg from
+above, widest at the cabin's front wall and narrowing round the head at
+the bow. At its front a tall, bendy neck, broad where it rises from the
+bow, its back curving in to a slim waist and out into a head that is
+round from above, a small dot eye on each side and a long, flat yellow
+bill. Behind the neck an open-air deck with no roof, where the passengers
+sit, a railing across its front from the neck and along its open sides.
+Behind the deck the cabin: its rounded front wall faces the deck, inked
+round its arch and along its foot, with a door at the bottom in the
+middle and a small window high up to the right as you face it, just
+showing past the neck from in front. Its round roof curves down to a
 little flat tail at the waterline. Paned windows of pale blue glass lie
 on the cabin's curved sides like paint. A door in the hull's left side
 under the deck, none on the right. White with the sea's blue in its
@@ -236,11 +245,10 @@ shading toward the water. At anchor out in the bay.
 
 Nothing here blocks Milestone 0. These would sharpen later milestones.
 
-- Where the forbidden cave's entrance is, its No Entry sign, and the tunnel
-  between the entrance and the moonlit chamber under the skylight.
+- Where the forbidden cave is, its entrance and No Entry sign, and the
+  tunnel between the entrance and the moonlit chamber under its skylight.
 - A clear look at the food-shop building and its owner.
-- What sits at the top of the karst pillars and round the cave's skylight,
-  if the film ever goes there.
+- What sits at the top of the karst pillars, if the film ever goes there.
 
 Where reference is missing, I will invent in the same style and flag it.
 

@@ -1,9 +1,10 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { toonRamp } from '../core/toon';
+import { sceneryRamp } from '../core/toon';
 import { SWAY_GLSL, addOutline, windUniforms } from './Ink';
 import type { TerrainInfo } from './Island';
+import { FILM, paintLeaves, puffShadow } from './Look';
 import { addCircle, addCrown } from './Obstacles';
 
 /** Plants under the canopy are drawn only this close to the camera, in metres; the canopy and the
@@ -11,15 +12,30 @@ import { addCircle, addCrown } from './Obstacles';
 const UNDERSTORY_REACH = 34;
 const CANOPY_REACH = 38;
 
-/** Toon-shaded plants that move in the wind, by the sway weight on each vertex. */
-function plantMaterial(): THREE.MeshToonMaterial {
-  const material = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: toonRamp() });
+/**
+ * Toon-shaded plants that move in the wind, by the sway weight on each vertex. In the film look
+ * they take the soft ramp and their leaves are dabbed light and dark; tree crowns (`clusters`: the
+ * clusters' size in metres) are painted as the film paints them, in leaf clusters lit on top, their
+ * edges broken into clusters too.
+ */
+/** Moves a plant's vertices in the wind, by the sway weight on each. */
+function swayVertices(shader: THREE.WebGLProgramParametersWithUniforms): void {
+  Object.assign(shader.uniforms, windUniforms);
+  shader.vertexShader = shader.vertexShader
+    .replace('#include <common>', `#include <common>\nattribute float aSway;\n${SWAY_GLSL}`)
+    .replace('#include <begin_vertex>', '#include <begin_vertex>\ntransformed += sway(transformed, aSway);');
+}
+
+function plantMaterial(clusters = 0): THREE.MeshToonMaterial {
+  const material = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: sceneryRamp() });
   material.onBeforeCompile = (shader) => {
-    Object.assign(shader.uniforms, windUniforms);
-    shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', `#include <common>\nattribute float aSway;\n${SWAY_GLSL}`)
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\ntransformed += sway(transformed, aSway);');
+    swayVertices(shader);
+    if (FILM) paintLeaves(shader, clusters);
   };
+  // Each cluster size compiles its own shader: the setup above reads the same for all of them.
+  material.customProgramCacheKey = () => `plant:${clusters}`;
+  // In the film look a leaf's splits and leaflets are cut away through the picture's smoothing.
+  material.alphaToCoverage = FILM && !clusters;
   return material;
 }
 
@@ -31,15 +47,19 @@ interface Patch {
   far: THREE.Object3D[];
 }
 
-/** A plant's geometry with only what the merged meshes need: position, normal, colour and sway. */
+/** A plant's geometry with only what the merged meshes need: position, normal, colour, sway and
+ * where on its leaf each vertex is (off the leaves, across 9). */
 function plain(geometry: THREE.BufferGeometry): THREE.BufferGeometry {
   const out = new THREE.BufferGeometry();
   for (const name of ['position', 'normal', 'color'] as const) {
     const a = geometry.getAttribute(name);
     if (a) out.setAttribute(name, a);
   }
+  const count = out.getAttribute('position').count;
   const sway = geometry.getAttribute('_sway') ?? geometry.getAttribute('aSway');
-  out.setAttribute('aSway', sway ?? new THREE.BufferAttribute(new Float32Array(out.getAttribute('position').count), 1));
+  out.setAttribute('aSway', sway ?? new THREE.BufferAttribute(new Float32Array(count), 1));
+  const leaf = geometry.getAttribute('_leaf') ?? geometry.getAttribute('aLeaf');
+  out.setAttribute('aLeaf', leaf ?? new THREE.BufferAttribute(new Float32Array(count * 2).fill(9), 2));
   if (geometry.index) out.setIndex(geometry.index);
   return out;
 }
@@ -61,6 +81,11 @@ export class Vegetation {
     const gltf = await new GLTFLoader().loadAsync(info.plants.url);
     const vegetation = new Vegetation();
     const material = plantMaterial();
+    // Tree crowns, near and far: in the film look painted in leaf clusters, larger far off.
+    const crowns = FILM ? plantMaterial(0.85) : material;
+    const crownsFar = FILM ? plantMaterial(2.4) : material;
+    // In the film look the sun comes through the gaps between the crowns' puffs.
+    const shadows = FILM ? { near: puffShadow(0.85, swayVertices), far: puffShadow(2.4, swayVertices) } : null;
     const shapes = new Map<number, THREE.BufferGeometry>();
     // Patches of the map, keyed "layer:i,j": the geometries to join into each.
     const parts = new Map<string, THREE.BufferGeometry[]>();
@@ -102,24 +127,27 @@ export class Vegetation {
     for (const [index, x, y, z, turn, s, far] of info.plants.placed.palms ?? []) {
       const key = patchOf(x, z, canopyPatches);
       const near = place(index, x, y, z, turn, s);
-      if (near) add(`near:${key}`, near);
+      if (near) add(`palm:${key}`, near);
       const distant = far === undefined ? null : place(far, x, y, z, turn, s);
-      if (distant) add(`far:${key}`, distant);
+      if (distant) add(`palmfar:${key}`, distant);
     }
     for (const [index, x, y, z, turn, s] of info.plants.placed.under ?? []) {
       const g = place(index, x, y, z, turn, s);
       if (g) add(`under:${patchOf(x, z, underPatches)}`, g);
     }
 
-    // Join each patch's plants into one mesh, outlined.
+    // Join each patch's plants into one mesh, outlined; in the film look painted without a line,
+    // casting and taking the sun's shadows.
     const built = new Map<string, Patch>();
     for (const [key, list] of parts) {
-      const mesh = new THREE.Mesh(mergeGeometries(list), material);
+      const [layer, cell] = key.split(':');
+      const mesh = new THREE.Mesh(mergeGeometries(list), layer === 'near' ? crowns : layer === 'far' ? crownsFar : material);
       mesh.geometry.computeBoundingSphere();
       const sphere = mesh.geometry.boundingSphere as THREE.Sphere;
       vegetation.group.add(mesh);
-      const objects = [mesh, addOutline(mesh)];
-      const [layer, cell] = key.split(':');
+      mesh.castShadow = mesh.receiveShadow = FILM;
+      if (shadows && (layer === 'near' || layer === 'far')) mesh.customDepthMaterial = shadows[layer];
+      const objects: THREE.Object3D[] = FILM ? [mesh] : [mesh, addOutline(mesh)];
       if (layer === 'under') {
         vegetation.understory.push({ meshes: objects, centre: sphere.center.clone(), radius: sphere.radius, far: [] });
         continue;
@@ -130,10 +158,12 @@ export class Vegetation {
         built.set(cell, patch);
         vegetation.canopy.push(patch);
       }
-      if (layer === 'near') {
+      if (layer === 'near' || layer === 'palm') {
         patch.meshes.push(...objects);
-        patch.centre.copy(sphere.center);
-        patch.radius = sphere.radius;
+        if (layer === 'near') {
+          patch.centre.copy(sphere.center);
+          patch.radius = sphere.radius;
+        }
       } else {
         patch.far.push(...objects);
       }

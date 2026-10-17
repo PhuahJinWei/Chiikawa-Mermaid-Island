@@ -1,9 +1,10 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { sharedUniforms } from '../characters/CharacterMaterial';
-import { toonRamp } from '../core/toon';
+import { sceneryRamp, toonRamp } from '../core/toon';
 import { PEN_GLSL, addOutline, inkUniforms } from './Ink';
 import { poolUniform, type TerrainInfo } from './Island';
+import { FILM, STONES, paintLeaves, paintStone, paintedRamp, puffShadow, type StoneKind } from './Look';
 
 // The jungle waterfall's water: white, with pale grey-blue between its streaks, as in the film.
 const COLORS = {
@@ -67,6 +68,8 @@ function waterfallMaterial(): THREE.ShaderMaterial {
       uWater: { value: new THREE.Color(COLORS.water) },
       uShade: { value: new THREE.Color(COLORS.shade) },
       uFoam: { value: new THREE.Color(COLORS.foam) },
+      // In the film look the falling water is a little brighter than white, so it glows.
+      uBright: { value: FILM ? 1.05 : 1 },
     },
     vertexShader: /* glsl */ `
       #include <common>
@@ -86,9 +89,27 @@ function waterfallMaterial(): THREE.ShaderMaterial {
       uniform vec3 uWater;
       uniform vec3 uShade;
       uniform vec3 uFoam;
+      uniform float uBright;
       varying vec2 vUv;
       float hash1(float n) { return fract(sin(n * 127.1) * 43758.5453); }
       void main() {
+        #ifdef FILM
+        // A veil of fine streaks, each pouring at its own pace, thick down the middle and thin
+        // enough at the sides for the rock to show through, as the film paints it; white over the
+        // lip and where it lands.
+        float columns = 16.0;
+        float c = floor(vUv.x * columns);
+        float across = fract(vUv.x * columns);
+        float run = fract(vUv.y * (3.0 + 2.0 * hash1(c + 4.0)) - uTime * (0.9 + 0.6 * hash1(c)) + hash1(c + 9.0));
+        float dash = smoothstep(0.0, 0.05, run) * (1.0 - smoothstep(0.35, 0.55, run));
+        float line = 1.0 - smoothstep(0.1, 0.3, abs(across - 0.5 - 0.15 * (hash1(c + 2.0) - 0.5)));
+        float veil = smoothstep(0.0, 0.4, vUv.x) * smoothstep(1.0, 0.6, vUv.x);
+        float white = max(smoothstep(0.1, 0.0, vUv.y), smoothstep(0.8, 1.0, vUv.y));
+        vec3 col = mix(uShade, uWater, 0.3 + 0.4 * veil + 0.3 * line);
+        col = mix(col, uFoam, max(dash * line * 0.9, white));
+        float alpha = clamp(0.2 + 0.55 * veil + 0.5 * line * (0.4 + 0.6 * dash) + white, 0.0, 1.0);
+        gl_FragColor = vec4(col * uAmbient * uBright, alpha);
+        #else
         // Columns of water side by side, each pouring at its own pace in white dashes.
         float columns = 7.0;
         float c = floor(vUv.x * columns);
@@ -99,20 +120,69 @@ function waterfallMaterial(): THREE.ShaderMaterial {
         vec3 col = mix(uShade, uWater, 0.35 + 0.65 * middle);
         col = mix(col, uFoam, dash * middle * 0.85);
         col = mix(col, uFoam, max(smoothstep(0.1, 0.0, vUv.y), smoothstep(0.82, 1.0, vUv.y) * 0.9));
-        gl_FragColor = vec4(col * uAmbient, 1.0);
+        gl_FragColor = vec4(col * uAmbient * uBright, 1.0);
+        #endif
         #include <tonemapping_fragment>
         #include <colorspace_fragment>
         #include <fog_fragment>
       }`,
     fog: true,
+    defines: FILM ? { FILM: '' } : {},
+    transparent: FILM,
+    depthWrite: !FILM,
+  });
+}
+
+/**
+ * The film look's mist where the waterfall lands: white, bluer underneath, its edges fading out so
+ * it reads as spray rather than a solid.
+ */
+function mistMaterial(): THREE.ShaderMaterial {
+  return new THREE.ShaderMaterial({
+    uniforms: {
+      ...THREE.UniformsUtils.clone(THREE.UniformsLib.fog),
+      uAmbient: sharedUniforms.uAmbient,
+    },
+    vertexShader: /* glsl */ `
+      #include <common>
+      #include <fog_pars_vertex>
+      varying vec3 vNormalView;
+      varying vec3 vToCamera;
+      varying float vUp;
+      void main() {
+        vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+        vNormalView = normalize(normalMatrix * normal);
+        vToCamera = -mvPosition.xyz;
+        vUp = normal.y;
+        gl_Position = projectionMatrix * mvPosition;
+        #include <fog_vertex>
+      }`,
+    fragmentShader: /* glsl */ `
+      #include <common>
+      #include <fog_pars_fragment>
+      uniform vec3 uAmbient;
+      varying vec3 vNormalView;
+      varying vec3 vToCamera;
+      varying float vUp;
+      void main() {
+        float facing = abs(dot(normalize(vNormalView), normalize(vToCamera)));
+        vec3 col = mix(vec3(0.72, 0.86, 0.9), vec3(1.0), smoothstep(-0.4, 0.5, vUp));
+        gl_FragColor = vec4(col * uAmbient, smoothstep(0.05, 0.9, facing) * 0.55);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+        #include <fog_fragment>
+      }`,
+    fog: true,
+    transparent: true,
+    depthWrite: false,
   });
 }
 
 /**
  * The island's rock landmarks, built in Blender with the ground (art/blender/build_island.py):
- * limestone karst pillars and mesas crowned with jungle, the cave's skylight, the rocks behind the
- * night beach, and sea spires round the lagoon; and the jungle waterfall pouring off a mesa into
- * its pool, with its spray.
+ * limestone karst pillars and mesas crowned with jungle, the rocks behind the night beach, sea
+ * spires round the lagoon and the sea cliffs; and in the middle of the island the jungle waterfall,
+ * pouring off its wall of mossy rock into its pool, with its spray.
  */
 export class Landmarks {
   readonly group = new THREE.Group();
@@ -128,15 +198,69 @@ export class Landmarks {
     gltf.scene.traverse((o) => {
       if ((o as THREE.Mesh).isMesh) meshes.push(o as THREE.Mesh);
     });
-    const rocks = rockMaterial(info);
-    const spray = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: toonRamp() });
+    // In the film look the stone is painted as the film paints it, without a line (see paintStone),
+    // lit through the soft ramp, and casts and takes the sun's shadows: limestone in upright slabs,
+    // the sea cliffs and the rocks behind the night beach in beds.
+    const toonRocks = FILM ? null : rockMaterial(info);
+    const painted = new Map<StoneKind, THREE.Material>();
+    const rocksFor = (name: string): THREE.Material => {
+      if (toonRocks) return toonRocks;
+      const kind = name.startsWith('rocks_cliffs')
+        ? STONES.bedded
+        : name.startsWith('rocks_headland')
+          ? STONES.layered
+          : name.startsWith('rocks_spires')
+            ? STONES.spire
+            : STONES.limestone;
+      let material = painted.get(kind);
+      if (!material) {
+        const stone = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: paintedRamp() });
+        stone.onBeforeCompile = (shader) => paintStone(shader, kind);
+        stone.customProgramCacheKey = () => 'stone';
+        painted.set(kind, (material = stone));
+      }
+      return material;
+    };
+    const spray = FILM ? mistMaterial() : new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: sceneryRamp() });
+    // The jungle on the rocks' tops, and the vines and moss hanging down them: in the film look
+    // painted like the trees' leaves, the crowns in leaf clusters.
+    let crowns: THREE.Material | null = toonRocks;
+    let vines: THREE.Material | null = toonRocks;
+    if (FILM) {
+      const leaves = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: paintedRamp() });
+      leaves.onBeforeCompile = (shader) => paintLeaves(shader, 1.9);
+      crowns = leaves;
+      const hanging = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: paintedRamp() });
+      hanging.onBeforeCompile = (shader) => paintLeaves(shader);
+      vines = hanging;
+    }
+    let crownShadow: THREE.MeshDepthMaterial | undefined;
     for (const mesh of meshes) {
       mesh.removeFromParent();
+      // Nothing here is a leaf with veins to paint (see paintLeaves).
+      const count = mesh.geometry.getAttribute('position').count;
+      mesh.geometry.setAttribute('aLeaf', new THREE.BufferAttribute(new Float32Array(count * 2).fill(9), 2));
       const isSpray = mesh.name.startsWith('spray');
-      mesh.material = mesh.name.startsWith('waterfall') ? landmarks.fall : isSpray ? spray : rocks;
+      const isFall = mesh.name.startsWith('waterfall');
+      mesh.material = isFall
+        ? landmarks.fall
+        : isSpray
+          ? spray
+          : mesh.name.startsWith('crowns') && crowns
+            ? crowns
+            : mesh.name.startsWith('vines') && vines
+              ? vines
+              : rocksFor(mesh.name);
       landmarks.group.add(mesh);
+      if (isSpray) landmarks.spray.push(mesh);
+      if (FILM) {
+        mesh.castShadow = mesh.receiveShadow = !isSpray && !isFall;
+        // The sun comes through the gaps between the puffs of the jungle on the rocks' tops.
+        if (mesh.name.startsWith('crowns')) mesh.customDepthMaterial = crownShadow ??= puffShadow(1.9);
+        continue;
+      }
       const hull = addOutline(mesh);
-      if (isSpray) landmarks.spray.push(mesh, hull);
+      if (isSpray) landmarks.spray.push(hull);
     }
     return landmarks;
   }
@@ -144,6 +268,8 @@ export class Landmarks {
   update(time: number): void {
     this.fall.uniforms.uTime.value = time;
     const t = time * 5;
-    for (const o of this.spray) o.scale.set(1 + 0.05 * Math.sin(t), 1 + 0.14 * Math.sin(t + 1.3), 1 + 0.05 * Math.sin(t + 2.1));
+    // In the film look the spray is a wider cloud of mist.
+    const k = FILM ? 1.6 : 1;
+    for (const o of this.spray) o.scale.set(k * (1 + 0.05 * Math.sin(t)), k * (1 + 0.14 * Math.sin(t + 1.3)), k * (1 + 0.05 * Math.sin(t + 2.1)));
   }
 }

@@ -1,10 +1,11 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { toonRamp } from '../core/toon';
+import { sceneryRamp } from '../core/toon';
 import { t, type StringKey } from '../i18n/I18n';
 import { glowMaterial, glowUniforms } from './Glow';
 import { INK, addOutline } from './Ink';
 import { terrainHeight } from './Island';
+import { FILM } from './Look';
 import { addBox, addCircle, addDeck } from './Obstacles';
 import { loadPropModel, type LabelInfo, type PartRole, type PropInfo } from './PropModels';
 
@@ -71,7 +72,7 @@ interface Floater {
 }
 
 function toon(): THREE.MeshToonMaterial {
-  return new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: toonRamp() });
+  return new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: sceneryRamp() });
 }
 
 /** Unlit vertex colours: flames, which make their own light. */
@@ -273,7 +274,7 @@ export class Props {
         mergeGeometries(labels.map((l) => l.geometry)),
         new THREE.MeshToonMaterial({
           map: texture,
-          gradientMap: toonRamp(),
+          gradientMap: sceneryRamp(),
           transparent: true,
           depthWrite: false,
           polygonOffset: true,
@@ -313,8 +314,11 @@ export class Props {
         this.group.add(mesh);
         const objects = group.objects.get(level) ?? [];
         objects.push(mesh);
-        if (kind !== 'flame') objects.push(addOutline(mesh));
-        else this.flames.push(mesh);
+        // In the film look the houses, stalls and pier are scenery, painted without a line, casting
+        // and taking the sun's shadows.
+        mesh.castShadow = mesh.receiveShadow = FILM && kind === 'body';
+        if (kind === 'flame') this.flames.push(mesh);
+        else if (!FILM) objects.push(addOutline(mesh));
         group.objects.set(level, objects);
       }
       box.getBoundingSphere(sphere);
@@ -367,7 +371,9 @@ export class Props {
       if (part.role === 'label' || part.role === 'far' || part.role === 'inside') continue;
       const mesh = new THREE.Mesh(part.geometry, part.role === 'glow' ? glowMaterial() : toon());
       object.add(mesh);
+      // The ferry moves, so even in the film look it is drawn with the pen, as the film draws it.
       addOutline(mesh);
+      mesh.castShadow = FILM;
     }
     this.group.add(object);
     this.floaters.push({ object, y, phase: seed * 1.37 });

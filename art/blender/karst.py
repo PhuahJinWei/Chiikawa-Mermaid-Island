@@ -437,10 +437,11 @@ def crown(rock, rim, gap=None, size=None, target=1200, mound=1.0, hang=0.35):
     return bm, cols
 
 
-def waterfall(rock, level, rows=20, thickness=0.45):
+def waterfall(rock, level, rows=20, thickness=0.45, out=None):
     """The waterfall: a band of water pouring over the notch in a rock's rim and falling clear of
-    its face into the water at `level`, thick enough to carry the pen's outline. UVs run across (u)
-    and down (v), for the game's flowing streaks."""
+    its face into the water at `level`, thick enough to carry the pen's outline: straight out from
+    the rock's middle, or the way `out` (an angle, as the notch's). UVs run across (u) and down (v),
+    for the game's flowing streaks."""
     an, half, depth = rock.s["notch"]
     lip = rock.top - depth
     face_lip = float(rock.radius(np.array([an]), np.array([lip]))[0][0])
@@ -448,22 +449,23 @@ def waterfall(rock, level, rows=20, thickness=0.45):
     for y in np.linspace(level - 0.6, lip, 24):
         angles = np.array([an + d / face_lip for d in (-half, 0.0, half)])
         reach = max(reach, float(rock.radius(angles, np.full(3, y))[0].max()))
-    out_dir = np.array([math.cos(an), math.sin(an)])
+    lip_at = np.array([rock.cx, rock.cz]) + np.array([math.cos(an), math.sin(an)]) * face_lip
+    out_dir = np.array([math.cos(an if out is None else out), math.sin(an if out is None else out)])
     side = np.array([-out_dir[1], out_dir[0]])
     bottom_y = level - 0.6
     # Water leaving the lip falls in an arc: out from the face as the root of how far it has
     # dropped, quickly enough to clear the face below.
     throw = max(2.0, (reach - face_lip + 0.5) / math.sqrt(0.15))
-    path = [(face_lip - 1.2, lip + 0.3, 0.0)]
+    path = [(-1.2, lip + 0.3, 0.0)]
     for i in range(rows + 1):
         s = i / rows
-        path.append((face_lip + 0.25 + throw * math.sqrt(s), lip + 0.15 - (lip + 0.15 - bottom_y) * s, s))
+        path.append((0.25 + throw * math.sqrt(s), lip + 0.15 - (lip + 0.15 - bottom_y) * s, s))
     bm = bmesh.new()
     uv = []
     grid = []
-    for out, y, s in path:
+    for ahead, y, s in path:
         w = 2.0 * half * 0.75 * (1.0 + 0.3 * s)
-        c = np.array([rock.cx, rock.cz]) + out_dir * out
+        c = lip_at + out_dir * ahead
         ring = []
         for across, depth_off in ((-0.5, 1.0), (0.5, 1.0), (0.5, -1.0), (-0.5, -1.0)):
             p = c + side * (across * w) + out_dir * (depth_off * thickness / 2)
@@ -476,58 +478,113 @@ def waterfall(rock, level, rows=20, thickness=0.45):
     bm.faces.new(grid[0])
     bm.faces.new(list(reversed(grid[-1])))
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
-    foot = np.array([rock.cx, rock.cz]) + out_dir * (face_lip + 0.25 + throw)
+    foot = lip_at + out_dir * (0.25 + throw)
     return bm, uv, (float(foot[0]), float(foot[1]))
 
 
-def vines(rock, around, count, seed, avoid=None):
+def ribbon_bm(points, side, out, width, thick):
+    """A thin blade hanging down `points`, `width` across (along `side`) and `thick` deep (along
+    `out`), narrowing toward its end: a closed solid, so it can carry the pen's outline."""
+    bm = bmesh.new()
+    rows = []
+    for k, p in enumerate(points):
+        w = width * (1.0 - 0.6 * (k / (len(points) - 1)) ** 2)
+        rows.append([bm.verts.new(p + side * (sx * w / 2) + out * (sz * thick / 2))
+                     for sx, sz in ((-1, 1), (1, 1), (1, -1), (-1, -1))])
+    for a, b in zip(rows, rows[1:]):
+        for k in range(4):
+            bm.faces.new((a[k], a[(k + 1) % 4], b[(k + 1) % 4], b[k]))
+    bm.faces.new(rows[0])
+    bm.faces.new(list(reversed(rows[-1])))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    return bm
+
+
+VINE = palette({"stem": "#5E7A3A", "leaf": "#8CC24E", "leafMid": "#6FAE3F", "leafDark": "#4F8A3A",
+                "curtain": "#7DB847", "curtainDark": "#4E8B38"})
+
+
+def vines(rock, around, count, seed, avoid=None, curtains=0):
     """Vines hanging from a rock's rim down its face, as in the film's jungle waterfall: strands
-    lying a hand's breadth out from the stone, with leaves along them, some reaching most of the way
-    down. `around` is (angle, half arc in metres) of the face they hang on; `avoid` (angle, half
-    width) keeps them clear of a waterfall. Returns (bmesh, colours)."""
+    lying a hand's breadth out from the stone, thick with leaves, some reaching most of the way
+    down; and `curtains` of hanging moss, blades close together falling from the rim in a sheet,
+    longest in the middle. `around` is (angle, half arc in metres) of the face they hang on; `avoid`
+    (angle, half width) keeps them clear of a waterfall. Returns (bmesh, colours)."""
     rng = np.random.default_rng(seed)
     an, arc = around
     face = float(rock.radius(np.array([an]), np.array([rock.top - 1.0]))[0][0])
     bm = bmesh.new()
     cols = []
-    stem, leaf_light, leaf_dark = np.array(L.hex_color("#55693A")[:3]), SHARED["moss"], SHARED["mossDark"]
     height = rock.top - rock.foot
+    top = rock.top - rock.s["rim"] * min(rock.rx, rock.rz) * 0.5 - 0.3
+
+    def clear(a, room):
+        return not (avoid and abs(float(angle_diff(a, avoid[0]))) * face < avoid[1] + room)
+
+    def hang(a, length, off=0.12, sway=0.15, step=1.2):
+        ys = np.linspace(top, top - length, max(4, int(length / step) + 1))
+        r = rock.radius(np.full(len(ys), a), ys)[0] + off * (1.0 + 1.5 * np.linspace(0.0, 1.0, len(ys)) ** 2)
+        mx, mz = rock.middle(ys)
+        bend = rng.uniform(-sway, sway) * np.linspace(0.0, 1.0, len(ys)) ** 2
+        return [Vector((float(mx[i] + r[i] * math.cos(a + bend[i] / face)),
+                        float(-(mz[i] + r[i] * math.sin(a + bend[i] / face))), float(ys[i]))) for i in range(len(ys))]
+
     made = 0
     for _ in range(count * 3):
         if made >= count:
             break
         a = an + rng.uniform(-arc, arc) / face
-        if avoid and abs(float(angle_diff(a, avoid[0]))) * face < avoid[1] + 1.0:
+        if not clear(a, 1.0):
             continue
         made += 1
-        top = rock.top - rock.s["rim"] * min(rock.rx, rock.rz) * 0.5 - 0.3
-        length = height * rng.uniform(0.2, 0.85) ** 0.7
-        ys = np.linspace(top, top - length, max(4, int(length / 1.2) + 1))
-        r = rock.radius(np.full(len(ys), a), ys)[0] + 0.12
-        mx, mz = rock.middle(ys)
-        sway = rng.uniform(-0.15, 0.15) * np.linspace(0.0, 1.0, len(ys)) ** 2
-        pts = [Vector((float(mx[i] + r[i] * math.cos(a + sway[i] / face)), float(-(mz[i] + r[i] * math.sin(a + sway[i] / face))),
-                       float(ys[i]))) for i in range(len(ys))]
-        thick = rng.uniform(0.025, 0.045)
+        pts = hang(a, height * rng.uniform(0.2, 0.85) ** 0.7)
+        thick = rng.uniform(0.03, 0.05)
         for p, q in zip(pts, pts[1:]):
             seg = P.segment_bm(p, q, thick, thick * 0.9, segments=4)
             L.append_bm(bm, seg)
-            cols.extend([stem] * len(seg.verts))
+            cols.extend([VINE["stem"]] * len(seg.verts))
             seg.free()
-        # Leaves in pairs down the strand, thinning out toward its end.
+        # Leaves down the strand in bunches, thinning out toward its end.
         out = Vector((math.cos(a), -math.sin(a), 0.0))
         side = Vector((math.sin(a), math.cos(a), 0.0))
-        for t in np.arange(rng.uniform(0.02, 0.12), 1.0, rng.uniform(0.07, 0.12)):
-            if rng.random() < t * 0.6:
+        for t in np.arange(rng.uniform(0.0, 0.05), 1.0, rng.uniform(0.035, 0.06)):
+            if rng.random() < t * 0.5:
                 continue
             k = t * (len(pts) - 1)
             i = min(int(k), len(pts) - 2)
-            c = pts[i].lerp(pts[i + 1], k - i) + out * 0.04 + side * rng.uniform(-0.1, 0.1)
-            s = rng.uniform(0.09, 0.15)
-            leaf = L.ellipsoid_bm(c, (s, s * 0.3, s * 0.6), u=5, v=3)
+            c = pts[i].lerp(pts[i + 1], k - i) + out * 0.05 + side * rng.uniform(-0.14, 0.14)
+            size = rng.uniform(0.12, 0.22)
+            leaf = L.ellipsoid_bm(c, (size, size * 0.35, size * 0.65), u=4, v=3)
             L.append_bm(bm, leaf)
-            cols.extend([leaf_light if rng.random() < 0.55 else leaf_dark] * len(leaf.verts))
+            cols.extend([VINE[("leaf", "leafMid", "leafDark")[int(rng.integers(0, 3))]]] * len(leaf.verts))
             leaf.free()
+
+    # Curtains of hanging moss.
+    hung = 0
+    for _ in range(curtains * 6):
+        if hung >= curtains:
+            break
+        a0 = an + rng.uniform(-arc, arc) / face
+        width = rng.uniform(1.2, 2.6)
+        if not clear(a0, width / 2 + 1.5):
+            continue
+        hung += 1
+        reach = height * rng.uniform(0.35, 0.7)
+        blades = max(5, int(width / 0.17))
+        for b in range(blades):
+            u = b / (blades - 1) - 0.5
+            a = a0 + u * width / face
+            length = reach * (0.7 + 0.3 * math.cos(math.pi * u)) * rng.uniform(0.75, 1.1)
+            pts = hang(a, length, off=0.16, sway=0.08, step=0.7)
+            out = Vector((math.cos(a), -math.sin(a), 0.0))
+            side = Vector((math.sin(a), math.cos(a), 0.0))
+            blade = ribbon_bm(pts, side, out, rng.uniform(0.15, 0.24), 0.05)
+            colour = mix(VINE["curtain"], VINE["curtainDark"], rng.uniform(0.0, 0.7))
+            for v in blade.verts:
+                below = float(np.clip((top - v.co.z) / max(length, 1e-3), 0.0, 1.0))
+                cols.append(colour + (VINE["curtainDark"] - colour) * (0.5 * below))
+            L.append_bm(bm, blade)
+            blade.free()
     return bm, cols
 
 

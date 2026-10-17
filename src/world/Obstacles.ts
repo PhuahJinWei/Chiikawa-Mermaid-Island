@@ -1,7 +1,7 @@
 /**
  * What stands on the island for characters to walk round, under or on, and for the camera to keep
  * out of: blocks (a prop's foot, a hut's walls, a roof, each over a range of heights), decks to walk
- * on (porches, floors, stairs, the pier, the lip round the cave's skylight), and tree crowns, which
+ * on (porches, floors, stairs, the pier, the lip round a cave's skylight), and tree crowns, which
  * only the camera minds. Kept in a coarse grid, so a test looks only at what is near.
  */
 
@@ -151,6 +151,38 @@ export function addRing(x: number, z: number, inner: number[], outer: number, to
 /** A tree's crown: a ball the camera keeps out of. */
 export function addCrown(x: number, y: number, z: number, r: number): void {
   crowns.add({ x, y, z, r }, x, z, r);
+}
+
+/** How far above a point the trees' crowns can reach, for following the light up through them. */
+const CANOPY_HEIGHT = 26;
+
+/**
+ * How deep in the shade of the trees' crowns the point (x, y, z) is from light coming from `dir`
+ * (toward the light, of length 1): 1 where the light would pass through a crown's middle on its
+ * way down to it, easing to 0 toward the crown's edge.
+ */
+export function canopyShade(x: number, y: number, z: number, dir: { x: number; y: number; z: number }): number {
+  if (dir.y <= 0.05) return 0;
+  const flat = Math.hypot(dir.x, dir.z);
+  const ux = flat > 1e-6 ? dir.x / flat : 0;
+  const uz = flat > 1e-6 ? dir.z / flat : 0;
+  // The light's way across the ground below it, until it is above the tallest crowns, cell by cell.
+  const reach = Math.min((CANOPY_HEIGHT * flat) / dir.y, 64);
+  let shade = 0;
+  for (let along = 0; along <= reach + CELL * 0.5; along += CELL * 0.5) {
+    for (const c of crowns.at(x + ux * along, z + uz * along)) {
+      const cx = c.x - x;
+      const cy = c.y - y;
+      const cz = c.z - z;
+      const t = cx * dir.x + cy * dir.y + cz * dir.z;
+      if (t <= 0) continue;
+      const miss = Math.sqrt(Math.max(cx * cx + cy * cy + cz * cz - t * t, 0));
+      const k = Math.min(Math.max((c.r - miss) / (c.r * 0.45), 0), 1);
+      shade = Math.max(shade, k * k * (3 - 2 * k));
+      if (shade >= 1) return 1;
+    }
+  }
+  return shade;
 }
 
 function inside(b: Block, x: number, z: number, margin: number): boolean {

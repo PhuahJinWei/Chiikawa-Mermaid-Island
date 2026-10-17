@@ -46,6 +46,8 @@ C = {k: np.array(L.hex_color(v)[:3]) for k, v in {
     "bigTrunk": "#9C744A",
     "bigTrunkDark": "#7A5636",
     "vine": "#5E9E3E",
+    "root": "#8C6A48",
+    "rootLight": "#A8865E",
     "purple": "#9C6BD6",
     "white": "#FFFFFF",
     "yellow": "#F7D046",
@@ -55,6 +57,11 @@ C = {k: np.array(L.hex_color(v)[:3]) for k, v in {
 }.items()}
 
 UP = Vector((0.0, 0.0, 1.0))
+# Each vertex of a leaf knows where on the leaf it is, for the game to paint its veins: how far
+# along it from the stalk (0) to the tip (1), plus 2 for a monstera's split leaf or 4 for a frond's
+# row of leaflets, and how far across it from the middle (-1 to 1). Anything not a leaf is across 9.
+NOT_LEAF = (0.0, 9.0)
+SPLIT, FROND = 2.0, 4.0
 
 
 def lerp(a, b, t):
@@ -80,14 +87,17 @@ def leafy(bm, base, top, light, mid, dark, seed=0.0):
 
 
 def merge(pieces):
-    """Join (bmesh, colours, sway) pieces into one."""
-    out, cols, sway = bmesh.new(), [], []
-    for bm, c, s in pieces:
+    """Join (bmesh, colours, sway) pieces, each with or without leaf coordinates (see NOT_LEAF),
+    into one."""
+    out, cols, sway, leaf = bmesh.new(), [], [], []
+    for piece in pieces:
+        bm, c, w = piece[:3]
         L.append_bm(out, bm)
         cols.extend(c)
-        sway.extend(s)
+        sway.extend(w)
+        leaf.extend(piece[3] if len(piece) > 3 else [NOT_LEAF] * len(bm.verts))
         bm.free()
-    return out, cols, sway
+    return out, cols, sway, leaf
 
 
 def trunk_bm(base, top, r0, r1, segments=6, rings=2, bend=(0.0, 0.0)):
@@ -112,9 +122,14 @@ def trunk_bm(base, top, r0, r1, segments=6, rings=2, bend=(0.0, 0.0)):
     return bm
 
 
+def blade_leaf(rows):
+    """Leaf coordinates for blade_bm's vertices, in the order it makes them: a frond's."""
+    return [(FROND + 0.04 + 0.96 * i / rows, across) for i in range(rows + 1) for across in (1.0, 0.0, -1.0)]
+
+
 def blade_bm(centre, side, width, rows, thickness=0.03):
     """A light frond: a solid blade three vertices across, drooping at its edges, with a sawtooth
-    edge every other row."""
+    edge every other row (blade_leaf gives its vertices' leaf coordinates)."""
     bm = bmesh.new()
     rings = []
     for i in range(rows + 1):
@@ -139,12 +154,14 @@ def blade_bm(centre, side, width, rows, thickness=0.03):
 
 # ---------------------------------------------------------------------------- placing
 def to_arrays(built):
-    """A built plant as arrays: vertices, faces, colours (RGB) and sway weights."""
-    bm, cols, sway = built
+    """A built plant as arrays: vertices, faces, colours (RGB), sway weights and leaf coordinates."""
+    bm, cols, sway = built[:3]
+    leaf = built[3] if len(built) > 3 else [NOT_LEAF] * len(bm.verts)
     bm.verts.index_update()
     verts = np.array([v.co[:] for v in bm.verts], dtype=float)
     faces = [tuple(v.index for v in f.verts) for f in bm.faces]
-    out = (verts, faces, np.array([c[:3] for c in cols], dtype=float), np.array(sway, dtype=float))
+    out = (verts, faces, np.array([c[:3] for c in cols], dtype=float), np.array(sway, dtype=float),
+           np.array(leaf, dtype=float).reshape(-1, 2))
     bm.free()
     return out
 
@@ -159,18 +176,19 @@ class Patchwork:
 
     def add(self, arrays, x, z, y, turn=0.0, scale=1.0):
         """Plant a copy at game (x, z) on ground height y, turned about the vertical and scaled."""
-        verts, faces, cols, sway = arrays
+        verts, faces, cols, sway, leaf = arrays
         c, s = math.cos(turn), math.sin(turn)
         rot = np.array([[c, -s, 0.0], [s, c, 0.0], [0.0, 0.0, 1.0]])
         moved = verts @ rot.T * scale + np.array([x, -z, y])
         i = min(max(int((x - self.x0) / self.size * self.patches), 0), self.patches - 1)
         j = min(max(int((z - self.z0) / self.size * self.patches), 0), self.patches - 1)
-        part = self.parts.setdefault((i, j), {"verts": [], "faces": [], "cols": [], "sway": [], "count": 0})
+        part = self.parts.setdefault((i, j), {"verts": [], "faces": [], "cols": [], "sway": [], "leaf": [], "count": 0})
         offset = part["count"]
         part["verts"].append(moved)
         part["faces"].extend(tuple(k + offset for k in f) for f in faces)
         part["cols"].append(cols)
         part["sway"].append(sway)
+        part["leaf"].append(leaf)
         part["count"] += len(verts)
 
     def objects(self, name, collection):
@@ -191,6 +209,7 @@ class Patchwork:
             except AttributeError:
                 pass
             mesh.attributes.new("_sway", "FLOAT", "POINT").data.foreach_set("value", np.concatenate(part["sway"]))
+            mesh.attributes.new("_leaf", "FLOAT2", "POINT").data.foreach_set("vector", np.concatenate(part["leaf"]).ravel())
             mesh.shade_smooth()
             obj = bpy.data.objects.new(f"{name}_{i}_{j}", mesh)
             collection.objects.link(obj)
@@ -222,7 +241,7 @@ class Variants:
         """An object for each shape, named v<index>, with its colours and sway weights."""
         import bpy  # noqa: PLC0415
         out = []
-        for i, (name, (verts, faces, cols, sway)) in enumerate(self.shapes):
+        for i, (name, (verts, faces, cols, sway, leaf)) in enumerate(self.shapes):
             mesh = bpy.data.meshes.new(f"v{i}")
             mesh.from_pydata(verts.tolist(), [], faces)
             rgba = np.concatenate([cols, np.ones((len(cols), 1))], axis=1).ravel()
@@ -234,6 +253,7 @@ class Variants:
             except AttributeError:
                 pass
             mesh.attributes.new("_sway", "FLOAT", "POINT").data.foreach_set("value", sway)
+            mesh.attributes.new("_leaf", "FLOAT2", "POINT").data.foreach_set("vector", leaf.ravel())
             mesh.shade_smooth()
             obj = bpy.data.objects.new(f"v{i}", mesh)
             collection.objects.link(obj)
@@ -305,7 +325,7 @@ def jungle_palm(rng, height):
         frond = blade_bm(centre, side, 0.55, rows=5, thickness=0.05)
         cols = [C["leaf"] if k % 2 else C["leafLight"]] * len(frond.verts)
         sway = [0.4 + 0.6 * min(1.0, (v.co - top).length / length) for v in frond.verts]
-        pieces.append((frond, cols, sway))
+        pieces.append((frond, cols, sway, blade_leaf(5)))
     # The far version: a plain trunk and five short fronds.
     far = [(P.segment_bm(pts[0], top, 0.19, 0.13, segments=4), C["palmTrunkB"])]
     for k in range(5):
@@ -342,7 +362,8 @@ def fern(rng):
 
         frond = blade_bm(centre, side, 0.24, rows=3)
         colour = C["fern"] if k % 2 else C["fernDark"]
-        pieces.append((frond, [colour] * len(frond.verts), [min(1.0, v.co.length / length) for v in frond.verts]))
+        pieces.append((frond, [colour] * len(frond.verts), [min(1.0, v.co.length / length) for v in frond.verts],
+                       blade_leaf(3)))
     return merge(pieces)
 
 
@@ -406,13 +427,15 @@ def monstera(rng):
             outline.append((math.cos(a) * r, math.sin(a) * r * 1.1))
         tilt = Matrix.Rotation(-0.6, 3, side)
         leaf = bmesh.new()
-        top, bot = [], []
+        top, bot, where = [], [], []
         for u, w in outline:
             off = tilt @ (side * u + d * w)
             top.append(leaf.verts.new(stem_top + off + UP * 0.012))
             bot.append(leaf.verts.new(stem_top + off - UP * 0.012))
+            where += [(SPLIT + w / (1.1 * size), u / size)] * 2
         hub_t = leaf.verts.new(stem_top + UP * 0.012)
         hub_b = leaf.verts.new(stem_top - UP * 0.012)
+        where += [(SPLIT, 0.0)] * 2
         for i in range(len(outline) - 1):
             leaf.faces.new((hub_t, top[i], top[i + 1]))
             leaf.faces.new((hub_b, bot[i + 1], bot[i]))
@@ -421,7 +444,7 @@ def monstera(rng):
         leaf.faces.new((hub_b, bot[0], top[0], hub_t))
         bmesh.ops.recalc_face_normals(leaf, faces=leaf.faces[:])
         colour = C["monstera"] if k % 2 else C["monsteraLight"]
-        pieces.append((leaf, [colour] * len(leaf.verts), [0.8] * len(leaf.verts)))
+        pieces.append((leaf, [colour] * len(leaf.verts), [0.8] * len(leaf.verts), where))
     return merge(pieces)
 
 
@@ -444,7 +467,8 @@ def cycad(rng):
 
         frond = blade_bm(centre, side, 0.28, rows=4)
         colour = C["cycad"] if k % 2 else C["cycadLight"]
-        pieces.append((frond, [colour] * len(frond.verts), [min(1.0, 0.3 + (v.co - top).length / length) for v in frond.verts]))
+        pieces.append((frond, [colour] * len(frond.verts), [min(1.0, 0.3 + (v.co - top).length / length) for v in frond.verts],
+                       blade_leaf(4)))
     return merge(pieces)
 
 
@@ -465,7 +489,8 @@ def leaf_blade(base, direction, length, width, colour, sway_base=0.4):
         bm.faces.new((q, p, down_mid))
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
     sway = [sway_base + (1 - sway_base) * min(1.0, (v.co - base).length / length) for v in bm.verts]
-    return bm, [colour] * len(bm.verts), sway
+    where = [(0.0, 0.0), (0.45, 1.0), (1.0, 0.0), (0.45, -1.0), (0.45, 0.0), (0.45, 0.0)]
+    return bm, [colour] * len(bm.verts), sway, where
 
 
 def ti_plant(rng):
@@ -545,16 +570,28 @@ def big_tree(rng, base_heights):
     mass = L.fuse(blobs, voxel=0.45, smooth_iterations=6, smooth_lambda=0.8, target_tris=260)
     cols = leafy(mass, 0.0, 0.0, C["canopyLight"], C["canopy"], C["canopyDark"], seed=rng.uniform(0, 6))
     pieces.append((mass, cols, [0.4] * len(mass.verts)))
-    # Vines: thin strands hanging from under the crown.
+    # Aerial roots hanging from under the crown, as round the film's big tree, a few green vines
+    # among them; more roots from a generator of their own, so the jungle round the tree is grown
+    # just as before they were added.
+    strands = []
     for k in range(6):
         a = rng.uniform(0, 2 * math.pi)
         d = rng.uniform(1.5, 4.5)
-        x, y = math.cos(a) * d, math.sin(a) * d
         z0 = top.z + rng.uniform(-0.5, 1.0)
-        z1 = z0 - rng.uniform(3.5, 6.5)
-        vine = P.segment_bm(Vector((x, y, z0)), Vector((x + rng.uniform(-0.3, 0.3), y + rng.uniform(-0.3, 0.3), z1)),
-                            0.045, 0.03, segments=4)
-        pieces.append((vine, [C["vine"]] * len(vine.verts), [0.3 + 0.7 * smoothstep(z0, z1, v.co.z) for v in vine.verts]))
+        strands.append((a, d, z0, z0 - rng.uniform(3.5, 6.5), rng.uniform(-0.3, 0.3), rng.uniform(-0.3, 0.3), k < 2))
+    more = np.random.default_rng(int(height * 1000.0) % 100000)
+    for k in range(10):
+        a, d = more.uniform(0, 2 * math.pi), more.uniform(1.2, 4.2)
+        z0 = top.z + more.uniform(-0.8, 0.8)
+        strands.append((a, d, z0, max(0.8, z0 - more.uniform(4.0, 9.0)), more.uniform(-0.4, 0.4), more.uniform(-0.4, 0.4), False))
+    for a, d, z0, z1, dx, dy, green in strands:
+        x, y = math.cos(a) * d, math.sin(a) * d
+        ends = [Vector((x, y, z0)), Vector((x + dx * 0.4, y + dy * 0.4, (z0 + z1) / 2)), Vector((x + dx, y + dy, z1))]
+        thick = 0.03 if green else 0.05 + 0.04 * ((z0 - z1) / 9.0)
+        for (p0, p1), (r0, r1) in zip(zip(ends, ends[1:]), ((thick, thick * 0.8), (thick * 0.8, thick * 0.55))):
+            strand = P.segment_bm(p0, p1, r0, r1, segments=4)
+            colour = C["vine"] if green else lerp(C["root"], C["rootLight"], 0.5 + 0.5 * math.sin(a * 3.0))
+            pieces.append((strand, [colour] * len(strand.verts), [0.3 + 0.7 * smoothstep(z0, z1, v.co.z) for v in strand.verts]))
     return merge(pieces), crowns
 
 

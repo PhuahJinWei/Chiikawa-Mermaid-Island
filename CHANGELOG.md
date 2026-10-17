@@ -3,12 +3,11 @@
 ## M1 — Island (in progress, branch `m1-island`)
 
 Checked in the browser from the pier, the festival street, the village and
-inside a hut, the jungle, the fields, the cave's skylight, the night beach
+inside a hut, the jungle, the fields, the waterfall's bank, the night beach
 and the foot of a pillar, from high above, side by side with the film's
 aerial shot from the camera the island was laid out with, and at dawn,
 noon, dusk and night; walked up a hut's stairs into its room and up the
-stage, along every path, and round the skylight's lip. Not yet checked on a
-real phone.
+stage, and along every path. Not yet checked on a real phone.
 
 **Added**
 
@@ -19,7 +18,7 @@ real phone.
   the jungle runs down to the water in the west and north, widest on the
   night beach), grass inland, the festival street behind the main beach,
   fields just west of it, the village's clearing deep in the jungle and
-  paths between them up to the cave's skylight. Its colours are painted into
+  paths between them up to the waterfall. Its colours are painted into
   one texture with soft hill shading, and its heights come as a grid the
   game walks on.
 - The island's landmarks, built with the ground (`art/blender/karst.py`
@@ -31,20 +30,25 @@ real phone.
   pillars hide in the forest, mesas thick with trees on top, one under a
   great dome of them; two little white spires poke out of the canopy in
   the west. Low layered rocks stand behind the night beach, and eighteen
-  sea spires in six clusters round the lagoon. No waterfall stands in the
-  middle of the island, as in the shot.
-- The jungle waterfall, after the film's frame of it, in the west where
-  the aerial shot shows its spray rising out of the trees. A narrow white
+  sea spires in six clusters round the lagoon.
+- The jungle waterfall, after the film's frame of it, deep in the jungle
+  in the middle of the island: the round water the aerial shot shows
+  through the trees in the ring of pillars is its pool. A narrow white
   waterfall, streaming down and churning white where it lands, pours from
-  a notch in a long, low wall of damp, mossy limestone (one of the mesas,
-  reshaped), hung with curtains of vines, into a deep green pool at its
-  foot, in a clearing open to the sky. The pool is water of its own,
+  a notch in a long, low wall of damp, mossy limestone split into upright
+  slabs, running from the foot of the north pillar, hung with curtains of
+  vines, into a deep green pool at its foot, in a gentle hollow open to the
+  sun; the jungle stands back from it, so its water and the waterfall show
+  through the trees from the aerial shot's camera. The pool is water of its own,
   higher than the sea and without surf: characters wade only at its edge,
   and the pen draws its waterline on the bank and the rock. Round it, as in
   the frame: dark earth and moss on the bank, monstera and red ti plants,
   ferns, a leaning mossy slab of rock, bromeliads on a mossy stump, white
-  flowers and a big tree with buttress roots. A path comes from the
-  fields; the place is named 森の滝.
+  flowers and a big tree with buttress roots; the bank it is seen from lies
+  under a clump of trees whose crowns close in overhead, and more stand
+  either side of the pool, hiding the pillars beyond. A path comes up from
+  the village and goes on past it to the sea cliffs; the place is named
+  森の滝.
 - The sea cliffs on the north-east coast, after the film's frame of them,
   where the aerial shot hides the coast behind the pillars. Tall cliffs of
   level-bedded cream-and-tan sandstone, stepping in and out bed by bed and
@@ -52,19 +56,12 @@ real phone.
   hanging greenery along their top, rise sheer out of deep turquoise water
   round a cove and run away along the coast. A sea stack of the same
   bedded rock stands off the cove's mouth with a smaller rock beside it. A
-  lower grassy headland at the west end, reached by a path from the cave's
-  skylight, looks across the cove at the cliffs; the place is named 北の崖.
-- The round water in the middle of the ring of pillars is not a pond: as in
-  the film, it is the forbidden cave's skylight, a round opening in the
-  jungle floor about 24 metres across, in a gentle hollow with the trees
-  standing back from it, so its water shows from above as in the film's
-  aerial shot. A mossy lip runs round it, a step above the ground, with
-  vines hanging down inside. Its fluted limestone sides flare out under the
-  edge into the cave and fall to the cave's water below: the sea, come in
-  under the island, turquoise like the lagoon. Characters walk round the lip
-  and stop a step back from the edge. The cave itself, its entrance and the
-  way in are still to be planned; the No Entry sign (立入禁止) waits for the
-  entrance.
+  lower grassy headland at the west end, reached by a path past the
+  waterfall, looks across the cove at the cliffs; the place is named 北の崖.
+  Inland the land on top rises gently from the headland's height to the
+  cliffs', so the path climbs it.
+- The forbidden cave, its entrance and the way in are still to be placed
+  and planned; the No Entry sign (立入禁止) waits for the entrance.
 - The bay is the festival, laid out as in the film's arrival: a short
   wooden pier (rough planks on log posts, over turquoise water) reaches out
   from the middle of the beach, and the white duck ferry lies at anchor out
@@ -96,7 +93,7 @@ real phone.
   Built in Blender by `art/blender/build_village.py` (the arch and banners
   by `art/blender/houses.py`).
 - The village is a clearing deep in the jungle, in the middle of the ring
-  of pillars, on the path from the festival street to the cave's skylight. Eight big huts stand round it, each
+  of pillars, on the path from the festival street to the waterfall. Eight big huts stand round it, each
   one you can walk into, after the film's village frames: log stairs up to
   a plank porch with a railing, a doorway wide enough for three, lattice
   windows over bands of coloured scales, a log-cabin room inside with a
@@ -156,7 +153,7 @@ real phone.
   island the horizon line sits on the sea's far edge and the clouds stay
   far off in the sky.
 - Characters walk up and down the island's slopes, wade only ankle-deep,
-  and stop at cliffs, steep rock, the skylight's edge and the foot of
+  and stop at cliffs, steep rock and the foot of
   every rock landmark, hut, stall, palm and tree trunk. They can walk out along the pier to its end.
   They climb steps no higher than a stair's (so they walk up a hut's
   stairs onto its porch and into its room, and up the stage, but not up
@@ -165,7 +162,7 @@ real phone.
   a wall, a roof or a tree's crown rather than behind or inside it.
 - The waterline follows the height grid, the same edge the water stops at
   and characters wade to, so it runs smoothly round every shore. The rocks
-  draw it too, where they stand in the water, down in the skylight too.
+  draw it too, where they stand in the water, the sea's or the pool's.
 
 **Performance**
 
@@ -200,6 +197,61 @@ outlined is drawn twice, once for its pen line. To get there:
 
 **Changed**
 
+- The island has the film's look. The scenery is painted without lines, as
+  the film's backgrounds are, and only what moves keeps the pen: the
+  characters, their outfits and held props, and the duck ferry. Sunlight is
+  warm and the side turned from it cool blue, through a soft painted light
+  ramp in place of the toon's three steps; the rocks, trees, houses, stalls
+  and the ferry cast the sun's shadows round the camera; tree crowns and the
+  jungle on the rocks are painted in leaf clusters lit on top, their edges
+  broken into clusters; characters walking under the trees go dark and warm
+  in their shade, as in the film's jungle; haze thickens into the distance,
+  the brightest light (the sky, the waterfall) glows softly, and a colour
+  grade finishes the picture. The earlier toon look, with the pen on
+  everything, comes back with `toon` in the address (`?dev&toon`), for
+  comparing the two while the film look is finished. On this PC (Radeon
+  780M, 925 x 500) a frame at the waterfall takes about 11 ms, against 4 ms
+  in the toon look: 5.5 ms of it the finishing passes (smoothing, glow and
+  grade) and 1.4 ms the shadows. Not yet tried on a phone.
+- The film look's detail, checked side by side with the film's waterfall
+  frame. Stone is painted as the film paints it: limestone in tall upright
+  slabs, bedded rock in long low blocks, each its own shade with flat
+  patches of stain and streaks running down, a lit lip along its top and
+  dark cracks round it that wander and taper; moss grows in clumps on what
+  faces up and where the rock is mossy, painted as cushions lit along their
+  tops. The waterfall's wall is hung with leafier vines and six curtains of
+  hanging moss. Tree crowns and the jungle on the rocks are painted in round
+  puffs of leaves overlapping like scales, each yellower toward the sun and
+  bluer away from it; the crown opens between them at its edge and
+  underneath, so the canopy over the waterfall's bank reads as leaves
+  against the light. Bark is furrowed, lit warm orange on the sun's side and
+  mossed on top; the big trees hang aerial roots. The waterfall is a veil of
+  fine streaks the rock shows through at its sides, with soft mist where it
+  lands, and the pool mirrors the rock and trees round it, darker and
+  greener. The sun comes through the gaps between the leaves in dapples on
+  the ground and the rock, the sky is paler and hazier, and shafts of
+  sunlight slant into the waterfall's clearing. A frame at the waterfall now
+  takes about 13.4 ms on this PC. Every plant had been sharing one compiled
+  shader, so the crowns had never been painted in clusters; each kind now
+  compiles its own.
+- The film look's colour and leaves, measured against the film's waterfall
+  frame. The grade is warmer through the darks and the middle (the pale sky
+  left alone), its greens lean toward yellow and it has a fifth more
+  contrast, bringing the frame's average colour and the hue of its greens
+  within a few points of the film's; characters in the trees' shade keep
+  the film's olive beige. Each plant's leaves now carry where on the leaf
+  every point is, so they are painted as the film paints them: lighter
+  toward the tip, with a midrib and side veins rising from it (lighter on
+  green leaves, darker on the red ti), a monstera's splits cut in from its
+  edge and a frond's leaflets parting toward its edge. More plants crowd the
+  waterfall's pool, as in the frame: big monstera, red ti and cycads close in
+  at the left, arching cycad fronds, white flowers and a cluster of
+  bromeliads round the mossy stump at the right, ferns, monstera and ti in
+  the far corners against the rock, and the ring of plants round the pool is
+  a third denser. The cuts go through the picture's smoothing (alpha to
+  coverage) rather than throwing points away, which kept the depth test
+  that skips leaves hidden behind others: thrown away, a frame at the
+  waterfall took 35 to 120 ms; now it takes about 17 ms on this PC.
 - Building the props or the village with `--only` no longer overwrites
   their .blend file with just the one prop.
 - The offline cache now keeps the island's height grid and layout file,

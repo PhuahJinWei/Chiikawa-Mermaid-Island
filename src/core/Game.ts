@@ -17,6 +17,7 @@ import { createOnigiri } from '../characters/Props';
 import { loadProp } from '../world/PropModels';
 import { sharedUniforms } from '../characters/CharacterMaterial';
 import { updatePen } from '../world/Ink';
+import { FILM, FilmPost } from '../world/Look';
 import type { ActionId } from '../characters/Actions';
 import type { DevApi, StagedShot } from '../dev/DevTools';
 import { t } from '../i18n/I18n';
@@ -66,6 +67,10 @@ const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v
 
 export class Game {
   private readonly renderer: THREE.WebGLRenderer;
+  /** The hour the waterfall pool's mirror was last captured at, in the film look. */
+  private reflectedHour = Number.NaN;
+  /** The film look's finishing passes, when it is on. */
+  private post: FilmPost | null = null;
   private readonly scene = new THREE.Scene();
   // A narrow lens flattens perspective, like the film's framing.
   private readonly camera = new THREE.PerspectiveCamera(30, 1, 0.1, 1200);
@@ -115,6 +120,12 @@ export class Game {
     this.controlled = this.settings.character;
 
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+    if (FILM) {
+      // The film look: soft shadows cast by the sun, and the finishing passes.
+      this.renderer.shadowMap.enabled = true;
+      this.renderer.shadowMap.type = THREE.PCFShadowMap;
+      this.post = new FilmPost(this.renderer, this.scene, this.camera);
+    }
     this.stage = new Stage(this.scene);
     this.hud = new Hud(ui);
     this.input = new Input(canvas, this.hud);
@@ -151,6 +162,8 @@ export class Game {
     this.input.onFirstMove = () => this.hud.hideHint();
 
     this.ctx = { camera: this.camera, viewHeight: 1, pixelRatio: 1, groundHeight, clamp: clampToWalkable };
+    // In the film look, characters walking under the trees go into their shade.
+    if (FILM) this.ctx.shade = (x, y, z) => this.stage.shadeAt(x, y, z);
     this.timer.connect(document);
     window.addEventListener('resize', this.resize);
     document.addEventListener('visibilitychange', this.onVisibility);
@@ -301,9 +314,15 @@ export class Game {
     this.timer.update(now);
     const dt = Math.min(this.timer.getDelta(), 1 / 20);
     this.step(dt);
-    this.renderer.render(this.scene, this.camera);
+    this.draw();
     this.updateStats(dt);
   };
+
+  /** Draws the frame: straight to the screen, or through the film look's finishing passes. */
+  private draw(): void {
+    if (this.post) this.post.render();
+    else this.renderer.render(this.scene, this.camera);
+  }
 
   /** Advance the whole simulation by dt seconds, without drawing. */
   private step(dt: number): void {
@@ -350,7 +369,20 @@ export class Game {
     this.clock.advance(dt);
     this.stage.setHour(this.clock.hours);
     this.stage.update(this.camera, this.time);
+    this.updateReflections();
     this.updateInk();
+  }
+
+  /** In the film look, captures what the waterfall's pool mirrors again once the light has moved on
+   * by half an hour. */
+  private updateReflections(): void {
+    if (!FILM) return;
+    const hours = this.clock.hours;
+    const since = Math.abs(hours - this.reflectedHour);
+    if (Math.min(since, 24 - since) < 0.5) return;
+    this.reflectedHour = hours;
+    const hide = [...this.characters.values(), ...this.crowd].map((ch) => ch.root);
+    this.stage.reflectPool(this.renderer, hide, this.camera);
   }
 
   /** One pen for the whole world, set from where the camera is looking; see world/Ink.ts. */
@@ -447,6 +479,7 @@ export class Game {
     this.pixelRatio = ratio;
     this.renderer.setPixelRatio(ratio);
     this.renderer.setSize(window.innerWidth, window.innerHeight, false);
+    this.post?.setSize(window.innerWidth, window.innerHeight, ratio);
     this.renderer.getDrawingBufferSize(sharedUniforms.uResolution.value);
     this.ctx.pixelRatio = ratio;
   }
@@ -508,7 +541,7 @@ export class Game {
           this.camera.position.set(...c.position);
           this.camera.lookAt(...c.target);
         }
-        this.renderer.render(this.scene, this.camera);
+        this.draw();
       },
       canvas: () => this.renderer.domElement,
     };

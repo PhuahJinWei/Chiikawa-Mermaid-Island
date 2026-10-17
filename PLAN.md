@@ -130,23 +130,31 @@ silent, the game will clearly be our own interpretation.
 
 ### Look
 
-Low-poly, toon-shaded, flat colours with outlines. The film's look lifted
-into 3D: flat, almost unshaded characters against lush, painterly
-backgrounds. Bright turquoise-and-green days, deep navy moonlit nights.
-Exact colours live in `STYLE_GUIDE.md`.
+The film's look in 3D, so a screenshot reads like a frame of the film:
+flat, almost unshaded characters drawn with a bold pen, against painted
+backgrounds with no lines. Bright turquoise-and-green days, deep navy
+moonlit nights. Exact colours live in `STYLE_GUIDE.md`; the look is built in
+`src/world/Look.ts`.
 
-- **Shading.** Characters use `MeshToonMaterial` with a near-flat 2-step
-  ramp, so they read like the anime's flat fills. The environment gets a
-  3-step ramp and fuller lighting. One directional sun or moon plus a
-  hemisphere light. No shadow maps on mobile; a blob shadow under each
-  character instead.
-- **Outlines.** One pen for the whole world (`src/world/Ink.ts`), in **warm
-  dark brown**, not black, matching the anime: 1.8 cm in the world, never
-  under half the pen where the camera is looking. Characters, outfits and
-  props get inverted hulls pushed out in screen space; clouds, the horizon
-  and the waterline are drawn in their shaders. This replaces the earlier
-  plan of no environment outlines, or a
-  subtle screen-space edge pass only on desktop.
+- **Shading.** Characters stay flat fills, darkened and warmed where they
+  stand in the trees' shade. The scenery is lit through a soft painted ramp:
+  warm sun, cool blue shade, one directional sun or moon plus a hemisphere
+  light. The sun casts shadows round the camera from a shadow map; haze
+  thickens into the distance; finishing passes add a soft glow round the
+  brightest light and the film's colour grade. Stone, moss, leaves, bark
+  and still water are painted in their shaders the way the film paints
+  them, with dappled sunlight through the leaves and shafts of it in the
+  waterfall's clearing. Phones get cheaper versions of
+  the shadows and finishing passes by quality tier, set from a real phone
+  test, with a blob shadow under each character as the fallback.
+- **Outlines.** One pen (`src/world/Ink.ts`), in **warm dark brown**, not
+  black, matching the anime: 1.8 cm in the world, never under half the pen
+  where the camera is looking, for what moves: characters, outfits, held
+  props and the duck ferry, as inverted hulls pushed out in screen space.
+  The scenery has no lines, as in the film's backgrounds. This replaces the
+  earlier pen on everything, clouds, horizon and waterline included, which
+  `?toon` in the address still shows for comparison while the film look is
+  finished.
 - **Faces.** Drawn in code and painted onto the curved front of the head,
   so they squash with the body and read correctly from the side. This is how
   the 2D charm survives in 3D. Details in "Bodies, poses and expressions"
@@ -308,17 +316,17 @@ and north, widest on the night beach.
                             N
    ~   ▲▲   ┌──────────────────────▤▤▤▤▤▤▤▤▤▤┐   ▲▲  ~     ▲  karst pillar / sea spire
    ~        │   ■    ▲      ▲                │       ~     ■  mesa the jungle hides
-   ~   ▲▲   │  ■■   (■■)    ◎◎    ▲▲   ■     │  ▲▲   ~     (■■) the great dome of trees
-   ~        │     ■       ■  ⌂ ⌂  ▲    ■■    │       ~     ◎  the cave's skylight
+   ~   ▲▲   │  ■■   (■■)    ≋≋    ▲▲   ■     │  ▲▲   ~     (■■) the great dome of trees
+   ~        │     ■       ■  ⌂ ⌂  ▲    ■■    │       ~     ≋  the waterfall and its pool
    ~        │  ▴▴   ■  ⌂ ⊓stage ⌂ ▲    ■     │       ~     ▴  little white spires
-   ~   ▲    │ ≋■   ▲     ⌂ ⌂ ⌂          ▓    │  ▲    ~     ⌂  stilt huts
+   ~   ▲    │  ■   ▲     ⌂ ⌂ ⌂          ▓    │  ▲    ~     ⌂  stilt huts
    ~        │    ░░░  ✦ ✦┃✦ ✦  ♣♣♣  ▓▓       │       ~     ░  fields
    ~   ▲▲   │    ░░ ✦ ✦ ⌒arch⌒ ✦ ✦  ▓        │       ~     ✦  festival stalls
    ~        └── main beach ═╗═ night beach ──┘       ~     ⌒  welcome arch
    ~      lagoon            ║ pier   rowboat     ▲  ~     ▓  rocks behind the night beach
    ~            reef      🦆 ferry at anchor        ~     ⊓  watchtower stage
    ~    ~ ~ ~ ~ ~ reef edge ~ ~ ~ ~ ~                ~     ▤  the sea cliffs, their cove and sea stack
-   ~          the deep (dark, eerie)                 ~     ≋  the waterfall and its pool
+   ~          the deep (dark, eerie)                 ~
 ```
 
 | Zone | What happens there | In the water |
@@ -326,15 +334,14 @@ and north, widest on the night beach.
 | **Pier and ferry** | A short wooden pier on vivid turquoise water, as in the film's aerial shot, leading straight onto the festival street. The white duck-shaped ferry lies at anchor out in the bay. Confetti welcome for new guests. | Too deep: sit on the end instead. |
 | **Festival** | Behind the main beach: two long rows of stalls facing the bay either side of the pier, the welcome arch (島へようこそ!! in yellow flowers) in the opening between them, and through it a street of stalls running inland under banners, bunting and lanterns. Usagi runs about. | Dry. |
 | **Main beach** | Wide sand either side of the pier. Palms, starfish on the sand. | Wade in gradually. |
-| **Village** | A clearing deep in the jungle, in the middle of the ring of pillars on the path to the cave's skylight: big stilt huts you can walk into, with mushroom-shaped thatched roofs and patterned walls, a few plank and round beehive huts, round the tall wooden watchtower stage where announcements are made, torches in front of it. Potted plants, fruit baskets, log benches. Most conversations happen here. | Dry. |
+| **Village** | A clearing deep in the jungle, in the middle of the ring of pillars on the path to the waterfall: big stilt huts you can walk into, with mushroom-shaped thatched roofs and patterned walls, a few plank and round beehive huts, round the tall wooden watchtower stage where announcements are made, torches in front of it. Potted plants, fruit baskets, log benches. Most conversations happen here. | Dry. |
 | **Fields** | Farm plots just west of the festival street, as in the film's aerial shot. Islanders tending crops. | Dry. |
 | **Jungle** | Fills the interior. Striped palms, ferns, monstera, bright flower bushes, blue butterflies, clover clearings. Golden late-afternoon light. | Dry. |
-| **Waterfall** | In the west, where the film's aerial shot shows its spray rising out of the trees, as in its frame of it: a narrow white waterfall pours from a notch in a long, low wall of mossy limestone hung with vines into a deep green pool at its foot, in a clearing open to the sky. Monstera, red ti plants, ferns, bromeliads on a mossy rock and a big tree with buttress roots crowd the banks. A path comes from the fields. | Wade at the pool's edge. |
-| **Sea cliffs** | The north-east coast, hidden behind the pillars in the aerial shot, as in the film's frame of it: tall cliffs of bedded cream-and-tan sandstone with grass and shrubs on top, running round a cove and away along the coast, a sea stack standing off them in turquoise water. A lower grassy headland at their west end, reached by a path from the skylight, looks across the cove at them. | Too high: look down from the top. |
+| **Waterfall** | Deep in the jungle in the middle of the island, as in the film's frame of it: the round water the aerial shot shows through the trees in the ring of pillars is its pool. A narrow white waterfall pours from a notch in a long, low wall of mossy limestone hung with vines into the deep green pool at its foot, in a clearing open to the sun, seen from a bank in the shade of dense trees. Monstera, red ti plants, ferns, bromeliads on a mossy rock and a big tree with buttress roots crowd the banks, and the jungle closes in either side. A path comes up from the village and goes on past the waterfall to the sea cliffs. | Wade at the pool's edge. |
+| **Sea cliffs** | The north-east coast, hidden behind the pillars in the aerial shot, as in the film's frame of it: tall cliffs of bedded cream-and-tan sandstone with grass and shrubs on top, running round a cove and away along the coast, a sea stack standing off them in turquoise water. A lower grassy headland at their west end, reached by a path past the waterfall, looks across the cove at them. | Too high: look down from the top. |
 | **Karst pillars** | Seven tall pale limestone towers in a ring round the island's middle, jungle on their tops with white rock standing out of it, the island's silhouette from every angle. Many short, wide ones hide in the forest: mesas thick with trees on top, one under a great dome of them. Not climbable. They are landmarks for finding your way. | — |
-| **Cave skylight** | Between the pillars in the island's centre, as in the film's aerial shot: not a pond but a round opening in the jungle floor, in a gentle hollow where the trees stand back, ringed by a mossy lip with vines hanging down inside, in the middle of the ring of pillars. Far below lies the forbidden cave's water, the sea come in under the island. A calm, hidden spot. | Peer down from the lip. |
 | **Night beach** | East end of the main beach, the widest stretch of sand, below low layered rocks. Bonfire, the night feast with rows of islanders, Rakko's ukulele, moon on the water. | Wade. |
-| **Forbidden cave** | Under the island's middle: a round chamber whose opening in the ceiling is the skylight in the jungle above. The moon, or a sunbeam by day, shines down onto its glowing water with drifting sparkles and mist. A stone ledge with a small fire sits beside it. Reachable only by rowboat, as in the film; where its entrance is (behind a No Entry sign) and the dark rock passage in are still to be planned. | Row in, across the moonlit water. |
+| **Forbidden cave** | Somewhere under the island, still to be placed: a round chamber with an opening in its ceiling to the jungle above. The moon, or a sunbeam by day, shines down onto its glowing water with drifting sparkles and mist. A stone ledge with a small fire sits beside it. Reachable only by rowboat, as in the film; where it is, its entrance (behind a No Entry sign) and the dark rock passage in are still to be planned. | Row in, across the moonlit water. |
 | **Lagoon** | Calm, clear, bright water inside the reef. Fish shoals. | Wade in the shallows; row across it. |
 | **Reef** | Coral shapes, colourful fish, rock spires breaking the surface around the edge. | Row out over it. Mermaid sightings start here. |
 | **The deep** | Past the reef edge. Near-black navy water and slow eerie sounds: the scariest place on the island, by design. | Row out over the dark water. |
@@ -347,13 +354,13 @@ ledge.
 
 The ground is built in Blender from a height grid over the map, with its
 colours painted into one texture seen from above. The rock landmarks (karst
-pillars and mesas, the cave's skylight, the rocks behind the night beach,
-sea spires, the sea cliffs, the waterfall's wall) are built with it, so their feet fit the
-ground. The waterfall is in the west, where the aerial shot shows its spray over the trees;
-none stands in the middle of the island. Huts, palms,
+pillars and mesas, the rocks behind the night beach, sea spires, the sea
+cliffs, the waterfall's wall) are built with it, so their feet fit the
+ground. The waterfall is in the middle of the island, its pool the round
+water the aerial shot shows through the trees. Huts, palms,
 stalls and coral are props placed from a JSON layout file, so the map is
-editable without touching code. The cave under the skylight, its entrance
-and the passage in are to be planned with M2.
+editable without touching code. Where the cave is, its entrance and the
+passage in are to be planned with M2.
 
 ---
 
@@ -490,7 +497,7 @@ art/
     face_art.py        * painted faces: layers, expressions.txt, starter art for new characters
     build_characters.py* parts kit for characters without a downloaded model (none yet)
     build_island.py    * the island: the ground's heights, painted colours and mesh; the landmarks; the plants
-    karst.py           * the rock landmarks: karst pillars and mesas, the cave's skylight, sea spires; the waterfall, its vines and spray; the sea cliffs
+    karst.py           * the rock landmarks: karst pillars and mesas, sea spires, a cave's skylight (for the cave, still to be placed); the waterfall, its vines and spray; the sea cliffs
     plants.py          * the jungle's plants: canopy clumps, palms, ferns, bushes, monstera, crops
     build_props.py     * palm, log, starfish, onigiri, No Entry sign, butterfly
     build_village.py   * the village and the festival: huts, stage, torches, stalls, arch, banners, bunting, pier, ferry
@@ -522,7 +529,7 @@ src/
     Ink.ts             * the world's pen: one stroke width for every outline; swaying and flapping hulls
     PropModels.ts      * loads Blender props and what they tell the game: footprint, deck, label
     Island.ts          * the island's ground: height grid, walking, the waterline; the rocks' feet
-    Landmarks.ts       * the rock landmarks, the cave's skylight, the sea cliffs; the waterfall and its spray
+    Landmarks.ts       * the rock landmarks, the sea cliffs; the waterfall and its spray
     Props.ts           * placement from layout.json, merged by patch, painted signs, the bobbing ferry
     Obstacles.ts       * what blocks walking and the camera: prop feet, decks, trunks, crowns
     Vegetation.ts      * the jungle and crops, swaying in the wind
@@ -667,7 +674,7 @@ Each milestone ends with something you can open on your phone.
 |---|---|---|---|
 | **M0** | Scaffold and first character | Open a URL on your phone and walk Chiikawa around a sand plane with the joystick at 60 fps. She squashes, jiggles, blinks and changes expression. A test panel triggers every action and expression so you can judge the feel. A lineup of Chiikawa, Hachiware, Usagi and an islander for you to approve the look. PWA installs. Locale system in place, so even the first button reads in Japanese. | Medium |
 | **M1** | Island | Walk the whole island: terrain, karst pillars, jungle, village, pier, moored ferry, water plane, sky, day-night cycle with moon and stars, zones. Props from layout file. | Medium |
-| **M2** | Sea | Wade in the shallows. Bright lagoon and dark deep. Fish shoals. The rowboat, out over the reef and the deep and into the forbidden cave under the skylight, with its moonlit water. | Medium |
+| **M2** | Sea | Wade in the shallows. Bright lagoon and dark deep. Fish shoals. The rowboat, out over the reef and the deep and into the forbidden cave, with its moonlit water. | Medium |
 | **M3** | Cast | The rest of the named characters built from the parts kit, with their own actions, props and expressions. Standing around on the beach. | Medium |
 | **M4** | Life | Schedules, pathing, reactions. Characters go about their day. Night feast with bonfire and gathering. | Large |
 | **M5** | Talk | Dialogue system, first pass of lines for every character, friendship, journal with Now / Friends tabs, all in Japanese. | Medium |

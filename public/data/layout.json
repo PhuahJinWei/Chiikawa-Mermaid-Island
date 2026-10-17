@@ -132,8 +132,7 @@
   ],
   "zones": [
     {"id": "pier", "box": [0, 7.7, 2.2, 7.0, 0]},
-    {"id": "skylight", "circle": [2, -159, 21]},
-    {"id": "waterfall", "circle": [-92, -52, 17]},
+    {"id": "waterfall", "circle": [2, -159, 25]},
     {"id": "cliffs", "circle": [28, -205, 14]},
     {"id": "cliffs", "box": [70, -185, 40, 14, -20]},
     {"id": "fields", "box": [-45, -38, 16, 14, 0]},

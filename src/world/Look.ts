@@ -1,0 +1,626 @@
+import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+
+/**
+ * The film look, the island's look: the island painted the way the film's backgrounds are. Only the
+ * characters and the ferry keep the pen's line, as in the film, where line art belongs to what is
+ * animated and the scenery is painted without it; warm sunlight with cool shadows, which the rocks,
+ * trees and houses cast on the ground; the jungle's leaves dabbed light and dark; haze into the
+ * distance, a soft glow round bright light and the film's colour grade. While it is being finished,
+ * `toon` in the address (?dev&toon) brings back the earlier toon look, with the pen on everything,
+ * so the two can be compared side by side.
+ */
+export const FILM = !(typeof location !== 'undefined' && new URLSearchParams(location.search).has('toon'));
+
+let ramp: THREE.DataTexture | null = null;
+
+/**
+ * The film's light ramp for scenery, across the toon material's lit side (dot of normal and light,
+ * mapped to 0..1): none of the sun's light on the side turned away, rising softly through the
+ * terminator to all of it, where the toon ramp has three hard steps that never go dark.
+ */
+export function paintedRamp(): THREE.DataTexture {
+  if (!ramp) {
+    const n = 64;
+    const data = new Uint8Array(n);
+    for (let i = 0; i < n; i++) data[i] = Math.round(255 * THREE.MathUtils.smoothstep(i / (n - 1), 0.44, 0.68));
+    ramp = new THREE.DataTexture(data, n, 1, THREE.RedFormat);
+    ramp.minFilter = THREE.LinearFilter;
+    ramp.magFilter = THREE.LinearFilter;
+    ramp.generateMipmaps = false;
+    ramp.needsUpdate = true;
+  }
+  return ramp;
+}
+
+/**
+ * What the trees' shade does to a character's flat colours in the film look: much darker and warm,
+ * lit only by the light the leaves let through, as the film paints its characters in the jungle's
+ * shade (white comes out a dark olive beige).
+ */
+export const CANOPY_SHADE = new THREE.Color('#8A8E74');
+
+/** Toward the sun (or the moon), for painting what faces it; the stage keeps it with the hour. */
+export const sunUniform = { value: new THREE.Vector3(0, 1, 0) };
+
+const warm = new THREE.Color('#FFE3BC');
+const hazeTop = new THREE.Color('#9FD6F2');
+const hazeHorizon = new THREE.Color('#E6FAF6');
+
+/**
+ * The day's sky as the film paints it over the jungle: paler and hazier, almost white at the
+ * horizon, so the distant trees fade into light. Takes the sky's top and horizon colours and
+ * changes them in place.
+ */
+export function filmSky(top: THREE.Color, horizon: THREE.Color, night: number): void {
+  const day = 1 - night;
+  top.lerp(hazeTop, 0.45 * day);
+  horizon.lerp(hazeHorizon, 0.6 * day);
+}
+const cool = new THREE.Color('#9DC2EC');
+
+/**
+ * The day's lights as the film paints them: the sun warmer and the sky's fill cooler and stronger,
+ * so the side turned from the sun, and every shadow, is a clear cool blue rather than a darker copy
+ * of the lit side. Takes the toon look's sun and sky light and changes them in place.
+ */
+export function filmLights(light: THREE.DirectionalLight, hemi: THREE.HemisphereLight, night: number): void {
+  const day = 1 - night;
+  light.color.lerp(warm, 0.55 * day);
+  light.intensity *= 0.78;
+  hemi.color.lerp(cool, 0.5 * day);
+  hemi.intensity *= 1.35;
+}
+
+/** GLSL: dabs of light and dark leaves over a plant, from where each point is in the world. */
+export const LEAF_GLSL = /* glsl */ `
+float leafHash(vec3 p) { return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453); }
+float leafNoise(vec3 p) {
+  vec3 i = floor(p);
+  vec3 f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(mix(leafHash(i), leafHash(i + vec3(1.0, 0.0, 0.0)), f.x),
+                 mix(leafHash(i + vec3(0.0, 1.0, 0.0)), leafHash(i + vec3(1.0, 1.0, 0.0)), f.x), f.y),
+             mix(mix(leafHash(i + vec3(0.0, 0.0, 1.0)), leafHash(i + vec3(1.0, 0.0, 1.0)), f.x),
+                 mix(leafHash(i + vec3(0.0, 1.0, 1.0)), leafHash(i + vec3(1.0, 1.0, 1.0)), f.x), f.y), f.z);
+}
+float leafDabs(vec3 p) {
+  float n = 0.65 * leafNoise(p * 1.7) + 0.35 * leafNoise(p * 4.6 + 3.1);
+  return smoothstep(0.36, 0.64, n);
+}
+`;
+
+/**
+ * GLSL: the film's painted tree crowns. A lattice of jittered points in the world splits the
+ * foliage into leaf clusters (`leafCells`: distance to the nearest point, how far from the border
+ * with the next, and the way to the cluster's middle). `clusterTone` lights each cluster on its top
+ * and darkens the gaps between them; `clusterCut` opens those gaps where the surface turns away
+ * from the camera, so the crown's edge breaks into clusters instead of showing its polygons.
+ * Only leaves take it: `leafy` picks out green vertex colours, leaving trunks and branches alone.
+ */
+export const CLUSTER_GLSL = /* glsl */ `
+vec3 cellHash3(vec3 p) {
+  p = vec3(dot(p, vec3(127.1, 311.7, 74.7)), dot(p, vec3(269.5, 183.3, 246.1)), dot(p, vec3(113.5, 271.9, 124.6)));
+  return fract(sin(p) * 43758.5453);
+}
+void leafCells(vec3 p, out float f1, out float border, out vec3 rel, out vec3 id) {
+  vec3 i = floor(p);
+  vec3 f = fract(p);
+  float d1 = 8.0;
+  float d2 = 8.0;
+  vec3 nearest = vec3(0.0);
+  id = i;
+  for (int z = -1; z <= 1; z++) {
+    for (int y = -1; y <= 1; y++) {
+      for (int x = -1; x <= 1; x++) {
+        vec3 g = vec3(float(x), float(y), float(z));
+        vec3 r = g + cellHash3(i + g) * 0.85 - f;
+        float d = dot(r, r);
+        if (d < d1) { d2 = d1; d1 = d; nearest = r; id = i + g; } else if (d < d2) { d2 = d; }
+      }
+    }
+  }
+  f1 = sqrt(d1);
+  border = sqrt(d2) - f1;
+  rel = -nearest;
+}
+float leafy(vec3 colour) {
+  return smoothstep(0.02, 0.12, colour.g - max(colour.r, colour.b) * 0.9);
+}
+// Each cluster a soft puff lit on its top, a little lighter or darker than its neighbours, with a
+// shadowed seam where it tucks under the next.
+vec3 clusterTone(vec3 rel, float border, vec3 id) {
+  float top = dot(normalize(rel + vec3(1e-4)), normalize(vec3(0.3, 0.9, 0.35)));
+  float puff = mix(0.76, 1.15, smoothstep(-0.55, 0.75, top));
+  float seam = mix(0.8, 1.0, smoothstep(0.0, 0.32, border));
+  vec3 vary = cellHash3(id + 17.0);
+  return vec3(puff * seam * mix(0.88, 1.1, vary.x)) * mix(vec3(0.97, 0.98, 1.04), vec3(1.05, 1.03, 0.92), vary.y);
+}
+bool clusterCut(vec3 normalView, vec3 toCamera, float border) {
+  float rim = 1.0 - abs(dot(normalView, normalize(toCamera)));
+  return rim > 0.55 && border < (rim - 0.55) * 0.75;
+}
+`;
+
+/**
+ * GLSL: the film's foliage (needs CLUSTER_GLSL): round puffs of leaves overlapping like scales, the
+ * higher ones over the lower, each lit on its side toward the sun. `p` is in puffs and `n` is the
+ * surface's normal in the world. Returns 1 where p is in a puff, with the puff's light (-1 to 1),
+ * how near its edge p is (0 to 1) and the puff's own hash.
+ */
+export const PUFF_GLSL = /* glsl */ `
+uniform vec3 uSun;
+float leafPuffs(vec3 p, vec3 n, out float lit, out float edge, out vec3 tint) {
+  vec3 i = floor(p);
+  vec3 f = fract(p);
+  float best = -1e9;
+  float found = 0.0;
+  lit = 0.0;
+  edge = 1.0;
+  tint = vec3(0.5);
+  for (int z = -1; z <= 1; z++) {
+    for (int y = -1; y <= 1; y++) {
+      for (int x = -1; x <= 1; x++) {
+        vec3 g = vec3(float(x), float(y), float(z));
+        vec3 h = cellHash3(i + g);
+        vec3 r = g + h * 0.85 - f;
+        float radius = 0.5 + 0.32 * h.x;
+        float d = length(r);
+        float priority = g.y + h.y + 0.5 * h.z;
+        if (d < radius && priority > best) {
+          best = priority;
+          found = 1.0;
+          lit = dot(normalize(-r / radius + n * 0.9), uSun);
+          edge = d / radius;
+          tint = h;
+        }
+      }
+    }
+  }
+  return found;
+}
+`;
+
+/**
+ * GLSL: the film's painted bark (needs LEAF_GLSL and PUFF_GLSL's uSun): furrows running up the wood,
+ * wandering a little, the ridges between them lighter and, on the side toward the sun, warm orange;
+ * moss on what faces up. `woody` picks out the plants' browns, leaving leaves and flowers alone.
+ */
+export const BARK_GLSL = /* glsl */ `
+float woody(vec3 c) {
+  return step(c.b, c.g) * step(c.g, c.r) * smoothstep(0.06, 0.16, c.r - c.b) * (1.0 - smoothstep(0.45, 0.7, c.r));
+}
+vec3 paintBark(vec3 base, vec3 p, vec3 n) {
+  float wander = leafNoise(p * vec3(0.6, 0.15, 0.6)) - 0.5;
+  vec3 q = p + vec3(wander, 0.0, -wander) * 0.4;
+  float furrows = leafNoise(q * vec3(2.6, 0.3, 2.6)) * 0.7 + leafNoise(q * vec3(7.0, 0.8, 7.0)) * 0.3;
+  vec3 col = base * mix(0.6, 1.1, smoothstep(0.32, 0.68, furrows));
+  float sunny = smoothstep(0.3, 0.8, dot(n, uSun));
+  col = mix(col, col * vec3(1.42, 1.22, 0.86), sunny * smoothstep(0.5, 0.72, furrows));
+  float moss = smoothstep(0.5, 0.85, n.y) * smoothstep(0.55, 0.62, leafNoise(p * 1.4 + 3.0));
+  return mix(col, vec3(0.16, 0.33, 0.06), moss);
+}
+`;
+
+/**
+ * GLSL: the film's painted leaves (needs CLUSTER_GLSL's leafy), from where on its leaf a point is
+ * (`at`: how far along it from the stalk, plus 2 on a monstera's split leaf or 4 on a frond, and how
+ * far across it from the middle; across 9 off the leaves). A monstera's splits run in from its edge
+ * between the veins and a frond's leaflets part toward its edge, so both are cut away there; the
+ * rest is lighter toward the tip, with a midrib and side veins rising from it toward the tip,
+ * lighter on green leaves and darker on red ones. Returns how much of the point is left (0 where
+ * it is cut away, soft at the cut's edge), for alpha to coverage: a leaf that throws points away
+ * outright would lose the depth test that skips the leaves hidden behind it.
+ */
+export const VEIN_GLSL = /* glsl */ `
+float paintVeins(inout vec3 colour, vec3 vertexColour, vec2 at) {
+  if (at.y > 2.0) return 1.0;
+  float kind = floor(at.x / 2.0);
+  float along = at.x - kind * 2.0;
+  float across = abs(at.y);
+  float keep = 1.0;
+  if (kind > 0.5 && kind < 1.5) {
+    float run = along * 5.0 + across * 0.9 + 0.3;
+    float d = abs(fract(run) - 0.5) - 0.1 * smoothstep(0.55, 0.9, across) * step(0.18, along);
+    float w = fwidth(run) * 0.75 + 1e-4;
+    keep = smoothstep(-w, w, d);
+  }
+  if (kind > 1.5) {
+    float run = along * 10.0 - across * 0.6;
+    float d = abs(fract(run) - 0.5) - 0.22 * smoothstep(0.45, 0.85, across);
+    float w = fwidth(run) * 0.75 + 1e-4;
+    keep = smoothstep(-w, w, d);
+  }
+  float rib = (1.0 - smoothstep(0.035, 0.08, across)) * smoothstep(0.03, 0.1, along) * (1.0 - smoothstep(0.85, 0.98, along));
+  float v = fract(along * 6.0 - across * 1.5);
+  float vein = (1.0 - smoothstep(0.03, 0.09, min(v, 1.0 - v))) * smoothstep(0.08, 0.2, across) * (1.0 - smoothstep(0.75, 0.95, across));
+  vec3 c = colour * mix(0.8, 1.12, smoothstep(0.0, 0.85, along));
+  vec3 veinColour = mix(c * 0.62, c * 1.25 + vec3(0.02, 0.03, 0.0), leafy(vertexColour));
+  colour = mix(c, veinColour, max(rib, vein * 0.6));
+  return keep;
+}
+`;
+
+/**
+ * Paints a toon material's leaves and bark the film's way, from its onBeforeCompile (after any change
+ * to `transformed`, such as the wind's sway): leaves dabbed light and dark, or, for tree crowns
+ * (`clusters`: the puffs' size in metres), in puffs lit toward the sun with the crown opening between
+ * them at its edge and underneath; wood furrowed and lit warm (see BARK_GLSL). Needs vertex colours,
+ * which tell leaves from wood.
+ */
+export function paintLeaves(shader: THREE.WebGLProgramParametersWithUniforms, clusters = 0): void {
+  shader.vertexShader = shader.vertexShader
+    .replace('#include <common>', '#include <common>\nvarying vec3 vLeaf;\nattribute vec2 aLeaf;\nvarying vec2 vLeafAt;')
+    .replace(
+      '#include <project_vertex>',
+      'vLeaf = (modelMatrix * vec4(transformed, 1.0)).xyz;\nvLeafAt = aLeaf;\n#include <project_vertex>',
+    );
+  shader.fragmentShader = shader.fragmentShader.replace(
+    '#include <common>',
+    `#include <common>\nvarying vec3 vLeaf;\nvarying vec2 vLeafAt;\n${LEAF_GLSL}\n${CLUSTER_GLSL}\n${PUFF_GLSL}\n${BARK_GLSL}\n${VEIN_GLSL}`,
+  );
+  shader.uniforms.uSun = sunUniform;
+  if (!clusters) {
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        '#include <color_fragment>',
+        '#include <color_fragment>\ndiffuseColor.rgb *= mix(1.0, mix(0.8, 1.14, leafDabs(vLeaf)), leafy(vColor.rgb));',
+      )
+      .replace(
+        '#include <normal_fragment_maps>',
+        `#include <normal_fragment_maps>
+        diffuseColor.rgb = mix(diffuseColor.rgb, paintBark(diffuseColor.rgb, vLeaf, inverseTransformDirection(normal, viewMatrix)), woody(vColor.rgb));
+        diffuseColor.a *= paintVeins(diffuseColor.rgb, vColor.rgb, vLeafAt);`,
+      );
+    return;
+  }
+  shader.fragmentShader = shader.fragmentShader.replace(
+    '#include <normal_fragment_maps>',
+    `#include <normal_fragment_maps>
+    {
+      // Leaves in puffs: the crown's edge breaks into them; each is yellower where it faces the
+      // sun, bluer away from it and a little darker round its edge.
+      float leaves = leafy(vColor.rgb);
+      float puffLit, puffEdge;
+      vec3 puffTint;
+      float inPuff = leafPuffs(vLeaf / ${clusters.toFixed(2)}, inverseTransformDirection(normal, viewMatrix), puffLit, puffEdge, puffTint);
+      // Between the puffs the crown opens to the light at its edge and underneath.
+      vec3 nWorld = inverseTransformDirection(normal, viewMatrix);
+      float rim = 1.0 - abs(dot(normal, normalize(vViewPosition)));
+      float open = max(smoothstep(0.25, 0.45, rim), smoothstep(-0.2, -0.55, nWorld.y));
+      if (leaves > 0.5 && inPuff < 0.5 && open > 0.5) discard;
+      vec3 tone = mix(vec3(0.6, 0.72, 0.82), vec3(1.22, 1.16, 0.74), smoothstep(-0.1, 0.35, puffLit));
+      tone *= mix(1.0, 0.76, smoothstep(0.62, 1.0, puffEdge)) * mix(0.88, 1.1, puffTint.x);
+      tone = mix(vec3(0.42, 0.5, 0.52), tone, inPuff) * mix(0.94, 1.05, leafDabs(vLeaf * 2.0));
+      diffuseColor.rgb *= mix(vec3(1.0), tone, leaves);
+      diffuseColor.rgb = mix(diffuseColor.rgb, paintBark(diffuseColor.rgb, vLeaf, nWorld), woody(vColor.rgb));
+    }`,
+  );
+}
+
+/**
+ * The film look's shadow for a crown painted in puffs (see paintLeaves): the sun passes through
+ * the gaps between its puffs, so the ground and the rock under the trees lie in dappled light.
+ * `clusters` is the puffs' size; `before` adds anything the crown's own material does to its
+ * vertices first (such as the wind's sway), so the shadow moves with it. Only leaves let the light
+ * through: their colours are told from the wood's as the crown's material tells them.
+ */
+export function puffShadow(clusters: number, before?: (shader: THREE.WebGLProgramParametersWithUniforms) => void): THREE.MeshDepthMaterial {
+  const depth = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking });
+  depth.onBeforeCompile = (shader) => {
+    before?.(shader);
+    shader.uniforms.uSun = sunUniform;
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nattribute vec3 color;\nvarying vec3 vLeaf;\nvarying vec3 vLeafColour;')
+      .replace(
+        '#include <project_vertex>',
+        'vLeaf = (modelMatrix * vec4(transformed, 1.0)).xyz;\nvLeafColour = color;\n#include <project_vertex>',
+      );
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', `#include <common>\nvarying vec3 vLeaf;\nvarying vec3 vLeafColour;\n${CLUSTER_GLSL}\n${PUFF_GLSL}`)
+      .replace(
+        'void main() {',
+        `void main() {
+        {
+          float lit, edge;
+          vec3 tint;
+          if (leafy(vLeafColour) > 0.5 && leafPuffs(vLeaf / ${clusters.toFixed(2)}, vec3(0.0, 1.0, 0.0), lit, edge, tint) < 0.5) discard;
+        }`,
+      );
+  };
+  depth.customProgramCacheKey = () => `puffShadow:${clusters}:${before ? 'moved' : 'still'}`;
+  return depth;
+}
+
+/**
+ * Shafts of sunlight slanting down through the haze, as the film paints them where the sun falls
+ * into a clearing: soft bright bands standing on `bases` (x, y, z, each with its length and width
+ * in metres), leaning toward the sun and turning to face the camera, gone when the sun is down.
+ * `strength` is how bright they are at most.
+ */
+export function lightShafts(bases: [number, number, number, number, number][], strength: number): THREE.Mesh {
+  const positions: number[] = [];
+  const base: number[] = [];
+  const size: number[] = [];
+  const corner: number[] = [];
+  const index: number[] = [];
+  bases.forEach(([x, y, z, length, width], k) => {
+    for (const [u, v] of [[0, 0], [1, 0], [1, 1], [0, 1]]) {
+      positions.push(x, y, z);
+      base.push(x, y, z);
+      size.push(length, width, k);
+      corner.push(u, v);
+    }
+    const i = k * 4;
+    index.push(i, i + 1, i + 2, i, i + 2, i + 3);
+  });
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute('aBase', new THREE.Float32BufferAttribute(base, 3));
+  geometry.setAttribute('aSize', new THREE.Float32BufferAttribute(size, 3));
+  geometry.setAttribute('aCorner', new THREE.Float32BufferAttribute(corner, 2));
+  geometry.setIndex(index);
+  const material = new THREE.ShaderMaterial({
+    uniforms: {
+      uSun: sunUniform,
+      uStrength: { value: strength },
+      uTime: { value: 0 },
+      uColour: { value: new THREE.Color('#FFF3CF') },
+    },
+    vertexShader: /* glsl */ `
+      uniform vec3 uSun;
+      attribute vec3 aBase;
+      attribute vec3 aSize;
+      attribute vec2 aCorner;
+      varying vec2 vCorner;
+      varying float vShaft;
+      void main() {
+        vec3 axis = normalize(uSun);
+        vec3 toCamera = normalize(cameraPosition - aBase);
+        vec3 side = normalize(cross(axis, toCamera));
+        vec3 p = aBase + axis * (aCorner.y * aSize.x) + side * ((aCorner.x - 0.5) * aSize.y);
+        vCorner = aCorner;
+        vShaft = aSize.z;
+        gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0);
+      }`,
+    fragmentShader: /* glsl */ `
+      uniform vec3 uSun;
+      uniform float uStrength;
+      uniform float uTime;
+      uniform vec3 uColour;
+      varying vec2 vCorner;
+      varying float vShaft;
+      void main() {
+        float across = sin(3.14159 * vCorner.x);
+        float along = smoothstep(0.0, 0.25, vCorner.y) * (1.0 - smoothstep(0.55, 1.0, vCorner.y));
+        float shimmer = 0.8 + 0.2 * sin(uTime * 0.6 + vShaft * 2.3 + vCorner.y * 4.0);
+        float day = smoothstep(0.05, 0.25, uSun.y);
+        gl_FragColor = vec4(uColour * (across * across * along * shimmer * day * uStrength), 1.0);
+      }`,
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+  });
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.frustumCulled = false;
+  return mesh;
+}
+
+/** How a kind of stone is painted (`paintStone`): the blocks it splits into (how wide and how tall,
+ * in metres); whether it stands in upright slabs, each column of them breaking at heights of its own,
+ * or lies in level beds, each bed's joints where they fall; and how readily moss grows on what faces
+ * up. */
+export interface StoneKind {
+  block: [number, number];
+  upright: boolean;
+  moss: number;
+}
+
+/** Limestone splits into tall upright slabs, the sea spires' into narrower ones; bedded rock lies in
+ * long, low blocks. */
+export const STONES = {
+  limestone: { block: [2.6, 7.0], upright: true, moss: 1 },
+  spire: { block: [1.4, 3.5], upright: true, moss: 0.6 },
+  bedded: { block: [4.0, 1.4], upright: false, moss: 0.5 },
+  layered: { block: [3.0, 1.1], upright: false, moss: 0.7 },
+} satisfies Record<string, StoneKind>;
+
+/**
+ * GLSL: the film's painted stone over a rock's own colours (needs LEAF_GLSL and CLUSTER_GLSL). The
+ * stone splits into blocks, each its own shade, with flat painted patches of shade and stain across
+ * it and streaks running down, a lit lip along its top and dark cracks round it; moss grows on what
+ * faces up and wherever the rock's colours are moss, in broken patches painted as cushions, each lit
+ * along its top. `p` is the point in the world, `n` its normal.
+ */
+export const STONE_GLSL = /* glsl */ `
+uniform vec2 uBlock;
+uniform float uUpright;
+uniform float uMoss;
+uniform vec3 uMossLight;
+uniform vec3 uMossDark;
+vec2 stoneHash2(vec2 p) {
+  p = vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)));
+  return fract(sin(p) * 43758.5453);
+}
+// The cell of a plan of jittered points that p (in cells) falls in, and how far it is from the
+// cell's edge.
+void stoneCells(vec2 p, out vec2 id, out float border) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  float d1 = 8.0;
+  float d2 = 8.0;
+  id = i;
+  for (int y = -1; y <= 1; y++) {
+    for (int x = -1; x <= 1; x++) {
+      vec2 g = vec2(float(x), float(y));
+      vec2 r = g + stoneHash2(i + g) * 0.9 - f;
+      float d = dot(r, r);
+      if (d < d1) { d2 = d1; d1 = d; id = i + g; } else if (d < d2) { d2 = d; }
+    }
+  }
+  border = sqrt(d2) - sqrt(d1);
+}
+float mossy(vec3 colour) {
+  return smoothstep(0.1, 0.2, colour.g - max(colour.r, colour.b));
+}
+// Noise turned off the grid's axes, octave by octave, so its shapes come out round, not blocky.
+const mat3 STONE_TURN = mat3(0.00, 0.80, 0.60, -0.80, 0.36, -0.48, -0.60, -0.48, 0.64);
+float roundNoise(vec3 p) {
+  return leafNoise(STONE_TURN * p) * 0.6 + leafNoise(STONE_TURN * STONE_TURN * (p * 2.03) + 1.7) * 0.4;
+}
+float mossBumps(vec3 p) {
+  return roundNoise(p * 0.55);
+}
+vec3 paintStone(vec3 base, vec3 p, vec3 n) {
+  // Cracks wander a little as they run.
+  vec2 warp = vec2(leafNoise(vec3(p.xz * 0.35, p.y * 0.09)), leafNoise(vec3(p.xz * 0.35 + 5.2, p.y * 0.09))) - 0.5;
+  vec2 cid;
+  float cBorder;
+  float rise;
+  if (uUpright > 0.5) {
+    stoneCells(p.xz / uBlock.x + warp * 0.6, cid, cBorder);
+    rise = p.y / uBlock.y + stoneHash2(cid + 7.1).x * 4.0 + warp.x * 0.5;
+  } else {
+    rise = p.y / uBlock.y + warp.x * 0.25;
+    stoneCells(p.xz / uBlock.x + warp * 0.4 + stoneHash2(vec2(floor(rise), 3.3)) * 9.0, cid, cBorder);
+  }
+  float within = fract(rise);
+  vec3 h = cellHash3(vec3(cid, floor(rise)));
+  vec3 col = base * mix(0.86, 1.1, h.x);
+  col *= mix(vec3(1.0), vec3(0.93, 1.03, 0.9), step(0.62, h.y));
+  float stain = leafNoise(p * vec3(0.45, 0.18, 0.45) + h * 9.0) * 0.6 + leafNoise(p * vec3(1.3, 0.5, 1.3)) * 0.4;
+  col = mix(col, col * vec3(0.8, 0.86, 0.76), smoothstep(0.5, 0.54, stain));
+  float streak = leafNoise(vec3(p.x * 2.2, p.y * 0.12, p.z * 2.2));
+  col = mix(col, col * vec3(0.88, 0.9, 0.84), smoothstep(0.6, 0.66, streak) * 0.8);
+  // Cracks taper and widen along their length; only some blocks break from the one above.
+  float wide = 0.3 + 1.4 * leafNoise(p * vec3(0.9, 0.22, 0.9));
+  float joint = step(0.45, cellHash3(vec3(cid, floor(rise + 0.5)) + 3.0).z);
+  float upright = cBorder * uBlock.x;
+  float level = mix(9.0, min(within, 1.0 - within) * uBlock.y, joint);
+  float lip = (1.0 - within) * uBlock.y;
+  col = mix(col, col * vec3(1.12, 1.12, 1.06), (1.0 - smoothstep(0.12, 0.3, lip)) * smoothstep(0.08, 0.14, lip) * joint);
+  float edge = min(upright, level);
+  col = mix(col, col * 0.86, 1.0 - smoothstep(0.15 * wide, 0.45 * wide, edge));
+  col = mix(col, base * vec3(0.38, 0.43, 0.32), 1.0 - smoothstep(0.07 * wide, 0.14 * wide, edge));
+  // Moss in clumps: the rock's own moss thinned out in broad stretches, and what faces up.
+  float clumps = smoothstep(0.34, 0.5, roundNoise(p * 0.16 + 1.7));
+  float cover = max(mossy(base) * 0.85 * clumps, smoothstep(0.45, 0.85, n.y) * uMoss);
+  float broken = roundNoise(p * 0.8 + 5.0);
+  float grow = cover * (0.4 + 0.9 * broken);
+  float moss = smoothstep(0.48, 0.53, grow);
+  // Each cushion lit along its top and shaded under it, darker round the clump's edge.
+  float lit = smoothstep(0.3, 0.7, (mossBumps(p) - mossBumps(p + vec3(0.0, 0.3, 0.0))) * 4.5 + 0.5);
+  vec3 mossCol = mix(uMossDark, uMossLight, clamp(0.15 + 0.7 * lit + 0.25 * n.y, 0.0, 1.0));
+  mossCol *= mix(0.75, 1.0, smoothstep(0.53, 0.62, grow)) * mix(0.93, 1.06, leafDabs(p * 1.2));
+  return mix(col, mossCol, moss);
+}
+`;
+
+/**
+ * Paints a toon material's stone the film's way (see STONE_GLSL), from its onBeforeCompile: the
+ * rock's own vertex colours split into slabs of `kind`, cracked, stained and mossed.
+ */
+export function paintStone(shader: THREE.WebGLProgramParametersWithUniforms, kind: StoneKind): void {
+  Object.assign(shader.uniforms, {
+    uBlock: { value: new THREE.Vector2(...kind.block) },
+    uUpright: { value: kind.upright ? 1 : 0 },
+    uMoss: { value: kind.moss },
+    uMossLight: { value: new THREE.Color('#9CCB55') },
+    uMossDark: { value: new THREE.Color('#4E8A3A') },
+  });
+  shader.vertexShader = shader.vertexShader
+    .replace('#include <common>', '#include <common>\nvarying vec3 vStone;')
+    .replace('#include <project_vertex>', 'vStone = (modelMatrix * vec4(transformed, 1.0)).xyz;\n#include <project_vertex>');
+  shader.fragmentShader = shader.fragmentShader
+    .replace('#include <common>', `#include <common>\nvarying vec3 vStone;\n${LEAF_GLSL}\n${CLUSTER_GLSL}\n${STONE_GLSL}`)
+    .replace(
+      '#include <normal_fragment_maps>',
+      `#include <normal_fragment_maps>
+      diffuseColor.rgb = paintStone(diffuseColor.rgb, vStone, inverseTransformDirection(normal, viewMatrix));`,
+    );
+}
+
+/**
+ * The film's colour grade, on the finished picture (still in linear light), set by measuring the
+ * film's jungle frames: warmer through the darks and the middle (the pale sky left alone), greens
+ * leaning toward yellow, a little more colour and a fifth more contrast, shadows a touch green and
+ * highlights warm, and the corners a little darker.
+ */
+const GRADE = {
+  uniforms: {
+    tDiffuse: { value: null },
+    uSaturation: { value: 1.1 },
+    uContrast: { value: 1.2 },
+    uShadowTint: { value: new THREE.Vector3(-0.004, 0.008, 0.0) },
+    uHighlightTint: { value: new THREE.Vector3(0.03, 0.02, -0.025) },
+    uVignette: { value: 0.32 },
+    uBalance: { value: new THREE.Vector3(1, 1, 0.96) },
+    uYellow: { value: 0.2 },
+  },
+  vertexShader: /* glsl */ `
+    varying vec2 vUv;
+    void main() {
+      vUv = uv;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }`,
+  fragmentShader: /* glsl */ `
+    uniform sampler2D tDiffuse;
+    uniform float uSaturation;
+    uniform float uContrast;
+    uniform vec3 uShadowTint;
+    uniform vec3 uHighlightTint;
+    uniform float uVignette;
+    uniform vec3 uBalance;
+    uniform float uYellow;
+    varying vec2 vUv;
+    void main() {
+      vec4 c = texture2D(tDiffuse, vUv);
+      vec3 g = pow(max(c.rgb, 0.0), vec3(1.0 / 2.2));
+      float l = dot(g, vec3(0.299, 0.587, 0.114));
+      // Warmer through the darks and the middle, leaving the pale sky as it is; greens leaning
+      // toward yellow.
+      g = mix(g * uBalance, g, smoothstep(0.65, 0.95, l));
+      g.r += uYellow * max(g.g - max(g.r, g.b), 0.0);
+      g = mix(vec3(l), g, uSaturation);
+      g = (g - 0.5) * uContrast + 0.5;
+      g += uShadowTint * (1.0 - smoothstep(0.0, 0.55, l)) + uHighlightTint * smoothstep(0.45, 1.0, l);
+      vec2 d = vUv - 0.5;
+      g *= 1.0 - uVignette * dot(d, d);
+      gl_FragColor = vec4(pow(max(g, 0.0), vec3(2.2)), c.a);
+    }`,
+};
+
+/**
+ * Draws the scene through the film's finishing passes: rendered with antialiasing into a
+ * high-precision picture, a soft glow round the brightest light (sky, sun on white, the
+ * waterfall), the colour grade, then out to the screen.
+ */
+export class FilmPost {
+  private readonly composer: EffectComposer;
+  private readonly bloom: UnrealBloomPass;
+
+  constructor(renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.Camera) {
+    const size = renderer.getDrawingBufferSize(new THREE.Vector2());
+    const target = new THREE.WebGLRenderTarget(size.x, size.y, { type: THREE.HalfFloatType, samples: 4 });
+    this.composer = new EffectComposer(renderer, target);
+    this.composer.addPass(new RenderPass(scene, camera));
+    // Only light brighter than white glows (the sun, the waterfall), not white things in daylight.
+    this.bloom = new UnrealBloomPass(new THREE.Vector2(size.x / 2, size.y / 2), 0.2, 0.6, 1.0);
+    this.composer.addPass(this.bloom);
+    this.composer.addPass(new ShaderPass(GRADE));
+    this.composer.addPass(new OutputPass());
+  }
+
+  setSize(width: number, height: number, pixelRatio: number): void {
+    this.composer.setPixelRatio(pixelRatio);
+    this.composer.setSize(width, height);
+  }
+
+  render(): void {
+    this.composer.render();
+  }
+}

@@ -5,6 +5,8 @@ import { glowUniforms } from './Glow';
 import { inkUniforms, windUniforms } from './Ink';
 import { FLOOR_GLSL, WATER_EDGE, groundHeight, loadTerrain, terrainHeight, type Terrain } from './Island';
 import { Landmarks } from './Landmarks';
+import { FILM, filmLights, filmSky, lightShafts, sunUniform } from './Look';
+import { canopyShade } from './Obstacles';
 import { Butterflies } from './Butterflies';
 import { Props, type Placed } from './Props';
 import { Zones, type ZoneDef } from './Zones';
@@ -14,9 +16,12 @@ import { Vegetation } from './Vegetation';
 const WATER_LEVEL = -0.32;
 /** The sea is a disc this wide around the camera, so its far edge (the horizon line) is the same distance away all round. */
 const SEA_RADIUS = 600;
-/** Where the haze starts and where it hides everything, from near the ground. */
-const FOG_NEAR = 180;
-const FOG_FAR = 900;
+/** Where the haze starts and where it hides everything, from near the ground; nearer in the film
+ * look, whose distant jungle and hills fade into a pale blue haze. */
+const FOG_NEAR = FILM ? 30 : 180;
+const FOG_FAR = FILM ? 440 : 900;
+/** The film look's sun shadows: how far round the spot ahead of the camera they reach, in metres. */
+const SHADOW_REACH = 42;
 
 // Sampled from the film's beach frames.
 const COLORS = {
@@ -60,11 +65,18 @@ export class Stage {
     uMoon: { value: new THREE.Color(COLORS.moon) },
   };
   private readonly look = newSkyLook();
+  /** Toward the sun (or the moon), for keeping the film look's shadows round the camera. */
+  private readonly lightDir = new THREE.Vector3(0, 1, 0);
+  private readonly ahead = new THREE.Vector3();
   private confettiMaterial: THREE.MeshBasicMaterial | null = null;
   private landmarks: Landmarks | null = null;
   private props: Props | null = null;
   private vegetation: Vegetation | null = null;
   private butterflies: Butterflies | null = null;
+  /** In the film look, the waterfall's pool and the camera that captures what it mirrors. */
+  private pool: { surface: THREE.Mesh; probe: THREE.CubeCamera } | null = null;
+  /** In the film look, the sunlight slanting into the waterfall's clearing. */
+  private shafts: THREE.Mesh | null = null;
   /** The island's named places, once the layout has loaded. */
   zones: Zones | null = null;
 
@@ -79,6 +91,20 @@ export class Stage {
     this.light = new THREE.DirectionalLight(COLORS.sun, 2.4);
     this.light.position.set(20, 40, 14);
     scene.add(this.hemi, this.light);
+    if (FILM) {
+      // Rocks, trees and houses cast soft shadows round wherever the camera is looking.
+      const shadow = this.light.shadow;
+      this.light.castShadow = true;
+      shadow.mapSize.set(2048, 2048);
+      shadow.camera.left = shadow.camera.bottom = -SHADOW_REACH;
+      shadow.camera.right = shadow.camera.top = SHADOW_REACH;
+      shadow.camera.near = 1;
+      shadow.camera.far = 260;
+      shadow.bias = -0.0004;
+      shadow.normalBias = 0.06;
+      shadow.radius = 3;
+      scene.add(this.light.target);
+    }
 
     this.skyMaterial = this.makeSkyMaterial(this.light.position);
     this.sky = new THREE.Mesh(new THREE.SphereGeometry(500, 32, 16), this.skyMaterial);
@@ -144,6 +170,53 @@ export class Stage {
     const surface = new THREE.Mesh(new THREE.CircleGeometry(pool.radius + 4, 64).rotateX(-Math.PI / 2), water);
     surface.position.set(pool.centre[0], pool.level, pool.centre[1]);
     this.world.add(surface);
+    if (FILM) {
+      // In the film look the pool mirrors the rock, the waterfall and the trees round it.
+      const target = new THREE.WebGLCubeRenderTarget(256, { type: THREE.HalfFloatType });
+      const probe = new THREE.CubeCamera(0.5, 600, target);
+      probe.position.set(pool.centre[0], pool.level + 1.2, pool.centre[1]);
+      this.scene.add(probe);
+      water.uniforms.uReflect = { value: target.texture };
+      water.uniforms.uReflectOn = { value: 1 };
+      this.pool = { surface, probe };
+      // Sunlight slanting down into the clearing through the haze, over the water and the bank.
+      const [px, pz] = pool.centre;
+      const y = pool.level;
+      this.shafts = lightShafts(
+        [
+          [px - 7, y, pz - 6, 34, 3.2],
+          [px - 2, y, pz + 3, 30, 2.2],
+          [px + 4, y, pz - 2, 36, 4.0],
+          [px - 9, y + 0.8, pz + 4, 28, 1.8],
+          [px + 1, y, pz - 9, 32, 2.6],
+        ],
+        0.11,
+      );
+      this.world.add(this.shafts);
+    }
+  }
+
+  /**
+   * In the film look, captures what the waterfall's pool mirrors: everything round it but the pool
+   * itself and `hide` (the characters, who move on), seen from the pool's middle with the plants
+   * near it drawn in full and the last frame's shadows. Kept until the light changes.
+   */
+  reflectPool(renderer: THREE.WebGLRenderer, hide: THREE.Object3D[], camera: THREE.Camera): void {
+    if (!this.pool) return;
+    const { surface, probe } = this.pool;
+    const shown = hide.map((o) => o.visible);
+    for (const o of hide) o.visible = false;
+    surface.visible = false;
+    this.vegetation?.update(probe as unknown as THREE.Camera);
+    this.sky.position.copy(probe.position);
+    const auto = renderer.shadowMap.autoUpdate;
+    renderer.shadowMap.autoUpdate = false;
+    probe.update(renderer, this.scene);
+    renderer.shadowMap.autoUpdate = auto;
+    this.sky.position.copy(camera.position);
+    this.vegetation?.update(camera);
+    surface.visible = true;
+    hide.forEach((o, i) => (o.visible = shown[i]));
   }
 
   /** Lights the island for `hours` past midnight: the sky, the sun or the moon, the sea, the
@@ -153,17 +226,21 @@ export class Stage {
     const u = this.skyMaterial.uniforms;
     u.uTop.value.copy(look.top);
     u.uHorizon.value.copy(look.horizon);
+    if (FILM) filmSky(u.uTop.value, u.uHorizon.value, look.night);
     u.uSunDir.value.copy(look.sunDir);
     u.uMoonDir.value.copy(look.moonDir);
     u.uNight.value = look.night;
-    (this.scene.background as THREE.Color).copy(look.horizon);
-    (this.scene.fog as THREE.Fog).color.copy(look.horizon);
+    (this.scene.background as THREE.Color).copy(u.uHorizon.value);
+    (this.scene.fog as THREE.Fog).color.copy(u.uHorizon.value);
     this.hemi.color.copy(look.hemiSky);
     this.hemi.groundColor.copy(look.hemiGround);
     this.hemi.intensity = look.hemiIntensity;
     this.light.color.copy(look.light);
     this.light.intensity = look.lightIntensity;
     this.light.position.copy(look.lightDir).multiplyScalar(50);
+    this.lightDir.copy(look.lightDir);
+    sunUniform.value.copy(look.lightDir);
+    if (FILM) filmLights(this.light, this.hemi, look.night);
     sharedUniforms.uAmbient.value.copy(look.ambient);
     this.cloudMaterial.uniforms.uTint.value.copy(look.cloud);
     this.waterLight.uTint.value.copy(look.sea);
@@ -173,8 +250,14 @@ export class Stage {
     this.confettiMaterial?.color.copy(look.ambient);
   }
 
+  /** How deep in the trees' shade the point (x, y, z) is from the sun (or the moon), 0 to 1. */
+  shadeAt(x: number, y: number, z: number): number {
+    return canopyShade(x, y, z, this.lightDir);
+  }
+
   update(camera: THREE.Camera, time: number): void {
     this.water.uniforms.uTime.value = time;
+    if (this.shafts) (this.shafts.material as THREE.ShaderMaterial).uniforms.uTime.value = time;
     this.skyMaterial.uniforms.uTime.value = time;
     this.landmarks?.update(time);
     this.props?.update(time, camera);
@@ -195,6 +278,15 @@ export class Stage {
     fog.far = (FOG_FAR * reach * (reach + 1)) / 2;
     // The clouds hang far off in a ring around the camera, wherever it goes, as part of the sky.
     this.clouds.position.copy(camera.position);
+    if (FILM) {
+      // The sun's shadows cover the ground a little ahead of the camera, wherever it looks.
+      camera.getWorldDirection(this.ahead);
+      this.ahead.y = 0;
+      this.ahead.normalize().multiplyScalar(SHADOW_REACH * 0.55).add(camera.position);
+      this.ahead.y = Math.max(camera.position.y - 6, WATER_LEVEL);
+      this.light.target.position.copy(this.ahead);
+      this.light.position.copy(this.ahead).addScaledVector(this.lightDir, 140);
+    }
     this.skyMaterial.uniforms.uHorizonY.value = Math.sin(-Math.atan2(above, SEA_RADIUS * reach));
   }
 
@@ -226,6 +318,8 @@ export class Stage {
         uMid: { value: new THREE.Color(COLORS.mid) },
         uDeep: { value: new THREE.Color(COLORS.deep) },
         uFoam: { value: new THREE.Color(COLORS.foam) },
+        uReflect: { value: null },
+        uReflectOn: { value: 0 },
         ...this.waterLight,
       },
       vertexShader: /* glsl */ `
@@ -250,6 +344,8 @@ export class Stage {
         uniform vec3 uMid;
         uniform vec3 uDeep;
         uniform vec3 uFoam;
+        uniform samplerCube uReflect;
+        uniform float uReflectOn;
         varying vec3 vWorld;
         float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
         void main() {
@@ -284,6 +380,16 @@ export class Stage {
             float rings = smoothstep(0.6, 0.85, sin(d * 34.0 - uTime * 4.0) * 0.5 + 0.5) * (1.0 - smoothstep(0.6, 1.0, d));
             col = mix(col, uFoam, max(churn, rings * 0.7));
           }
+          // A mirror of what stands round it, darker and greener than what it mirrors, smeared
+          // by ripples into long wobbles as the film paints the waterfall's pool.
+          if (uReflectOn > 0.5) {
+            vec3 view = normalize(vWorld - cameraPosition);
+            vec2 wobble = vec2(sin(vWorld.x * 0.9 + uTime * 0.7) + sin(vWorld.z * 1.3 - uTime * 0.5),
+                               sin(vWorld.z * 1.1 + uTime * 0.6) + sin(vWorld.x * 1.5 - uTime * 0.8)) * 0.004;
+            vec3 seen = textureCube(uReflect, reflect(view, normalize(vec3(wobble.x, 1.0, wobble.y)))).rgb;
+            float fresnel = 0.22 + 0.4 * pow(1.0 - abs(view.y), 3.0);
+            col = mix(col, seen * vec3(0.36, 0.5, 0.44), fresnel * 0.8);
+          }
           col *= uTint;
           vec2 cell = floor(vWorld.xz * 1.6);
           float sparkle = step(0.986, hash(cell + floor(uTime * 1.5))) * shallow * (1.0 - uNight);
@@ -313,6 +419,7 @@ export class Stage {
     return new THREE.ShaderMaterial({
       side: THREE.BackSide,
       depthWrite: false,
+      defines: FILM ? { FILM: '' } : {},
       uniforms: {
         ...inkUniforms,
         uHorizonY: { value: 0 },
@@ -371,13 +478,21 @@ export class Stage {
             col = mix(col, vec3(0.42, 0.52, 0.82), 0.4 * (1.0 - smoothstep(radius, radius * 4.0, m)) * uNight);
             float edge = (m - radius) / max(fwidth(m), 1e-6);
             float disc = 1.0 - smoothstep(-0.5, 0.5, edge);
+            #ifdef FILM
+            // The film paints the moon without a line.
+            vec3 moon = uMoonColor;
+            float drawn = disc;
+            #else
             vec3 moon = mix(uInk, uMoonColor, disc);
             float drawn = 1.0 - smoothstep(uPen - 0.5, uPen + 0.5, edge);
+            #endif
             col = mix(col, moon, drawn * uNight * step(0.0, dir.y - uHorizonY));
           }
+          #ifndef FILM
           // The horizon line, drawn with the pen just above the sea's far edge.
           float above = (dir.y - uHorizonY) / max(fwidth(dir.y), 1e-6);
           col = mix(col, uInk, (1.0 - smoothstep(uPen - 0.5, uPen + 0.5, above)) * step(-2.0, above));
+          #endif
           gl_FragColor = vec4(col, 1.0);
           #include <colorspace_fragment>
         }`,
@@ -403,7 +518,7 @@ export class Stage {
       transparent: true,
       depthWrite: false,
       side: THREE.DoubleSide,
-      defines: { PUFFS: puffs.length },
+      defines: FILM ? { PUFFS: puffs.length, FILM: '' } : { PUFFS: puffs.length },
       uniforms: {
         ...inkUniforms,
         uPuffs: { value: puffs.map(([x, y, r]) => new THREE.Vector3(x, y, r)) },
@@ -442,10 +557,16 @@ export class Stage {
           float body = max(min(min(shade, white), base), p.y - 222.0);
           float px = body / max(fwidth(body), 1e-4);       // pixels outside the cloud
           float inside = 1.0 - smoothstep(-0.5, 0.5, px);
+          #ifdef FILM
+          // Painted without a line, its shaded underside blending softly into the white.
+          float top = 1.0 - smoothstep(-6.0, 6.0, white / max(fwidth(white), 1e-4));
+          gl_FragColor = vec4(mix(uShade, uCloud, top) * uTint, inside);
+          #else
           float alpha = 1.0 - smoothstep(uPen - 0.5, uPen + 0.5, px);
           float top = 1.0 - smoothstep(-0.5, 0.5, white / max(fwidth(white), 1e-4));
           vec3 col = mix(uInk * uAmbient, mix(uShade, uCloud, top) * uTint, inside);
           gl_FragColor = vec4(col, alpha);
+          #endif
           #include <colorspace_fragment>
         }`,
     });

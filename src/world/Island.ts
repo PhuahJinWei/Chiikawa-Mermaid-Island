@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { sharedUniforms } from '../characters/CharacterMaterial';
 import { PEN_GLSL, inkUniforms } from './Ink';
+import { FILM, paintedRamp } from './Look';
 import { addRing, blocked, cameraBlocked, deckUnder, outlineAt } from './Obstacles';
 
 /** What art/blender/build_island.py writes into the ground's glTF extras. */
@@ -16,11 +17,11 @@ export interface TerrainInfo {
   height: { url: string; grid: number; min: number; max: number };
   /** The painted colour map, laid over the whole square from above. */
   colours: string;
-  /** The cave's skylight, a round opening in the ground over the sea come in under the island: its
-   * middle (x, z), its edge (an outline, as `outlineAt` reads it), and the mossy lip round it, out
-   * to `lip` from the middle, at `top`. */
-  skylight: { centre: [number, number]; edge: number[]; lip: number; top: number };
-  /** The rock landmarks and the cave's skylight, built with the ground. */
+  /** A cave's skylight, a round opening in the ground over the sea come in under the island, if the
+   * island has one (the cave is still to be placed): its middle (x, z), its edge (an outline, as
+   * `outlineAt` reads it), and the mossy lip round it, out to `lip` from the middle, at `top`. */
+  skylight?: { centre: [number, number]; edge: number[]; lip: number; top: number };
+  /** The rock landmarks, the sea cliffs and the waterfall, built with the ground. */
   landmarks: string;
   /** Each rock's foot: its middle (x, z), and how far it reaches at even angles round it from east toward south. */
   rocks: { centre: [number, number]; outline: number[] }[];
@@ -244,6 +245,57 @@ function groundMaterial(colours: THREE.Texture, info: TerrainInfo, floor: THREE.
   });
 }
 
+/**
+ * The film look's ground: the same painted colour map, lit by the sun through the soft ramp and
+ * shaded where rocks, trees and houses cast their shadows, without the pen's waterline (the film
+ * paints its shores without a line).
+ */
+function filmGroundMaterial(colours: THREE.Texture, info: TerrainInfo, floor: THREE.Texture): THREE.MeshToonMaterial {
+  const material = new THREE.MeshToonMaterial({
+    map: colours,
+    gradientMap: paintedRamp(),
+    polygonOffset: true,
+    polygonOffsetFactor: 8,
+    polygonOffsetUnits: 8,
+  });
+  material.onBeforeCompile = (shader) => {
+    Object.assign(shader.uniforms, {
+      uFloor: { value: floor },
+      uMap: { value: new THREE.Vector4(info.origin[0], info.origin[1], info.size, info.height.grid) },
+      uEdge: { value: new THREE.Color(WATER_EDGE) },
+      uSea: { value: info.water },
+      uPool: { value: poolUniform(info) },
+    });
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vGroundWorld;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvGroundWorld = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        '#include <common>',
+        `#include <common>
+        ${FLOOR_GLSL}
+        uniform vec3 uEdge;
+        uniform float uSea;
+        uniform vec4 uPool;
+        varying vec3 vGroundWorld;`,
+      )
+      .replace(
+        '#include <map_fragment>',
+        `#include <map_fragment>
+        {
+          // Under the water the ground is hidden, but where the two meet at a glancing angle a
+          // sliver of it can show: painted the colour of the water's edge, it reads as water.
+          float level = distance(vGroundWorld.xz, uPool.xy) < uPool.z ? uPool.w : uSea;
+          float h = floorAt(vGroundWorld.xz);
+          if (abs(h - level) < 0.6) h = floorAtExact(vGroundWorld.xz);
+          float above = (h - level) / max(fwidth(h), 1e-5);
+          diffuseColor.rgb = mix(diffuseColor.rgb, uEdge, 1.0 - step(-0.5, above));
+        }`,
+      );
+  };
+  return material;
+}
+
 let terrain: Terrain | null = null;
 
 /** Loads the island's ground once: its mesh, painted colours and height grid. */
@@ -283,10 +335,13 @@ export async function loadTerrain(): Promise<Terrain> {
   found.scale.set(1, 1, 1);
 
   terrain = new Terrain(info, heights, found);
-  found.material = groundMaterial(colours, info, terrain.texture);
-  // The mossy lip round the cave's skylight is a ledge to walk on, up to a step back from its edge.
-  const { centre, edge, lip, top } = info.skylight;
-  addRing(centre[0], centre[1], edge.map((r) => r + EDGE_MARGIN), lip, top);
+  found.material = FILM ? filmGroundMaterial(colours, info, terrain.texture) : groundMaterial(colours, info, terrain.texture);
+  found.receiveShadow = FILM;
+  // The mossy lip round a cave's skylight is a ledge to walk on, up to a step back from its edge.
+  if (info.skylight) {
+    const { centre, edge, lip, top } = info.skylight;
+    addRing(centre[0], centre[1], edge.map((r) => r + EDGE_MARGIN), lip, top);
+  }
   return terrain;
 }
 

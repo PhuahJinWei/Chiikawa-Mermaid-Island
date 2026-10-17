@@ -1,6 +1,12 @@
 import * as THREE from 'three';
+import { FILM, paintedRamp } from '../world/Look';
 
 let ramp: THREE.DataTexture | null = null;
+
+/** The light ramp for scenery: the toon's three steps, or the film look's soft ramp. */
+export function sceneryRamp(): THREE.DataTexture {
+  return FILM ? paintedRamp() : toonRamp();
+}
 
 /** Three-step light ramp shared by every toon-shaded environment material. */
 export function toonRamp(): THREE.DataTexture {
