@@ -168,12 +168,6 @@ food and cups on the ground, everyone toasting. This is the festival.
 - A flat stone ledge beside the water, lit by a small fire, where the Siren
   and the mermaids sit.
 
-### Underwater (`underwater 1`)
-
-Near-black navy, a few streaks of pale blue light, bubbles. The Siren's red
-eyes in the dark. You described decorations and fish, and that it is the
-scariest place on the island. No reference for the decorations.
-
 ### Arrival ferry (`boat`)
 
 A big white duck ferry, outlined like everything else, after the film and
@@ -218,7 +212,6 @@ Nothing here blocks Milestone 0. These would sharpen later milestones.
 
 - Where the forbidden cave's entrance is, its No Entry sign, and the tunnel
   between the entrance and the moonlit chamber under the skylight.
-- Any underwater frame with the decorations and fish you remember.
 - A clear look at the food-shop building and its owner.
 - What sits at the top of the karst pillars and round the cave's skylight,
   if the film ever goes there.

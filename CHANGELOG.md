@@ -187,6 +187,9 @@ outlined is drawn twice, once for its pen line. To get there:
 **Removed**
 
 - The M0 test beach, a small disc of sand.
+- Diving, swimming and everything underwater, from the plan (none of it
+  had been built): you wade in the shallows, and only the rowboat goes
+  onto deeper water.
 
 ## M0.1 — Downloaded cast and the island outfit (2026-10-16)
 

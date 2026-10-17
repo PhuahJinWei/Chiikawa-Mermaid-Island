@@ -2,7 +2,7 @@
 
 A small, comfy, mobile-first life simulator set on the island from
 *Chiikawa: The Secret of the Mermaid Island* (映画ちいかわ 人魚の島のひみつ, 2026).
-You play an ordinary islander. You wander, swim, dive, chat, and watch the
+You play an ordinary islander. You wander, wade, chat, and watch the
 Chiikawa cast live their day.
 
 Personal, non-commercial fan project. Built entirely by Claude in code,
@@ -94,7 +94,7 @@ silent, the game will clearly be our own interpretation.
 | Models | **Blender 5.2**, driven by Python build scripts, exported as glTF (.glb) | Real modelling tools (voxel remesh, smoothing, decimation) with every measurement kept in a script, so models are reproducible and easy to tweak |
 | Model edits | Change the numbers in the build scripts in `art/blender/`, then rebuild | The .blend files are regenerated on every build, so edits made by hand in Blender would be lost |
 | Cast models | Downloaded rigged models of Chiikawa, Hachiware, Usagi and Momonga, converted by `art/blender/import_characters.py` | Far closer to the film than procedural shapes. The converter poses and scales them, splits them into the game's parts and bakes their face art |
-| Physics | None. Hand-written capsule vs heightmap + simple triggers | A comfy walk-and-swim game does not need a physics engine |
+| Physics | None. Hand-written capsule vs heightmap + simple triggers | A comfy walking game does not need a physics engine |
 | Audio | Web Audio via Three.js `Audio` / `PositionalAudio` | Ambient loops, footsteps, splashes, UI blips |
 | State / save | JSON in `localStorage`, versioned | Simple, offline, no server |
 | Hosting | GitHub Pages via GitHub Actions (or Cloudflare Pages if the repo is private) | Free, automatic on push |
@@ -155,11 +155,6 @@ Exact colours live in `STYLE_GUIDE.md`.
   normal map, depth-based colour from vivid turquoise near shore to deep
   blue, sparkle highlights, foam ring at the shoreline from a
   distance-to-shore texture. At night, a long moon-reflection streak.
-- **Underwater.** Two moods by depth. The lagoon and reef are clear and
-  bright: light fog, caustics on the seabed, colourful fish. Past the reef
-  edge the water turns near-black navy: heavy fog, only a few pale light
-  streaks from above, decorations looming out of the dark, slow eerie
-  ambience. Bubbles and a muffled audio filter everywhere below the surface.
 - **Sky.** Gradient skydome, puffy cartoon cloud sprites, sun disc by day.
   At night a starfield and a large full moon. Day-night cycle tints the
   whole palette.
@@ -233,7 +228,7 @@ so every character stays cheap and I can tune the feel directly.
    layers above, and actions crossfade smoothly into each other. Starting
    set: idle with breathing and looking around, waddle walk, run, jump, land,
    sit, sleep, wave, eat, drink, cry and tremble, startled, happy hop, hula
-   dance, swim, dive, row, play ukulele, hold torch, toast, fish, read.
+   dance, wade, row, play ukulele, hold torch, toast, fish, read.
    Props attach to the hand pivots. A new action is a few dozen lines, so
    any moment from the film can be added on request. Every action has its
    own expression. Sitting is on the bottom with the legs stretched out in
@@ -325,9 +320,9 @@ down to the water in the west and north, widest on the night beach.
    ~          the deep (dark, eerie)                 ~
 ```
 
-| Zone | What happens there | Swim / dive |
+| Zone | What happens there | In the water |
 |---|---|---|
-| **Pier and ferry** | A short wooden pier on vivid turquoise water, as in the film's aerial shot, leading straight onto the festival street. The white duck-shaped ferry lies at anchor out in the bay. Confetti welcome for new guests. | Jump off the end. |
+| **Pier and ferry** | A short wooden pier on vivid turquoise water, as in the film's aerial shot, leading straight onto the festival street. The white duck-shaped ferry lies at anchor out in the bay. Confetti welcome for new guests. | Too deep: sit on the end instead. |
 | **Festival** | Behind the main beach: two long rows of stalls facing the bay either side of the pier, the welcome arch (島へようこそ!! in yellow flowers) in the opening between them, and through it a street of stalls running inland under banners, bunting and lanterns. Usagi runs about. | Dry. |
 | **Main beach** | Wide sand either side of the pier. Palms, starfish on the sand. | Wade in gradually. |
 | **Village** | A clearing deep in the jungle, in the middle of the ring of pillars on the path to the cave's skylight: big stilt huts you can walk into, with mushroom-shaped thatched roofs and patterned walls, a few plank and round beehive huts, round the tall wooden watchtower stage where announcements are made, torches in front of it. Potted plants, fruit baskets, log benches. Most conversations happen here. | Dry. |
@@ -336,13 +331,14 @@ down to the water in the west and north, widest on the night beach.
 | **Karst pillars** | Seven tall pale limestone towers in a ring round the island's middle, jungle on their tops with white rock standing out of it, the island's silhouette from every angle. Many short, wide ones hide in the forest: mesas thick with trees on top, one under a great dome of them. Not climbable. They are landmarks for finding your way. | — |
 | **Cave skylight** | Between the pillars in the island's centre, as in the film's aerial shot: not a pond but a round opening in the jungle floor, in a gentle hollow where the trees stand back, ringed by a mossy lip with vines hanging down inside, in the middle of the ring of pillars. Far below lies the forbidden cave's water, the sea come in under the island. A calm, hidden spot. | Peer down from the lip. |
 | **Night beach** | East end of the main beach, the widest stretch of sand, below low layered rocks. Bonfire, the night feast with rows of islanders, Rakko's ukulele, moon on the water. | Wade. |
-| **Forbidden cave** | Under the island's middle: a round chamber whose opening in the ceiling is the skylight in the jungle above. The moon, or a sunbeam by day, shines down onto its glowing water with drifting sparkles and mist. A stone ledge with a small fire sits beside it. Reachable only by rowboat, as in the film; where its entrance is (behind a No Entry sign) and the dark rock passage in are still to be planned. | Row in. Swim in the moonlit water. |
-| **Lagoon** | Calm, clear, bright water inside the reef. Fish shoals. | Easy swimming; dive for shells. |
-| **Reef** | Coral shapes, colourful fish, rock spires breaking the surface around the edge. | Deeper dives. Mermaid sightings start here. |
-| **The deep** | Past the reef edge. Near-black navy water, a few pale light streaks, sunken decorations looming in the fog, slow eerie sounds. The scariest place on the island, by design. | Deepest dive. Breath ring shows only here. Running out floats you gently up. |
+| **Forbidden cave** | Under the island's middle: a round chamber whose opening in the ceiling is the skylight in the jungle above. The moon, or a sunbeam by day, shines down onto its glowing water with drifting sparkles and mist. A stone ledge with a small fire sits beside it. Reachable only by rowboat, as in the film; where its entrance is (behind a No Entry sign) and the dark rock passage in are still to be planned. | Row in, across the moonlit water. |
+| **Lagoon** | Calm, clear, bright water inside the reef. Fish shoals. | Wade in the shallows; row across it. |
+| **Reef** | Coral shapes, colourful fish, rock spires breaking the surface around the edge. | Row out over it. Mermaid sightings start here. |
+| **The deep** | Past the reef edge. Near-black navy water and slow eerie sounds: the scariest place on the island, by design. | Row out over the dark water. |
 
 **Rowboat.** A small wooden rowboat sits on the night beach near the
-rocks. Get in to row along the coast or into the forbidden cave. Rowing
+rocks. Get in to row along the coast, out over the reef and the deep, or
+into the forbidden cave: it is the only way onto deeper water. Rowing
 uses the same joystick; the context button gets you out at any shore or
 ledge.
 
@@ -364,26 +360,18 @@ and the passage in are to be planned with M2.
 - **Left half of screen:** virtual joystick appears where you touch. Move.
 - **Right half, drag:** orbit camera.
 - **Context button (bottom right):** changes meaning by situation — Talk,
-  Pick up, Dive, Surface, Sit, Jump.
+  Pick up, Sit, Jump.
 - **Tap an NPC:** walk to them and talk.
-- **Double-tap anywhere in water:** dive.
-- **Desktop:** WASD + mouse, E to interact, Space to dive/surface.
+- **Desktop:** WASD + mouse, E to interact, Space to jump.
 
-### 6.2 Movement and swimming
+### 6.2 Movement
 
 | State | Speed | Notes |
 |---|---|---|
 | Walk | 3 m/s | Capsule collider slides along the heightmap and prop colliders. |
 | Run | 5 m/s | Push joystick to the edge. |
-| Wade | 2 m/s | Water above knees, below chest. |
-| Swim (surface) | 2.5 m/s | Head above water, bobbing with waves. |
-| Dive | 2 m/s, 3-axis | Camera follows underwater; joystick moves forward/strafe, context button or camera pitch controls depth. |
-| Float up | automatic | When breath ends or you let go in the deep. Never a penalty. |
+| Wade | 2 m/s | Water above the knees. You wade in up to your chest and no further: there is no swimming. |
 | Row | 3 m/s | In the rowboat. Joystick steers, the boat turns gently. Context button gets out at a shore or ledge. |
-
-Breath: a soft ring that empties over about 40 seconds. Only shown in the
-reef and deep zones. Running out means you drift up with a little gasp
-animation and a smile. That is the whole consequence.
 
 ### 6.3 Time, weather, and sim
 
@@ -407,7 +395,7 @@ Hachiware:
   06:00  fish at pier
   09:00  explore forest
   12:00  parfait at the beach stalls (with Chiikawa)
-  15:00  swim in lagoon
+  15:00  wade at the main beach
   18:00  feast at the night beach
   22:00  sleep at a village hut
 ```
@@ -559,7 +547,7 @@ src/
     Dialogue.ts        picks lines by context, runs the box
     Friendship.ts
     Journal.ts
-    Audio.ts           ambient, positional, underwater filter
+    Audio.ts           ambient, positional
   ui/
     Hud.ts             * title, time and stats, place names, joystick ring, jump button
     TestPanel.ts       * actions, expressions, lineup, time of day
@@ -580,7 +568,7 @@ public/
     layout.json        * prop placement and the named places
     schedules/*.json
     dialogue/*.json    line structure and context, keyed by string ID
-  textures/            caustics, normal maps
+  textures/            normal maps
   audio/
 ```
 
@@ -647,7 +635,7 @@ stand.
 
 **What I need from you.**
 
-- Reactions. Open it on your phone, tell me what feels wrong. "Swimming feels
+- Reactions. Open it on your phone, tell me what feels wrong. "Walking feels
   floaty" is more useful than a long review.
 - Reference. If you have screenshots or descriptions from the movie for
   the gaps listed at the end of `STYLE_GUIDE.md`, drop them in
@@ -675,7 +663,7 @@ Each milestone ends with something you can open on your phone.
 |---|---|---|---|
 | **M0** | Scaffold and first character | Open a URL on your phone and walk Chiikawa around a sand plane with the joystick at 60 fps. She squashes, jiggles, blinks and changes expression. A test panel triggers every action and expression so you can judge the feel. A lineup of Chiikawa, Hachiware, Usagi and an islander for you to approve the look. PWA installs. Locale system in place, so even the first button reads in Japanese. | Medium |
 | **M1** | Island | Walk the whole island: terrain, karst pillars, jungle, village, pier, moored ferry, water plane, sky, day-night cycle with moon and stars, zones. Props from layout file. | Medium |
-| **M2** | Sea | Wade, swim, dive, surface. Bright lagoon and dark deep, bubbles, caustics, breath ring. Fish shoals. Rowboat, and the forbidden cave under the skylight, with its moonlit water. | Medium |
+| **M2** | Sea | Wade in the shallows. Bright lagoon and dark deep. Fish shoals. The rowboat, out over the reef and the deep and into the forbidden cave under the skylight, with its moonlit water. | Medium |
 | **M3** | Cast | The rest of the named characters built from the parts kit, with their own actions, props and expressions. Standing around on the beach. | Medium |
 | **M4** | Life | Schedules, pathing, reactions. Characters go about their day. Night feast with bonfire and gathering. | Large |
 | **M5** | Talk | Dialogue system, first pass of lines for every character, friendship, journal with Now / Friends tabs, all in Japanese. | Medium |
@@ -702,7 +690,7 @@ real phone test will say whether that matters. See `CHANGELOG.md`.
 | Characters look wrong because I cannot see them the way you do | High | Blender turnaround renders plus the in-game lineup for every character; iterate with you before building the rest. |
 | iOS Safari performance or memory reloads | Medium | Hard budgets from day one, quality tiers, test M0 on your phone before anything else. |
 | Procedural animation feels stiff | Medium | Lean on squash-and-stretch and bobbing, which suits round characters; keep timing data-driven so I can tune quickly. |
-| Water and underwater shaders eat the frame budget | Medium | Cheap surface shader, no reflections or refraction on mobile, fog instead of volumetrics. |
+| The water shader eats the frame budget | Medium | Cheap surface shader, no reflections or refraction on mobile. |
 | Dialogue tone misses the manga's voice | Medium | Short lines, you read a sample set early and correct the voice before I write hundreds. |
 | Japanese lines read as stiff or unnatural | Medium | Reviewed by you on a sample before the full set is written. Short lines keep the risk small. |
 | Scope creep from "comfy" ideas | High | Section 1 pillars and not-goals; new ideas go to an `IDEAS.md` backlog, not the current milestone. |
@@ -721,7 +709,8 @@ Answered on 2026-10-16.
 | Language | Japanese only. |
 | Hosting | Public GitHub repository, served by GitHub Pages. Reference images stay local. |
 | Day length | 24 real minutes per game day, adjustable in settings. |
-| The deep | Eerie mood only: dark water, looming decorations, creepy sounds. Nothing moves at you. |
+| The deep | Eerie mood only: dark water and creepy sounds. Nothing moves at you. |
+| Diving and swimming | Dropped on 2026-10-17: no diving, no swimming and nothing underwater. You wade in the shallows; the rowboat takes you onto deeper water. |
 | Extra movie content | Nothing more for now. New ideas go to `IDEAS.md`. |
 
 ---
