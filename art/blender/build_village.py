@@ -269,12 +269,13 @@ def make_stall(colour):
 
 
 # ---------------------------------------------------------------------------- pier
-PIER_LENGTH, PIER_WIDTH = 30.0, 3.2
+# As in the film's aerial shot, the pier reaches only a little way out into the bay.
+PIER_LENGTH, PIER_WIDTH = 14.0, 3.2
 
 
 def build_pier(collection):
-    """A long wooden pier: rough wide planks on two beams, round log posts along its edges
-    standing up past the deck. Its origin is the deck's top at the beach end; it runs along -Y."""
+    """A wooden pier: rough wide planks on two beams, round log posts along its edges standing up
+    past the deck. Its origin is the deck's top at the beach end; it runs along -Y."""
     rng = np.random.default_rng(4)
     pieces = []
     step = 0.47

@@ -13,16 +13,14 @@ const COLORS = {
 
 /**
  * Toon-shaded stone with its painted colours, and the pen's waterline drawn where the rock
- * meets the sea or the pool, as the ground draws it on the sand.
+ * meets the sea, as the ground draws it on the sand.
  */
 function rockMaterial(info: TerrainInfo): THREE.MeshToonMaterial {
   const material = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: toonRamp() });
-  const { centre, radius, level } = info.pool;
   material.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, inkUniforms, {
       uAmbient: sharedUniforms.uAmbient,
       uSea: { value: info.water },
-      uPool: { value: new THREE.Vector4(centre[0], centre[1], radius + 1, level) },
     });
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vRockWorld;\nvarying float vRockDepth;')
@@ -38,7 +36,6 @@ function rockMaterial(info: TerrainInfo): THREE.MeshToonMaterial {
         uniform vec3 uInk;
         uniform vec3 uAmbient;
         uniform float uSea;
-        uniform vec4 uPool;
         varying vec3 vRockWorld;
         varying float vRockDepth;`,
       )
@@ -46,8 +43,7 @@ function rockMaterial(info: TerrainInfo): THREE.MeshToonMaterial {
         '#include <opaque_fragment>',
         `#include <opaque_fragment>
         {
-          float level = distance(vRockWorld.xz, uPool.xy) < uPool.z ? uPool.w : uSea;
-          float above = (vRockWorld.y - level) / max(fwidth(vRockWorld.y), 1e-5);
+          float above = (vRockWorld.y - uSea) / max(fwidth(vRockWorld.y), 1e-5);
           float pen = penAt(vRockDepth);
           gl_FragColor.rgb = mix(gl_FragColor.rgb, uInk * uAmbient,
             (1.0 - smoothstep(pen - 0.5, pen + 0.5, above)) * step(-0.5, above));
@@ -110,8 +106,9 @@ function waterfallMaterial(): THREE.ShaderMaterial {
 
 /**
  * The island's rock landmarks, built in Blender with the ground (art/blender/build_island.py):
- * limestone karst pillars crowned with jungle, the wall the waterfall pours from, the headland with
- * the cave mouth at its foot, and sea spires round the lagoon.
+ * limestone karst pillars and mesas crowned with jungle, the cave's skylight, the rocks behind the
+ * night beach, and sea spires round the lagoon; and a waterfall with its spray, when the island has
+ * one.
  */
 export class Landmarks {
   readonly group = new THREE.Group();

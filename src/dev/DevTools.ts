@@ -63,6 +63,13 @@ export const SHOTS: Record<string, StagedShot> = {
     ],
     camera: { position: [0, 0.6, 3.7], target: [0, 0.53, 0], fov: 16 },
   },
+  // The film's aerial shot of the island (`mermaid island 1`), from high over the bay to the
+  // south-south-west, through the camera the island was laid out with. Matches the frame in a
+  // window shaped like it (1.86 : 1).
+  aerial: {
+    characters: {},
+    camera: { position: [-78.73, 395.19, 427.39], target: [0.4, 0, -72.21], fov: 20 },
+  },
   // Lineup of the main cast at eye level, for checking proportions side by side.
   cast: {
     characters: {

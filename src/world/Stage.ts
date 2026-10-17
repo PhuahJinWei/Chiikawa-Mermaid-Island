@@ -3,7 +3,7 @@ import { sharedUniforms } from '../characters/CharacterMaterial';
 import { newSkyLook, skyAt } from './DayNight';
 import { glowUniforms } from './Glow';
 import { inkUniforms, windUniforms } from './Ink';
-import { FLOOR_GLSL, WATER_EDGE, groundHeight, loadTerrain, terrainHeight, waterLevelAt, type Terrain } from './Island';
+import { FLOOR_GLSL, WATER_EDGE, groundHeight, loadTerrain, terrainHeight, type Terrain } from './Island';
 import { Landmarks } from './Landmarks';
 import { Butterflies } from './Butterflies';
 import { Props, type Placed } from './Props';
@@ -14,6 +14,9 @@ import { Vegetation } from './Vegetation';
 const WATER_LEVEL = -0.32;
 /** The sea is a disc this wide around the camera, so its far edge (the horizon line) is the same distance away all round. */
 const SEA_RADIUS = 600;
+/** Where the haze starts and where it hides everything, from near the ground. */
+const FOG_NEAR = 180;
+const FOG_FAR = 900;
 
 // Sampled from the film's beach frames.
 const COLORS = {
@@ -45,7 +48,7 @@ export class Stage {
   private readonly hemi: THREE.HemisphereLight;
   private readonly light: THREE.DirectionalLight;
   private readonly cloudMaterial: THREE.ShaderMaterial;
-  /** Shared by the sea and the pool: how the hour tints the water, and the moon's road on it. */
+  /** How the hour tints the sea, and the moon's road on it. */
   private readonly waterLight = {
     uTint: { value: new THREE.Color(1, 1, 1) },
     uMoonDir: { value: new THREE.Vector3(0, -1, 0) },
@@ -65,7 +68,7 @@ export class Stage {
     this.scene = scene;
     scene.background = new THREE.Color(COLORS.skyHorizon);
     // Light haze only: the karst pillars must read from anywhere on the island.
-    scene.fog = new THREE.Fog(COLORS.skyHorizon, 180, 900);
+    scene.fog = new THREE.Fog(COLORS.skyHorizon, FOG_NEAR, FOG_FAR);
 
     // The sun's light by day and the moon's by night, and soft light from the sky and the ground.
     this.hemi = new THREE.HemisphereLight('#DDF3FF', '#EBC48F', 1.6);
@@ -105,7 +108,7 @@ export class Stage {
     const response = await fetch('data/layout.json');
     if (!response.ok) throw new Error('Could not load data/layout.json');
     const layout = (await response.json()) as { props: Placed[]; zones: ZoneDef[] };
-    this.zones = new Zones(layout.zones, groundHeight, waterLevelAt);
+    this.zones = new Zones(layout.zones, groundHeight, terrain.info.water);
     this.props = await Props.load(layout.props, terrain.info.water);
     this.world.add(this.props.group);
     this.world.add(this.makeConfetti());
@@ -118,20 +121,9 @@ export class Stage {
     u.uFloor.value = terrain.texture;
     u.uMap.value.set(origin[0], origin[1], size, terrain.info.height.grid);
     u.uLevel.value = terrain.info.water;
-
-    // The waterfall pool: the same water at the pool's level, churned white where the fall lands.
-    const { pool, waterfall } = terrain.info;
-    const poolWater = this.water.clone();
-    for (const name of ['uTime', 'uFloor', 'uMap'] as const) poolWater.uniforms[name] = u[name];
-    Object.assign(poolWater.uniforms, this.waterLight);
-    poolWater.uniforms.uLevel = { value: pool.level };
-    poolWater.uniforms.uSplash = {
-      value: new THREE.Vector4(waterfall.foot[0], waterfall.foot[1], waterfall.splash, 0),
-    };
-    const poolGeo = new THREE.CircleGeometry(pool.radius + 4, 64).rotateX(-Math.PI / 2);
-    const poolMesh = new THREE.Mesh(poolGeo, poolWater);
-    poolMesh.position.set(pool.centre[0], pool.level, pool.centre[1]);
-    this.world.add(poolMesh);
+    // Churned white where a waterfall lands, when the island has one.
+    const fall = terrain.info.waterfall;
+    if (fall) u.uSplash.value.set(fall.foot[0], fall.foot[1], fall.splash, 0);
   }
 
   /** Lights the island for `hours` past midnight: the sky, the sun or the moon, the sea, the
@@ -171,12 +163,19 @@ export class Stage {
     this.butterflies?.update(time);
     this.sky.position.copy(camera.position);
     // The sea's colours come from where each point is in the world, so the disc can travel with
-    // the camera. Its far edge meets the sky at the horizon line.
+    // the camera. Its far edge meets the sky at the horizon line; from high above (the free camera,
+    // the aerial shot) it reaches twice as far, to the edge of what the camera draws, and the haze
+    // thins so the island still reads.
+    const above = camera.position.y - WATER_LEVEL;
+    const reach = THREE.MathUtils.clamp(above / 60, 1, 2);
     this.sea.position.set(camera.position.x, 0, camera.position.z);
+    this.sea.scale.set(reach, 1, reach);
+    const fog = this.scene.fog as THREE.Fog;
+    fog.near = FOG_NEAR * reach;
+    fog.far = (FOG_FAR * reach * (reach + 1)) / 2;
     // The clouds hang far off in a ring around the camera, wherever it goes, as part of the sky.
     this.clouds.position.copy(camera.position);
-    const above = camera.position.y - WATER_LEVEL;
-    this.skyMaterial.uniforms.uHorizonY.value = Math.sin(-Math.atan2(above, SEA_RADIUS));
+    this.skyMaterial.uniforms.uHorizonY.value = Math.sin(-Math.atan2(above, SEA_RADIUS * reach));
   }
 
   private makeWaterMaterial(): THREE.ShaderMaterial {

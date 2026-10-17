@@ -95,14 +95,22 @@ Scale unit: **1 = Chiikawa's height.**
 ### From above (`mermaid island 1`)
 
 - **Shape:** a rounded, slightly wide island, sandy ring all around.
-- **Karst pillars:** six or seven tall pale grey-white limestone towers
-  #C9D6D9 with green tufts on top, clustered across the north and middle.
-  These are the island's signature silhouette.
-- **Interior:** dense rounded tree canopy. A turquoise pool with a waterfall
-  sits between the pillars near the centre.
-- **South coast:** the main beach, a small village with colourful stalls
-  right behind it, and a long wooden pier pointing out to sea. Farm plots
-  to the west of the village.
+- **Karst pillars:** seven tall pale grey-white limestone towers #C9D6D9
+  standing in a ring round the island's middle, jungle on their tops and
+  white rock standing out of it: rounded knobs on the flat-topped ones,
+  spikes on the two tallest. Many more short, wide pillars hide in the
+  forest, mesas thick with trees on top with only a sliver of rock showing;
+  one carries a great dome of trees. These are the island's signature
+  silhouette.
+- **Interior:** dense rounded tree canopy, darker in the north-west. In the
+  middle of the ring of pillars, round turquoise water shows through the
+  trees. It is not a pond: it is the forbidden cave's skylight, a round
+  opening in the ground over the cave's water. There is no waterfall in
+  the middle of the island.
+- **South coast:** the main beach, the festival's colourful stalls right
+  behind it, a short wooden pier pointing out to sea and the duck ferry at
+  anchor out in the bay. Farm plots just west of the festival. Low layered
+  rocks behind the night beach at the east end.
 - **Sea:** brilliant turquoise near the island #2FD1B8, deepening to blue.
   Small rock spires stick out of the water around the edges, especially to
   the east and west.
@@ -138,8 +146,7 @@ green-turquoise water you can see sparkles in. Confetti welcome on arrival.
 - Navy sky full of stars, a bright full moon with a long reflection streak
   on calm water.
 - Dark rocky headland at the east end of the beach, palms leaning over the
-  sand. **The forbidden cave entrance is at the foot of this headland**,
-  with a No Entry sign in front.
+  sand.
 - Starfish scattered on the sand. Bonfire of crossed logs with a big soft
   cartoon flame casting an orange pool of light.
 
@@ -154,8 +161,10 @@ food and cups on the ground, everyone toasting. This is the festival.
 - Dark blue rock walls with cyan rim light on the edges.
 - **The heart of the cave:** a round opening in the ceiling, ringed by
   hanging vines, with the full moon directly above. A wide shaft of
-  moonlight falls onto a still, glowing pond. Sparkling particles drift in
-  the beam and low mist hugs the water.
+  moonlight falls onto still, glowing water. Sparkling particles drift in
+  the beam and low mist hugs the water. Seen from above, this opening is
+  the round water in the island's middle (`mermaid island 1`): the cave
+  lies under the island's centre.
 - A flat stone ledge beside the water, lit by a small fire, where the Siren
   and the mermaids sit.
 
@@ -189,12 +198,12 @@ and a door in its body, an open deck on its back. Moored near the bay.
 
 Nothing here blocks Milestone 0. These would sharpen later milestones.
 
-- The forbidden cave's No Entry sign and the tunnel between the entrance and
-  the moonlit chamber.
+- Where the forbidden cave's entrance is, its No Entry sign, and the tunnel
+  between the entrance and the moonlit chamber under the skylight.
 - Any underwater frame with the decorations and fish you remember.
 - A clear look at the food-shop building and its owner.
-- What sits at the top of the karst pillars and the waterfall pool, if the
-  film ever goes there.
+- What sits at the top of the karst pillars and round the cave's skylight,
+  if the film ever goes there.
 
 Where reference is missing, I will invent in the same style and flag it.
 

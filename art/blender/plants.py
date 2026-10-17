@@ -249,7 +249,7 @@ def clump(rng, trees, target=None):
     blobs, pieces, crowns = [], [], []
     for x, y, height, base in trees:
         crown_z = base + height * 0.62
-        r = height * 0.36
+        r = height * 0.4
         lean = (rng.uniform(-0.4, 0.4), rng.uniform(-0.4, 0.4))
         trunk = trunk_bm(Vector((x, y, base - 0.4)), Vector((x + lean[0], y + lean[1], crown_z + r * 0.2)),
                          0.32 * height / 8.0 + 0.1, 0.18 * height / 8.0 + 0.06,

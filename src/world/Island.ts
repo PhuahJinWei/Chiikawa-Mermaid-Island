@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { sharedUniforms } from '../characters/CharacterMaterial';
 import { PEN_GLSL, inkUniforms } from './Ink';
-import { blocked, cameraBlocked, deckUnder } from './Obstacles';
+import { addRing, blocked, cameraBlocked, deckUnder, outlineAt } from './Obstacles';
 
 /** What art/blender/build_island.py writes into the ground's glTF extras. */
 export interface TerrainInfo {
@@ -16,14 +16,16 @@ export interface TerrainInfo {
   height: { url: string; grid: number; min: number; max: number };
   /** The painted colour map, laid over the whole square from above. */
   colours: string;
-  /** The waterfall pool: its water stands at `level` within `radius` of `centre` (x, z). */
-  pool: { centre: [number, number]; radius: number; level: number };
-  /** The rock landmarks and the waterfall, built with the ground. */
+  /** The cave's skylight, a round opening in the ground over the sea come in under the island: its
+   * middle (x, z), its edge (an outline, as `outlineAt` reads it), and the mossy lip round it, out
+   * to `lip` from the middle, at `top`. */
+  skylight: { centre: [number, number]; edge: number[]; lip: number; top: number };
+  /** The rock landmarks and the cave's skylight, built with the ground. */
   landmarks: string;
   /** Each rock's foot: its middle (x, z), and how far it reaches at even angles round it from east toward south. */
   rocks: { centre: [number, number]; outline: number[] }[];
-  /** Where the waterfall lands in the pool (x, z), and how far its splash spreads. */
-  waterfall: { foot: [number, number]; splash: number };
+  /** Where a waterfall lands (x, z), and how far its splash spreads, when the island has one. */
+  waterfall?: { foot: [number, number]; splash: number };
   /** The jungle and the crops: the meshes, each trunk (x, z, radius) and each crown (x, y, z,
    * radius), and the flowering bushes butterflies flutter round (x, y, z). */
   plants: {
@@ -72,9 +74,10 @@ float floorAtExact(vec2 xz) {
 /** Deepest water a character wades into, and the steepest ground they walk up (rise per metre). */
 const WADE = 0.25;
 const STEEPEST = 1.0;
-/** How close a character's middle comes to a rock's face or a prop's foot, and the camera's. */
+/** How close a character's middle comes to a rock's face, a prop's foot or the skylight's edge, and the camera's. */
 const ROCK_MARGIN = 0.35;
 const PROP_MARGIN = 0.25;
+const EDGE_MARGIN = 0.3;
 const CAMERA_MARGIN = 0.3;
 /** The highest step a character walks up, onto a deck or a stair. */
 const STEP_UP = 0.35;
@@ -118,12 +121,6 @@ export class Terrain {
     return a + (b - a) * fz;
   }
 
-  /** The surface of whatever water is at (x, z): the pool's, or the sea's. */
-  waterLevel(x: number, z: number): number {
-    const { centre, radius, level } = this.info.pool;
-    return Math.hypot(x - centre[0], z - centre[1]) < radius + 1 ? level : this.info.water;
-  }
-
   /** Whether (x, z) is within `margin` metres of a rock's foot. */
   nearRock(x: number, z: number, margin: number): boolean {
     for (const rock of this.rocks) {
@@ -131,11 +128,7 @@ export class Terrain {
       const dz = z - rock.z;
       const d = Math.hypot(dx, dz);
       if (d > rock.reach + margin) continue;
-      const n = rock.outline.length;
-      const f = (((Math.atan2(dz, dx) / (2 * Math.PI)) * n) % n + n) % n;
-      const i = Math.floor(f);
-      const r = rock.outline[i] + (rock.outline[(i + 1) % n] - rock.outline[i]) * (f - i);
-      if (d < r + margin) return true;
+      if (d < outlineAt(rock.outline, dx, dz) + margin) return true;
     }
     return false;
   }
@@ -153,7 +146,7 @@ export class Terrain {
     if (blocked(x, z, PROP_MARGIN, stand)) return false;
     if (deck !== null && deck > ground) return true;
     const h = ground;
-    if (h < this.waterLevel(x, z) - WADE) return false;
+    if (h < this.info.water - WADE) return false;
     const e = 0.5;
     const gx = (this.height(x + e, z) - this.height(x - e, z)) / (2 * e);
     const gz = (this.height(x, z + e) - this.height(x, z - e)) / (2 * e);
@@ -168,7 +161,6 @@ export class Terrain {
  * depth test, so outlines where things touch it (feet, a log's underside) are drawn over it.
  */
 function groundMaterial(colours: THREE.Texture, info: TerrainInfo, floor: THREE.Texture): THREE.ShaderMaterial {
-  const { centre, radius, level } = info.pool;
   return new THREE.ShaderMaterial({
     uniforms: {
       ...THREE.UniformsUtils.clone(THREE.UniformsLib.fog),
@@ -179,7 +171,6 @@ function groundMaterial(colours: THREE.Texture, info: TerrainInfo, floor: THREE.
       uMap: { value: new THREE.Vector4(info.origin[0], info.origin[1], info.size, info.height.grid) },
       uEdge: { value: new THREE.Color(WATER_EDGE) },
       uSea: { value: info.water },
-      uPool: { value: new THREE.Vector4(centre[0], centre[1], radius + 1, level) },
     },
     vertexShader: /* glsl */ `
       #include <common>
@@ -206,17 +197,15 @@ function groundMaterial(colours: THREE.Texture, info: TerrainInfo, floor: THREE.
       uniform vec3 uInk;
       uniform vec3 uAmbient;
       uniform float uSea;
-      uniform vec4 uPool;
       varying vec2 vUv;
       varying vec3 vWorld;
       varying float vDepth;
       void main() {
         vec3 col = texture2D(uColours, vUv).rgb;
-        float level = distance(vWorld.xz, uPool.xy) < uPool.z ? uPool.w : uSea;
         // Pixels above the waterline, measured across the slope; the pen draws the first few.
         float h = floorAt(vWorld.xz);
-        if (abs(h - level) < 0.6) h = floorAtExact(vWorld.xz);
-        float above = (h - level) / max(fwidth(h), 1e-5);
+        if (abs(h - uSea) < 0.6) h = floorAtExact(vWorld.xz);
+        float above = (h - uSea) / max(fwidth(h), 1e-5);
         // Under the water the ground is hidden, but where the two meet at a glancing angle a
         // sliver of it can show. Painted the colour of the water's edge, it reads as water.
         col = mix(col, uEdge, 1.0 - step(-0.5, above));
@@ -274,6 +263,9 @@ export async function loadTerrain(): Promise<Terrain> {
 
   terrain = new Terrain(info, heights, found);
   found.material = groundMaterial(colours, info, terrain.texture);
+  // The mossy lip round the cave's skylight is a ledge to walk on, up to a step back from its edge.
+  const { centre, edge, lip, top } = info.skylight;
+  addRing(centre[0], centre[1], edge.map((r) => r + EDGE_MARGIN), lip, top);
   return terrain;
 }
 
@@ -292,11 +284,6 @@ export function groundHeight(x: number, z: number, feet = Infinity): number {
 /** The bare ground's height at (x, z), under any deck. */
 export function terrainHeight(x: number, z: number): number {
   return terrain ? terrain.height(x, z) : 0;
-}
-
-/** The surface of whatever water is at (x, z), the pool's or the sea's; the sea's until the island has loaded. */
-export function waterLevelAt(x: number, z: number): number {
-  return terrain ? terrain.waterLevel(x, z) : -0.32;
 }
 
 /** Whether the camera may be at (x, y, z): not inside a rock, a prop or a tree's crown. */

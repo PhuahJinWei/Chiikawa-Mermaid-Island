@@ -3,36 +3,51 @@
 ## M1 — Island (in progress, branch `m1-island`)
 
 Checked in the browser from the pier, the festival street, the village and
-inside a hut, the jungle, the fields, the waterfall pool and the cave, from
-high above, and at dawn, noon, dusk and night; walked up a hut's stairs into
-its room and up the stage. Not yet checked on a real phone.
+inside a hut, the jungle, the fields, the cave's skylight, the night beach
+and the foot of a pillar, from high above, side by side with the film's
+aerial shot from the camera the island was laid out with, and at dawn,
+noon, dusk and night; walked up a hut's stairs into its room and up the
+stage, along every path, and round the skylight's lip. Not yet checked on a
+real phone.
 
 **Added**
 
 - The island's ground, built in Blender by `art/blender/build_island.py`
-  after the film's aerial shot and the plan's map: a rounded island about
-  280 metres across with a sandy ring all round, grass inland, the festival
-  street behind the main beach, the village's clearing deep in the jungle,
-  fields to the west and paths between them up to the waterfall pool. Its
-  colours are painted into one texture with soft hill shading, and its
-  heights come as a grid the game walks on.
+  after the film's aerial shot, traced through a game camera matched to the
+  shot so the island seen from there looks as the film draws it: a rounded
+  island about 290 metres across with a sandy ring all round (narrow where
+  the jungle runs down to the water in the west and north, widest on the
+  night beach), grass inland, the festival street behind the main beach,
+  fields just west of it, the village's clearing deep in the jungle and
+  paths between them up to the cave's skylight. Its colours are painted into
+  one texture with soft hill shading, and its heights come as a grid the
+  game walks on.
 - The island's landmarks, built with the ground (`art/blender/karst.py`
-  shapes the rocks), after the film's aerial shot. Nine tall pale limestone
-  karst pillars rise round the waterfall pool, split into slabs and fluted
-  by rain, with ledges, moss hanging from their tops and a crown of jungle;
-  two stand as twins. The waterfall pours from a notch in the rock wall
-  between two of them into the pool and lands in a cloud of spray, with
-  rings spreading over the water. The headland at the east end of the main
-  beach is layered grey rock, with the forbidden cave's arched mouth at its
-  foot, opening dark onto the water. Fifteen sea spires stand in clusters
-  round the lagoon.
-- The waterfall pool has water, turquoise like the lagoon and coloured by
-  its depth.
-- A No Entry sign stands at the east end of the main beach, before the
-  cave. Its words, 立入禁止, come from the game's Japanese text.
-- The bay is the festival, laid out as in the film's arrival: the long
-  wooden pier (rough planks on log posts, over turquoise water, the white
-  duck ferry moored beside it, bobbing) reaches the middle of the beach.
+  shapes the rocks), each where the film's aerial shot has it. Seven tall
+  pale limestone karst pillars stand in a ring round the island's middle,
+  split into slabs and fluted by rain, with ledges, moss hanging from their
+  tops and a crown of jungle, white rock standing out of it: rounded knobs
+  on the flat-topped ones, spikes on the two tallest. Nine short, wide
+  pillars hide in the forest, mesas thick with trees on top, one under a
+  great dome of them; two little white spires poke out of the canopy in
+  the west. Low layered rocks stand behind the night beach, and eighteen
+  sea spires in six clusters round the lagoon. There is no waterfall for
+  now: the shot has none in the middle of the island.
+- The round water in the middle of the ring of pillars is not a pond: as in
+  the film, it is the forbidden cave's skylight, a round opening in the
+  jungle floor about 24 metres across, in a gentle hollow with the trees
+  standing back from it, so its water shows from above as in the film's
+  aerial shot. A mossy lip runs round it, a step above the ground, with
+  vines hanging down inside. Its fluted limestone sides flare out under the
+  edge into the cave and fall to the cave's water below: the sea, come in
+  under the island, turquoise like the lagoon. Characters walk round the lip
+  and stop a step back from the edge. The cave itself, its entrance and the
+  way in are still to be planned; the No Entry sign (立入禁止) waits for the
+  entrance.
+- The bay is the festival, laid out as in the film's arrival: a short
+  wooden pier (rough planks on log posts, over turquoise water) reaches out
+  from the middle of the beach, and the white duck ferry lies at anchor out
+  in the bay, bobbing, as in the film's aerial shot.
   Behind the beach, two long rows of stalls stand side by side facing the
   bay, awning touching awning, following its curve, either side of an
   opening in line with the pier. The welcome arch spans the opening: a
@@ -49,8 +64,8 @@ its room and up the stage. Not yet checked on a real phone.
   palms behind the stalls and confetti over the beach and the street.
   Built in Blender by `art/blender/build_village.py` (the arch and banners
   by `art/blender/houses.py`).
-- The village is a clearing deep in the jungle, on the path from the
-  festival street to the waterfall. Eight big huts stand round it, each
+- The village is a clearing deep in the jungle, in the middle of the ring
+  of pillars, on the path from the festival street to the cave's skylight. Eight big huts stand round it, each
   one you can walk into, after the film's village frames: log stairs up to
   a plank porch with a railing, a doorway wide enough for three, lattice
   windows over bands of coloured scales, a log-cabin room inside with a
@@ -71,7 +86,7 @@ its room and up the stage. Not yet checked on a real phone.
   ti plants, bromeliads, monstera and flowering bushes (purple, white,
   yellow, red, pink), thickest along the paths. The ground under the trees
   is shaded. Everything sways gently in the wind, outlines and all.
-- Crops grow along the fields' rows, west of the village.
+- Crops grow along the fields' rows, just west of the festival street.
 - Blue butterflies flutter round flowering bushes, mostly near the beach
   and the village.
 - The island's layout is a file, `public/data/layout.json`: where every
@@ -79,13 +94,17 @@ its room and up the stage. Not yet checked on a real phone.
   is drawn with, and the island's named places. The Blender build reads it
   too, to keep the jungle clear of the props.
 - Places have names. Walking into one shows its name for a moment under
-  the title: お祭り通り, 村, 浜辺, 畑, 桟橋, 滝つぼ, 東の浜, 洞くつの入り口,
-  and the sand, the jungle, the lagoon, the reef and the deep sea
-  elsewhere. The Test panel's info line shows it too.
+  the title: お祭り通り, 村, 浜辺, 畑, 桟橋, 洞くつの天窓, 東の浜, and the
+  sand, the jungle, the lagoon, the reef and the deep sea elsewhere. The Test panel's info line shows it too.
 - A free camera in the Test panel (フリーカメラ), for looking round the
   island quickly: fly the way the camera looks with the stick or WASD,
   drag to look round, pinch, scroll or E and Q to rise and sink, Shift to
   go faster. ここへ移動 puts the character you control down under it.
+- For checking the island against the film: in development, `__dev.shot('aerial')`
+  in the browser console frames the island as the film's aerial shot does,
+  through the camera it was laid out with (in a window shaped like the
+  frame, about 1.86 : 1). From high above, the sea reaches further and the
+  haze thins, so the island still reads.
 - Day and night: a whole day passes in 24 minutes, starting at ten in the
   morning. The sky goes from dawn pinks to bright blue, to a golden
   afternoon, an orange and pink dusk and a deep navy night with twinkling
@@ -97,16 +116,17 @@ its room and up the stage. Not yet checked on a real phone.
 - The Test panel has a 時間 section: 朝, 昼, 夕方 and 夜 jump to dawn, noon,
   dusk and night, and 時間を止める stops the clock.
 - The sea is coloured by its real depth: pale aqua at the water's edge,
-  turquoise over the lagoon, blue past the reef, fading into the deep
-  beyond the island's map. The surf follows the coastline, and the
+  turquoise over the lagoon, which spreads wide round the island as in
+  the film's aerial shot, blue past the reef, fading into the deep beyond
+  the island's map. The surf follows the coastline, and the
   waterline is drawn with the pen wherever the ground meets the water,
-  round the island and the pool.
+  round the island.
 - The sea and the clouds travel with the camera, so from anywhere on the
   island the horizon line sits on the sea's far edge and the clouds stay
   far off in the sky.
 - Characters walk up and down the island's slopes, wade only ankle-deep,
-  and stop at cliffs, steep rock and the foot of every rock landmark, hut,
-  stall, palm and tree trunk. They can walk out along the pier to its end.
+  and stop at cliffs, steep rock, the skylight's edge and the foot of
+  every rock landmark, hut, stall, palm and tree trunk. They can walk out along the pier to its end.
   They climb steps no higher than a stair's (so they walk up a hut's
   stairs onto its porch and into its room, and up the stage, but not up
   the porch's side), walk under roofs, and can't walk under a hut. The
@@ -114,16 +134,18 @@ its room and up the stage. Not yet checked on a real phone.
   a wall, a roof or a tree's crown rather than behind or inside it.
 - The waterline follows the height grid, the same edge the water stops at
   and characters wade to, so it runs smoothly round every shore. The rocks
-  draw it too, where they stand in the sea or the pool.
+  draw it too, where they stand in the water, down in the skylight too.
 
 **Performance**
 
 Measured in the browser. With the whole cast and crowd (11 characters) at
-the head of the pier, at the default camera: about 535k triangles in 105
-draw calls. Without the cast: the festival street 433k, the village 375k,
-the jungle 210k, from high above 450k in 137 draw calls. The plan's phone budget is 150 draw calls (met) and 150k triangles
-(not met, by two to three times); everything outlined is drawn twice, once
-for its pen line. To get there:
+the head of the pier, at the default camera: about 580k triangles in 110
+draw calls, up from 535k now that the jungle is as dense as the film's.
+Without the cast (measured before the island was laid out after the film):
+the festival street 433k, the village 375k, the jungle 210k, from high
+above 450k in 137 draw calls. The plan's phone budget is 150 draw calls
+(met) and 150k triangles (not met, by three to four times); everything
+outlined is drawn twice, once for its pen line. To get there:
 
 - Rocks are grouped by where they stand, so a group out of view is not
   drawn. Small props (baskets, pots, logs, starfish) and the plants under

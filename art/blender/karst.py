@@ -3,10 +3,14 @@
 Every rock here is built the same way: rings of vertices stacked up a wobbly outline. The outline
 is an irregular polygon with softened corners, so the stone splits into flat slabs; rain flutes it
 with vertical grooves; it steps in or out at a ledge or two, leans a little and rounds off at the
-shoulders, its top rim uneven. Pillars and the waterfall's wall wear a crown of jungle; sea spires
-are angular shards; the headland is layered rock with the cave mouth at its foot. Colours are
-painted per vertex: pale stone, darker in the grooves, with streaks running down and moss hanging
-from the top.
+shoulders, its top rim uneven. Pillars and mesas wear a crown of jungle, a mesa's sometimes swelling
+into a great mound of trees; sea spires are angular shards; the rocks behind the night beach are
+layered. A rock can open an arched cave mouth at its foot, or a notch in its rim for a waterfall.
+Colours are painted per vertex: pale stone, darker in the grooves, with streaks running down and
+moss hanging from the top.
+
+The cave's skylight is built here too: a round opening in the ground, ringed with the same stone.
+
 
 Rocks are described in game coordinates (x east, z south, y up) and turned into Blender's
 (x, -z, y) only as their vertices are made. Angles are measured in the game's x-z plane, from east
@@ -19,6 +23,7 @@ import bmesh
 import numpy as np
 from mathutils import Vector
 
+import build_props as P
 import charlib as L
 
 
@@ -38,7 +43,7 @@ SHARED = palette({
 })
 # Stone by kind: the karst pillars pale and cool like the film's, the headland a warmer grey.
 STONES = {
-    "karst": palette({"stone": "#E3E9EA", "stoneMid": "#CAD3D6", "groove": "#93A7B3", "streak": "#B7C3C8"}),
+    "karst": palette({"stone": "#D5DFE2", "stoneMid": "#BECACF", "groove": "#8B9FAC", "streak": "#AFBDC3"}),
     "headland": palette({"stone": "#D4D1C6", "stoneMid": "#B9B6AB", "groove": "#8C8F8B", "streak": "#A8A9A2"}),
 }
 
@@ -63,6 +68,7 @@ DEFAULTS = {
     "flat": False,        # flat faces, for a shard of rock, instead of smooth ones
     "crown": True,        # jungle on top
     "moss": True,         # moss hanging down from the top
+    "drape": 1.0,         # how far down the moss hangs: more for a rock the jungle covers
     "wet": None,          # the level of the water its foot stands in, for a dark wet band
     "notch": None,        # (angle, half width, depth): a dip in the top's rim for a waterfall
     "cave": None,         # (angle, half width, height, depth): an arched cave mouth at `wet`
@@ -359,7 +365,8 @@ class Rock:
             beds = 0.5 + 0.5 * np.sin(y * 0.85 + 0.8 * np.sin(2.0 * theta + p[7]))
             col = mix(col, C["stoneMid"], s["strata"] * smoothstep(0.5, 0.85, beds))
         if s["moss"]:
-            drape = 0.07 + 0.16 * (0.5 + 0.5 * np.sin(7.0 * theta + p[4])) ** 3 + 0.04 * np.sin(13.0 * theta + p[5])
+            drape = (0.07 + 0.16 * (0.5 + 0.5 * np.sin(7.0 * theta + p[4])) ** 3
+                     + 0.04 * np.sin(13.0 * theta + p[5])) * s["drape"]
             m = smoothstep(1.0 - drape - 0.03, 1.0 - drape + 0.03, h)
             moss = mix(np.broadcast_to(C["moss"], theta.shape + (3,)), C["mossDark"],
                        smoothstep(0.3, 0.7, 0.5 + 0.5 * np.sin(11.0 * theta + p[6])))
@@ -371,11 +378,12 @@ class Rock:
         return np.where(inside[..., None], C["cave"], col)
 
 
-def crown(rock, rim, gap=None, size=None, target=1200):
+def crown(rock, rim, gap=None, size=None, target=1200, mound=1.0, hang=0.35):
     """Jungle on a rock's top: blobs along the rim, leaning out over it, mounded over the middle
     and spilling a little down the sides, fused into one soft mass. `gap` (angle, half width)
     leaves the rim bare where a waterfall pours; `size` overrides the top's radius, for a tuft on
-    a pointed spire."""
+    a pointed spire; `mound` swells the middle into a great dome of trees (1: a gentle mound);
+    `hang` is how often a clump hangs over the edge."""
     rng = np.random.default_rng(rock.seed + 100)
     x, y, z = rim
     cx, cz = (float(v) for v in rock.middle(rock.top))
@@ -397,18 +405,18 @@ def crown(rock, rim, gap=None, size=None, target=1200):
         out = Vector((px - cx, -(pz - cz), 0.0)).normalized()
         c = Vector((px, -pz, py + r * 0.2)) + out * (r * 0.2)
         blobs.append(L.ellipsoid_bm(c, (r, r, r * 0.8), u=14, v=9))
-        if rng.random() < 0.35:
+        if rng.random() < hang:
             # A clump hanging over the edge.
             rh = r * rng.uniform(0.45, 0.6)
             blobs.append(L.ellipsoid_bm(c + out * (r * 0.45) - Vector((0, 0, r * 0.9)), (rh, rh, rh * 1.1), u=12, v=8))
-    # Mounded over the middle.
-    for _ in range(int(rng.integers(2, 5))):
-        a, d = rng.uniform(0, 2 * math.pi), size * rng.uniform(0.0, 0.5)
-        r = size * rng.uniform(0.38, 0.5)
+    # Mounded over the middle; a big mound is a wide, lumpy dome of many trees.
+    for _ in range(int(rng.integers(2, 5)) + int(round(3.0 * (mound - 1.0)))):
+        a, d = rng.uniform(0, 2 * math.pi), size * rng.uniform(0.0, 0.5 + 0.12 * (mound - 1.0))
+        r = size * rng.uniform(0.38, 0.5) * (1.0 + 0.45 * (mound - 1.0))
         if gap and abs(float(angle_diff(a, gap[0]))) * d < gap[1] + 2.0 and d > size * 0.3:
             continue
-        c = Vector((cx + d * math.cos(a), -(cz + d * math.sin(a)), top + r * 0.35))
-        blobs.append(L.ellipsoid_bm(c, (r, r, r * 0.75), u=16, v=10))
+        c = Vector((cx + d * math.cos(a), -(cz + d * math.sin(a)), top + r * 0.35 * math.sqrt(mound)))
+        blobs.append(L.ellipsoid_bm(c, (r, r, r * 0.75 * mound ** 0.25), u=16, v=10))
     bm = L.fuse(blobs, voxel=voxel, smooth_iterations=6, smooth_lambda=0.8, target_tris=target)
     bm.normal_update()
     cols = []
@@ -421,20 +429,20 @@ def crown(rock, rim, gap=None, size=None, target=1200):
     return bm, cols
 
 
-def waterfall(rock, pool_level, rows=20, thickness=0.45):
+def waterfall(rock, level, rows=20, thickness=0.45):
     """The waterfall: a band of water pouring over the notch in a rock's rim and falling clear of
-    its face into the pool, thick enough to carry the pen's outline. UVs run across (u) and down
-    (v), for the game's flowing streaks."""
+    its face into the water at `level`, thick enough to carry the pen's outline. UVs run across (u)
+    and down (v), for the game's flowing streaks."""
     an, half, depth = rock.s["notch"]
     lip = rock.top - depth
     face_lip = float(rock.radius(np.array([an]), np.array([lip]))[0][0])
     reach = face_lip
-    for y in np.linspace(pool_level - 0.6, lip, 24):
+    for y in np.linspace(level - 0.6, lip, 24):
         angles = np.array([an + d / face_lip for d in (-half, 0.0, half)])
         reach = max(reach, float(rock.radius(angles, np.full(3, y))[0].max()))
     out_dir = np.array([math.cos(an), math.sin(an)])
     side = np.array([-out_dir[1], out_dir[0]])
-    bottom_y = pool_level - 0.6
+    bottom_y = level - 0.6
     # Water leaving the lip falls in an arc: out from the face as the root of how far it has
     # dropped, quickly enough to clear the face below.
     throw = max(2.0, (reach - face_lip + 0.5) / math.sqrt(0.15))
@@ -478,3 +486,100 @@ def spray(level, seed=7):
     white, under = np.array(L.hex_color("#FFFFFF")[:3]), np.array(L.hex_color("#BDEFF7")[:3])
     cols = [under + (white - under) * float(smoothstep(-0.4, 0.3, v.normal.z)) for v in bm.verts]
     return bm, cols
+
+
+# How far the skylight's lip stands above the ground round it.
+SINKHOLE_LIP = 0.16
+
+
+def sinkhole(centre, radius, rim, water, floor, seed, bell=2.5, width=5.5, sheer=None, segments=72):
+    """The cave's skylight: a round opening in the ground over the cave's water, as in the film's
+    aerial shot. Its sides are sheer fluted limestone that flare out under the edge into the cave
+    below and drop past the water; a mossy lip runs round the edge out to `radius + width`, a step
+    above the ground at `rim`; vines hang down inside. Toward the angle `sheer` (where a rock stands
+    close) the side drops sheer instead, so the rock stays clear of the cave. A closed solid ring,
+    for the pen: the inner face, the lip on top, the outer face down into the ground. Returns
+    (bmesh, colours, edge): the edge is the opening's radius at `segments` even angles round it from
+    east toward south, for the game to keep walkers back from."""
+    rng = np.random.default_rng(seed)
+    C = {**SHARED, **STONES["karst"]}
+    cx, cz = centre
+    theta = np.linspace(0.0, 2.0 * math.pi, segments, endpoint=False)
+    p = rng.uniform(0.0, 2.0 * math.pi, 8)
+    # Nearly round, as in the film: the edge wanders at most 5% either way.
+    lump = 0.025 * np.sin(2 * theta + p[0]) + 0.015 * np.sin(3 * theta + p[1]) + 0.01 * np.sin(5 * theta + p[2])
+    warp = theta + 0.25 * np.sin(3 * theta + p[3])
+    groove = (0.5 + 0.5 * np.cos(14.0 * warp + p[4])) ** 4
+    edge = radius * (1.0 + lump)
+    top = rim + SINKHOLE_LIP - 0.04
+    bottom = floor - 0.5
+    drape = 0.5 + 0.9 * (0.5 + 0.5 * np.sin(7.0 * theta + p[5])) ** 2
+    opening = np.ones(segments) if sheer is None else 1.0 - 0.9 * np.exp(-(angle_diff(theta, sheer) / 0.45) ** 2)
+
+    def inner(y):
+        """The inner face's distance from the middle at height y: at the edge just under the lip,
+        flaring out by `bell` a few metres down (less toward `sheer`), fluted all the way."""
+        flare = smoothstep(rim - 0.3, rim - 3.5, y) * opening
+        return edge + bell * flare + 0.35 * groove * flare
+
+    # The profile round each angle: up the inner face, across the lip, down the outer face.
+    profile = []   # (radii by angle, height, kind)
+    for y in [bottom, water - 1.0, water - 0.25, water + 0.35, water + 1.4, *np.linspace(water + 2.6, rim - 1.0, 4),
+              rim - 0.5, rim - 0.18]:
+        profile.append((inner(float(y)), float(y), "face"))
+    profile.append((edge + 0.16, top - 0.02, "edge"))
+    # The lip follows the edge's wobble across to its round outer rim.
+    for out in (0.45, 1.6, 3.0, 4.3):
+        profile.append((edge + out, top + 0.04, "lip"))
+    profile.append((np.full(segments, radius + width), top, "lip"))
+    profile.append((np.full(segments, radius + width), bottom, "outer"))
+
+    bm = bmesh.new()
+    rows, cols = [], []
+    for radii, y, kind in profile:
+        xs, zs = cx + radii * np.cos(theta), cz + radii * np.sin(theta)
+        rows.append([bm.verts.new((float(xs[j]), -float(zs[j]), y)) for j in range(segments)])
+        if kind in ("face", "edge"):
+            f = (y - water) / max(rim - water, 0.1)
+            band = 0.5 + 0.5 * np.sin(3.0 * theta + p[6] + 2.0 * f)
+            c = mix(np.broadcast_to(C["stone"], (segments, 3)), C["stoneMid"], smoothstep(0.3, 0.7, band))
+            c = mix(c, C["groove"], smoothstep(0.15, 0.7, groove))
+            # Darker down in the cave, under the overhang; wet where the water laps; moss hanging
+            # from the edge in tongues.
+            c = mix(c, C["groove"] * 0.72, smoothstep(0.85, 0.25, f))
+            c = mix(c, C["wet"], smoothstep(0.9, 0.2, abs(y - water)) if abs(y - water) < 0.9 else 0.0)
+            c = mix(c, mix(np.broadcast_to(C["moss"], (segments, 3)), C["mossDark"], 0.5 + 0.5 * np.sin(11.0 * theta)),
+                    smoothstep(rim - drape - 0.1, rim - drape + 0.1, y))
+        elif kind == "lip":
+            c = mix(np.broadcast_to(C["moss"], (segments, 3)), C["mossDark"],
+                    smoothstep(0.2, 0.8, 0.5 + 0.5 * np.sin(5.0 * theta + p[7]) * np.sin(radius + y)))
+        else:
+            c = np.broadcast_to(C["foot"], (segments, 3))
+        cols.extend(list(c))
+    for lo, hi in zip(rows, rows[1:] + rows[:1]):
+        for j in range(segments):
+            k = (j + 1) % segments
+            bm.faces.new((lo[j], lo[k], hi[k], hi[j]))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+
+    # Vines hanging from the edge down into the cave, with leaves along them.
+    vine_cols = []
+    for _ in range(40):
+        a = rng.uniform(0.0, 2.0 * math.pi)
+        j = int(round(a / (2.0 * math.pi) * segments)) % segments
+        r = float(edge[j]) + 0.12
+        x0, z0 = cx + r * math.cos(a), cz + r * math.sin(a)
+        length = rng.uniform(1.5, 6.0)
+        sway = rng.uniform(-0.25, 0.25)
+        a3 = Vector((x0, -z0, top - 0.05))
+        b3 = Vector((x0 - math.cos(a) * 0.3 + sway, -(z0 - math.sin(a) * 0.3), top - 0.05 - length))
+        vine = P.segment_bm(a3, b3, 0.04, 0.03, segments=4)
+        L.append_bm(bm, vine)
+        vine_cols.extend([C["mossDark"]] * len(vine.verts))
+        vine.free()
+        for t in np.arange(0.25, 1.0, 0.3):
+            leaf = L.ellipsoid_bm(a3.lerp(b3, float(t)) + Vector((0.08, 0.0, 0.0)), (0.13, 0.05, 0.09), u=5, v=3)
+            L.append_bm(bm, leaf)
+            vine_cols.extend([C["moss"]] * len(leaf.verts))
+            leaf.free()
+    return bm, cols + vine_cols, [round(float(r), 2) for r in edge]

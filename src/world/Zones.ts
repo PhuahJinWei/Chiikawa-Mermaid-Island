@@ -3,8 +3,7 @@ import { t, type StringKey } from '../i18n/I18n';
 /** The island's named places, from the most particular to the most general. */
 export type ZoneId =
   | 'pier'
-  | 'cave'
-  | 'pool'
+  | 'skylight'
   | 'fields'
   | 'village'
   | 'festival'
@@ -37,7 +36,8 @@ export class Zones {
   constructor(
     private readonly defs: ZoneDef[],
     private readonly ground: (x: number, z: number) => number,
-    private readonly water: (x: number, z: number) => number,
+    /** The sea's surface. */
+    private readonly sea: number,
   ) {}
 
   at(x: number, z: number): ZoneId {
@@ -54,7 +54,7 @@ export class Zones {
       }
     }
     const h = this.ground(x, z);
-    const depth = this.water(x, z) - h;
+    const depth = this.sea - h;
     if (depth > 0.05) return depth < LAGOON_DEPTH ? 'lagoon' : depth < REEF_DEPTH ? 'reef' : 'deep';
     return h < SAND_HEIGHT ? 'beach' : 'jungle';
   }

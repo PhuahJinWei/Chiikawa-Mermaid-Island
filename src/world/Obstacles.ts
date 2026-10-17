@@ -1,8 +1,8 @@
 /**
  * What stands on the island for characters to walk round, under or on, and for the camera to keep
  * out of: blocks (a prop's foot, a hut's walls, a roof, each over a range of heights), decks to walk
- * on (porches, floors, stairs, the pier), and tree crowns, which only the camera minds. Kept in a
- * coarse grid, so a test looks only at what is near.
+ * on (porches, floors, stairs, the pier, the lip round the cave's skylight), and tree crowns, which
+ * only the camera minds. Kept in a coarse grid, so a test looks only at what is near.
  */
 
 const CELL = 8;
@@ -42,6 +42,16 @@ interface Deck extends Shape {
   front: number;
 }
 
+/** A flat deck round a hole: from an inner edge out to a circle. */
+interface Ring {
+  x: number;
+  z: number;
+  /** The inner edge, as an outline (see `outlineAt`). */
+  inner: number[];
+  outer: number;
+  top: number;
+}
+
 interface Crown {
   x: number;
   y: number;
@@ -71,7 +81,19 @@ class Grid<T> {
 const EMPTY: never[] = [];
 const blocks = new Grid<Block>();
 const decks = new Grid<Deck>();
+const rings = new Grid<Ring>();
 const crowns = new Grid<Crown>();
+
+/**
+ * How far an outline reaches from its middle toward (dx, dz). An outline is its distances from
+ * the middle at even angles round it, from east toward south; between them it runs straight.
+ */
+export function outlineAt(outline: number[], dx: number, dz: number): number {
+  const n = outline.length;
+  const f = ((((Math.atan2(dz, dx) / (2 * Math.PI)) * n) % n) + n) % n;
+  const i = Math.floor(f);
+  return outline[i] + (outline[(i + 1) % n] - outline[i]) * (f - i);
+}
 
 /** (x, z) in the frame of something at (s.x, s.z) turned by its angle (as an object's rotation.y). */
 function local(s: Shape, x: number, z: number): [number, number] {
@@ -121,6 +143,11 @@ export function addDeck(x: number, z: number, hx: number, hz: number, angle: num
   decks.add({ x, z, cos: Math.cos(angle), sin: Math.sin(angle), hx, hz, back, front }, x, z, Math.hypot(hx, hz));
 }
 
+/** A flat walkable ring at `top` round a hole at (x, z): from the hole's edge (an outline) out to `outer`. */
+export function addRing(x: number, z: number, inner: number[], outer: number, top: number): void {
+  rings.add({ x, z, inner, outer, top }, x, z, outer);
+}
+
 /** A tree's crown: a ball the camera keeps out of. */
 export function addCrown(x: number, y: number, z: number, r: number): void {
   crowns.add({ x, y, z, r }, x, z, r);
@@ -152,6 +179,13 @@ export function deckUnder(x: number, z: number, reach: number): number | null {
     if (Math.abs(lx) > d.hx || Math.abs(lz) > d.hz) continue;
     const h = d.back + (d.front - d.back) * ((lz + d.hz) / (2 * d.hz));
     if (h <= reach && (top === null || h > top)) top = h;
+  }
+  for (const g of rings.at(x, z)) {
+    const dx = x - g.x;
+    const dz = z - g.z;
+    const d = Math.hypot(dx, dz);
+    if (d > g.outer || d < outlineAt(g.inner, dx, dz)) continue;
+    if (g.top <= reach && (top === null || g.top > top)) top = g.top;
   }
   return top;
 }
