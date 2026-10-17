@@ -320,6 +320,13 @@ outlined is drawn twice, once for its pen line. To get there:
   pale blue of the film's open skies, with white clouds, the deep blue sea
   out to the horizon and a soft glow only round the sun. The sky eases
   between the two as the camera goes in and out of the trees.
+- Cycads after the film's, round its village and in its jungle: a short,
+  thick trunk of overlapping scales, closed over on top by a woolly crown,
+  and a fountain of twelve stiff feathery fronds, the inner ones standing
+  up, the outer arching out and down at their tips. They had been a thin
+  six-sided tube, open at the top so it looked hollow, under seven broad
+  fronds. The rest of the jungle grows as before. A frame in the jungle
+  takes about 17.8 ms on this PC.
 - Building the props or the village with `--only` no longer overwrites
   their .blend file with just the one prop.
 - The offline cache now keeps the island's height grid and layout file,

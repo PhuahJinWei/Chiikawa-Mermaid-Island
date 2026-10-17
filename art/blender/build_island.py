@@ -1134,7 +1134,13 @@ def build_plants(collection, outlines):
     kinds = {
         "fern": [variants.shape("fern", PL.to_arrays(PL.fern(rng))) for _ in range(6)],
         "monstera": [variants.shape("monstera", PL.to_arrays(PL.monstera(rng))) for _ in range(4)],
-        "cycad": [variants.shape("cycad", PL.to_arrays(PL.cycad(rng))) for _ in range(4)],
+    }
+    # The cycads grow from a generator of their own; the island's is moved on as far as the cycads
+    # used to take it, so the rest of the jungle grows as before.
+    rng.random(60)
+    cycads = np.random.default_rng(FALL["seed"] + 17)
+    kinds["cycad"] = [variants.shape("cycad", PL.to_arrays(PL.cycad(cycads))) for _ in range(4)]
+    kinds |= {
         "ti": [variants.shape("ti", PL.to_arrays(PL.ti_plant(rng))) for _ in range(4)],
         "brom": [variants.shape("brom", PL.to_arrays(PL.bromeliad(rng))) for _ in range(3)],
         "bush": [variants.shape("bush", PL.to_arrays(PL.bush(rng, colour)))

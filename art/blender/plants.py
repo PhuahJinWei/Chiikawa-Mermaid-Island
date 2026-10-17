@@ -36,7 +36,10 @@ C = {k: np.array(L.hex_color(v)[:3]) for k, v in {
     "cropDark": "#5A9E3A",
     "cycad": "#4F9E45",
     "cycadLight": "#6EB85A",
-    "cycadTrunk": "#7A6A4E",
+    "cycadDark": "#3D8540",
+    "cycadTrunkLight": "#8E7C5C",
+    "cycadTrunkDark": "#5E5038",
+    "cycadWool": "#6B5A40",
     "ti": "#B63A4E",
     "tiDark": "#7E2A48",
     "tiGreen": "#6E8F3E",
@@ -450,27 +453,57 @@ def monstera(rng):
     return merge(pieces)
 
 
+def scaly_trunk_bm(height, r0, r1, rings=6, segments=8):
+    """A cycad's trunk: rings of scales, each ring turned half a scale from the one below so they
+    overlap like the old leaf bases do, ridged out and grooved in between, standing from just under
+    the ground to `height`, where it is closed over by a low woolly crown. Returns it with its
+    colours."""
+    bm = bmesh.new()
+    rows, cols = [], []
+    for i in range(rings + 1):
+        t = i / rings
+        r = lerp(r0, r1, t) * (1.08 if i % 2 else 0.95)
+        turn = math.pi / segments * (i % 2)
+        z = -0.1 + (height + 0.1) * t
+        rows.append([bm.verts.new((r * math.cos(2 * math.pi * k / segments + turn),
+                                   r * math.sin(2 * math.pi * k / segments + turn), z)) for k in range(segments)])
+        cols.extend([C["cycadTrunkLight"] if i % 2 else C["cycadTrunkDark"]] * segments)
+    for a, b in zip(rows, rows[1:]):
+        for k in range(segments):
+            bm.faces.new((a[k], a[(k + 1) % segments], b[(k + 1) % segments], b[k]))
+    crown = bm.verts.new((0.0, 0.0, height + 0.08))
+    cols.append(C["cycadWool"])
+    for k in range(segments):
+        bm.faces.new((rows[-1][k], rows[-1][(k + 1) % segments], crown))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    return bm, cols
+
+
 def cycad(rng):
-    """A cycad: a short scaly trunk with a crown of stiff feathery fronds, as in the film's jungle."""
+    """A cycad, as in the film's jungle and round its village: a short, thick trunk of overlapping
+    scales, closed over on top, and a fountain of many stiff feathery fronds springing from it, the
+    inner ones standing up, the outer arching out and down at their tips."""
     height = rng.uniform(0.5, 1.3)
     pieces = []
-    trunk = trunk_bm(Vector((0.0, 0.0, -0.1)), Vector((0.0, 0.0, height)), 0.22, 0.18, segments=6, rings=2)
-    pieces.append((trunk, [C["cycadTrunk"]] * len(trunk.verts), [0.0] * len(trunk.verts)))
-    top = Vector((0.0, 0.0, height))
-    count = 7
+    trunk, trunk_cols = scaly_trunk_bm(height, 0.32, 0.26)
+    pieces.append((trunk, trunk_cols, [0.0] * len(trunk.verts)))
+    top = Vector((0.0, 0.0, height + 0.04))
+    count = 12
     for k in range(count):
-        theta = 2 * math.pi * k / count + rng.uniform(-0.2, 0.2)
+        inner = k % 2 == 0
+        theta = 2 * math.pi * k / count + rng.uniform(-0.15, 0.15)
         d = Vector((math.cos(theta), math.sin(theta), 0.0))
         side = Vector((-math.sin(theta), math.cos(theta), 0.0))
-        length = rng.uniform(1.0, 1.4)
+        length = rng.uniform(1.0, 1.35) * (0.85 if inner else 1.0)
+        reach, rise, droop = (0.55, 0.95, 0.1) if inner else (1.0, 0.5, 0.35)
 
-        def centre(s, d=d, length=length):
-            return top + d * (s * length) + UP * (0.55 * math.sin(s * math.pi * 0.7) * length - 0.25 * s * s)
+        def centre(s, d=d, length=length, reach=reach, rise=rise, droop=droop):
+            return top + d * (s * length * reach) + UP * ((rise * math.sin(s * math.pi * 0.6) - droop * s * s) * length)
 
-        frond = blade_bm(centre, side, 0.28, rows=4)
-        colour = C["cycad"] if k % 2 else C["cycadLight"]
+        frond = blade_bm(centre, side, 0.2, rows=5)
+        colour = C["cycadLight"] if inner else (C["cycad"] if k % 4 == 1 else C["cycadDark"])
         pieces.append((frond, [colour] * len(frond.verts), [min(1.0, 0.3 + (v.co - top).length / length) for v in frond.verts],
-                       blade_leaf(4)))
+                       blade_leaf(5)))
     return merge(pieces)
 
 
