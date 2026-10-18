@@ -1,11 +1,23 @@
 import * as THREE from 'three';
 import { sharedUniforms } from '../characters/CharacterMaterial';
 import { newSkyLook, skyAt } from './DayNight';
+import { Firelight } from './Firelight';
 import { glowUniforms } from './Glow';
 import { inkUniforms, windUniforms } from './Ink';
 import { FLOOR_GLSL, WATER_EDGE, groundHeight, loadTerrain, terrainHeight, type Terrain } from './Island';
 import { Landmarks } from './Landmarks';
-import { FILM, coverAt, filmLights, filmSky, jungleHaze, lightShafts, nightUniform, sunUniform } from './Look';
+import {
+  FILM,
+  coverAt,
+  filmLights,
+  filmSky,
+  goldenUniform,
+  jungleHaze,
+  lightShafts,
+  moonUniforms,
+  nightUniform,
+  sunUniform,
+} from './Look';
 import { canopyShade } from './Obstacles';
 import { Butterflies } from './Butterflies';
 import { Props, type Placed } from './Props';
@@ -42,7 +54,18 @@ const COLORS = {
   cloudShade: '#DCE4EC',
   moon: '#F5F1C9',
   star: '#FFFBE8',
+  /** In the film look the moon is whiter and the stars pale cyan, as its night jungle paints them. */
+  filmMoon: '#EAF8FF',
+  filmStar: '#B8F0FF',
 };
+/** The sky's glow seen from under the trees by day, and how it turns in the golden hour. */
+const GLOW_TINT = new THREE.Color(1.0, 0.97, 0.88);
+const GOLDEN_GLOW = new THREE.Color(1.0, 0.8, 0.46);
+/** The cool cyan the moon rims things with at the height of the night (see moonEdges). */
+const MOON_RIM = new THREE.Color(0.12, 0.36, 0.5);
+/** The sunlight slanting into the waterfall's clearing: its colour by day and its strength. */
+const SHAFT_COLOUR = '#FFF3CF';
+const SHAFT_STRENGTH = 0.11;
 const CONFETTI = ['#F0C866', '#F4A9B8', '#9FD3F0', '#F29E6B', '#FFFFFF', '#B9E58C'];
 
 
@@ -73,6 +96,8 @@ export class Stage {
   private confettiMaterial: THREE.MeshBasicMaterial | null = null;
   private landmarks: Landmarks | null = null;
   private props: Props | null = null;
+  /** In the film look, the light the torches, windows and lanterns throw after dark. */
+  private firelight: Firelight | null = null;
   private vegetation: Vegetation | null = null;
   private butterflies: Butterflies | null = null;
   /** In the film look, the waterfall's pool and the camera that captures what it mirrors. */
@@ -153,6 +178,10 @@ export class Stage {
     this.zones = new Zones(layout.zones, groundHeight, terrain.info.water);
     this.props = await Props.load(layout.props, terrain.info.water);
     this.world.add(this.props.group);
+    if (FILM) {
+      this.firelight = new Firelight(this.scene);
+      for (const fire of this.props.fires) this.firelight.add(fire.position, fire.kind);
+    }
     this.world.add(this.makeConfetti());
   }
 
@@ -202,7 +231,7 @@ export class Stage {
           [px - 9, y + 0.8, pz + 4, 28, 1.8],
           [px + 1, y, pz - 9, 32, 2.6],
         ],
-        0.11,
+        SHAFT_STRENGTH,
       );
       this.world.add(this.shafts);
     }
@@ -254,10 +283,26 @@ export class Stage {
     sunUniform.value.copy(look.lightDir);
     if (FILM) filmLights(this.light, this.hemi, look.night);
     sharedUniforms.uAmbient.value.copy(look.ambient);
-    // The jungle's depth haze takes the hour's light: teal in the shade, golden toward the sun.
+    // The jungle's depth haze takes the hour's light: teal in the shade, golden toward the sun; in
+    // the golden hour the haze through the jungle glows gold, as the film's late afternoon does.
     const a = look.ambient;
-    jungleHaze.uJungle.value.set(0.06 * a.r, 0.26 * a.g, 0.22 * a.b);
-    jungleHaze.uJungleWarm.value.set(0.58 * a.r, 0.46 * a.g, 0.1 * a.b);
+    const golden = THREE.MathUtils.smoothstep(hours, 15.2, 16.6) * (1 - THREE.MathUtils.smoothstep(hours, 17.4, 18.2));
+    goldenUniform.value = golden;
+    // Seen from under the trees, the sky glows gold too.
+    u.uGlowTint.value.copy(GLOW_TINT).lerp(GOLDEN_GLOW, golden);
+    jungleHaze.uJungle.value.set((0.06 + 0.2 * golden) * a.r, (0.26 + 0.06 * golden) * a.g, (0.22 - 0.1 * golden) * a.b);
+    jungleHaze.uJungleWarm.value.set(0.58 * a.r, 0.46 * a.g, 0.1 * a.b).multiplyScalar(1 + 0.9 * golden);
+    // The moon rims what turns toward it in cool cyan, once night has fallen and it is up.
+    moonUniforms.uMoonWay.value.copy(look.moonDir);
+    moonUniforms.uMoonRim.value
+      .copy(MOON_RIM)
+      .multiplyScalar(look.night * look.night * THREE.MathUtils.smoothstep(look.moonDir.y, 0.0, 0.2));
+    // The sunlight in the waterfall's clearing takes the sun's colour, gold in the golden hour.
+    if (this.shafts) {
+      const shafts = (this.shafts.material as THREE.ShaderMaterial).uniforms;
+      shafts.uColour.value.set(SHAFT_COLOUR).lerp(look.light, 0.5);
+      shafts.uStrength.value = SHAFT_STRENGTH * (1 + 0.8 * golden);
+    }
     this.cloudMaterial.uniforms.uTint.value.copy(look.cloud);
     this.waterLight.uTint.value.copy(look.sea);
     // The sea's distance haze: between its deep blue at the hour and the open sky's horizon.
@@ -285,12 +330,19 @@ export class Stage {
     return canopyShade(x, y, z, this.lightDir);
   }
 
+  /** The firelight's warmth at (x, y, z), as a tint for a character's colours: white where none
+   * reaches (see Firelight). */
+  firelightAt(x: number, y: number, z: number, out: THREE.Color): THREE.Color {
+    return this.firelight ? this.firelight.warmth(x, y, z, out) : out.setRGB(1, 1, 1);
+  }
+
   update(camera: THREE.Camera, time: number): void {
     this.water.uniforms.uTime.value = time;
     if (this.shafts) (this.shafts.material as THREE.ShaderMaterial).uniforms.uTime.value = time;
     this.skyMaterial.uniforms.uTime.value = time;
     this.landmarks?.update(time);
     this.props?.update(time, camera);
+    this.firelight?.update(camera, glowUniforms.uGlow.value, time);
     windUniforms.uTime.value = time;
     this.vegetation?.update(camera);
     this.butterflies?.update(time);
@@ -486,11 +538,12 @@ export class Stage {
         uSunColor: { value: new THREE.Color(COLORS.sun) },
         uSunDir: { value: sunPosition.clone().normalize() },
         uMoonDir: { value: new THREE.Vector3(0, -1, 0) },
-        uMoonColor: { value: new THREE.Color(COLORS.moon) },
-        uStarColor: { value: new THREE.Color(COLORS.star) },
+        uMoonColor: { value: new THREE.Color(FILM ? COLORS.filmMoon : COLORS.moon) },
+        uStarColor: { value: new THREE.Color(FILM ? COLORS.filmStar : COLORS.star) },
         uNight: { value: 0 },
         uTime: { value: 0 },
         uEnclosed: { value: 0 },
+        uGlowTint: { value: GLOW_TINT.clone() },
       },
       vertexShader: /* glsl */ `
         varying vec3 vDir;
@@ -514,6 +567,7 @@ export class Stage {
         uniform float uPen;
         uniform float uHorizonY;
         uniform float uEnclosed;
+        uniform vec3 uGlowTint;
         varying vec3 vDir;
         float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
         void main() {
@@ -529,18 +583,31 @@ export class Stage {
           // sun.
           float day = (1.0 - uNight) * smoothstep(-0.05, 0.15, uSunDir.y);
           float glow = day * uEnclosed;
-          col = col * mix(1.0, 1.2, glow) + vec3(1.0, 0.97, 0.88)
+          col = col * mix(1.0, 1.2, glow) + uGlowTint
             * (glow * (0.38 * pow(s, 4.0) + 0.2 * (1.0 - smoothstep(0.0, 0.45, h))) + day * 0.25 * pow(s, 24.0));
           #endif
           if (uNight > 0.0) {
-            // Stars: dots scattered over the sky's directions, a few twinkling.
+            // Stars: dots scattered over the sky's directions, a few twinkling; in the film look as
+            // thick as the film's night skies, with a finer scatter of faint ones between them.
             vec2 sky = vec2(atan(dir.z, dir.x) * 38.0, asin(clamp(dir.y, -1.0, 1.0)) * 38.0);
             vec2 cell = floor(sky);
             float pick = hash(cell);
             vec2 at = cell + 0.25 + 0.5 * vec2(hash(cell + 7.1), hash(cell + 3.3));
             float r = 0.06 + 0.1 * hash(cell + 1.9);
-            float star = (1.0 - smoothstep(r * 0.6, r, length(sky - at))) * step(0.9, pick);
+            #ifdef FILM
+            float many = 0.7;
+            #else
+            float many = 0.9;
+            #endif
+            float star = (1.0 - smoothstep(r * 0.6, r, length(sky - at))) * step(many, pick);
             star *= 0.65 + 0.35 * sin(uTime * (1.5 + 3.0 * hash(cell + 5.0)) + pick * 40.0);
+            #ifdef FILM
+            vec2 fine = sky * 2.3 + 11.0;
+            vec2 cell2 = floor(fine);
+            vec2 at2 = cell2 + 0.25 + 0.5 * vec2(hash(cell2 + 4.3), hash(cell2 + 8.9));
+            float faint = (1.0 - smoothstep(0.05, 0.11, length(fine - at2))) * step(0.72, hash(cell2 + 2.2));
+            star = max(star, faint * 0.55);
+            #endif
             col = mix(col, uStarColor, star * uNight * uNight * smoothstep(0.04, 0.2, dir.y));
             // The full moon: a big pale disc in a soft halo, outlined with the pen.
             float m = acos(clamp(dot(dir, uMoonDir), -1.0, 1.0));
@@ -549,8 +616,9 @@ export class Stage {
             float edge = (m - radius) / max(fwidth(m), 1e-6);
             float disc = 1.0 - smoothstep(-0.5, 0.5, edge);
             #ifdef FILM
-            // The film paints the moon without a line.
-            vec3 moon = uMoonColor;
+            // The film paints the moon without a line, glowing, in a wide halo of brighter blue.
+            col += vec3(0.16, 0.3, 0.62) * 0.55 * (1.0 - smoothstep(radius, radius * 9.0, m)) * uNight;
+            vec3 moon = uMoonColor * 1.7;
             float drawn = disc;
             #else
             vec3 moon = mix(uInk, uMoonColor, disc);

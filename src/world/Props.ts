@@ -2,10 +2,11 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { sceneryRamp } from '../core/toon';
 import { t, type StringKey } from '../i18n/I18n';
+import type { FireKind } from './Firelight';
 import { glowMaterial, glowUniforms } from './Glow';
-import { INK, addOutline } from './Ink';
+import { INK, addOutline, windUniforms } from './Ink';
 import { terrainHeight } from './Island';
-import { FILM, paintThatch } from './Look';
+import { FILM, moonEdges, paintThatch } from './Look';
 import { addBox, addCircle, addDeck } from './Obstacles';
 import { loadPropModel, type LabelInfo, type PartRole, type PropInfo } from './PropModels';
 
@@ -75,13 +76,38 @@ interface Floater {
  * painted the film's way (see paintThatch). */
 function toon(): THREE.MeshToonMaterial {
   const material = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: sceneryRamp() });
-  if (FILM) material.onBeforeCompile = (shader) => paintThatch(shader);
+  if (FILM) {
+    material.onBeforeCompile = (shader) => {
+      paintThatch(shader);
+      moonEdges(shader);
+    };
+  }
   return material;
 }
 
-/** Unlit vertex colours: flames, which make their own light. */
+/** How much brighter than white the film look burns flames, so they glow. */
+const FLAME_BRIGHT = 3;
+
+/** Unlit vertex colours: flames, which make their own light, licking and wavering, the more the
+ * higher up the flame (which the colours tell: a pale yellow heart, orange tips). */
 function flameMaterial(): THREE.MeshBasicMaterial {
-  return new THREE.MeshBasicMaterial({ vertexColors: true });
+  const material = new THREE.MeshBasicMaterial({ vertexColors: true });
+  if (FILM) material.color.setRGB(FLAME_BRIGHT, FLAME_BRIGHT, FLAME_BRIGHT);
+  material.onBeforeCompile = (shader) => {
+    Object.assign(shader.uniforms, windUniforms);
+    shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>\nuniform float uTime;').replace(
+      '#include <begin_vertex>',
+      `#include <begin_vertex>
+      {
+        float up = clamp((0.9 - color.g) / 0.76, 0.0, 1.0);
+        float phase = dot(floor(position.xz * 2.0), vec2(1.7, 2.3));
+        transformed.x += up * up * 0.07 * sin(uTime * 8.0 + phase + position.y * 3.0);
+        transformed.z += up * up * 0.05 * cos(uTime * 6.5 + phase * 1.3 + position.y * 2.0);
+        transformed.y += up * 0.08 * sin(uTime * 11.0 + phase * 0.7);
+      }`,
+    );
+  };
+  return material;
 }
 
 /** A part's geometry moved into place, with only what the merged mesh needs: position, normal and
@@ -222,6 +248,8 @@ export class Props {
   private readonly floaters: Floater[] = [];
   private readonly groups = new Map<string, Group>();
   private readonly flames: THREE.Object3D[] = [];
+  /** Where each flame, lit window and lantern is, for the firelight (see Firelight). */
+  readonly fires: { position: THREE.Vector3; kind: FireKind }[] = [];
 
   static async load(placed: Placed[], waterLevel: number): Promise<Props> {
     const kinds = [...new Set(placed.map((p) => p.kind))];
@@ -268,6 +296,11 @@ export class Props {
         if (!level) continue;
         const kind: Kind = part.role === 'glow' ? 'glow' : part.role === 'flame' ? 'flame' : 'body';
         props.collect(key, level, kind, placedGeometry(part.geometry, matrix, tint, false));
+        if (kind !== 'body') {
+          if (!part.geometry.boundingBox) part.geometry.computeBoundingBox();
+          const centre = (part.geometry.boundingBox as THREE.Box3).getCenter(new THREE.Vector3()).applyMatrix4(matrix);
+          props.fires.push({ position: centre, kind });
+        }
       }
     });
     props.build();

@@ -542,19 +542,55 @@ def build_stage(collection):
     return [body], {"blocks": blocks, "decks": decks, "height": 7.5}
 
 
+def flame_pieces(foot, height, width, tongues=4):
+    """A big cartoon flame as the film draws its torches' fire: a pale yellow heart at `foot` and
+    tongues of fire rising from it, the middle one the tallest, the others leaning out round it, each
+    deepening to orange toward its tip. Returns (bmesh, colours) pieces, coloured vertex by vertex by
+    how high up the flame each vertex is; the game reads that from the colours, to make the tips
+    flicker."""
+    stops = [(0.0, L.hex_color("#FFF3B8")), (0.4, L.hex_color("#FFD45A")), (0.7, L.hex_color("#FF9A3C")),
+             (1.0, L.hex_color("#FF6A22"))]
+
+    def colour(z):
+        t = min(max((z - foot.z) / height, 0.0), 1.0)
+        for (t0, c0), (t1, c1) in zip(stops, stops[1:]):
+            if t <= t1:
+                k = (t - t0) / (t1 - t0)
+                return tuple(c0[i] + (c1[i] - c0[i]) * k for i in range(3))
+        return stops[-1][1]
+
+    def coloured(bm):
+        return bm, [colour(v.co.z) for v in bm.verts]
+
+    pieces = []
+    heart = L.Profile([(0.0, 0.0), (width * 0.46, 0.1), (width * 0.5, 0.26), (width * 0.38, 0.46), (0.0, 0.58)], samples=6)
+    bm = L.lathe_bm(heart.samples, segments=10)
+    L.transformed(bm, Matrix.Translation(foot))
+    pieces.append(coloured(bm))
+    for k in range(tongues):
+        middle = k == 0
+        h = height * (1.0 if middle else 0.7 + 0.1 * (k % 2))
+        r = width * (0.42 if middle else 0.3)
+        tongue = L.Profile([(0.0, 0.0), (r * 0.75, h * 0.14), (r, h * 0.36), (r * 0.8, h * 0.58), (r * 0.36, h * 0.82),
+                            (0.0, h)], samples=6)
+        bm = L.lathe_bm(tongue.samples, segments=8)
+        if not middle:
+            a = 2.0 * math.pi * (k - 1) / (tongues - 1) + 0.4
+            lean = Matrix.Rotation(0.3, 4, V(math.cos(a + math.pi / 2), math.sin(a + math.pi / 2), 0.0))
+            L.transformed(bm, Matrix.Translation(V(math.cos(a) * width * 0.14, math.sin(a) * width * 0.14, 0.04)) @ lean)
+        L.transformed(bm, Matrix.Translation(foot))
+        pieces.append(coloured(bm))
+    return pieces
+
+
 def build_torch(collection):
-    """A tiki torch: a pole with a woven cup on top, its cartoon flame lit only at night."""
+    """A tiki torch: a pole with a woven cup on top, its big cartoon flame lit only at night."""
     pieces = [(log(V(0.0, 0.0, -0.2), V(0.0, 0.0, 1.85), 0.05, segments=6), C["torch"])]
     cup = L.Profile([(0.0, 1.78), (0.1, 1.8), (0.16, 2.0), (0.15, 2.05), (0.0, 2.0)], samples=6)
     pieces.append((L.lathe_bm(cup.samples, segments=8), C["basket"]))
-    flame = L.Profile([(0.0, 1.98), (0.15, 2.08), (0.16, 2.24), (0.09, 2.44), (0.0, 2.62)], samples=8)
-    outer = L.lathe_bm(flame.samples, segments=8)
-    core = L.Profile([(0.0, 2.0), (0.08, 2.08), (0.08, 2.2), (0.0, 2.36)], samples=5)
-    inner = L.lathe_bm(core.samples, segments=6)
-    L.transformed(inner, Matrix.Translation(V(0.0, -0.06, 0.0)))
     body = P.join("torch", pieces, collection)
-    fire = P.join("torch_flame", [(outer, C["flame"]), (inner, C["flameCore"])], collection)  # lit at night
-    return [body, fire], {"footprint": {"circle": 0.15}, "height": 2.6}
+    fire = P.join("torch_flame", flame_pieces(V(0.0, 0.0, 1.98), 1.0, 0.56), collection)  # lit at night
+    return [body, fire], {"footprint": {"circle": 0.15}, "height": 3.0}
 
 
 # ---------------------------------------------------------------------------- the festival street

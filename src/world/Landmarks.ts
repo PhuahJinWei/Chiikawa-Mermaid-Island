@@ -4,7 +4,7 @@ import { sharedUniforms } from '../characters/CharacterMaterial';
 import { sceneryRamp, toonRamp } from '../core/toon';
 import { PEN_GLSL, addOutline, inkUniforms } from './Ink';
 import { poolUniform, type TerrainInfo } from './Island';
-import { FILM, STONES, paintLeaves, paintStone, paintedRamp, puffShadow, type StoneKind } from './Look';
+import { FILM, STONES, moonEdges, paintLeaves, paintStone, paintedRamp, puffShadow, type StoneKind } from './Look';
 
 // The jungle waterfall's water: white, with pale grey-blue between its streaks, as in the film.
 const COLORS = {
@@ -217,7 +217,10 @@ export class Landmarks {
       let material = painted.get(kind);
       if (!material) {
         const stone = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: paintedRamp() });
-        stone.onBeforeCompile = (shader) => paintStone(shader, kind);
+        stone.onBeforeCompile = (shader) => {
+          paintStone(shader, kind);
+          moonEdges(shader);
+        };
         stone.customProgramCacheKey = () => 'stone';
         painted.set(kind, (material = stone));
       }
@@ -230,10 +233,16 @@ export class Landmarks {
     let vines: THREE.Material | null = toonRocks;
     if (FILM) {
       const leaves = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: paintedRamp() });
-      leaves.onBeforeCompile = (shader) => paintLeaves(shader, 1.9);
+      leaves.onBeforeCompile = (shader) => {
+        paintLeaves(shader, 1.9);
+        moonEdges(shader);
+      };
       crowns = leaves;
       const hanging = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: paintedRamp() });
-      hanging.onBeforeCompile = (shader) => paintLeaves(shader);
+      hanging.onBeforeCompile = (shader) => {
+        paintLeaves(shader);
+        moonEdges(shader);
+      };
       vines = hanging;
     }
     let crownShadow: THREE.MeshDepthMaterial | undefined;

@@ -429,6 +429,27 @@ outlined is drawn twice, once for its pen line. To get there:
   splashes. The build writes where grass, earth and sand lie beside the
   colour map; the waterfall's frame and its bank are as they were. The
   painting costs under 0.1 ms a frame on the dev PC.
+- Evenings and nights lit the film's way, where night had been one flat
+  blue wash and the island's lights lit nothing. The tiki torches burn in
+  big cartoon flames, a pale yellow heart with tongues of orange licking
+  and wavering above it, twice the size they were; they, the lit windows
+  and the lanterns glow, and light what stands round them warm,
+  flickering: the ground and the stage round the village's torches flood
+  orange, and anyone standing near them is firelit a warm cream against
+  the night's blue. By night the land lies darker than the sky, its
+  shapes against it, in the film's violet navy, blue-violet and pale
+  periwinkle; open ground and clearings lie pale in the moonlight under
+  the dark of the trees. The moon glows in a wide halo in a sky thick
+  with pale cyan stars, and rims the edges of leaves, trunks, rocks and
+  houses that turn toward it in cool cyan; greens keep a teal and reds a
+  violet. The golden hour floods the jungle with golden light: everything
+  warmer, the sky glowing gold seen from under the trees, and the
+  jungle's haze nearer, thicker and gold over much of the way toward the
+  low sun. The sunlight in the waterfall's clearing is gone after dark
+  (it had shone on at midnight) and turns gold in the golden hour; the
+  sea darkens with the sky at sunset, and dusk passes through the film's
+  cool steel blue before the night. Under half a millisecond more a frame
+  at night on the dev PC, and no measurable cost by day.
 - Building the props or the village with `--only` no longer overwrites
   their .blend file with just the one prop.
 - The offline cache now keeps the island's height grid and layout file,

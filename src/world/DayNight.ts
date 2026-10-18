@@ -67,11 +67,16 @@ interface Key {
 }
 
 // After the film's palette: bright turquoise-and-green days, a warm golden afternoon, orange and
-// pink at dusk, royal-blue moonlit nights, measured on the film's moonlit beach (STYLE_GUIDE.md,
-// section 5).
+// pink at sunset, a cool steel-blue dusk, royal-blue moonlit nights, measured on the film's
+// moonlit beach (STYLE_GUIDE.md, section 5). By night the moon lights the land from one side and
+// the sky's light is low, so the land lies darker than the sky, its shapes against it.
 const NIGHT: Key = {
-  top: '#1247A4', horizon: '#1653A4', ambient: [0.32, 0.38, 0.64], light: '#A9C0FF', lightIntensity: 0.8,
-  hemiSky: '#43609E', hemiGround: '#1C2442', hemiIntensity: 0.8, cloud: [0.03, 0.08, 0.3], sea: [0.14, 0.18, 0.44], night: 1,
+  top: '#1247A4', horizon: '#1653A4', ambient: [0.32, 0.38, 0.64], light: '#B2C6FF', lightIntensity: 1.4,
+  hemiSky: '#3A5296', hemiGround: '#141A36', hemiIntensity: 0.42, cloud: [0.03, 0.08, 0.3], sea: [0.14, 0.18, 0.44], night: 1,
+};
+const BLUE: Key = {
+  top: '#38559A', horizon: '#8698C2', ambient: [0.6, 0.64, 0.86], light: '#9FB6EA', lightIntensity: 1.0,
+  hemiSky: '#7084BC', hemiGround: '#2F3A5A', hemiIntensity: 0.8, cloud: [0.4, 0.47, 0.72], sea: [0.42, 0.47, 0.72], night: 0.6,
 };
 const DAWN: Key = {
   top: '#6E8BCB', horizon: '#F7C4A4', ambient: [0.94, 0.84, 0.86], light: '#FFC9A2', lightIntensity: 1.7,
@@ -82,15 +87,16 @@ const DAY: Key = {
   hemiSky: '#DDF3FF', hemiGround: '#EBC48F', hemiIntensity: 1.6, cloud: [1, 1, 1], sea: [1, 1, 1], night: 0,
 };
 const GOLDEN: Key = {
-  top: '#4BA5E6', horizon: '#F3DEB2', ambient: [1.0, 0.95, 0.86], light: '#FFE2B0', lightIntensity: 2.4,
-  hemiSky: '#E9EFD9', hemiGround: '#EBC48F', hemiIntensity: 1.5, cloud: [1.0, 0.96, 0.9], sea: [1.0, 0.97, 0.92], night: 0,
+  top: '#6EAFDC', horizon: '#F7D38A', ambient: [1.0, 0.88, 0.72], light: '#FFC774', lightIntensity: 2.6,
+  hemiSky: '#F3E2AE', hemiGround: '#EBC48F', hemiIntensity: 1.5, cloud: [1.0, 0.9, 0.72], sea: [1.0, 0.93, 0.82], night: 0,
 };
 const DUSK: Key = {
   top: '#6A6EBE', horizon: '#F59C70', ambient: [0.95, 0.76, 0.72], light: '#FF9F6C', lightIntensity: 1.7,
-  hemiSky: '#BBA8D8', hemiGround: '#D9906C', hemiIntensity: 1.2, cloud: [1.0, 0.78, 0.74], sea: [0.92, 0.78, 0.82], night: 0.3,
+  hemiSky: '#BBA8D8', hemiGround: '#D9906C', hemiIntensity: 1.2, cloud: [1.0, 0.78, 0.74], sea: [0.62, 0.5, 0.62], night: 0.3,
 };
 const KEYS: [number, Key][] = [
-  [0, NIGHT], [4.6, NIGHT], [5.6, DAWN], [7.2, DAY], [15.0, DAY], [16.6, GOLDEN], [18.0, DUSK], [19.3, NIGHT], [24, NIGHT],
+  [0, NIGHT], [4.6, NIGHT], [5.6, DAWN], [7.2, DAY], [15.0, DAY], [16.6, GOLDEN], [18.0, DUSK], [18.75, BLUE],
+  [19.6, NIGHT], [24, NIGHT],
 ];
 
 const smoothstep = (a: number, b: number, x: number) => {

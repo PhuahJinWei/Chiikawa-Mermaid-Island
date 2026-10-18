@@ -616,6 +616,7 @@ export function lightShafts(bases: [number, number, number, number, number][], s
   const material = new THREE.ShaderMaterial({
     uniforms: {
       uSun: sunUniform,
+      uNight: nightUniform,
       uStrength: { value: strength },
       uTime: { value: 0 },
       uColour: { value: new THREE.Color('#FFF3CF') },
@@ -638,6 +639,7 @@ export function lightShafts(bases: [number, number, number, number, number][], s
       }`,
     fragmentShader: /* glsl */ `
       uniform vec3 uSun;
+      uniform float uNight;
       uniform float uStrength;
       uniform float uTime;
       uniform vec3 uColour;
@@ -647,7 +649,8 @@ export function lightShafts(bases: [number, number, number, number, number][], s
         float across = sin(3.14159 * vCorner.x);
         float along = smoothstep(0.0, 0.25, vCorner.y) * (1.0 - smoothstep(0.55, 1.0, vCorner.y));
         float shimmer = 0.8 + 0.2 * sin(uTime * 0.6 + vShaft * 2.3 + vCorner.y * 4.0);
-        float day = smoothstep(0.05, 0.25, uSun.y);
+        // Sunlight only: gone as the light passes to the moon.
+        float day = smoothstep(0.05, 0.25, uSun.y) * (1.0 - smoothstep(0.2, 0.55, uNight));
         gl_FragColor = vec4(uColour * (across * across * along * shimmer * day * uStrength), 1.0);
       }`,
     transparent: true,
@@ -849,6 +852,36 @@ export function paintStone(shader: THREE.WebGLProgramParametersWithUniforms, kin
 
 /** How far into the night it is, 0 by day to 1 (see the grade); the stage keeps it with the hour. */
 export const nightUniform = { value: 0 };
+/** How golden the hour is, 0 to 1 in the late afternoon (see the grade and the jungle's haze); the
+ * stage keeps it with the hour. */
+export const goldenUniform = { value: 0 };
+
+/** The moon's light for the moonlit edges (see moonEdges): the way to the moon in the world, and the
+ * colour of the light it rims things with, black by day. The stage sets both with the hour. */
+export const moonUniforms = {
+  uMoonWay: { value: new THREE.Vector3(0, 1, 0) },
+  uMoonRim: { value: new THREE.Color(0, 0, 0) },
+};
+
+/**
+ * Moonlight catching the edges of what turns toward the moon at night, a cool cyan, as the film
+ * paints its night jungle: leaves, trunks, rocks and houses rimmed where they turn away from the
+ * camera and toward the moon. For a toon material, from its onBeforeCompile.
+ */
+export function moonEdges(shader: THREE.WebGLProgramParametersWithUniforms): void {
+  Object.assign(shader.uniforms, moonUniforms);
+  shader.fragmentShader = shader.fragmentShader
+    .replace('#include <common>', '#include <common>\nuniform vec3 uMoonWay;\nuniform vec3 uMoonRim;')
+    .replace(
+      '#include <opaque_fragment>',
+      `{
+        float edge = 1.0 - abs(dot(normal, normalize(vViewPosition)));
+        float toMoon = smoothstep(-0.15, 0.55, dot(inverseTransformDirection(normal, viewMatrix), uMoonWay));
+        outgoingLight += uMoonRim * (edge * edge) * toMoon;
+      }
+      #include <opaque_fragment>`,
+    );
+}
 
 /**
  * The film's colour grade, on the finished picture (still in linear light), set by measuring the
@@ -863,6 +896,7 @@ const GRADE = {
   uniforms: {
     tDiffuse: { value: null },
     uNight: nightUniform,
+    uGolden: goldenUniform,
     uSaturation: { value: 1.1 },
     uContrast: { value: 1.2 },
     uShadowTint: { value: new THREE.Vector3(-0.004, 0.008, 0.0) },
@@ -887,6 +921,7 @@ const GRADE = {
     uniform vec3 uBalance;
     uniform float uYellow;
     uniform float uNight;
+    uniform float uGolden;
     varying vec2 vUv;
     void main() {
       vec4 c = texture2D(tDiffuse, vUv);
@@ -899,14 +934,25 @@ const GRADE = {
       g = mix(vec3(l), g, uSaturation);
       g = (g - 0.5) * uContrast + 0.5;
       g += uShadowTint * (1.0 - smoothstep(0.0, 0.55, l)) + uHighlightTint * smoothstep(0.45, 1.0, l);
+      // The golden hour: everything warmer and more golden, greens leaning further toward yellow.
+      if (uGolden > 0.0) {
+        g = mix(g, g * vec3(1.07, 1.0, 0.8) + vec3(0.02, 0.015, 0.0), uGolden * 0.75);
+        g.r += uGolden * 0.12 * max(g.g - max(g.r, g.b), 0.0);
+      }
       float night = smoothstep(0.4, 1.0, uNight);
       if (night > 0.0) {
         float n = clamp(dot(g, vec3(0.299, 0.587, 0.114)), 0.0, 1.0);
-        // Nothing goes black: the darkest shapes are a deep blue, as the film paints them.
-        vec3 moonlit = vec3(pow(n, 1.6), pow(n, 1.15), pow(n, 0.75)) + vec3(0.07, 0.18, 0.38) * (1.0 - smoothstep(0.0, 0.4, n));
+        // Nothing goes black: the darkest shapes are a deep violet navy, the middle a blue-violet,
+        // the lights a pale periwinkle, as the film paints its night jungle. Greens lean teal and
+        // reds and purples violet, so the jungle keeps its kinds of leaf.
+        vec3 moonlit = vec3(pow(n, 1.35) + 0.05 * (1.0 - n), pow(n, 1.2), pow(n, 0.65))
+          + vec3(0.12, 0.08, 0.32) * (1.0 - smoothstep(0.0, 0.35, n));
+        float green = smoothstep(0.01, 0.12, g.g - max(g.r, g.b));
+        float red = smoothstep(0.03, 0.18, g.r - max(g.g, g.b));
+        moonlit += (green * vec3(-0.02, 0.07, 0.03) + red * vec3(0.12, -0.02, 0.1)) * (0.35 + n);
         float warm = smoothstep(0.12, 0.4, g.r - g.b) * smoothstep(0.3, 0.7, n);
         float blue = smoothstep(0.15, 0.35, g.b - max(g.r, g.g));
-        g = mix(g, moonlit, night * 0.7 * (1.0 - warm) * (1.0 - blue) * (c.a < 0.75 ? 0.45 : 1.0));
+        g = mix(g, moonlit, night * 0.78 * (1.0 - warm) * (1.0 - blue) * (c.a < 0.75 ? 0.45 : 1.0));
       }
       vec2 d = vUv - 0.5;
       g *= 1.0 - uVignette * dot(d, d);
@@ -984,6 +1030,7 @@ const PAINT = {
 export const jungleHaze = {
   uJungle: { value: new THREE.Vector3(0.06, 0.26, 0.22) },
   uJungleWarm: { value: new THREE.Vector3(0.58, 0.46, 0.1) },
+  uJungleGold: goldenUniform,
 };
 
 /**
@@ -1009,6 +1056,7 @@ const FOCUS = {
     uSun: { value: new THREE.Vector3(0, 1, 0) },
     uJungle: { value: new THREE.Vector3() },
     uJungleWarm: { value: new THREE.Vector3() },
+    uJungleGold: { value: 0 },
     uCover: { value: null },
     uCoverMap: { value: new THREE.Vector3(0, 0, 1) },
   },
@@ -1032,6 +1080,7 @@ const FOCUS = {
     uniform vec3 uSun;
     uniform vec3 uJungle;
     uniform vec3 uJungleWarm;
+    uniform float uJungleGold;
     varying vec2 vUv;
     ${COVER_GLSL}
     float softness(vec2 uv) {
@@ -1047,9 +1096,12 @@ const FOCUS = {
       if (metres > 450.0) return colour;
       vec3 world = (uCameraWorld * vec4(view, 1.0)).xyz;
       float deep = smoothstep(0.2, 0.8, underTrees(world));
-      // Only the depth: what is near stays dark and clear, as the film keeps its foreground.
-      float amount = deep * 0.85 * (1.0 - exp(-0.04 * max(metres - 12.0, 0.0)));
-      float sunward = pow(max(dot(normalize(world - uCameraWorld[3].xyz), uSun), 0.0), 3.0);
+      // Only the depth: what is near stays dark and clear, as the film keeps its foreground. In the
+      // golden hour the haze comes nearer and thicker, and glows gold over more of the way toward
+      // the sun, as the film's late afternoon fills its jungle with golden light.
+      float start = mix(12.0, 6.0, uJungleGold);
+      float amount = deep * 0.85 * (1.0 + 0.45 * uJungleGold) * (1.0 - exp(-0.04 * max(metres - start, 0.0)));
+      float sunward = pow(max(dot(normalize(world - uCameraWorld[3].xyz), uSun), 0.0), mix(3.0, 1.2, uJungleGold));
       return mix(colour, mix(uJungle, uJungleWarm, sunward), amount);
     }
     // The scene's light as it should be, whatever a shader let slip: never below black, NaN or a
@@ -1120,6 +1172,7 @@ export class FilmPost {
     const grade = new ShaderPass(GRADE);
     // The pass copies its uniforms; the night is the stage's to keep (see nightUniform).
     grade.uniforms.uNight = nightUniform;
+    grade.uniforms.uGolden = goldenUniform;
     this.composer.addPass(grade);
     this.composer.addPass(new OutputPass());
   }

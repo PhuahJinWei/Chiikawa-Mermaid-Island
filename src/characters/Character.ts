@@ -33,6 +33,9 @@ export interface FrameContext {
   clamp: (p: THREE.Vector3, from: THREE.Vector3) => void;
   /** How deep in the trees' shade a point is, 0 in the sun to 1: in the film look only. */
   shade?: (x: number, y: number, z: number) => number;
+  /** The firelight's warmth at a point after dark, as a tint (white where none reaches): in the
+   * film look only. */
+  firelight?: (x: number, y: number, z: number, out: THREE.Color) => THREE.Color;
 }
 
 const GRAVITY = -24;
@@ -47,6 +50,7 @@ const _e = new THREE.Euler();
 const _m = new THREE.Matrix4();
 const _from = new THREE.Vector3();
 const _s = new THREE.Vector3();
+const _warmth = new THREE.Color();
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 const smoothstep = (a: number, b: number, x: number) => {
@@ -544,13 +548,16 @@ export class Character implements EmoteHost {
     this.uniforms.uOutlineWidth.value = penAt(-_w.z);
   }
 
-  /** The trees' shade on the character, easing as they walk into it and out into the sun. */
+  /** The trees' shade on the character, easing as they walk into it and out into the sun; after
+   * dark, warmed by the firelight near them. */
   private updateShade(dt: number, ctx: FrameContext): void {
     if (!ctx.shade) return;
     const pos = this.root.position;
-    const shade = ctx.shade(pos.x, this.feetY + this.height * 0.55, pos.z);
+    const y = this.feetY + this.height * 0.55;
+    const shade = ctx.shade(pos.x, y, pos.z);
     this.shaded = Number.isNaN(this.shaded) ? shade : this.shaded + (shade - this.shaded) * Math.min(1, dt * 5);
     this.uniforms.uShade.value.setRGB(1, 1, 1).lerp(CANOPY_SHADE, this.shaded);
+    if (ctx.firelight) this.uniforms.uShade.value.multiply(ctx.firelight(pos.x, y, pos.z, _warmth));
   }
 
   private updateShadowAndProp(ctx: FrameContext): void {

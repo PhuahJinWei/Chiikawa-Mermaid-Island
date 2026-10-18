@@ -162,8 +162,12 @@ export class Game {
     this.input.onFirstMove = () => this.hud.hideHint();
 
     this.ctx = { camera: this.camera, viewHeight: 1, pixelRatio: 1, groundHeight, clamp: clampToWalkable };
-    // In the film look, characters walking under the trees go into their shade.
-    if (FILM) this.ctx.shade = (x, y, z) => this.stage.shadeAt(x, y, z);
+    // In the film look, characters walking under the trees go into their shade, and after dark the
+    // firelight near them warms them.
+    if (FILM) {
+      this.ctx.shade = (x, y, z) => this.stage.shadeAt(x, y, z);
+      this.ctx.firelight = (x, y, z, out) => this.stage.firelightAt(x, y, z, out);
+    }
     this.timer.connect(document);
     window.addEventListener('resize', this.resize);
     document.addEventListener('visibilitychange', this.onVisibility);
