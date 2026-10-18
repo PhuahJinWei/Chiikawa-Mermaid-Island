@@ -17,10 +17,14 @@ never pushed, because it is other people's artwork.
   this contrast and so will we.
 - **Lines are dark brown, not black.** Every character outline in the anime
   is a warm dark brown. Black is reserved for the Siren's hair.
-- **One bold pen for what moves.** As in the film, line art belongs to
-  what is animated: the characters and their outfits, crown flowers, skirt
-  strokes, the props they hold and the duck ferry are drawn with the same
-  pen. The pen is 1.8 cm in the world (2% of a cast member's height, a
+- **One bold pen for the characters and everything made.** As in the
+  film, line art belongs to the characters and their outfits, crown
+  flowers, skirt strokes, the props they hold, and to everything made by
+  hand: the houses and their furniture, the stage, the stalls and their
+  boards, the bunting's flags, the lanterns, the banners and the arch, the
+  poles, the pier, the torches, baskets, pots and logs, and the duck
+  ferry, all drawn with the same pen. Only the land is painted without
+  lines (below). The pen is 1.8 cm in the world (2% of a cast member's height, a
   little heavier than the film's 1.4%), the same on everything at the same
   distance. Nearer things get bolder lines and further ones lighter, never
   under half the pen where the camera is looking. Lines painted into
@@ -30,9 +34,10 @@ never pushed, because it is other people's artwork.
 - **Characters are flat; backgrounds are painted.** Characters are flat
   colour with almost no shading, made darker and warmer only where they
   stand in the trees' shade (in the jungle's shade the film's white comes
-  out a dark olive beige). The scenery is painted without lines, like the
+  out a dark olive beige). The land is painted without lines, like the
   film's backgrounds (`src/world/Look.ts`): the ground, rocks, trees,
-  houses, stalls, sky and clouds, in warm sunlight with cool blue shadows
+  palms and plants, water, sky and clouds; the houses and stalls carry the
+  pen over their painted colour. All of it in warm sunlight with cool blue shadows
   that the rocks, trees and houses cast, dappled where the sun comes
   through the leaves, the jungle under its canopy in deep shade with the
   dapples bright in it, soft gradients across the turn from light to shade,

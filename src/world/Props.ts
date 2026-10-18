@@ -35,6 +35,10 @@ export interface Placed {
 
 /** Props are joined into meshes for each patch of this many metres, unless they name a group. */
 const PATCH = 48;
+/** The land's own things, which the film paints without a line, as it paints its ground and trees.
+ * Everything else placed is made (houses, stalls, flags, lanterns, furniture, poles, banners, pots,
+ * logs), and the film draws its props with the pen, as it draws its characters. */
+const UNLINED = new Set(['palm', 'starfish']);
 /** A group's houses are drawn in full this close, and in their light far version beyond; their
  * rooms' insides only this close. */
 const NEAR_REACH = 75;
@@ -361,7 +365,7 @@ export class Props {
         const kind: Kind = part.role === 'glow' ? 'glow' : part.role === 'flame' ? 'flame' : 'body';
         // A board under a hand-lettered sign painted solid takes the painting's colour.
         const board = part.role === 'board' && words[0] ? (painted.boards.get(words[0]) ?? null) : null;
-        props.collect(key, level, kind, placedGeometry(part.geometry, matrix, tint, false, board));
+        props.collect(key, level, kind, !UNLINED.has(p.kind), placedGeometry(part.geometry, matrix, tint, false, board));
         if (kind !== 'body') {
           if (!part.geometry.boundingBox) part.geometry.computeBoundingBox();
           const centre = (part.geometry.boundingBox as THREE.Box3).getCenter(new THREE.Vector3()).applyMatrix4(matrix);
@@ -393,13 +397,13 @@ export class Props {
     return props;
   }
 
-  private collect(key: string, level: Level, kind: Kind, geometry: THREE.BufferGeometry): void {
+  private collect(key: string, level: Level, kind: Kind, lined: boolean, geometry: THREE.BufferGeometry): void {
     let group = this.groups.get(key);
     if (!group) {
       group = { geometries: new Map(), objects: new Map(), centre: new THREE.Vector3(), radius: 0 };
       this.groups.set(key, group);
     }
-    const id = `${level}:${kind}`;
+    const id = `${level}:${kind}:${lined ? 'lined' : 'bare'}`;
     const list = group.geometries.get(id) ?? [];
     list.push(geometry);
     group.geometries.set(id, list);
@@ -413,18 +417,18 @@ export class Props {
     for (const group of this.groups.values()) {
       box.makeEmpty();
       for (const [id, list] of group.geometries) {
-        const [level, kind] = id.split(':') as [Level, Kind];
+        const [level, kind, lining] = id.split(':') as [Level, Kind, string];
         const mesh = new THREE.Mesh(mergeGeometries(list), materials[kind]);
         mesh.geometry.computeBoundingBox();
         box.union(mesh.geometry.boundingBox as THREE.Box3);
         this.group.add(mesh);
         const objects = group.objects.get(level) ?? [];
         objects.push(mesh);
-        // In the film look the houses, stalls and pier are scenery, painted without a line, casting
-        // and taking the sun's shadows.
+        // In the film look what is made is drawn with the pen, as the film draws its props, and the
+        // land's own things (UNLINED) are painted without a line; all cast and take the sun's shadows.
         mesh.castShadow = mesh.receiveShadow = FILM && kind === 'body';
         if (kind === 'flame') this.flames.push(mesh);
-        else if (!FILM) objects.push(addOutline(mesh));
+        else if (!FILM || lining === 'lined') objects.push(addOutline(mesh, 'still', true));
         group.objects.set(level, objects);
       }
       box.getBoundingSphere(sphere);

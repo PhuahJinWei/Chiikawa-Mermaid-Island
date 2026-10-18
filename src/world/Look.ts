@@ -6,10 +6,11 @@ import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 
 /**
- * The film look, the island's look: the island painted the way the film's backgrounds are. Only the
- * characters and the ferry keep the pen's line, as in the film, where line art belongs to what is
- * animated and the scenery is painted without it; warm sunlight with cool shadows, which the rocks,
- * trees and houses cast on the ground; the jungle's leaves dabbed light and dark; haze into the
+ * The film look, the island's look: the island painted the way the film's backgrounds are. The
+ * characters and everything made (houses, stalls, flags, lanterns, furniture, poles, banners, the
+ * ferry) keep the pen's line, as in the film, while the land itself (its ground, rocks, trees, plants,
+ * water and sky) is painted without it; warm sunlight with cool shadows, which the rocks, trees and
+ * houses cast on the ground; the jungle's leaves dabbed light and dark; haze into the
  * distance, a soft glow round bright light and the film's colour grade. While it is being finished,
  * `toon` in the address (?dev&toon) brings back the earlier toon look, with the pen on everything,
  * so the two can be compared side by side.

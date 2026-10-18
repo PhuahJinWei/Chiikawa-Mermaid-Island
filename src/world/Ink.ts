@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { sharedUniforms } from '../characters/CharacterMaterial';
+import { FILM } from './Look';
 
 /**
  * The world's pen. Thick brown strokes are Chiikawa's look, so every line in the world,
@@ -132,8 +133,15 @@ void main() {
   dir = len > 1e-5 ? dir / len : vec2(0.0);
   // Surfaces facing the camera stay put: pushed out, their triangles can fold over at inward
   // corners (a starfish's arms, a frond's teeth) and show through as hairlines. The
-  // silhouette, where the surface turns away, carries the outline.
-  float push = 1.0 - smoothstep(0.3, 0.6, dot(nV, normalize(-mvPosition.xyz)));
+  // silhouette, where the surface turns away, carries the outline. A box's silhouette runs along
+  // edges whose corners (their normals averaged over the faces meeting there) still half face the
+  // camera, so for things of flat faces (HARD) only what is nearly square on stays put.
+  float facing = dot(nV, normalize(-mvPosition.xyz));
+#ifdef HARD
+  float push = 1.0 - smoothstep(0.75, 0.95, facing);
+#else
+  float push = 1.0 - smoothstep(0.3, 0.6, facing);
+#endif
   clip.xy += dir * penAt(-mvPosition.z) * push * 2.0 / uResolution * clip.w;
   gl_Position = clip;
   #include <fog_vertex>
@@ -147,6 +155,9 @@ uniform vec3 uInk;
 uniform vec3 uAmbient;
 void main() {
   gl_FragColor = vec4(uInk * uAmbient, 1.0);
+  #ifdef FILM_MASK
+  gl_FragColor.a = 0.5;
+  #endif
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
   #include <fog_fragment>
@@ -156,15 +167,17 @@ void main() {
 /** How a hull moves with what it outlines: not at all, in the wind (plants), or beating (wings). */
 export type OutlineMotion = 'still' | 'sway' | 'flap';
 
-const outlineMaterials = new Map<OutlineMotion, THREE.ShaderMaterial>();
+const outlineMaterials = new Map<string, THREE.ShaderMaterial>();
 
 /**
  * The pen's outline material for solid objects (props, held items): an inverted hull. A swaying
  * hull moves in the wind with the plant it outlines (by its aSway weights); a flapping one beats
- * with a butterfly's wings.
+ * with a butterfly's wings. In the film look the line marks itself in the picture's alpha, as the
+ * characters' lines do (see CharacterMaterial), so the scenery's brushwork leaves it as drawn.
  */
-export function inkOutlineMaterial(motion: OutlineMotion = 'still'): THREE.ShaderMaterial {
-  let material = outlineMaterials.get(motion);
+export function inkOutlineMaterial(motion: OutlineMotion = 'still', hard = false): THREE.ShaderMaterial {
+  const key = hard ? `${motion}:hard` : motion;
+  let material = outlineMaterials.get(key);
   if (!material) {
     material = new THREE.ShaderMaterial({
       uniforms: {
@@ -174,13 +187,17 @@ export function inkOutlineMaterial(motion: OutlineMotion = 'still'): THREE.Shade
         uResolution: sharedUniforms.uResolution,
         uAmbient: sharedUniforms.uAmbient,
       },
-      defines: motion === 'sway' ? { SWAY: '' } : motion === 'flap' ? { FLAP: '' } : {},
+      defines: {
+        ...(motion === 'sway' ? { SWAY: '' } : motion === 'flap' ? { FLAP: '' } : {}),
+        ...(FILM ? { FILM_MASK: '' } : {}),
+        ...(hard ? { HARD: '' } : {}),
+      },
       vertexShader: OUTLINE_VERT,
       fragmentShader: OUTLINE_FRAG,
       side: THREE.BackSide,
       fog: true,
     });
-    outlineMaterials.set(motion, material);
+    outlineMaterials.set(key, material);
   }
   return material;
 }
@@ -229,10 +246,10 @@ export function outlineGeometry(geometry: THREE.BufferGeometry): THREE.BufferGeo
  * Gives a solid mesh its outline: a hull sharing its shape (and, for instanced meshes, its
  * instances), added beside it. Returns the hull.
  */
-export function addOutline(mesh: THREE.Mesh, motion?: OutlineMotion): THREE.Mesh {
+export function addOutline(mesh: THREE.Mesh, motion?: OutlineMotion, hard = false): THREE.Mesh {
   let hull: THREE.Mesh;
   const geometry = outlineGeometry(mesh.geometry);
-  const material = inkOutlineMaterial(motion ?? (geometry.getAttribute('aSway') !== undefined ? 'sway' : 'still'));
+  const material = inkOutlineMaterial(motion ?? (geometry.getAttribute('aSway') !== undefined ? 'sway' : 'still'), hard);
   if ((mesh as THREE.InstancedMesh).isInstancedMesh) {
     const src = mesh as THREE.InstancedMesh;
     const inst = new THREE.InstancedMesh(geometry, material, src.count);

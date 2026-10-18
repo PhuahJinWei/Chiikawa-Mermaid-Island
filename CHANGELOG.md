@@ -231,9 +231,9 @@ outlined is drawn twice, once for its pen line. To get there:
 
 **Changed**
 
-- The island has the film's look. The scenery is painted without lines, as
-  the film's backgrounds are, and only what moves keeps the pen: the
-  characters, their outfits and held props, and the duck ferry. Sunlight is
+- The island has the film's look. The land is painted without lines, as
+  the film's backgrounds are, while the characters, their outfits and held
+  props, the duck ferry and everything made keep the pen. Sunlight is
   warm and the side turned from it cool blue, through a soft painted light
   ramp in place of the toon's three steps; the rocks, trees, houses, stalls
   and the ferry cast the sun's shadows round the camera; tree crowns and the
@@ -617,6 +617,15 @@ outlined is drawn twice, once for its pen line. To get there:
   `art/blender/check_flicker.py` finds any faces of the built props that
   would flicker; only the paint on the ferry's windows and on the logs'
   cut ends, layered by design, is left.
+- Everything made is drawn with the pen, as the film draws its props: the
+  stalls and their boards, the bunting's flags, the lanterns, the banners
+  and the arch, the poles, the huts and their furniture, the stage, the
+  pier, the torches, baskets, pots and logs, in the same brown line as the
+  characters. Only the land itself (the ground, rocks, trees, palms,
+  plants, water and sky) is painted without one. A box's outline follows
+  its edges, and the lines stay crisp under the scenery's brushwork, as
+  the characters' do. About 0.3 ms more a frame in the festival street on
+  the dev PC.
 - The game's sign atlas keeps a gutter round each sign, carrying a
   hand-lettered sign's edges out into it, so a sign that fills its board
   never takes a neighbouring sign's colours along its edges.
