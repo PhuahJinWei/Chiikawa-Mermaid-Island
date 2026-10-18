@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { sharedUniforms } from '../characters/CharacterMaterial';
+import { FilmClouds } from './Clouds';
 import { newSkyLook, skyAt } from './DayNight';
 import { Firelight } from './Firelight';
 import { glowUniforms } from './Glow';
@@ -76,6 +77,8 @@ export class Stage {
   private readonly water: THREE.ShaderMaterial;
   private readonly sea: THREE.Mesh;
   private readonly clouds: THREE.Group;
+  /** In the film look, the clouds painted as its skies have them. */
+  private readonly filmClouds: FilmClouds | null = null;
   private readonly sky: THREE.Mesh;
   private readonly skyMaterial: THREE.ShaderMaterial;
   private readonly world: THREE.Group;
@@ -158,7 +161,14 @@ export class Stage {
     this.sea = new THREE.Mesh(waterGeo, this.water);
     world.add(this.sea);
     this.cloudMaterial = this.makeCloudMaterial();
-    this.clouds = this.makeClouds(this.cloudMaterial);
+    if (FILM) {
+      // The film look's clouds, many of their own shapes round the sky (see Clouds.ts).
+      this.filmClouds = new FilmClouds(this.skyMaterial.uniforms.uHorizon, this.skyMaterial.uniforms.uEnclosed);
+      this.clouds = new THREE.Group().add(this.filmClouds.mesh);
+      world.add(this.filmClouds.aerial);
+    } else {
+      this.clouds = this.makeClouds(this.cloudMaterial);
+    }
     world.add(this.clouds);
     scene.add(world);
     this.world = world;
@@ -316,6 +326,7 @@ export class Stage {
       shafts.uStrength.value = SHAFT_STRENGTH * (1 + 0.8 * golden);
     }
     this.cloudMaterial.uniforms.uTint.value.copy(look.cloud);
+    this.filmClouds?.setHour(look.cloud, u.uTop.value, u.uHorizon.value, look.night, look.lightDir, WATER_LEVEL);
     this.waterLight.uTint.value.copy(look.sea);
     // The sea's distance haze: between its deep blue at the hour and the open sky's horizon.
     this.waterLight.uSeaHaze.value.set(COLORS.deep).multiply(look.sea).lerp(look.horizon, 0.55);
@@ -372,6 +383,7 @@ export class Stage {
     fog.far = (FOG_FAR * reach * (reach + 1)) / 2;
     // The clouds hang far off in a ring around the camera, wherever it goes, as part of the sky.
     this.clouds.position.copy(camera.position);
+    this.filmClouds?.update(camera);
     if (FILM) {
       // The sun's shadows cover the ground a little ahead of the camera, wherever it looks.
       camera.getWorldDirection(this.ahead);

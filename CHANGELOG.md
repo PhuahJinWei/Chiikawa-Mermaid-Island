@@ -368,9 +368,22 @@ outlined is drawn twice, once for its pen line. To get there:
   frames, and its flowering bushes are thick with flowers. The
   understory's shapes now grow from a generator of their own, so changing
   them no longer moves the jungle round.
-- The film look's clouds are its cumulus: each puff white where the light
-  finds it and softly blue-grey under it, the whole cloud shadowed toward
-  its flat base, its edge soft, where they had been flat white shapes.
+- The film look's clouds are its skies' clouds, where they had been eight
+  copies of one flat cut-out low on the horizon. Some forty of them stand
+  all round the sky and up overhead, each of its own shape: cumulus
+  heaped of round lobes like a cauliflower, a few of them towering, round
+  puffs high up and long flat banks along the horizon. Each lobe is
+  shaded as a ball toward the sun, white where the light finds it and a
+  pale sky-blue in its shade (measured on the film's sea cliffs frame),
+  the lobes folding softly into one another with no seam between them,
+  the cloud's flat base soft and in light shade, the low ones paling into
+  the horizon's haze. The hour colours them (gold in the golden hour,
+  rose and violet at dusk, moonlit navy at night), and seen from under the
+  trees they are lost in the sky's pale glow, as in the film's jungle
+  frames. Seen from high above, round clouds float below the camera where
+  the film's aerial shot has them, their shadows dark on the sea. No
+  measurable cost a frame from the ground on the dev PC; about 1.5 ms in
+  the high aerial view.
 - At the waterfall, as in its frame, a leafy bough hangs down out of the
   bank's trees close over the cast, dark and softened by the depth of
   field, framing the top left.

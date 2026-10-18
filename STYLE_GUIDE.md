@@ -39,9 +39,13 @@ never pushed, because it is other people's artwork.
   haze into the distance and a warm haze where the light comes into a
   clearing, the jungle's depths fading into a soft teal haze (golden
   toward the sun) while what is near stays dark and clear, a soft glow
-  round the brightest light and the film's colour grade. Clouds are
-  cumulus, white where the light finds them and softly blue-grey under
-  each puff. Stone splits into slabs or beds, each its own shade, stained
+  round the brightest light and the film's colour grade. Clouds are many
+  and each its own shape, cumulus heaped of round lobes like a
+  cauliflower that fold softly into one another, round puffs and long
+  flat banks along the horizon, white where the light finds them and a
+  pale sky-blue in their shade, flat and soft at the base, never a row of
+  one cut-out nor a stack of separate balls; seen from high above they
+  float below as round cauliflower tops with their shadows on the sea. Stone splits into slabs or beds, each its own shade, stained
   and streaked, with dark cracks between and moss in cushions lit along
   their tops; low down in the jungle's damp it is filmed green in broad
   patches. Trees' heads are heaped of rounded leafy lobes like a
