@@ -99,10 +99,12 @@ stage, and along every path. Not yet checked on a real phone.
   by `art/blender/houses.py`).
 - The village is a clearing deep in the jungle, in the middle of the ring
   of pillars, on the path from the festival street to the waterfall. Eight big huts stand round it, each
-  one you can walk into, after the film's village frames: log stairs up to
-  a plank porch with a railing, a doorway wide enough for three, lattice
-  windows over bands of coloured scales, a log-cabin room inside with a
-  straw mat, a pillow, a low table, a rug and a potted plant, and a big
+  one you can walk into, after the film's village frames: chunky log
+  stairs up to a porch of wide planks on a thick log edge, with no
+  railing and potted plants on it, a double plank door wide enough for
+  three, walls shingled all over in round scales between thick log posts
+  and rails, tall windows in heavy frames with a double white zigzag, a
+  roomy log-cabin room inside furnished as an islander's home, and a big
   mushroom-shaped thatched roof over the porch. Two are plank huts on the
   ground under wide thatched roofs; two round thatched huts stand at the
   edge. Built by `art/blender/houses.py`.
@@ -532,6 +534,36 @@ outlined is drawn twice, once for its pen line. To get there:
   at the street's two ends, with two strings of flags sagging from each to
   the next and a paper lantern in each span, lit at night. The street's
   banners and the bunting across it are tied to these poles.
+- The villagers' huts are roomier inside and furnished as islanders'
+  homes, all in the village's own materials (wood, woven straw and
+  rattan, clay, stone and bamboo, nothing modern): the stilt huts' rooms
+  5.6 by 4.4 metres where they were 4.6 by 3.6, the plank huts' 5.2 by 4.2,
+  under a little higher walls and wider roofs, still clear of their
+  neighbours and of the jungle round them (planted just as before). Each
+  has a log bed with knobbed corner posts, a woven rattan headboard and a
+  footboard of spindles, a thick futon under a patchwork quilt with a sheet
+  turned down over it, two plump pillows and a folded blanket at its foot,
+  a chest at the bed's foot; a plank bookshelf
+  of books, scrolls and a jar; a kitchen of a clay stove with a pot, a
+  counter with a stone basin for a sink, fed by a bamboo pipe down the
+  wall, a shelf of bowls and a clay water jar; a low round table with a
+  teapot and cups and cushions round it on a woven rug; a paper lantern
+  that lights the room at night; and a potted plant by the door. Walkers
+  go round the furniture (checked with the game's own walking); the camera
+  looks over it.
+- The villagers' huts outside, after the film's frame of a hut's porch:
+  the stilt huts' walls are shingled all over in overlapping round scales
+  (greens, now and then an orange one, on the green huts; warm colours on
+  the others) between thick log posts and round log rails along their
+  foot, under their windows and along their top. Their windows are taller,
+  in heavy board frames with deep sills, two thin bars down the green
+  panes and a double white zigzag over them. A double plank door stands
+  open into the room, each leaf with a dark C-shaped handle. The porch has
+  no railing, as the film's, its planks on a thick log edge, its log steps
+  chunky, and on it stand the film's potted plants: a gnarled succulent in
+  a terracotta pot and purple thistles in a round clay pot. The plank huts
+  have the same heavier posts, rails, windows, handle and pots. About
+  0.2 to 0.3 ms more a frame in the village on the dev PC.
 - The village's watchtower stage after the film's (its night frame of the
   stage): its legs splay out to the ground where they stood straight, each
   side braced in two tiers of crossed planks; the platform stands higher,

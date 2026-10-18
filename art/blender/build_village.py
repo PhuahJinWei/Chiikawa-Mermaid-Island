@@ -780,7 +780,8 @@ def build_pot(collection):
     return [join("pot", pieces, collection)], {"footprint": {"circle": 0.28}, "height": 0.7}
 
 
-GREENS = (L.hex_color("#6FAE6A"), L.hex_color("#9CCB7A"), L.hex_color("#4E9467"), L.hex_color("#C9A35A"))
+# The huts' shingles, after the film's: greens, now and then an orange or a yellow one; and warm ones.
+GREENS = tuple(L.hex_color(c) for c in ("#8DBA6E", "#A9CB82", "#6F9E60", "#BACB72", "#7FAE72", "#C98A52"))
 WARMS = (L.hex_color("#E39A55"), L.hex_color("#D8664E"), L.hex_color("#F0C45C"), L.hex_color("#7FB7A0"))
 
 BUILDERS = {

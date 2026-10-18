@@ -161,10 +161,26 @@ Scale unit: **1 = Chiikawa's height.**
 
 ### Village (`islanders 1`, `siren 2`, `chiikawa 3`, `chiikawa 7`)
 
-- Huts raised on short wooden posts, plank walls, **large mushroom-shaped
-  thatched roofs** in straw brown. Some walls have colourful scale or
-  diamond patterns in teal, orange and red.
+- Huts raised on short wooden posts, **large mushroom-shaped thatched
+  roofs** in straw brown. Their walls are timber frames of thick round
+  log posts and round log rails (along the foot, under the windows, along
+  the top), every panel shingled with overlapping round scales: greens
+  (light green, sage, olive, yellow-green) with now and then an orange
+  one, or warm colours, teal, orange and red. Tall windows in heavy board
+  frames with deep sills, green panes with two thin bars and a double
+  white zigzag. Porches of wide planks on a thick log edge with no
+  railing, chunky log steps, plank doors with dark C-shaped handles, and
+  potted plants on the porch: a gnarled succulent in a terracotta pot,
+  purple thistles in a round clay pot.
 - Round beehive thatched huts with a topknot also appear.
+- Inside the huts (the film shows none; the game's own): a roomy log-cabin
+  room furnished in the village's own materials, wood, woven straw and
+  rattan, clay, stone and bamboo, nothing modern. A log bed with knobbed
+  posts, a woven rattan headboard and a spindled footboard, a thick futon
+  under a patchwork quilt; a plank bookshelf of
+  books and scrolls; a kitchen of a clay stove and pot, a counter with a
+  stone basin fed by a bamboo pipe, bowls on a shelf and a clay water jar;
+  a low round table with cushions on a woven rug; a paper lantern.
 - The watchtower stage in the middle: squared timber legs splaying out to
   the ground, each side braced with two tiers of big crossed planks over
   cross beams, an open platform with no railing on a thick rim of two
