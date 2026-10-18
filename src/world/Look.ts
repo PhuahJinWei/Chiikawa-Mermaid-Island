@@ -865,8 +865,9 @@ export const moonUniforms = {
 
 /**
  * Moonlight catching the edges of what turns toward the moon at night, a cool cyan, as the film
- * paints its night jungle: leaves, trunks, rocks and houses rimmed where they turn away from the
- * camera and toward the moon. For a toon material, from its onBeforeCompile.
+ * paints its night jungle: leaves, trunks and rocks rimmed just where they turn away from the
+ * camera and toward the moon. Only the very edge, so a broad face seen at a slant keeps its own
+ * colour. For a toon material, from its onBeforeCompile.
  */
 export function moonEdges(shader: THREE.WebGLProgramParametersWithUniforms): void {
   Object.assign(shader.uniforms, moonUniforms);
@@ -877,7 +878,7 @@ export function moonEdges(shader: THREE.WebGLProgramParametersWithUniforms): voi
       `{
         float edge = 1.0 - abs(dot(normal, normalize(vViewPosition)));
         float toMoon = smoothstep(-0.15, 0.55, dot(inverseTransformDirection(normal, viewMatrix), uMoonWay));
-        outgoingLight += uMoonRim * (edge * edge) * toMoon;
+        outgoingLight += uMoonRim * smoothstep(0.62, 0.95, edge) * toMoon;
       }
       #include <opaque_fragment>`,
     );
@@ -952,7 +953,12 @@ const GRADE = {
         moonlit += (green * vec3(-0.02, 0.07, 0.03) + red * vec3(0.12, -0.02, 0.1)) * (0.35 + n);
         float warm = smoothstep(0.12, 0.4, g.r - g.b) * smoothstep(0.3, 0.7, n);
         float blue = smoothstep(0.15, 0.35, g.b - max(g.r, g.g));
-        g = mix(g, moonlit, night * 0.78 * (1.0 - warm) * (1.0 - blue) * (c.a < 0.75 ? 0.45 : 1.0));
+        // Under the night's blue each thing keeps much of its own colour, the more colourful the
+        // more, as the film's nights keep a red stall red, only darker and bluer; leaves alone go
+        // over to the night's teal and violet.
+        float top = max(max(g.r, g.g), g.b);
+        float colourful = smoothstep(0.15, 0.6, (top - min(min(g.r, g.g), g.b)) / max(top, 1e-3)) * (1.0 - green);
+        g = mix(g, moonlit, night * 0.75 * (1.0 - 0.65 * colourful) * (1.0 - warm) * (1.0 - blue) * (c.a < 0.75 ? 0.45 : 1.0));
       }
       vec2 d = vUv - 0.5;
       g *= 1.0 - uVignette * dot(d, d);
@@ -1031,6 +1037,8 @@ export const jungleHaze = {
   uJungle: { value: new THREE.Vector3(0.06, 0.26, 0.22) },
   uJungleWarm: { value: new THREE.Vector3(0.58, 0.46, 0.1) },
   uJungleGold: goldenUniform,
+  /** How thick the haze is: 1 by day, thinner as the light goes in the evening. */
+  uJungleThick: { value: 1 },
 };
 
 /**
@@ -1057,6 +1065,7 @@ const FOCUS = {
     uJungle: { value: new THREE.Vector3() },
     uJungleWarm: { value: new THREE.Vector3() },
     uJungleGold: { value: 0 },
+    uJungleThick: { value: 1 },
     uCover: { value: null },
     uCoverMap: { value: new THREE.Vector3(0, 0, 1) },
   },
@@ -1081,6 +1090,7 @@ const FOCUS = {
     uniform vec3 uJungle;
     uniform vec3 uJungleWarm;
     uniform float uJungleGold;
+    uniform float uJungleThick;
     varying vec2 vUv;
     ${COVER_GLSL}
     float softness(vec2 uv) {
@@ -1097,11 +1107,10 @@ const FOCUS = {
       vec3 world = (uCameraWorld * vec4(view, 1.0)).xyz;
       float deep = smoothstep(0.2, 0.8, underTrees(world));
       // Only the depth: what is near stays dark and clear, as the film keeps its foreground. In the
-      // golden hour the haze comes nearer and thicker, and glows gold over more of the way toward
-      // the sun, as the film's late afternoon fills its jungle with golden light.
-      float start = mix(12.0, 6.0, uJungleGold);
-      float amount = deep * 0.85 * (1.0 + 0.45 * uJungleGold) * (1.0 - exp(-0.04 * max(metres - start, 0.0)));
-      float sunward = pow(max(dot(normalize(world - uCameraWorld[3].xyz), uSun), 0.0), mix(3.0, 1.2, uJungleGold));
+      // golden hour it glows gold over more of the way toward the sun, as the film's late afternoon
+      // fills its jungle with golden light; through the evening it thins as the light goes.
+      float amount = deep * 0.85 * uJungleThick * (1.0 - exp(-0.04 * max(metres - 12.0, 0.0)));
+      float sunward = pow(max(dot(normalize(world - uCameraWorld[3].xyz), uSun), 0.0), mix(3.0, 1.8, uJungleGold));
       return mix(colour, mix(uJungle, uJungleWarm, sunward), amount);
     }
     // The scene's light as it should be, whatever a shader let slip: never below black, NaN or a

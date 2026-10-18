@@ -58,6 +58,9 @@ const COLORS = {
   filmMoon: '#EAF8FF',
   filmStar: '#B8F0FF',
 };
+const _haze = new THREE.Color();
+const _hazeLight = new THREE.Color();
+const _hazeSky = new THREE.Color();
 /** The sky's glow seen from under the trees by day, and how it turns in the golden hour. */
 const GLOW_TINT = new THREE.Color(1.0, 0.97, 0.88);
 const GOLDEN_GLOW = new THREE.Color(1.0, 0.8, 0.46);
@@ -283,15 +286,24 @@ export class Stage {
     sunUniform.value.copy(look.lightDir);
     if (FILM) filmLights(this.light, this.hemi, look.night);
     sharedUniforms.uAmbient.value.copy(look.ambient);
-    // The jungle's depth haze takes the hour's light: teal in the shade, golden toward the sun; in
-    // the golden hour the haze through the jungle glows gold, as the film's late afternoon does.
+    // The jungle's depth haze takes the hour's light: teal in the shade by day, golden toward the
+    // sun. In the golden hour the shade's haze turns a thin amber, gold toward the sun, as the
+    // film's late afternoon fills its jungle with golden light; from then on through the dusk it
+    // takes the sky's own colours and thins as the light goes, so the jungle never fills with a
+    // green fog.
     const a = look.ambient;
     const golden = THREE.MathUtils.smoothstep(hours, 15.2, 16.6) * (1 - THREE.MathUtils.smoothstep(hours, 17.4, 18.2));
+    const evening = THREE.MathUtils.smoothstep(hours, 16.6, 18.2) * (1 - THREE.MathUtils.smoothstep(hours, 19.6, 20.6));
     goldenUniform.value = golden;
     // Seen from under the trees, the sky glows gold too.
     u.uGlowTint.value.copy(GLOW_TINT).lerp(GOLDEN_GLOW, golden);
-    jungleHaze.uJungle.value.set((0.06 + 0.2 * golden) * a.r, (0.26 + 0.06 * golden) * a.g, (0.22 - 0.1 * golden) * a.b);
-    jungleHaze.uJungleWarm.value.set(0.58 * a.r, 0.46 * a.g, 0.1 * a.b).multiplyScalar(1 + 0.9 * golden);
+    _haze.set(0.06 + 0.18 * golden, 0.26 - 0.08 * golden, 0.22 - 0.15 * golden).multiply(_hazeLight.copy(a));
+    _haze.lerp(_hazeSky.copy(look.horizon).multiplyScalar(0.4), evening);
+    jungleHaze.uJungle.value.set(_haze.r, _haze.g, _haze.b);
+    _haze.setRGB(0.58, 0.46, 0.1).multiply(_hazeLight).multiplyScalar(1 + 0.5 * golden);
+    _haze.lerp(_hazeSky.copy(look.horizon).multiplyScalar(0.75), evening * (1 - golden));
+    jungleHaze.uJungleWarm.value.set(_haze.r, _haze.g, _haze.b);
+    jungleHaze.uJungleThick.value = 1 - 0.3 * golden - 0.45 * evening * (1 - golden);
     // The moon rims what turns toward it in cool cyan, once night has fallen and it is up.
     moonUniforms.uMoonWay.value.copy(look.moonDir);
     moonUniforms.uMoonRim.value

@@ -64,13 +64,16 @@ never pushed, because it is other people's artwork.
   meets earth it breaks over the edge in tufts, never a clean line. Still water mirrors what
   stands round it, darker and greener; falling water is a soft veil of
   streaks, glowing over its lip. Nights are moonlit royal blue, the land
-  darker than the sky, clearings pale in the moonlight, the moon glowing
-  in a wide halo in a sky thick with pale cyan stars and rimming the
+  darker than the sky, clearings pale in the moonlight, each thing
+  keeping its own colour, only darker and bluer, the moon glowing in a
+  wide halo in a sky thick with pale cyan stars and rimming the very
   edges of leaves, trunks and rocks in cool cyan, the jungle violet navy,
   teal and violet; torches burn in big licking cartoon flames, and they,
   lanterns and lit windows glow and light what is round them warm,
   firelit faces a warm cream. Dusk is a cool steel blue; the golden hour
-  floods the jungle with golden light and haze.
+  floods the jungle with golden light, its haze gold toward the sun and
+  thin elsewhere; the evening's haze takes the sky's colours, never a
+  green fog.
 - **Everyone is a round blob.** Head and body are one soft shape, wider at
   the head, with tiny stub arms and almost invisible feet. Heights are close
   to one head tall. This is a gift for procedural modelling.

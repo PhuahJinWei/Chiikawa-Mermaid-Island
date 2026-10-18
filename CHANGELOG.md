@@ -439,13 +439,17 @@ outlined is drawn twice, once for its pen line. To get there:
   the night's blue. By night the land lies darker than the sky, its
   shapes against it, in the film's violet navy, blue-violet and pale
   periwinkle; open ground and clearings lie pale in the moonlight under
-  the dark of the trees. The moon glows in a wide halo in a sky thick
-  with pale cyan stars, and rims the edges of leaves, trunks, rocks and
-  houses that turn toward it in cool cyan; greens keep a teal and reds a
-  violet. The golden hour floods the jungle with golden light: everything
+  the dark of the trees. Each thing keeps its own colour under the
+  night's blue, only darker and bluer (a red stall stays red, a blue one
+  blue), while the jungle's leaves go over to teal and violet. The moon
+  glows in a wide halo in a sky thick with pale cyan stars, and rims the
+  very edges of leaves, trunks and rocks that turn toward it in cool
+  cyan. The golden hour floods the jungle with golden light: everything
   warmer, the sky glowing gold seen from under the trees, and the
-  jungle's haze nearer, thicker and gold over much of the way toward the
-  low sun. The sunlight in the waterfall's clearing is gone after dark
+  jungle's haze gold over much of the way toward the low sun and a thin
+  amber elsewhere; from then on through the dusk the haze takes the
+  sky's own colours and thins as the light goes, so the evening jungle
+  never fills with a green fog. The sunlight in the waterfall's clearing is gone after dark
   (it had shone on at midnight) and turns gold in the golden hour; the
   sea darkens with the sky at sunset, and dusk passes through the film's
   cool steel blue before the night. Under half a millisecond more a frame

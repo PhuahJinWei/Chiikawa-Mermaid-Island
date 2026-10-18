@@ -6,7 +6,7 @@ import type { FireKind } from './Firelight';
 import { glowMaterial, glowUniforms } from './Glow';
 import { INK, addOutline, windUniforms } from './Ink';
 import { terrainHeight } from './Island';
-import { FILM, moonEdges, paintThatch } from './Look';
+import { FILM, paintThatch } from './Look';
 import { addBox, addCircle, addDeck } from './Obstacles';
 import { loadPropModel, type LabelInfo, type PartRole, type PropInfo } from './PropModels';
 
@@ -76,12 +76,7 @@ interface Floater {
  * painted the film's way (see paintThatch). */
 function toon(): THREE.MeshToonMaterial {
   const material = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: sceneryRamp() });
-  if (FILM) {
-    material.onBeforeCompile = (shader) => {
-      paintThatch(shader);
-      moonEdges(shader);
-    };
-  }
+  if (FILM) material.onBeforeCompile = (shader) => paintThatch(shader);
   return material;
 }
 

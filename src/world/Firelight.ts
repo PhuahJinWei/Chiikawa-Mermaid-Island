@@ -7,7 +7,7 @@ const REACH = 70;
 /** Each kind of source: its colour, how bright, and how far its light reaches, in metres. */
 const KINDS = {
   flame: { colour: new THREE.Color('#FF8A30'), intensity: 24, reach: 15, warmth: 1 },
-  glow: { colour: new THREE.Color('#FFBE72'), intensity: 2.6, reach: 6.5, warmth: 0.45 },
+  glow: { colour: new THREE.Color('#FFBE72'), intensity: 5, reach: 8, warmth: 0.45 },
 } as const;
 export type FireKind = keyof typeof KINDS;
 /** How the firelight tints a character's colours at full strength: against the night's blue, a
