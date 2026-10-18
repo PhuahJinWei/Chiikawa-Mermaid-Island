@@ -17,6 +17,10 @@ export interface TerrainInfo {
   height: { url: string; grid: number; min: number; max: number };
   /** The painted colour map, laid over the whole square from above. */
   colours: string;
+  /** Where grass (red), bare earth (green: the paths, the village's clearing, the festival's street)
+   * and sand (blue) lie, mapped as the colours are; the rest is fields, the waterfall pool's bank,
+   * rubble and rock. The film look paints its grass and earth from it. */
+  kinds?: string;
   /** A cave's skylight, a round opening in the ground over the sea come in under the island, if the
    * island has one (the cave is still to be placed): its middle (x, z), its edge (an outline, as
    * `outlineAt` reads it), and the mossy lip round it, out to `lip` from the middle, at `top`. */
@@ -246,11 +250,167 @@ function groundMaterial(colours: THREE.Texture, info: TerrainInfo, floor: THREE.
 }
 
 /**
- * The film look's ground: the same painted colour map, lit by the sun through the soft ramp and
- * shaded where rocks, trees and houses cast their shadows, without the pen's waterline (the film
- * paints its shores without a line).
+ * GLSL: the film's grass and earth, painted over the ground's colours where its map of kinds (see
+ * TerrainInfo.kinds) says they lie. The lawn is clumps of grass, each a crown of blade tips, the
+ * nearer over the farther; packed earth has long soft sweeps of the brush and a scatter of pebbles;
+ * where the two meet, the border follows the clumps' tufted outlines.
  */
-function filmGroundMaterial(colours: THREE.Texture, info: TerrainInfo, floor: THREE.Texture): THREE.MeshToonMaterial {
+const GROUND_PAINT_GLSL = /* glsl */ `
+uniform sampler2D uKinds;
+vec3 groundHash(vec2 p) {
+  vec3 q = vec3(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)), dot(p, vec2(419.2, 371.9)));
+  return fract(sin(q) * 43758.5453);
+}
+float groundNoise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = p - i;
+  f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(groundHash(i).x, groundHash(i + vec2(1.0, 0.0)).x, f.x),
+             mix(groundHash(i + vec2(0.0, 1.0)).x, groundHash(i + vec2(1.0, 1.0)).x, f.x), f.y);
+}
+// Clumps of grass about 'scale' metres apart, two cells in three holding one: a light yellow-green
+// patch, sharp blade tips along its top (the side away from the camera), rounded and a little darker
+// at its foot. The nearer clump lies over the farther, so each shows its tufted top over the one
+// behind it; each is a little lighter or yellower than its neighbours. Returns the tone to multiply
+// the grass's colour by (the plain green between clumps where none covers p), and in 'body' how far
+// into a clump p lies (1 at its middle, 0 at its edge or outside). 'px' is how many metres a pixel
+// spans there.
+vec3 grassClumps(vec2 p, float scale, float px, out float body) {
+  vec2 q = p / scale;
+  vec2 cam = cameraPosition.xz / scale;
+  float aa = 0.8 * px / scale;
+  vec2 i = floor(q);
+  vec2 f = q - i;
+  float best = 1e9;
+  float second = 1e9;
+  vec3 toneBest = vec3(0.0);
+  vec3 toneSecond = vec3(0.0);
+  float coverBest = 0.0;
+  float coverSecond = 0.0;
+  body = 0.0;
+  for (int y = -1; y <= 1; y++) {
+    for (int x = -1; x <= 1; x++) {
+      vec2 g = vec2(float(x), float(y));
+      vec3 h = groundHash(i + g);
+      if (h.z > 0.68) continue;
+      vec2 r = f - (g + 0.15 + 0.7 * h.xy);
+      float d = length(r);
+      float radius = 0.48 + 0.4 * fract(h.z * 7.13);
+      if (d > 1.45 * radius + aa) continue;
+      vec2 mid = q - r;
+      vec2 away = normalize(mid - cam + 1e-4);
+      float side = dot(r, away) / max(d, 1e-4);
+      float tips = 1.0 - abs(fract(atan(r.y, r.x) * (11.0 + 6.0 * h.x) / 6.2831853 + h.y) * 2.0 - 1.0);
+      float edge = radius * (0.86 + 0.55 * smoothstep(-0.15, 0.7, side) * tips * tips * tips);
+      float cover = 1.0 - smoothstep(edge - aa, edge + aa, d);
+      if (cover <= 0.0) continue;
+      float far = distance(mid, cam);
+      float up = dot(r, away) / edge;
+      vec3 tone = mix(vec3(1.06, 1.08, 0.9), vec3(1.17, 1.15, 0.86), h.y) * mix(0.9, 1.0, smoothstep(-0.95, -0.35, up));
+      if (far < best) {
+        second = best;
+        toneSecond = toneBest;
+        coverSecond = coverBest;
+        best = far;
+        toneBest = tone;
+        coverBest = cover;
+        body = cover * (1.0 - d / edge);
+      } else if (far < second) {
+        second = far;
+        toneSecond = tone;
+        coverSecond = cover;
+      }
+    }
+  }
+  return mix(mix(vec3(0.95, 0.97, 0.98), toneSecond, coverSecond), toneBest, coverBest);
+}
+// Packed earth: long soft sweeps of the brush, wandering slowly over the ground, broad smudges a
+// little darker or lighter, a scatter of small pebbles, each dark with a light top, and the earth
+// darker toward its edges ('inside' is how surely p lies on it; 'px' how many metres a pixel spans
+// there).
+vec3 earthTone(vec2 p, float inside, float px) {
+  float turn = 6.2831853 * groundNoise(p * 0.03 + 5.0);
+  vec2 along = vec2(cos(turn), sin(turn));
+  vec2 a = vec2(dot(p, along), dot(p, vec2(-along.y, along.x)));
+  float sweep = 0.6 * groundNoise(vec2(a.x * 0.18, a.y * 2.4)) + 0.4 * groundNoise(vec2(a.x * 0.6, a.y * 6.5) + 11.0);
+  float smudge = smoothstep(0.3, 0.75, groundNoise(p * 0.35 + 23.0));
+  vec3 tone = vec3(mix(0.88, 1.09, sweep) * mix(0.93, 1.03, smudge))
+              * mix(vec3(0.85, 0.83, 0.82), vec3(1.0), smoothstep(0.2, 0.85, inside));
+  vec2 q = p / 0.3;
+  float aa = 0.8 * px / 0.3;
+  vec2 i = floor(q);
+  vec3 h = groundHash(i + 37.0);
+  if (h.z < 0.25 && aa < 0.12) {
+    vec2 r = q - i - (0.2 + 0.6 * h.xy);
+    float size = 0.06 + 0.08 * h.x;
+    float stone = (1.0 - smoothstep(size - aa, size + aa, length(r))) * (1.0 - smoothstep(0.05, 0.12, aa));
+    float lit = smoothstep(-0.6, 0.6, dot(r / size, vec2(-0.5, -0.85)));
+    tone = mix(tone, mix(vec3(0.7, 0.68, 0.66), vec3(1.14, 1.12, 1.06), lit), stone);
+  }
+  return tone;
+}
+`;
+
+/** GLSL, after the colour map is read: the film's grass and earth over it (needs GROUND_PAINT_GLSL,
+ * FLOOR_GLSL's uMap, and the ground's place in the world as vGroundWorld). How much a pixel spans
+ * is worked out before anything branches, where the GPU can tell. */
+const GROUND_PAINT = /* glsl */ `
+{
+  vec2 p = vGroundWorld.xz;
+  vec3 kind = texture2D(uKinds, vMapUv).rgb;
+  float px = length(fwidth(p));
+  vec2 uvdx = dFdx(vMapUv);
+  vec2 uvdy = dFdy(vMapUv);
+  float grass = kind.r;
+  float bare = kind.g + kind.b;
+  if (grass + bare > 0.05) {
+    // The small clumps near the camera, the large ones on out into the middle distance, each fading
+    // before it is small enough to shimmer.
+    float nearFade = 1.0 - smoothstep(0.035, 0.11, px);
+    float farFade = 1.0 - smoothstep(0.1, 0.3, px);
+    float body = 0.0;
+    float bodyFar = 0.0;
+    vec3 near = vec3(1.0);
+    vec3 far = vec3(1.0);
+    if (grass > 0.01) {
+      if (nearFade > 0.0) near = grassClumps(p, 0.55, px, body);
+      if (farFade > 0.0) far = grassClumps(p + 31.0, 1.4, px, bodyFar);
+    }
+    float grassy = grass;
+    // Where grass meets bare ground, the border follows the clumps' outlines, each spilling over the
+    // edge as far as its body reaches; either side keeps its own colour, read a little way into it.
+    if (grass > 0.02 && grass < 0.98 && grass + bare > 0.9) {
+      float reach = mix(bodyFar, body, nearFade);
+      grassy = smoothstep(0.42, 0.58, grass + 0.6 * (reach - 0.35));
+      vec2 du = vec2(0.7 / uMap.z, 0.0);
+      vec2 dv = vec2(0.0, 0.7 / uMap.z);
+      vec2 g = vec2(textureGrad(uKinds, vMapUv + du, uvdx, uvdy).r - textureGrad(uKinds, vMapUv - du, uvdx, uvdy).r,
+                    textureGrad(uKinds, vMapUv + dv, uvdx, uvdy).r - textureGrad(uKinds, vMapUv - dv, uvdx, uvdy).r);
+      vec2 toGrass = g / max(length(g), 1e-4) / uMap.z;
+      diffuseColor.rgb = mix(textureGrad(map, vMapUv - toGrass, uvdx, uvdy).rgb,
+                             textureGrad(map, vMapUv + toGrass, uvdx, uvdy).rgb, grassy);
+    }
+    vec3 lawn = mix(vec3(1.0), near, nearFade) * mix(vec3(1.0), far, 0.7 * farFade * (1.0 - 0.5 * nearFade));
+    vec3 tone = mix(vec3(1.0), lawn, grassy);
+    float earth = (1.0 - grassy) * kind.g / max(bare, 1e-3);
+    if (earth > 0.01) tone *= mix(vec3(1.0), earthTone(p, kind.g, px), earth);
+    diffuseColor.rgb *= tone;
+  }
+}
+`;
+
+/**
+ * The film look's ground: the same painted colour map, its grass and earth painted over it the
+ * film's way where `kinds` says they lie, lit by the sun through the soft ramp and shaded where
+ * rocks, trees and houses cast their shadows, without the pen's waterline (the film paints its
+ * shores without a line).
+ */
+function filmGroundMaterial(
+  colours: THREE.Texture,
+  info: TerrainInfo,
+  floor: THREE.Texture,
+  kinds: THREE.Texture | null,
+): THREE.MeshToonMaterial {
   const material = new THREE.MeshToonMaterial({
     map: colours,
     gradientMap: paintedRamp(),
@@ -265,6 +425,7 @@ function filmGroundMaterial(colours: THREE.Texture, info: TerrainInfo, floor: TH
       uEdge: { value: new THREE.Color(WATER_EDGE) },
       uSea: { value: info.water },
       uPool: { value: poolUniform(info) },
+      uKinds: { value: kinds },
     });
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vGroundWorld;')
@@ -274,6 +435,7 @@ function filmGroundMaterial(colours: THREE.Texture, info: TerrainInfo, floor: TH
         '#include <common>',
         `#include <common>
         ${FLOOR_GLSL}
+        ${kinds ? GROUND_PAINT_GLSL : ''}
         uniform vec3 uEdge;
         uniform float uSea;
         uniform vec4 uPool;
@@ -282,6 +444,7 @@ function filmGroundMaterial(colours: THREE.Texture, info: TerrainInfo, floor: TH
       .replace(
         '#include <map_fragment>',
         `#include <map_fragment>
+        ${kinds ? GROUND_PAINT : ''}
         {
           // Under the water the ground is hidden, but where the two meet at a glancing angle a
           // sliver of it can show: painted the colour of the water's edge, it reads as water.
@@ -320,12 +483,13 @@ export async function loadTerrain(): Promise<Terrain> {
     hazeClearing([fx + 0.6 * (fx - px), info.pool.level + 9, fz + 0.6 * (fz - pz)], 10, 0.75, 0.02);
   }
 
-  const [buffer, colours] = await Promise.all([
+  const [buffer, colours, kinds] = await Promise.all([
     fetch(info.height.url).then((r) => {
       if (!r.ok) throw new Error(`Could not load ${info.height.url}`);
       return r.arrayBuffer();
     }),
     new THREE.TextureLoader().loadAsync(info.colours),
+    FILM && info.kinds ? new THREE.TextureLoader().loadAsync(info.kinds) : Promise.resolve(null),
   ]);
   const { grid, min, max } = info.height;
   const q = new Uint16Array(buffer);
@@ -338,13 +502,18 @@ export async function loadTerrain(): Promise<Terrain> {
   colours.colorSpace = THREE.SRGBColorSpace;
   colours.anisotropy = 4;
   colours.needsUpdate = true;
+  if (kinds) {
+    kinds.flipY = false;
+    kinds.colorSpace = THREE.NoColorSpace;
+    kinds.needsUpdate = true;
+  }
   found.removeFromParent();
   found.position.set(0, 0, 0);
   found.rotation.set(0, 0, 0);
   found.scale.set(1, 1, 1);
 
   terrain = new Terrain(info, heights, found);
-  found.material = FILM ? filmGroundMaterial(colours, info, terrain.texture) : groundMaterial(colours, info, terrain.texture);
+  found.material = FILM ? filmGroundMaterial(colours, info, terrain.texture, kinds) : groundMaterial(colours, info, terrain.texture);
   found.receiveShadow = FILM;
   // The mossy lip round a cave's skylight is a ledge to walk on, up to a step back from its edge.
   if (info.skylight) {

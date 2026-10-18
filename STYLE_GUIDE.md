@@ -57,7 +57,11 @@ never pushed, because it is other people's artwork.
   seen across it from the shore, bright turquoise over the lagoon's sand
   seen from above, paling into a hazy blue toward the horizon. The sea
   cliffs are pale cream sandstone in long beds, tufts of leaves on their
-  ledges and creepers hanging over their lip. Still water mirrors what
+  ledges and creepers hanging over their lip. Grass is clumps, light
+  yellow-green patches with sharp blade tips along their tops over a plain
+  green, the nearer over the farther; packed earth has long soft sweeps
+  of the brush and a few pebbles, darker toward its edges; where grass
+  meets earth it breaks over the edge in tufts, never a clean line. Still water mirrors what
   stands round it, darker and greener; falling water is a soft veil of
   streaks, glowing over its lip.
 - **Everyone is a round blob.** Head and body are one soft shape, wider at

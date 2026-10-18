@@ -414,6 +414,21 @@ outlined is drawn twice, once for its pen line. To get there:
   festival's level ground, the sea cliffs and the ground round the
   waterfall's pool are as they were, and the jungle is planted where it
   was, so the waterfall's frame is unchanged.
+- Grass and earth painted the film's way, where the ground had been flat
+  colour up close. The lawn is clumps of grass, light yellow-green patches
+  with sharp blade tips along their tops over a plain green, the nearer
+  over the farther, small near the camera and larger on into the middle
+  distance, dark in the trees' shade. Packed earth (the paths, the
+  village's clearing and the festival's street) has long soft sweeps of
+  the brush, broad smudges and a scatter of pebbles, darker toward its
+  edges. Where grass meets earth or sand, the border follows the clumps'
+  tufted outlines, and tufts of deeper green grass line the paths'
+  edges; patches of clover grow beside the paths and at the feet of the
+  trees near them. The village's patches of grass are a deeper green,
+  mostly round its clearing's edge, where they had been bright lime
+  splashes. The build writes where grass, earth and sand lie beside the
+  colour map; the waterfall's frame and its bank are as they were. The
+  painting costs under 0.1 ms a frame on the dev PC.
 - Building the props or the village with `--only` no longer overwrites
   their .blend file with just the one prop.
 - The offline cache now keeps the island's height grid and layout file,

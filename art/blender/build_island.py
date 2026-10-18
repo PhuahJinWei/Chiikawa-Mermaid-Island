@@ -6,6 +6,8 @@ Run (from the project root):
 Outputs:
     public/models/island/terrain.glb    the ground: land, beaches and the sea floor near the island
     public/models/island/terrain.png    its painted colours, mapped from above
+    public/models/island/terrain_kinds.png  where grass, bare earth and sand lie, mapped the same way,
+                                        for the film look's painting of grass and earth
     public/models/island/height.bin     ground heights on a grid, for walking and the sea's colours
     public/models/island/landmarks.glb  the rocks (karst pillars and mesas, the rocks behind the
                                         night beach, sea spires, the sea cliffs) and the jungle
@@ -50,6 +52,7 @@ STEP = 1.0             # metres between the samples the ground is built from
 TRIANGLES = 30000      # the ground's triangle budget after simplifying
 HEIGHT_GRID = 385      # samples per side of the height grid the game walks on
 COLOUR_SIZE = 2048     # texels per side of the painted colour map
+KINDS_SIZE = 1024      # texels per side of the map of where grass, bare earth and sand lie
 
 # The coast as the film's aerial shot draws it: its distance from `centre` by direction (the angle
 # of (x, z) from east toward south) as a short Fourier series, [a0, [a1, b1], [a2, b2], ...], with a
@@ -254,6 +257,9 @@ FIELD_ROW = 2.4         # metres between the fields' rows
 BUTTERFLIES = 16        # blue butterflies, each fluttering round a flowering bush
 CANOPY_PATCHES = 6      # the canopy and palms are joined into a mesh for each of 6 x 6 patches, near and far
 UNDERSTORY_PATCHES = 8  # what grows under them into 8 x 8, which the game draws only nearby
+# Tufts of grass along the paths' edges, this far apart, and patches of clover beside them, this far
+# apart (closer at the feet of trees); their generator's seed.
+EDGES = {"tufts": 0.9, "clover": 6.0, "seed": 61}
 # How much room each kind of placed prop keeps clear of trees, in metres from its middle.
 PROP_ROOM = {"hut_green": 7.0, "hut_warm": 7.0, "hut_plank": 5.5, "beehive": 3.8, "stage": 6.5, "torch": 1.0,
              "stall_pink": 3.2, "stall_purple": 3.2, "stall_orange": 3.2, "stall_blue": 3.2, "stall_red": 3.2,
@@ -614,13 +620,18 @@ def ground(x, z, natural=False, shape="v2"):
 # ---------------------------------------------------------------------------- painting
 def paint(x, z, h, masks, normal_y, shade):
     """The ground's colours: sand, wet sand, grass with clover and dark patches, packed-earth
-    paths and village plaza, field rows, rock. Soft painted edges, as the film's backgrounds."""
+    paths and village plaza, field rows, rock. Soft painted edges, as the film's backgrounds. Also
+    how much of each kind of ground the colours show at each point: grass, bare earth (the paths,
+    the village's clearing, the festival's street) and sand; the rest is fields, the waterfall pool's
+    bank, rubble and rock. The film look paints grass and earth from these (see Island.ts)."""
     shape = x.shape + (3,)
     c = lambda name: np.broadcast_to(COLOURS[name], shape)  # noqa: E731
+    grass_k, earth_k, sand_k = (np.broadcast_to(k, shape) for k in np.eye(3))
     s = masks["s"]
     blob = noise(x, z, 9.0, 11.0)
     col = c("sand") * (1.0 - 0.55 * smoothstep(0.35, 1.1, blob))[..., None] \
         + c("sandPatch") * (0.55 * smoothstep(0.35, 1.1, blob))[..., None]
+    kind = sand_k.copy()
     col = mix(col, c("wetSand"), smoothstep(1.8, 0.4, s) * (s > -0.5))
     col = mix(col, c("seaFloor"), smoothstep(-0.2, -2.0, s))
 
@@ -630,21 +641,31 @@ def paint(x, z, h, masks, normal_y, shade):
     grass = mix(c("grass"), c("grassDark"), smoothstep(0.2, 0.9, noise(x, z, 14.0, 13.0)))
     grass = mix(grass, c("clover"), smoothstep(0.45, 0.95, noise(x, z, 11.0, 14.0)))
     col = mix(col, grass, m_grass)
+    kind = mix(kind, grass_k, m_grass)
 
     # The festival's plaza and street: sand, then packed sand; the village's clearing and the paths:
-    # packed sandy earth as in the film's village, a few patches of grass in it and clover creeping
-    # in round the clearing's edge.
-    col = mix(col, c("sand"), smoothstep(0.45, 0.8, masks["plaza"]))
-    col = mix(col, c("plaza"), smoothstep(0.45, 0.8, masks["street"]))
-    patches = smoothstep(0.45, 0.85, noise(x, z, 6.0, 21.0) + 0.9 * smoothstep(0.85, 0.45, masks["village"]))
-    earth = mix(c("earth"), mix(c("grass"), c("clover"), smoothstep(0.3, 0.9, noise(x, z, 3.0, 22.0))), patches)
-    col = mix(col, earth, smoothstep(0.3, 0.75, masks["village"]))
+    # packed sandy earth as in the film's village, a few patches of deep green grass in it and more
+    # creeping in round the clearing's edge.
+    t = smoothstep(0.45, 0.8, masks["plaza"])
+    col = mix(col, c("sand"), t)
+    kind = mix(kind, sand_k, t)
+    t = smoothstep(0.45, 0.8, masks["street"])
+    col = mix(col, c("plaza"), t)
+    kind = mix(kind, earth_k, t)
+    patches = smoothstep(0.6, 0.9, noise(x, z, 6.0, 21.0) + 0.9 * smoothstep(0.85, 0.45, masks["village"]))
+    earth = mix(c("earth"), mix(c("grassDark"), c("grass"), smoothstep(0.3, 0.9, noise(x, z, 3.0, 22.0))), patches)
+    t = smoothstep(0.3, 0.75, masks["village"])
+    col = mix(col, earth, t)
+    kind = mix(kind, mix(earth_k, grass_k, patches), t)
     col = mix(col, c("path"), masks["path"])
+    kind = mix(kind, earth_k, masks["path"])
 
     # Fields: rows of crops on dark soil.
     rows = 0.5 + 0.5 * np.cos((x - FIELDS["centre"][0]) * (2.0 * math.pi / FIELD_ROW))
     field = mix(c("soil"), c("crop"), smoothstep(0.45, 0.65, rows))
-    col = mix(col, field, smoothstep(0.6, 0.9, masks["fields"]))
+    t = smoothstep(0.6, 0.9, masks["fields"])
+    col = mix(col, field, t)
+    kind = kind * (1.0 - t)[..., None]
 
     # The waterfall pool's bank: dark earth with patches of moss, down to the water, as in the film's
     # frame.
@@ -652,7 +673,9 @@ def paint(x, z, h, masks, normal_y, shade):
     bank = mix(bank, c("grassDark"), smoothstep(POOL["level"] + 1.2, POOL["level"] + 2.6, h) * 0.6)
     near = 1.0 - smoothstep(POOL["clearing"] - 1.0, POOL["clearing"] + 3.0,
                             np.hypot(x - POOL["centre"][0], z - POOL["centre"][1]) + 1.5 * noise(x, z, 3.0, 25.0))
-    col = mix(col, bank, near * smoothstep(0.2, 0.7, masks["bank"]))
+    t = near * smoothstep(0.2, 0.7, masks["bank"])
+    col = mix(col, bank, t)
+    kind = kind * (1.0 - t)[..., None]
 
     # Shade under the jungle's trees: the floor dark olive and earthy, the clover gone.
     if "shade" in masks:
@@ -662,11 +685,15 @@ def paint(x, z, h, masks, normal_y, shade):
     # Fallen limestone round the rocks' feet, and bare rock on any steep slope.
     above = h > WATER + 0.1
     rubble = mix(c("rubble"), c("rubbleDark"), smoothstep(0.1, 0.8, noise(x, z, 3.0, 16.0)))
-    col = mix(col, rubble, smoothstep(0.0, 0.5, masks["rubble"]) * above)
+    t = smoothstep(0.0, 0.5, masks["rubble"]) * above
+    col = mix(col, rubble, t)
+    kind = kind * (1.0 - t)[..., None]
     rock = mix(c("rock"), c("rockDark"), smoothstep(0.1, 0.8, noise(x, z, 4.0, 15.0)))
-    col = mix(col, rock, smoothstep(0.8, 0.62, normal_y) * (s > -1.0) * above)
+    t = smoothstep(0.8, 0.62, normal_y) * (s > -1.0) * above
+    col = mix(col, rock, t)
+    kind = kind * (1.0 - t)[..., None]
 
-    return np.clip(col * shade[..., None], 0.0, 1.0)
+    return np.clip(col * shade[..., None], 0.0, 1.0), np.clip(kind, 0.0, 1.0)
 
 
 def mix(a, b, t):
@@ -1362,6 +1389,30 @@ def build_plants(collection, outlines):
     for x, z in scatter(rng, G, tuft_top, np.where(G["headland"], 3.0, 2.6), taken=None, stride=1, limit=600):
         variants.plant("under", tufts[int(rng.integers(0, len(tufts)))], x, at(x, z) - 0.02, z,
                        rng.uniform(0, 2 * math.pi), rng.uniform(0.8, 1.3))
+    # Tufts of grass along the paths' edges, breaking the line where grass meets earth as in the
+    # film's village, and patches of clover in the grass beside them and at the feet of the trees
+    # nearby; each from a generator of its own, so the jungle is planted as before. Not round the
+    # waterfall's pool, whose frame stays as it is.
+    away = G["pool"] > 30.0
+    edging = np.random.default_rng(EDGES["seed"])
+    edge_tufts = [variants.shape("grass", PL.to_arrays(PL.grass(edging, dark=True))) for _ in range(4)]
+    edge_ok = ((G["path"] > -0.25) & (G["path"] < 0.45) & (G["prop"] > 0.6) & (G["rock"] > 0.6) & (G["slope"] < 1.0)
+               & (G["inland"] > 1.5) & (G["fields"] < 0.05) & (G["festival"] < 0.05) & away)
+    for x, z in scatter(edging, G, edge_ok, EDGES["tufts"], taken=None, stride=1):
+        variants.plant("under", edge_tufts[int(edging.integers(0, len(edge_tufts)))], x, at(x, z) - 0.02, z,
+                       edging.uniform(0, 2 * math.pi), edging.uniform(0.75, 1.25))
+    clovers = [variants.shape("clover", PL.to_arrays(PL.clover(edging))) for _ in range(3)]
+    trunk_near = np.zeros_like(G["x"], dtype=bool)
+    for tx, tz, tr in trunks:
+        i, j = int(round(tx - G["x"][0, 0])), int(round(tz - G["z"][0, 0]))
+        trunk_near[max(j - 3, 0):j + 4, max(i - 3, 0):i + 4] = True
+    clover_ok = ((((G["path"] > 0.8) & (G["path"] < 5.0)) | ((G["village"] > 0.03) & (G["village"] < 0.4)))
+                 & (G["prop"] > 1.0) & (G["rock"] > 1.0) & (G["slope"] < 0.8) & (G["inland"] > 3.0)
+                 & (G["fields"] < 0.05) & (G["festival"] < 0.05) & away)
+    gap = np.where(trunk_near, EDGES["clover"] * 0.6, EDGES["clover"])
+    for x, z in scatter(edging, G, clover_ok, gap, taken=None, stride=1):
+        variants.plant("under", clovers[int(edging.integers(0, len(clovers)))], x, at(x, z) - 0.03, z,
+                       edging.uniform(0, 2 * math.pi), edging.uniform(0.85, 1.3))
     shrubs = [variants.shape("shrub", PL.to_arrays(PL.bush(rng, None))) for _ in range(4)]
     edge_ok = G["cliff_top"] & ~G["headland"] & (G["cliff_in"] > 2.7) & (G["cliff_in"] < 6.5) & (G["slope"] < 0.85)
     for x, z in scatter(rng, G, edge_ok, 1.9, taken=None, stride=1):
@@ -1504,10 +1555,12 @@ def main():
     masks["rubble"] = rubble(gx, gz, outlines)
     masks["shade"] = canopy_shade(gx, gz, crowns)
     shade, normal_y = hillshade(h, SIZE / (COLOUR_SIZE - 1))
-    rgb = paint(gx, gz, h, masks, normal_y, shade)
-    # Colours are linear here; the PNG holds sRGB.
+    rgb, kinds = paint(gx, gz, h, masks, normal_y, shade)
+    # Colours are linear here; the PNG holds sRGB. The kinds stay linear, averaged down to their map.
     srgb = np.where(rgb <= 0.0031308, rgb * 12.92, 1.055 * np.power(rgb, 1.0 / 2.4) - 0.055)
     write_png(os.path.join(OUT_DIR, "terrain.png"), srgb)
+    k = COLOUR_SIZE // KINDS_SIZE
+    write_png(os.path.join(OUT_DIR, "terrain_kinds.png"), kinds.reshape(KINDS_SIZE, k, KINDS_SIZE, k, 3).mean(axis=(1, 3)))
     preview(srgb, outlines)
 
     info = {
@@ -1517,6 +1570,7 @@ def main():
         "water": WATER,
         "height": {"url": "models/island/height.bin", "grid": HEIGHT_GRID, "min": round(lo, 4), "max": round(hi, 4)},
         "colours": "models/island/terrain.png",
+        "kinds": "models/island/terrain_kinds.png",
         "landmarks": "models/island/landmarks.glb",
         "rocks": [{"centre": [round(r.cx, 2), round(r.cz, 2)], "outline": reach} for r, reach in outlines],
         "pool": {"centre": list(POOL["centre"]), "radius": POOL["radius"], "level": POOL["level"]},

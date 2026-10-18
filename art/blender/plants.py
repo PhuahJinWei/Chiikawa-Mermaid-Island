@@ -59,6 +59,9 @@ C = {k: np.array(L.hex_color(v)[:3]) for k, v in {
     "red": "#EE5A4E",
     "pink": "#F7A1C4",
     "centre": "#F9E27A",
+    "grassDark": "#3F8F3A",
+    "clover": "#4FA94A",
+    "cloverLight": "#86CF66",
 }.items()}
 
 UP = Vector((0.0, 0.0, 1.0))
@@ -705,14 +708,60 @@ def big_tree(rng, base_heights):
     return merge(pieces), crowns
 
 
-def grass(rng):
-    """A tuft of grass: a few long thin blades leaning out from one spot."""
+def grass(rng, dark=False):
+    """A tuft of grass: a few long thin blades leaning out from one spot; `dark` for the deeper green
+    tufts along the paths' edges, more of them and shorter."""
     pieces = []
-    for i in range(4):
-        a = 2 * math.pi * i / 4 + rng.uniform(-0.5, 0.5)
+    count = 6 if dark else 4
+    for i in range(count):
+        a = 2 * math.pi * i / count + rng.uniform(-0.5, 0.5)
         direction = Vector((math.cos(a) * 0.35, math.sin(a) * 0.35, 1.0))
-        colour = C["leafLight"] if i % 2 else C["leaf"]
-        pieces.append(leaf_blade(Vector((0.0, 0.0, -0.02)), direction, rng.uniform(0.3, 0.45), 0.06, colour, 0.2))
+        if dark:
+            colour = C["grassDark"] if i % 2 else C["leaf"]
+            length = rng.uniform(0.2, 0.34)
+        else:
+            colour = C["leafLight"] if i % 2 else C["leaf"]
+            length = rng.uniform(0.3, 0.45)
+        pieces.append(leaf_blade(Vector((0.0, 0.0, -0.02)), direction, length, 0.06, colour, 0.2))
+    return merge(pieces)
+
+
+def clover(rng):
+    """A patch of clover, as at the feet of the film's trees: a low mound of three-leaved clovers,
+    each leaflet a rounded heart notched at its tip, lighter toward the middle of the clover."""
+    pieces = []
+    for _ in range(int(rng.integers(7, 11))):
+        a, d = rng.uniform(0, 2 * math.pi), 0.3 * math.sqrt(rng.random())
+        top = Vector((d * math.cos(a), d * math.sin(a), rng.uniform(0.07, 0.16) * (1.0 - 0.45 * d / 0.3)))
+        size = rng.uniform(0.07, 0.1)
+        turn = rng.uniform(0, 2 * math.pi)
+        light = rng.random() < 0.5
+        for j in range(3):
+            theta = turn + 2 * math.pi * j / 3
+            out = Vector((math.cos(theta), math.sin(theta), 0.18)).normalized()
+            side = Vector((-math.sin(theta), math.cos(theta), 0.0))
+            # The leaflet's outline round from one side of its stalk to the other, notched at its tip;
+            # its top and underside meet at the outline, swelling a little toward the middle.
+            leaf = bmesh.new()
+            rim, where = [], []
+            for i in range(7):
+                phi = math.pi * (i / 6.0 - 0.5)
+                r = size * (0.62 + 0.38 * math.cos(phi)) * (1.0 - 0.32 * math.exp(-(phi / 0.3) ** 2))
+                u, w = math.sin(phi) * r * 1.05, (0.12 + math.cos(phi)) * r
+                rim.append(leaf.verts.new(top + side * u + out * w))
+                where.append((w / (1.12 * size), u / size))
+            mid = top + out * (0.55 * size)
+            up = leaf.verts.new(mid + UP * 0.006)
+            down = leaf.verts.new(mid - UP * 0.006)
+            where += [(0.5, 0.0), (0.5, 0.0)]
+            for i in range(6):
+                leaf.faces.new((up, rim[i], rim[i + 1]))
+                leaf.faces.new((down, rim[i + 1], rim[i]))
+            leaf.faces.new((up, rim[6], rim[0]))
+            leaf.faces.new((down, rim[0], rim[6]))
+            bmesh.ops.recalc_face_normals(leaf, faces=leaf.faces[:])
+            cols = [C["clover"]] * 7 + [C["cloverLight"] if light else C["clover"]] * 2
+            pieces.append((leaf, cols, [0.25] * len(leaf.verts), where))
     return merge(pieces)
 
 
