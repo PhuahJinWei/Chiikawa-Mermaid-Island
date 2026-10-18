@@ -1,7 +1,7 @@
 """Build the village, the pier and the ferry in Blender and export them for the game.
 
 Run (from the project root):
-    blender --background --factory-startup --python art/blender/build_village.py -- [--only hut_green] [--no-previews]
+    blender --background --factory-startup --python art/blender/build_village.py -- [--only hut_green,stage] [--no-previews]
 
 Outputs:
     public/models/props/<id>.glb   each prop, in parts: the body, parts that glow at night
@@ -216,55 +216,122 @@ def build_beehive(collection):
 
 
 # ---------------------------------------------------------------------------- stalls
-# Each stall's colour, and the colour of the words on its signboard.
-STALL_WORDS = {"pink": "#C8325A", "purple": "#FFFFFF", "orange": "#FFFFFF", "blue": "#FFFFFF", "red": "#FFFFFF",
-               "white": "#2F6FB5"}
+# Each stall's colours, after the film's: its header board, the scalloped trim under the board, the
+# stripes of the wall at the back of the booth, its counter, and the colour of the words on its
+# board.
+STALL_STYLES = {
+    "pink": {"trim": "#FFFFFF", "inside": ("#E9768A", "#D85C72"), "counter": "#F29A8E", "words": "#C8325A"},
+    "purple": {"trim": "#FFFFFF", "inside": ("#E07050", "#CF5B3F"), "counter": "#EF8A50", "words": "#FFFFFF"},
+    "orange": {"trim": "#F2D04E", "inside": ("#E5703F", "#D45B33"), "counter": "#F2A055", "words": "#FFFFFF"},
+    "blue": {"trim": "#FFFFFF", "inside": ("#E8834B", "#D86C3C"), "counter": "#EF8A50", "words": "#FFFFFF"},
+    "red": {"trim": "#F2D04E", "inside": ("#E0603E", "#CC4E33"), "counter": "#F2A055", "words": "#FFFFFF"},
+    "white": {"trim": "#4E8FCF", "inside": ("#E9845A", "#D96E47"), "counter": "#F4F1E8", "words": "#2F6FB5"},
+}
+# A stall's size, after the film's, where the islander who keeps it stands behind its counter with
+# their upper half above it and the header board just over their head: how wide and how deep the
+# booth is, the counter's top, and the header board's bottom and top (its roof). About a metre clear
+# between the counter and the back wall for its keeper, and a metre between neighbouring booths
+# (2.92 m apart along their rows) for them to come in by.
+STALL = {"width": 1.9, "depth": 1.5, "counter": 0.52, "board": (1.3, 1.95)}
+# The stall's name across its header board: how wide and how high.
+STALL_LABEL = (1.75, 0.5)
+LANTERN_COLOURS = ("#F7D046", "#9CCB7A", "#F7A1C4", "#7EC3EA", "#F29E6B")
 
 
 def make_stall(colour):
     def build(collection):
-        """A festival stall: a counter painted in its colour, a striped awning, a signboard for
-        the game to paint its name on, and a scalloped yellow fringe under the board. Light, as
-        forty of them stand side by side along the festival. It is 2.9 metres wide, awning to
-        awning, so stalls placed that far apart touch, as in the film."""
-        col, pieces = C[colour], []
-        pieces.append((P.box_bm(V(0.0, 0.0, 0.5), (2.6, 1.0, 1.0)), C["plank"]))
-        pieces.append((P.box_bm(V(0.0, -0.51, 0.5), (2.5, 0.03, 0.85)), col))
-        pieces.append((P.box_bm(V(0.0, -0.53, 0.5), (2.5, 0.03, 0.12)), C["white"]))
-        pieces.append((P.box_bm(V(0.0, 0.0, 1.03), (2.75, 1.15, 0.07)), C["plankLight"]))
-        for x in (-1.25, 1.25):
-            for y, top in ((-0.48, 2.45), (0.48, 2.7)):
-                pieces.append((P.segment_bm(V(x, y, 0.0), V(x, y, top), 0.06, 0.055, segments=6), C["post"]))
-        # The awning slopes down to the front in stripes.
-        stripes = 7
+        """A festival stall as the film's: a booth on four thin posts under a flat roof, with a deep
+        header board across its front for the game to paint its name on, a scalloped trim along
+        the board's bottom and paper lanterns hanging under it; a wall of stripes at the back, and
+        a low counter across the front behind which the islander who keeps it stands, white menu
+        tags hanging off its front. It is open at its sides behind the counter, where its keeper
+        comes in from the alley behind the row. Light, as forty of them stand along the festival;
+        it faces -Y, its middle at the origin."""
+        style = {k: (tuple(L.hex_color(c) for c in v) if isinstance(v, tuple) else L.hex_color(v))
+                 for k, v in STALL_STYLES[colour].items() if k != "words"}
+        s = STALL
+        w, d = s["width"] / 2, s["depth"] / 2
+        top = s["counter"]
+        b0, b1 = s["board"]
+        pieces = []
+        # Posts at the corners, up to the roof.
+        for x in (-w + 0.04, w - 0.04):
+            for y in (-d + 0.04, d - 0.04):
+                pieces.append((P.segment_bm(V(x, y, 0.0), V(x, y, b1), 0.04, 0.04, segments=6), C["plankLight"]))
+        # The roof, a flat board over it all.
+        pieces.append((P.box_bm(V(0.0, 0.0, b1 - 0.02), (s["width"], s["depth"], 0.04)), C["plank"]))
+        # The wall across the back, in upright stripes of two shades.
+        stripes = 6
         for k in range(stripes):
-            x = -1.45 + 2.9 * (k + 0.5) / stripes
-            bm = P.box_bm(V(x, 0.0, 2.6), (2.9 / stripes + 0.002, 1.5, 0.06))
-            L.transformed(bm, Matrix.Translation(V(0.0, 0.0, 2.6)) @ Matrix.Rotation(0.2, 4, "X")
-                          @ Matrix.Translation(V(0.0, 0.0, -2.6)))
-            pieces.append((bm, col if k % 2 == 0 else C["white"]))
-        # The signboard over the front.
-        pieces.append((P.box_bm(V(0.0, -0.62, 2.95), (2.4, 0.08, 0.7)), col))
-        for x in (-0.9, 0.9):
-            pieces.append((P.segment_bm(V(x, -0.62, 2.45), V(x, -0.62, 2.62), 0.035, 0.035, 5), C["post"]))
-        for k in range(11):
-            x = -1.1 + 0.22 * k
-            fringe = bmesh.new()
-            hub = fringe.verts.new((x, -0.67, 2.6))
-            arc = [fringe.verts.new((x + 0.11 * math.cos(math.pi * i / 3), -0.67, 2.6 - 0.11 * math.sin(math.pi * i / 3)))
-                   for i in range(4)]
-            for a, b in zip(arc, arc[1:]):
-                fringe.faces.new((hub, b, a))
-            pieces.append((fringe, C["yellow"]))
+            x = -w + s["width"] * (k + 0.5) / stripes
+            pieces.append((P.box_bm(V(x, d - 0.03, b1 / 2), (s["width"] / stripes + 0.002, 0.04, b1 - 0.04)),
+                           style["inside"][k % 2]))
+        # The counter across the front: its painted face, a pale grey frame round it and across it,
+        # and a board on top.
+        cy = -d + 0.22
+        pieces.append((P.box_bm(V(0.0, cy, top / 2), (s["width"] - 0.1, 0.4, top)), style["counter"]))
+        frame = L.hex_color("#D9DBD6")
+        face = cy - 0.2
+        pieces.append((P.box_bm(V(0.0, face - 0.012, top - 0.02), (s["width"] - 0.08, 0.03, 0.04)), frame))
+        pieces.append((P.box_bm(V(0.0, face - 0.012, 0.03), (s["width"] - 0.08, 0.03, 0.04)), frame))
+        for x in (-w + 0.06, -w / 3, w / 3, w - 0.06):
+            pieces.append((P.box_bm(V(x, face - 0.012, top / 2), (0.035, 0.03, top - 0.02)), frame))
+        pieces.append((P.box_bm(V(0.0, cy + 0.02, top + 0.02), (s["width"] - 0.04, 0.46, 0.04)), C["plankLight"]))
+        # White menu tags hanging off the counter's front, each with a few lines of writing.
+        ink = L.hex_color("#4A3A33")
+        for k, x in enumerate(f * w for f in (-0.69, -0.4, 0.36, 0.63)):
+            h = 0.2 + 0.03 * (k % 2)
+            pieces.append((P.box_bm(V(x, face - 0.03, top - 0.03 - h / 2), (0.11, 0.008, h)), C["white"]))
+            for j in (-0.025, 0.02):
+                pieces.append((P.box_bm(V(x + j, face - 0.035, top - 0.05 - h * 0.45), (0.012, 0.004, h * 0.6)), ink))
         # Things on the counter: cups and a jar.
-        for x, c in ((-0.8, C["yellow"]), (-0.55, C["pink"]), (0.7, C["blue"])):
-            pieces.append((P.segment_bm(V(x, -0.1, 1.06), V(x, -0.1, 1.2), 0.07, 0.085, segments=6), c))
-        pieces.append((L.ellipsoid_bm(V(0.2, 0.05, 1.18), (0.14, 0.14, 0.13), u=8, v=5), C["cream"]))
+        for f, c in ((-0.57, C["yellow"]), (-0.4, C["pink"]), (0.52, C["blue"])):
+            x = f * w
+            pieces.append((P.segment_bm(V(x, cy + 0.06, top + 0.04), V(x, cy + 0.06, top + 0.17), 0.055, 0.07, segments=6), c))
+        pieces.append((L.ellipsoid_bm(V(0.14 * w, cy + 0.1, top + 0.15), (0.12, 0.12, 0.11), u=8, v=5), C["cream"]))
+        # The header board: a deep box across the top of the front, a little wider than the booth.
+        hy = -d + 0.15
+        pieces.append((P.box_bm(V(0.0, hy, (b0 + b1) / 2), (s["width"] + 0.1, 0.38, b1 - b0)), C[colour]))
+        # The scalloped trim along its bottom edge, at the front and down its sides.
+        def scallop(cx, cy_, cz, r, normal_x):
+            bm = bmesh.new()
+            hub = bm.verts.new((cx, cy_, cz))
+            arc = []
+            for i in range(5):
+                a = math.pi * i / 4
+                if normal_x:
+                    arc.append(bm.verts.new((cx, cy_ + r * math.cos(a), cz - r * math.sin(a))))
+                else:
+                    arc.append(bm.verts.new((cx + r * math.cos(a), cy_, cz - r * math.sin(a))))
+            for a, b in zip(arc, arc[1:]):
+                bm.faces.new((hub, b, a) if not normal_x else (hub, a, b))
+            return bm
+        count = 11
+        r = (s["width"] + 0.1) / count / 2
+        for k in range(count):
+            x = -(s["width"] + 0.1) / 2 + r * (2 * k + 1)
+            pieces.append((scallop(x, hy - 0.195, b0, r, False), style["trim"]))
+        for side in (-1, 1):
+            for k in range(2):
+                y = hy - 0.19 + r * (2 * k + 1)
+                pieces.append((scallop(side * (w + 0.055), y, b0, r, True), style["trim"]))
+        # Paper lanterns hanging under the board, inside the front of the booth.
+        for k, x in enumerate(f * w for f in (-0.71, -0.36, 0.0, 0.36, 0.71)):
+            z = b0 - 0.16 - 0.03 * (k % 2)
+            pieces.append((P.segment_bm(V(x, -d + 0.3, b0), V(x, -d + 0.3, z + 0.07), 0.006, 0.006, segments=4), C["post"]))
+            pieces.append((L.ellipsoid_bm(V(x, -d + 0.3, z), (0.075, 0.075, 0.07), u=8, v=5),
+                           L.hex_color(LANTERN_COLOURS[k % len(LANTERN_COLOURS)])))
         body = join(f"stall_{colour}", pieces, collection)
-        face, uvs = P.label_bm(V(0.0, -0.66, 2.95), 2.2, 0.56)
-        label = P.object_with_uv(f"stall_{colour}_label", face, uvs, collection)
-        info = {"footprint": {"box": [1.4, 0.6]}, "height": 3.3,
-                "label": {"size": [2.2, 0.56], "colour": STALL_WORDS[colour]}}
+        face_bm, uvs = P.label_bm(V(0.0, hy - 0.19, (b0 + b1) / 2 + 0.02), STALL_LABEL[0], STALL_LABEL[1])
+        label = P.object_with_uv(f"stall_{colour}_label", face_bm, uvs, collection)
+        # What blocks walkers: the counter and the back wall, so its keeper can walk in at either
+        # side and stand between them; the camera keeps out of the booth's top (in the game's frame,
+        # z = -y).
+        blocks = [{"box": [0.0, -cy, w, 0.22], "y": [0.0, top + 0.1]},
+                  {"box": [0.0, -(d - 0.03), w, 0.05], "y": [0.0, b1]},
+                  {"box": [0.0, 0.0, w + 0.05, d + 0.05], "y": [b0 - 0.05, b1], "walk": False}]
+        info = {"blocks": blocks, "height": b1,
+                "label": {"size": list(STALL_LABEL), "colour": STALL_STYLES[colour]["words"]}}
         return [body, label], info
     return build
 
@@ -692,7 +759,9 @@ BUILDERS = {
     # Along the front rows, pole to pole over four stalls; across the street, from behind one row
     # to behind the other.
     "bunting_row": make_bunting(11.68, 4.3, 0.45, 21, "bunting_row"),
-    "bunting_street": make_bunting(12.4, 4.4, 0.55, 22, "bunting_street"),
+    # The street's bunting on poles at the booths' fronts, as its banners, clear of the gaps between
+    # the booths that their keepers come in by.
+    "bunting_street": make_bunting(8.6, 4.4, 0.45, 15, "bunting_street"),
     "basket": build_basket,
     "pot": build_pot,
 }

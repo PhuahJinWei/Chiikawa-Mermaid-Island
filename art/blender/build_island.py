@@ -77,6 +77,17 @@ STREET = {"centre": (0.0, -29.4), "half": (4.6, 15.6), "feather": 1.5}
 # end over `ramp` metres, where the path climbs on into the jungle.
 FESTIVAL = {"level": 0.5, "row": (-13.6, 0.0022), "rows_half": 30.0, "behind": 5.5, "front": 2.0, "feather": 3.0,
             "street": ((0.0, -29.6), (8.8, 16.4)), "ramp": 22.0}
+# The festival's back alleys: a strip of packed sand behind each row of its stalls, clear of plants,
+# for the islanders who keep the stalls to come and go and step in behind their counters. Boxes
+# (centre, half sizes) behind the street's two rows and behind the row across its far end; and a
+# band behind the front rows, from `rows` (near, far) metres behind the line they follow, out to
+# `rows_half` either side; easing into the ground round them over `feather`. Plants keep `room`
+# metres further off.
+BACKS = {"boxes": [((-6.78, -29.6), (0.93, 15.5)), ((6.78, -29.6), (0.93, 15.5)), ((0.0, -45.95), (7.7, 0.95))],
+         "rows": (0.65, 2.5), "rows_half": 13.6, "feather": 0.6, "room": 0.8}
+# Props that stood when the jungle was first planted and have been taken away since: the jungle is
+# planted as though they still stood, so it grows where it did; the alleys keep their ground clear.
+PLANTED_ROUND = [("stall_orange", -6.28, -44.35, 0.0), ("stall_purple", 6.28, -44.35, 0.0)]
 # The village: a round clearing deep in the jungle, its huts round the watchtower stage. Its level
 # ground eases into the jungle's over `slope` metres, gently enough to walk up from the festival.
 VILLAGE = {"centre": (0.0, -84.0), "radius": 22.0, "feather": 6.0, "slope": 12.0}
@@ -475,6 +486,19 @@ def festival_level(x, z):
     return np.maximum(rows, street)
 
 
+def stall_backs(x, z, grow=0.0):
+    """1 on the festival's back alleys (see BACKS), easing to 0 round them; `grow` widens them."""
+    b = BACKS
+    out = np.zeros(np.shape(x))
+    for centre, (hx, hz) in b["boxes"]:
+        out = np.maximum(out, box_mask(x, z, centre, (hx + grow, hz + grow), b["feather"]))
+    behind = (FESTIVAL["row"][0] + FESTIVAL["row"][1] * x * x) - z
+    near, far = b["rows"]
+    off = np.hypot(np.maximum(np.maximum(near - grow - behind, behind - far - grow), 0.0),
+                   np.maximum(np.abs(x) - b["rows_half"] - grow, 0.0))
+    return np.maximum(out, 1.0 - smoothstep(0.0, b["feather"], off))
+
+
 def land_height(x, z, shape="v1"):
     """The ground's natural height at points (x, z) on land, before any feature shapes it."""
     x, z = np.asarray(x, dtype=float), np.asarray(z, dtype=float)
@@ -614,6 +638,8 @@ def ground(x, z, natural=False, shape="v2"):
     masks = {"s": s, "beach_w": beach_w, "village": m_village, "plaza": m_plaza, "street": m_street,
              "festival": np.maximum(m_plaza, m_street), "fields": m_fields, "path": m_path, "pool": m_pool,
              "bank": m_bank, "cliff": m_cliff, "s_cliff": s_cliff, "phi": phi}
+    if shape != "v1":
+        masks["backs"] = stall_backs(x, z) * inland
     return h, masks
 
 
@@ -659,6 +685,10 @@ def paint(x, z, h, masks, normal_y, shade):
     kind = mix(kind, mix(earth_k, grass_k, patches), t)
     col = mix(col, c("path"), masks["path"])
     kind = mix(kind, earth_k, masks["path"])
+    # The festival's back alleys behind its stalls: packed sand, as its street.
+    backs = smoothstep(0.3, 0.7, masks.get("backs", np.zeros_like(s)))
+    col = mix(col, c("plaza"), backs)
+    kind = mix(kind, earth_k, backs)
 
     # Fields: rows of crops on dark soil.
     rows = 0.5 + 0.5 * np.cos((x - FIELDS["centre"][0]) * (2.0 * math.pi / FIELD_ROW))
@@ -680,7 +710,7 @@ def paint(x, z, h, masks, normal_y, shade):
     # Shade under the jungle's trees: the floor dark olive and earthy, the clover gone.
     if "shade" in masks:
         floor = mix(c("grassDark") * 0.74, c("bankEarth"), 0.3 + 0.3 * smoothstep(-0.4, 0.6, noise(x, z, 3.5, 41.0)))
-        col = mix(col, floor, 0.85 * masks["shade"] * m_grass)
+        col = mix(col, floor, 0.85 * masks["shade"] * m_grass * (1.0 - backs))
 
     # Fallen limestone round the rocks' feet, and bare rock on any steep slope.
     above = h > WATER + 0.1
@@ -1148,7 +1178,7 @@ def build_plants(collection, outlines):
     per patch of the map; the understory near only. Returns the objects, each trunk (x, z, radius),
     each crown (x, y, z, radius) and each butterfly's bush (x, y, z), in game coordinates."""
     rng = np.random.default_rng(17)
-    props = layout_props()
+    props = layout_props() + PLANTED_ROUND
     G = plant_ground(outlines, props)
     x0, z0 = CENTRE[0] - SIZE / 2, CENTRE[1] - SIZE / 2
     canopy = PL.Patchwork(x0, z0, SIZE, CANOPY_PATCHES)
@@ -1156,6 +1186,9 @@ def build_plants(collection, outlines):
     trunks, crowns = [], []
     stems = Spacing(4.0)
     variants = PL.Variants()
+    # Nothing grows on the festival's back alleys, or so near them its leaves reach over (see BACKS);
+    # the jungle is planted just as before round them.
+    variants.keep_out = lambda x, z: float(stall_backs(np.array([x]), np.array([z]), BACKS["room"])[0]) > 0.02
 
     def at(x, z):
         return float(ground_height(np.array([x]), np.array([z]))[0])
@@ -1268,8 +1301,8 @@ def build_plants(collection, outlines):
         stems.take(x, z)
         planted += 1
         near, far = palms[int(rng.integers(0, len(palms)))]
-        variants.plant("palms", near, x, at(x, z) - 0.05, z, rng.uniform(0, 2 * math.pi), rng.uniform(0.9, 1.25), far)
-        trunks.append([round(x, 2), round(z, 2), 0.3])
+        if variants.plant("palms", near, x, at(x, z) - 0.05, z, rng.uniform(0, 2 * math.pi), rng.uniform(0.9, 1.25), far):
+            trunks.append([round(x, 2), round(z, 2), 0.3])
 
     # The understory: thick everywhere under the trees, and along the paths and the jungle's edges.
     # The understory's shapes grow from a generator of their own, so changing them never moves the
@@ -1311,10 +1344,10 @@ def build_plants(collection, outlines):
                 break
             roll -= w
         y = at(x, z) - 0.04
-        variants.plant("under", kinds[kind][int(rng.integers(0, len(kinds[kind])))], x, y, z, rng.uniform(0, 2 * math.pi),
-                       rng.uniform(0.95, 1.5))
+        grown = variants.plant("under", kinds[kind][int(rng.integers(0, len(kinds[kind])))], x, y, z,
+                                 rng.uniform(0, 2 * math.pi), rng.uniform(0.95, 1.5))
         count[kind] += 1
-        if kind == "bush":
+        if kind == "bush" and grown:
             flowers.append((x, y, z))
 
     # The waterfall pool's own plants and the bromeliads on its stump (see POOL_PLANTS and POOL_ROCKS).
@@ -1483,7 +1516,8 @@ def build_plants(collection, outlines):
     objects = (canopy.objects("canopy", collection) + canopy_far.objects("canopyfar", collection)
                + variants.objects(collection))
     print(f"PLANTS: {len(trunks)} trunks, {len(crowns)} crowns, {rows} crop rows, understory {count}, "
-          f"{len(homes)} butterflies, {len(variants.placed.get('palms', []))} palms")
+          f"{len(homes)} butterflies, {len(variants.placed.get('palms', []))} palms, "
+          f"{variants.kept_out} kept off the festival's back alleys")
     return objects, trunks, crowns, homes, variants.placed
 
 

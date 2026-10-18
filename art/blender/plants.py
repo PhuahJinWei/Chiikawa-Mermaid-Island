@@ -236,6 +236,9 @@ class Variants:
     def __init__(self):
         self.shapes = []      # (name, arrays)
         self.placed = {}      # layer -> [[shape, x, y, z, turn, scale], ...] in game coordinates
+        # Where plants are kept out (a test of game x and z), and how many were kept out there.
+        self.keep_out = None
+        self.kept_out = 0
 
     def shape(self, name, arrays):
         self.shapes.append((name, arrays))
@@ -243,11 +246,16 @@ class Variants:
 
     def plant(self, layer, index, x, y, z, turn, scale, far=None):
         """Plant shape `index` at game (x, z) on height y, turned about the vertical and scaled; a
-        palm also names its far shape."""
+        palm also names its far shape. Nothing is planted where `keep_out` keeps plants out; says
+        whether it was planted."""
+        if self.keep_out is not None and self.keep_out(x, z):
+            self.kept_out += 1
+            return False
         entry = [index, round(x, 2), round(y, 3), round(z, 2), round(turn, 3), round(scale, 3)]
         if far is not None:
             entry.append(far)
         self.placed.setdefault(layer, []).append(entry)
+        return True
 
     def objects(self, collection):
         """An object for each shape, named v<index>, with its colours and sway weights."""

@@ -424,11 +424,11 @@ def export_parts(objs, path, info):
 
 
 def build_all(builders, blend_path, prefix="prop"):
-    """Build every prop in `builders` (or only the one named after --only), export each, render
-    its preview and save them all to `blend_path`. A builder returns one object, or a list of
-    parts and the prop's info for the game: its footprint, height, deck and label."""
+    """Build every prop in `builders` (or only those named after --only, comma-separated), export
+    each, render its preview and save them all to `blend_path`. A builder returns one object, or a
+    list of parts and the prop's info for the game: its footprint, height, deck and label."""
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
-    only = argv[argv.index("--only") + 1] if "--only" in argv else None
+    only = set(argv[argv.index("--only") + 1].split(",")) if "--only" in argv else None
     previews = "--no-previews" not in argv
 
     bpy.ops.wm.read_factory_settings(use_empty=True)
@@ -438,7 +438,7 @@ def build_all(builders, blend_path, prefix="prop"):
 
     built = []
     for prop_id, builder in builders.items():
-        if only and prop_id != only:
+        if only and prop_id not in only:
             continue
         made = builder(collection)
         path = os.path.join(OUT_MODELS, f"{prop_id}.glb")
@@ -471,7 +471,7 @@ def build_all(builders, blend_path, prefix="prop"):
             for o in objs:
                 o.hide_render = False
 
-    # Building only one prop leaves the others out, so the .blend keeps its full set.
+    # Building only some props leaves the others out, so the .blend keeps its full set.
     if not only:
         os.makedirs(os.path.dirname(blend_path), exist_ok=True)
         bpy.ops.wm.save_as_mainfile(filepath=blend_path, compress=True)

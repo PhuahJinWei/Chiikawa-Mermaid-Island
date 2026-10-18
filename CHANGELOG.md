@@ -77,19 +77,21 @@ stage, and along every path. Not yet checked on a real phone.
   pale blue glass lie on the cabin's curved sides and light up at night;
   a door in the hull's left side.
   Behind the beach, two long rows of stalls stand side by side facing the
-  bay, awning touching awning, following its curve, either side of an
-  opening in line with the pier. The welcome arch spans the opening: a
+  bay, a step apart, following its curve, either side of an opening in
+  line with the pier. The welcome arch spans the opening: a
   wooden board reading 島へようこそ!! wreathed in big yellow flowers, with
   ウェルカム・トゥ・シマ on the banner below. Through it, a street as wide as
-  the arch runs inland, packed with stalls down both sides facing in, and
-  four across its far end facing back toward the arch, either side of the
+  the arch runs inland, lined with stalls down both sides facing in, and
+  two across its far end facing back toward the arch, either side of the
   path on to the village. The whole festival stands on level ground; the
-  path climbs to the jungle only past the street's end. Forty stalls in
-  all under signboards (じゃがバター, たこ焼き, いか焼き, りんごアメ, ケバブ,
+  path climbs to the jungle only past the street's end. Thirty-eight
+  stalls in all under signboards (じゃがバター, たこ焼き, いか焼き, りんごアメ, ケバブ,
   冷しパイン, 金魚すくい, 射的, クレープ, やきそば and more), bunting with
   paper lanterns strung along the rows and across the street, white
   banners reading いらっしゃいませ!! and たのしんでね, poles of pink lanterns,
   palms behind the stalls and confetti over the beach and the street.
+  Behind each row of stalls runs a back alley of packed sand, clear of
+  plants, for the islanders who keep them.
   Built in Blender by `art/blender/build_village.py` (the arch and banners
   by `art/blender/houses.py`).
 - The village is a clearing deep in the jungle, in the middle of the ring
@@ -467,8 +469,33 @@ outlined is drawn twice, once for its pen line. To get there:
   sea darkens with the sky at sunset, and dusk passes through the film's
   cool steel blue before the night. Under half a millisecond more a frame
   at night on the dev PC, and no measurable cost by day.
+- The festival's stalls are the film's booths, a good deal lower: where
+  they were boxes 3.3 metres high, each is now a booth on four thin posts
+  under a flat roof 1.95 metres up. A deep header board runs across its
+  front for its name, with a scalloped trim along its bottom (white,
+  yellow or blue) and five paper lanterns hanging under it. At its back
+  is a wall of upright stripes in two warm shades, and across its front a
+  low counter 0.52 metres high, framed in pale grey, with white menu tags
+  hanging off it and cups and a jar on top. An islander standing behind
+  the counter shows from the shoulders up, the board just over their
+  head.
+- The stalls can be walked into, to keep them: each booth is open at its
+  sides behind the counter, with about a metre clear between the counter
+  and the back wall and a metre between neighbouring booths, so its
+  keeper walks in from the alley behind its row and stands behind the
+  counter. This was checked for all thirty-eight with the game's own
+  walking. The street's bunting now hangs from poles at the booths'
+  fronts, as its banners do, where its poles had stood in the gaps
+  between the booths.
+- Behind each row of stalls (the street's two, the beach front's and the
+  row across the street's far end) runs a back alley of packed sand,
+  clear of plants, where only grass and the jungle had stood behind them.
+  The jungle round the alleys is planted just as before. The two stalls
+  at the outer ends of the far row, hidden behind the street's rows, are
+  gone.
 - Building the props or the village with `--only` no longer overwrites
-  their .blend file with just the one prop.
+  their .blend file with just the one prop, and `--only` takes several,
+  comma-separated.
 - The offline cache now keeps the island's height grid and layout file,
   and files up to 4 MB.
 

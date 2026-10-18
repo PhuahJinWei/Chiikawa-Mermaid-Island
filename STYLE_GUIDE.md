@@ -166,8 +166,14 @@ Scale unit: **1 = Chiikawa's height.**
   diamond patterns in teal, orange and red.
 - Round beehive thatched huts with a topknot also appear.
 - Sandy packed-earth paths with scattered confetti during the festival.
-- Festival stalls along the beach front: coloured signboards (pink crêpe
-  stall, purple, orange), triangle bunting strung between palms.
+- Festival stalls along the beach front: booths a step apart on thin
+  posts under a flat roof, a deep coloured header board for the name
+  (pink crêpe stall, purple, orange) with a scalloped trim in white,
+  yellow or blue and paper lanterns hanging under it, a back wall of
+  upright stripes in warm red-orange shades, and a low counter framed in
+  pale grey with white menu tags hanging off it. The islander keeping a
+  stall shows from the shoulders up behind its counter, the board just
+  over their head. Triangle bunting strung between palms.
 - A tall wooden welcome post reading 島へようこそ ("Welcome to the island").
 - Potted plants, baskets of fruit, logs as benches.
 
