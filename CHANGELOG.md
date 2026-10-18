@@ -81,12 +81,13 @@ stage, and along every path. Not yet checked on a real phone.
   line with the pier. The welcome arch spans the opening: a
   wooden board reading 島へようこそ!! wreathed in big yellow flowers, with
   ウェルカム・トゥ・シマ on the banner below. Through it, a street as wide as
-  the arch runs inland, lined with stalls down both sides facing in, and
-  two across its far end facing back toward the arch, either side of the
-  path on to the village. The whole festival stands on level ground; the
-  path climbs to the jungle only past the street's end. Thirty-eight
-  stalls in all under signboards (じゃがバター, たこ焼き, いか焼き, りんごアメ, ケバブ,
-  冷しパイン, 金魚すくい, 射的, クレープ, やきそば and more), bunting with
+  the arch runs inland, six stalls down each side facing in, and two
+  across its far end facing back toward the arch, either side of the path
+  on to the village; past them the street's ground runs on as open sand.
+  The whole festival stands on level ground; the path climbs to the
+  jungle only past the street's end. Thirty stalls in all under
+  signboards (じゃがバター, たこ焼き, いか焼き, りんごアメ, ケバブ, 冷しパイン,
+  金魚すくい, クレープ, やきそば, かき氷 and more), bunting with
   paper lanterns strung along the beach rows, from pole to pole down both
   sides of the street and across it, white banners reading いらっしゃいませ!!
   and たのしんでね tied by ropes to the street's poles, poles of pink
@@ -106,9 +107,13 @@ stage, and along every path. Not yet checked on a real phone.
   ground under wide thatched roofs; two round thatched huts stand at the
   edge. Built by `art/blender/houses.py`.
 - In the middle of the village, the tall wooden watchtower stage where
-  announcements are made: log legs braced with crossed boards, a platform
-  three metres up with a railing, stairs up its back and a conical
-  thatched roof. Four tiki torches stand in front of it, lit at night.
+  announcements are made, after the film's: squared timber legs splaying
+  out to the ground, braced on every side with two tiers of crossed
+  planks over cross beams; an open platform 3.6 metres up on a thick rim
+  of two boards, with no railing; posts leaning out from its corners to a
+  tall conical thatched roof twice as wide as the tower; and stairs up its
+  back. Its edge still keeps whoever stands on it from stepping off. Four
+  tiki torches stand in front of it, lit at night.
 - Logs to sit on round the stage, potted plants by the porches, baskets of
   fruit, flowering bushes and grass round the huts.
 - The jungle fills the island's interior, dense like the film's: a
@@ -179,8 +184,16 @@ stage, and along every path. Not yet checked on a real phone.
   only while it is as it drew it, so a painting saved over one by mistake
   is kept. A painting that no longer fits its template's proportions (its
   board since reshaped) shows as it was painted, centred, never
-  stretched. A sign without a painting keeps its typed words. How to
-  paint them is in `art/signs/README.md`.
+  stretched. A stall's sign painted solid to its edges gives the stall's
+  board its own colour, so the board round the sign matches it; the board
+  is shaded flat, as the sign on its front is, and in the film look the
+  signs take the sun's shadows with their boards, so the two meet unseen
+  in sun, shade and firelight. A sign without a painting keeps its typed
+  words. How to paint them is in `art/signs/README.md`. The first five
+  are painted: the arch's 島へようこそ!! and its Welcome to Shima banner,
+  the street's いらっしゃいませ!! and たのしんでね, and 味じまん お好み焼き on
+  a red board at the street's far end, as the film has it there, in place
+  of トロピカルジュース.
 
 **Performance**
 
@@ -500,7 +513,7 @@ outlined is drawn twice, once for its pen line. To get there:
   sides behind the counter, with about a metre clear between the counter
   and the back wall and a metre between neighbouring booths, so its
   keeper walks in from the alley behind its row and stands behind the
-  counter. This was checked for all thirty-eight with the game's own
+  counter. This was checked for every stall with the game's own
   walking. The poles along the street stand at the fronts of the gaps
   between the booths, clear of the way in.
 - The festival's signs in the film's proportions, measured on its arch and
@@ -519,6 +532,20 @@ outlined is drawn twice, once for its pen line. To get there:
   at the street's two ends, with two strings of flags sagging from each to
   the next and a paper lantern in each span, lit at night. The street's
   banners and the bunting across it are tied to these poles.
+- The village's watchtower stage after the film's (its night frame of the
+  stage): its legs splay out to the ground where they stood straight, each
+  side braced in two tiers of crossed planks; the platform stands higher,
+  3.6 metres up, on a thick rim of two boards, with no railing, as the
+  film's has none; and posts lean out from it to a taller, steeper straw
+  cone twice as wide as the tower. Its stairs up the back are longer for
+  the higher platform, and walkers still can't step off its edge.
+- The festival street is shorter, as the film's: six stalls down each side
+  where there were ten, the row across its far end standing just past
+  them with its lantern poles, and the street's old far end open sand
+  before the path to the village. Its poles and bunting run its new
+  length. The street's own お好み焼き is now やきそば, the hand-lettered
+  味じまん お好み焼き standing at its far end. The jungle is planted just as
+  before, as though the stalls taken away still stood.
 - Behind each row of stalls (the street's two, the beach front's and the
   row across the street's far end) runs a back alley of packed sand,
   clear of plants, where only grass and the jungle had stood behind them.

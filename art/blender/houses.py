@@ -483,64 +483,98 @@ def build_plank_hut(name, collection):
 
 # ---------------------------------------------------------------------------- the stage
 def build_stage(collection):
-    """The village's watchtower stage, where announcements are made: four log legs braced with
-    crossed boards, a plank platform three metres up with a railing, stairs up its back, and a
-    conical thatched roof on the legs. Its front faces the plaza (-Y)."""
-    top, half, post = 3.0, 1.5, 0.15
+    """The village's watchtower stage, where announcements are made, after the film's: four
+    squared timber legs splaying out to the ground, each side braced with two tiers of crossed
+    planks over cross beams; a plank platform on a thick rim of two boards, open all round (the
+    film's has no railing); four posts leaning out from its corners to a tall conical thatched roof
+    twice as wide as the tower; and stairs up its back. Its front faces the plaza (-Y)."""
+    top = 3.6                       # the platform's floor
+    deck = 1.6                      # its half width
+    leg_top, leg_foot = 1.45, 1.8   # the legs' half spread under the platform, and at the ground
+    post_top = 1.9                  # the roof posts' half spread under the roof
+    eave = 5.15                     # the roof's underside
+    beams = (0.3, 1.75, top - 0.34)  # the cross beams' heights; the crossed planks between them
     pieces = []
-    for x in (-half, half):
-        for y in (-half, half):
-            pieces.append((log(V(x, y, -0.3), V(x, y, 5.35), post), C["log"]))
-    # Crossed boards between the legs on every side, and boards across top and bottom.
-    for a, b in (((-half, -half), (half, -half)), ((half, -half), (half, half)),
-                 ((half, half), (-half, half)), ((-half, half), (-half, -half))):
-        pa, pb = V(a[0], a[1], 0.0), V(b[0], b[1], 0.0)
-        out = Vector((pa.x + pb.x, pa.y + pb.y, 0.0)).normalized() * 0.08
-        for z0, z1 in ((0.4, 2.75), (2.75, 0.4)):
-            p, q = pa + V(0, 0, z0) + out, pb + V(0, 0, z1) + out
-            pieces.append((oriented_box((p + q) / 2, q - p, out, ((q - p).length, 0.06, 0.2)), C["plank"]))
-        for z in (0.4, 2.75):
-            p, q = pa + V(0, 0, z) + out * 1.6, pb + V(0, 0, z) + out * 1.6
-            pieces.append((oriented_box((p + q) / 2, q - p, out, ((q - p).length + 0.2, 0.06, 0.22)), C["logDark"]))
-    pieces.append((P.box_bm(V(0.0, 0.0, top - 0.08), (3.6, 3.6, 0.16)), C["floor"]))
+
+    def timber(a, b, across, size, colour):
+        """A squared beam from a to b, `size` (thick, wide), its thickness along `across`."""
+        pieces.append((oriented_box((a + b) / 2, b - a, across, ((b - a).length, *size)), colour))
+
+    def leg(sx, sy, z):
+        """Where the leg at corner (sx, sy) stands at height z."""
+        f = (z + 0.3) / (top + 0.25)
+        spread = leg_foot + (leg_top - leg_foot) * f
+        return V(sx * spread, sy * spread, z)
+
+    corners = [(-1, -1), (1, -1), (1, 1), (-1, 1)]
+    for sx, sy in corners:
+        timber(leg(sx, sy, -0.3), leg(sx, sy, top - 0.05), V(1, 0, 0), (0.22, 0.22), C["log"])
+    for (ax, ay), (bx, by) in zip(corners, corners[1:] + corners[:1]):
+        out = V((ax + bx) / 2, (ay + by) / 2, 0.0).normalized()
+        for z in beams:
+            p, q = leg(ax, ay, z) + out * 0.14, leg(bx, by, z) + out * 0.14
+            along = (q - p).normalized()
+            timber(p - along * 0.12, q + along * 0.12, out, (0.07, 0.24), C["logDark"])
+        for z0, z1 in zip(beams, beams[1:]):
+            for (pa, za), (pb, zb) in (((ax, ay), z0), ((bx, by), z1)), (((bx, by), z0), ((ax, ay), z1)):
+                timber(leg(*pa, za) + out * 0.11, leg(*pb, zb) + out * 0.11, out, (0.06, 0.26), C["plank"])
+    # The platform: its floor of planks on a thick rim of two boards.
+    pieces.append((P.box_bm(V(0.0, 0.0, top - 0.08), (2 * deck, 2 * deck, 0.16)), C["floor"]))
     for k in range(1, 6):
-        pieces.append((P.box_bm(V(-1.8 + 0.6 * k, 0.0, top + 0.002), (PEN, 3.56, 0.01)), C["floorLine"]))
-    # The railing round the platform, open at the top of the stairs.
-    for z in (top + 0.45, top + 0.85):
-        for a, b in (((-1.75, -1.75), (1.75, -1.75)), ((1.75, -1.75), (1.75, 1.75)), ((-1.75, 1.75), (-1.75, -1.75)),
-                     ((-1.75, 1.75), (0.3, 1.75)), ((1.3, 1.75), (1.75, 1.75))):
-            pieces.append((log(V(a[0], a[1], z), V(b[0], b[1], z), 0.06), C["log"]))
-    for x in (0.3, 1.3):
-        pieces.append((log(V(x, 1.75, top), V(x, 1.75, top + 0.9), 0.07), C["log"]))
+        x = -deck + 2 * deck * k / 6
+        pieces.append((P.box_bm(V(x, 0.0, top + 0.002), (PEN, 2 * deck - 0.04, 0.01)), C["floorLine"]))
+    for z, colour in ((top - 0.2, C["plank"]), (top - 0.4, C["log"])):
+        for s in (-1.0, 1.0):
+            pieces.append((P.box_bm(V(0.0, s * (deck + 0.02), z), (2 * deck + 0.12, 0.08, 0.19)), colour))
+            pieces.append((P.box_bm(V(s * (deck + 0.02), 0.0, z), (0.08, 2 * deck + 0.12, 0.19)), colour))
+    # The roof's posts, leaning out from the platform's corners, and beams across under the roof.
+    def post(sx, sy, z):
+        f = (z - top) / (eave + 0.05 - top)
+        spread = leg_top + (post_top - leg_top) * f
+        return V(sx * spread, sy * spread, z)
+
+    for sx, sy in corners:
+        timber(post(sx, sy, top), post(sx, sy, eave + 0.05), V(1, 0, 0), (0.18, 0.18), C["log"])
+    for (ax, ay), (bx, by) in zip(corners, corners[1:] + corners[:1]):
+        out = V((ax + bx) / 2, (ay + by) / 2, 0.0).normalized()
+        timber(post(ax, ay, eave - 0.15), post(bx, by, eave - 0.15), out, (0.14, 0.2), C["logDark"])
     # Stairs down the back: two stringers and treads.
-    y0, y1 = 1.8, 6.0
+    y0, y1 = deck, 6.6
     for x in (0.3, 1.3):
         pieces.append((log(V(x, y0, top + 0.05), V(x, y1, -0.1), 0.08), C["logDark"]))
-    steps = 10
+    steps = 12
     for i in range(1, steps):
         f = i / steps
         pieces.append((P.box_bm(V(0.8, y0 + (y1 - y0) * f, top * (1 - f) - 0.04), (1.0, 0.32, 0.07)), C["plank"]))
-    pieces.append(lathe_roof([(0.0, 5.2), (2.6, 5.2), (3.0, 5.12), (3.1, 5.22), (2.7, 5.7), (1.6, 6.6), (0.6, 7.3),
-                              (0.0, 7.5)], V(0.0, 0.0, 0.0), samples=12, seed=1.3))
+    # The roof: a tall straw cone, its brim twice as wide as the tower.
+    pieces.append(lathe_roof([(0.0, eave), (2.8, eave), (3.25, eave - 0.1), (3.4, eave + 0.08), (3.25, eave + 0.28),
+                              (2.4, eave + 1.1), (1.5, eave + 1.95), (0.6, eave + 2.65), (0.0, eave + 2.95)],
+                             V(0.0, 0.0, 0.0), samples=14, seed=1.3))
     body = P.join("stage", pieces, collection)
-    rail = (top - 0.3, top + 1.0)
-    blocks = [{"circle": [*g(x, y), 0.2], "y": [-10, 7.5], "walk": True, "camera": True}
-              for x in (-half, half) for y in (-half, half)]
+    blocks = [{"circle": [*g(sx * leg_foot, sy * leg_foot), 0.22], "y": [-10, top], "walk": True, "camera": True}
+              for sx, sy in corners]
+    blocks += [{"circle": [*g(sx * 1.55, sy * 1.55), 0.15], "y": [top, eave], "walk": True, "camera": True}
+               for sx, sy in corners]
+    # The platform keeps whoever stands on it from stepping off its edge, open at the top of the
+    # stairs, though it has no railing to see.
+    edge = (top - 0.3, top + 1.0)
     blocks += [
-        block_box(-1.8, 1.8, -1.8, 1.8, -10, top - 0.4),
-        block_box(-1.8, 1.8, -1.8, -1.7, *rail, camera=False), block_box(-1.8, -1.7, -1.8, 1.8, *rail, camera=False),
-        block_box(1.7, 1.8, -1.8, 1.8, *rail, camera=False), block_box(-1.8, 0.3, 1.7, 1.8, *rail, camera=False),
-        block_box(1.3, 1.8, 1.7, 1.8, *rail, camera=False),
-        block_box(0.25, 0.35, 1.8, 6.0, 0.35, top + 0.2, camera=False),
-        block_box(1.25, 1.35, 1.8, 6.0, 0.35, top + 0.2, camera=False),
-        {"circle": [0.0, 0.0, 3.1], "y": [5.1, 7.5], "walk": False, "camera": True},
+        block_box(-1.85, 1.85, -1.85, 1.85, -10, top - 0.4),
+        block_box(-deck, deck, -deck, -deck + 0.1, *edge, camera=False),
+        block_box(-deck, -deck + 0.1, -deck, deck, *edge, camera=False),
+        block_box(deck - 0.1, deck, -deck, deck, *edge, camera=False),
+        block_box(-deck, 0.3, deck - 0.1, deck, *edge, camera=False),
+        block_box(1.3, deck, deck - 0.1, deck, *edge, camera=False),
+        block_box(0.25, 0.35, deck, y1, 0.35, top + 0.2, camera=False),
+        block_box(1.25, 1.35, deck, y1, 0.35, top + 0.2, camera=False),
+        {"circle": [0.0, 0.0, 3.4], "y": [eave - 0.1, eave + 3.0], "walk": False, "camera": True},
     ]
     # The stairs rise toward the tower: from the ground at Blender y1 (the deck's back edge in the
     # game's frame) to the platform at y0 (its front edge), reaching a little onto the platform so
     # there is no gap between them.
     stairs = deck_box(0.35, 1.25, y0 - 0.15, y1, 0.02, top)
-    decks = [deck_box(-1.75, 1.75, -1.75, 1.75, top), stairs]
-    return [body], {"blocks": blocks, "decks": decks, "height": 7.5}
+    decks = [deck_box(-deck, deck, -deck, deck, top), stairs]
+    return [body], {"blocks": blocks, "decks": decks, "height": eave + 2.95}
 
 
 def flame_pieces(foot, height, width, tongues=4):

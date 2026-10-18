@@ -68,17 +68,27 @@ interface Label {
   info: LabelInfo;
 }
 
+interface PaintedSigns {
+  /** The paintings, by the key of their sign's words. */
+  paintings: Map<string, ImageBitmap>;
+  /** The colour of the board under each painting painted solid to its edges, by the same key. */
+  boards: Map<string, THREE.Color>;
+}
+
 /**
- * The hand-lettered signs, by the key of their words: paintings from art/signs/, copied into
- * public/signs/ by art/blender/build_signs.py and listed in its signs.json. None if there is no
- * list; a sign that fails to load keeps its typed words.
+ * The hand-lettered signs: paintings from art/signs/, copied into public/signs/ by
+ * art/blender/build_signs.py and listed in its signs.json, with the colours of the boards under
+ * those painted solid. None if there is no list; a sign that fails to load keeps its typed words.
  */
-async function loadPaintedSigns(): Promise<Map<string, ImageBitmap>> {
-  const painted = new Map<string, ImageBitmap>();
+async function loadPaintedSigns(): Promise<PaintedSigns> {
+  const painted: PaintedSigns = { paintings: new Map(), boards: new Map() };
   let names: string[] = [];
   try {
     const response = await fetch('signs/signs.json');
-    if (response.ok) names = ((await response.json()) as { signs?: string[] }).signs ?? [];
+    if (!response.ok) return painted;
+    const list = (await response.json()) as { signs?: string[]; boards?: Record<string, string> };
+    names = list.signs ?? [];
+    for (const [name, colour] of Object.entries(list.boards ?? {})) painted.boards.set(name, new THREE.Color(colour));
   } catch {
     return painted;
   }
@@ -86,7 +96,7 @@ async function loadPaintedSigns(): Promise<Map<string, ImageBitmap>> {
     names.map(async (name) => {
       try {
         const response = await fetch(`signs/${encodeURIComponent(name)}.png`);
-        if (response.ok) painted.set(name, await createImageBitmap(await response.blob()));
+        if (response.ok) painted.paintings.set(name, await createImageBitmap(await response.blob()));
       } catch (error) {
         console.warn(`Hand-lettered sign ${name} did not load`, error);
       }
@@ -135,12 +145,13 @@ function flameMaterial(): THREE.MeshBasicMaterial {
 }
 
 /** A part's geometry moved into place, with only what the merged mesh needs: position, normal and
- * colour (RGB, tinted), or the label's UVs. */
+ * colour (RGB, tinted, or all `paint` where given), or the label's UVs. */
 function placedGeometry(
   source: THREE.BufferGeometry,
   matrix: THREE.Matrix4,
   tint: THREE.Color | null,
   withUv: boolean,
+  paint: THREE.Color | null = null,
 ): THREE.BufferGeometry {
   const g = source.clone().applyMatrix4(matrix);
   const out = new THREE.BufferGeometry();
@@ -153,6 +164,10 @@ function placedGeometry(
     const src = g.getAttribute('color');
     const colours = new Float32Array(position.count * 3);
     for (let i = 0; i < position.count; i++) {
+      if (paint) {
+        colours.set([paint.r, paint.g, paint.b], i * 3);
+        continue;
+      }
       const r = src ? src.getX(i) : 1;
       const gr = src ? src.getY(i) : 1;
       const b = src ? src.getZ(i) : 1;
@@ -284,6 +299,7 @@ export class Props {
     const kinds = [...new Set(placed.map((p) => p.kind))];
     const signs = loadPaintedSigns();
     const models = new Map(await Promise.all(kinds.map(async (k) => [k, await loadPropModel(k)] as const)));
+    const painted = await signs;
     const props = new Props();
     const labels: Label[] = [];
     const up = new THREE.Vector3(0, 1, 0);
@@ -330,7 +346,9 @@ export class Props {
         const level = levelOf(part.role, hasFar, small);
         if (!level) continue;
         const kind: Kind = part.role === 'glow' ? 'glow' : part.role === 'flame' ? 'flame' : 'body';
-        props.collect(key, level, kind, placedGeometry(part.geometry, matrix, tint, false));
+        // A board under a hand-lettered sign painted solid takes the painting's colour.
+        const board = part.role === 'board' && words[0] ? (painted.boards.get(words[0]) ?? null) : null;
+        props.collect(key, level, kind, placedGeometry(part.geometry, matrix, tint, false, board));
         if (kind !== 'body') {
           if (!part.geometry.boundingBox) part.geometry.computeBoundingBox();
           const centre = (part.geometry.boundingBox as THREE.Box3).getCenter(new THREE.Vector3()).applyMatrix4(matrix);
@@ -341,7 +359,7 @@ export class Props {
     props.build();
 
     if (labels.length > 0) {
-      const texture = paintLabels(labels, await signs);
+      const texture = paintLabels(labels, painted.paintings);
       const words = new THREE.Mesh(
         mergeGeometries(labels.map((l) => l.geometry)),
         new THREE.MeshToonMaterial({
@@ -354,6 +372,9 @@ export class Props {
           polygonOffsetUnits: -2,
         }),
       );
+      // In the film look the words take the sun's shadows with their boards, so a sign painted
+      // solid stays the colour of the board round it, in shade as in sun.
+      words.receiveShadow = FILM;
       props.group.add(words);
     }
     return props;

@@ -1,6 +1,29 @@
 {
-  "about": "The hand-lettered signs, by the key of their words; written by art/blender/build_signs.py from the paintings in art/signs/.",
+  "about": "The hand-lettered signs, by the key of their words, and the colours of the boards under those painted solid to their edges; written by art/blender/build_signs.py from the paintings in art/signs/.",
   "signs": [
-    "arch.welcome"
-  ]
+    "arch.banner",
+    "arch.welcome",
+    "banner.enjoy",
+    "banner.welcome",
+    "stall.budouame",
+    "stall.crepe",
+    "stall.ikayaki",
+    "stall.juice",
+    "stall.parfait",
+    "stall.potato",
+    "stall.tropical",
+    "stall.yakisoba",
+    "stall.yakitori"
+  ],
+  "boards": {
+    "stall.budouame": "#E5F4EB",
+    "stall.crepe": "#FFC9D5",
+    "stall.ikayaki": "#4594C7",
+    "stall.juice": "#F56333",
+    "stall.parfait": "#B68FD6",
+    "stall.potato": "#F07554",
+    "stall.tropical": "#E2624F",
+    "stall.yakisoba": "#4E85D5",
+    "stall.yakitori": "#FBFCFC"
+  }
 }

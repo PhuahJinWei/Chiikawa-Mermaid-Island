@@ -165,6 +165,12 @@ Scale unit: **1 = Chiikawa's height.**
   thatched roofs** in straw brown. Some walls have colourful scale or
   diamond patterns in teal, orange and red.
 - Round beehive thatched huts with a topknot also appear.
+- The watchtower stage in the middle: squared timber legs splaying out to
+  the ground, each side braced with two tiers of big crossed planks over
+  cross beams, an open platform with no railing on a thick rim of two
+  boards, posts leaning out from its corners, and a tall conical thatched
+  roof about twice as wide as the tower. Tiki torches stand in a row in
+  front of it.
 - Sandy packed-earth paths with scattered confetti during the festival.
 - Festival stalls along the beach front: booths a step apart on thin
   posts under a flat roof, a deep coloured header board for the name

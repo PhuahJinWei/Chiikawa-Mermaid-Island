@@ -60,6 +60,11 @@ GUIDE_MARGIN = 0.06
 # A painting further than this from its template's proportions is shown at its own, centred on the
 # face, with a warning.
 STRETCH = 0.03
+# A painting painted solid to its edges (a stall's board painted with its words) gives its board
+# its own colour, the middling colour of its edge, so the board round it matches: its edge is this
+# far in from each side, of its width and height, and this much of it must be solid paint.
+EDGE = 0.03
+SOLID = 0.9
 INK = "#3B2620"  # the words' colour where a face names none, as the game's
 
 
@@ -216,6 +221,20 @@ def resize(arr, width, height):
     return np.clip(out, 0.0, 1.0)
 
 
+def board_colour(arr):
+    """The colour a painting gives its board: the median of its edge, if its edge is solid paint;
+    None for a painting with see-through edges, whose board keeps its own colour."""
+    h, w = arr.shape[:2]
+    ex, ey = max(1, round(w * EDGE)), max(1, round(h * EDGE))
+    edge = np.concatenate([arr[:ey].reshape(-1, 4), arr[-ey:].reshape(-1, 4),
+                           arr[:, :ex].reshape(-1, 4), arr[:, -ex:].reshape(-1, 4)])
+    solid = edge[edge[:, 3] > 0.9]
+    if len(solid) < SOLID * len(edge):
+        return None
+    r, g, b = (np.clip(np.median(solid[:, :3], axis=0), 0.0, 1.0) * 255.0 + 0.5).astype(int)
+    return f"#{r:02X}{g:02X}{b:02X}"
+
+
 def painting_files():
     """The paintings in art/signs/, by the sign each is for: the key its file name starts with
     ("stall.takoyaki.png" or "stall.takoyaki たこ焼き.png"). Subfolders are ignored."""
@@ -271,7 +290,7 @@ def main():
         f.write("\n")
     # The paintings, copied into the game; the game's copies of paintings since taken away go.
     os.makedirs(OUT, exist_ok=True)
-    painted = []
+    painted, boards = [], {}
     for key, paths in painting_files().items():
         if key not in every:
             problems.extend(f"{os.path.basename(p)}: no sign is called {key} (the templates' names start with "
@@ -283,6 +302,9 @@ def main():
         arr = F.ink_blacks(F.load_png(path))
         h, w = arr.shape[:2]
         tw, th = sizes[key]
+        board = board_colour(arr)
+        if board:
+            boards[key] = board
         fw, fh = every[key]["size"]
         gw, gh = max(1, round(fw * GAME_PIXELS)), max(1, round(fh * GAME_PIXELS))
         if abs((w / h) / (tw / th) - 1.0) > STRETCH:
@@ -304,14 +326,16 @@ def main():
         if ext.lower() == ".png" and stem not in painted:
             os.remove(os.path.join(OUT, entry))
     with open(os.path.join(OUT, "signs.json"), "w", encoding="utf-8", newline="\n") as f:
-        json.dump({"about": "The hand-lettered signs, by the key of their words; written by "
+        json.dump({"about": "The hand-lettered signs, by the key of their words, and the colours of the "
+                            "boards under those painted solid to their edges; written by "
                             "art/blender/build_signs.py from the paintings in art/signs/.",
-                   "signs": painted}, f, ensure_ascii=False, indent=2)
+                   "signs": painted, "boards": boards}, f, ensure_ascii=False, indent=2)
         f.write("\n")
     for problem in problems:
         print("WARNING", problem)
     print(f"SIGNS: {len(every)} templates in art/signs/_guides; {len(painted)} painted: "
-          + (", ".join(painted) if painted else "none yet"))
+          + (", ".join(painted) if painted else "none yet")
+          + "".join(f"; {key}'s board {colour}" for key, colour in boards.items()))
 
 
 main()

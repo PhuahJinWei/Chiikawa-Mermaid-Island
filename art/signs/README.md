@@ -32,9 +32,15 @@ them.
 1. Open a template from `_guides/` in any paint program with layers: Krita
    (free), Clip Studio Paint, Procreate, ibisPaint or Photoshop. Add a new
    layer above it.
-2. Letter on the new layer, and keep its background transparent. The
-   board's own colour shows through, lit and shaded with the rest of the
-   stall. Pictures are welcome, as on the film's signs.
+2. Letter on the new layer. Pictures are welcome, as on the film's signs.
+   For the background you can do either of these:
+   - **Leave it transparent:** the board's own colour shows through, lit
+     and shaded with the rest of the stall.
+   - **Paint the whole board:** use your own colour, solid right to the
+     canvas edges. On a stall, the board takes that colour too, the
+     middling colour of your painting's edge, so the board round your
+     sign matches it. This works for stalls only; the arch and banners
+     keep their own colour round a painting.
 3. Hide the template. Export your layer as a PNG with transparency, at the
    whole canvas size, with the template's name. Save it into `art/signs/`
    itself, the folder this README is in, not into `_guides/`. Don't trim or

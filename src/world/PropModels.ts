@@ -42,9 +42,10 @@ export interface PropInfo {
 /**
  * body: lit and outlined; glow: lights up at night (windows, lanterns); flame: shows only at night;
  * inside: a room's inside, drawn only near; far: a light version for seeing from afar, drawn instead
- * of the body and the inside; label: painted words.
+ * of the body and the inside; label: painted words; board: drawn as the body, the board its words
+ * are painted on, which takes the colour of a hand-lettered sign painted solid.
  */
-export type PartRole = 'body' | 'glow' | 'flame' | 'inside' | 'far' | 'label';
+export type PartRole = 'body' | 'glow' | 'flame' | 'inside' | 'far' | 'label' | 'board';
 
 export interface PropModel {
   parts: { role: PartRole; index: number; geometry: THREE.BufferGeometry }[];
@@ -57,7 +58,7 @@ const cache = new Map<string, Promise<PropModel>>();
 function roleOf(name: string): [PartRole, number] {
   const label = /_label(\d*)$/.exec(name);
   if (label) return ['label', label[1] ? Number(label[1]) : 0];
-  for (const role of ['glow', 'flame', 'inside', 'far'] as const) if (name.endsWith(`_${role}`)) return [role, 0];
+  for (const role of ['glow', 'flame', 'inside', 'far', 'board'] as const) if (name.endsWith(`_${role}`)) return [role, 0];
   return ['body', 0];
 }
 

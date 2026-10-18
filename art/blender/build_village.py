@@ -290,9 +290,10 @@ def make_stall(colour):
             x = f * w
             pieces.append((P.segment_bm(V(x, cy + 0.06, top + 0.04), V(x, cy + 0.06, top + 0.17), 0.055, 0.07, segments=6), c))
         pieces.append((L.ellipsoid_bm(V(0.14 * w, cy + 0.1, top + 0.15), (0.12, 0.12, 0.11), u=8, v=5), C["cream"]))
-        # The header board: a deep box across the top of the front, a little wider than the booth.
+        # The header board: a deep box across the top of the front, a little wider than the booth,
+        # a part of its own, so a hand-lettered sign painted solid can give it its own colour.
         hy = -d + 0.15
-        pieces.append((P.box_bm(V(0.0, hy, (b0 + b1) / 2), (s["width"] + 0.1, 0.38, b1 - b0)), C[colour]))
+        header = [(P.box_bm(V(0.0, hy, (b0 + b1) / 2), (s["width"] + 0.1, 0.38, b1 - b0)), C[colour])]
         # The scalloped trim along its bottom edge, at the front and down its sides.
         def scallop(cx, cy_, cz, r, normal_x):
             bm = bmesh.new()
@@ -323,6 +324,10 @@ def make_stall(colour):
             pieces.append((L.ellipsoid_bm(V(x, -d + 0.3, z), (0.075, 0.075, 0.07), u=8, v=5),
                            L.hex_color(LANTERN_COLOURS[k % len(LANTERN_COLOURS)])))
         body = join(f"stall_{colour}", pieces, collection)
+        board = join(f"stall_{colour}_board", header, collection)
+        # Its faces flat, as the sign laid on its front is, so the two are lit alike and a sign
+        # painted solid meets the board round it unseen.
+        board.data.shade_flat()
         face_bm, uvs = P.label_bm(V(0.0, hy - 0.19, (b0 + b1) / 2 + 0.02), STALL_LABEL[0], STALL_LABEL[1])
         label = P.object_with_uv(f"stall_{colour}_label", face_bm, uvs, collection)
         # What blocks walkers: the counter and the back wall, so its keeper can walk in at either
@@ -333,7 +338,7 @@ def make_stall(colour):
                   {"box": [0.0, 0.0, w + 0.05, d + 0.05], "y": [b0 - 0.05, b1], "walk": False}]
         info = {"blocks": blocks, "height": b1,
                 "label": {"size": list(STALL_LABEL), "colour": STALL_STYLES[colour]["words"]}}
-        return [body, label], info
+        return [body, board, label], info
     return build
 
 
@@ -721,9 +726,9 @@ def build_bunting(collection, span, top, sag, flags, name, poles=True):
 # between its stalls and at its two ends, a little in front of the counters (clear of the gaps'
 # insides, where the stalls' keepers come in), with two strings of flags sagging from each pole to
 # the next and a paper lantern in each span. The street's banners and the bunting across it are
-# tied to these poles. Where the poles stand along the street from its middle (its stalls stand
-# 2.92 m apart), and how tall they are.
-SIDE_POLES = [-14.09] + [2.92 * k for k in range(-4, 5)] + [14.09]
+# tied to these poles. Where the poles stand along the street from its middle (its six stalls a
+# side stand 2.92 m apart), and how tall they are.
+SIDE_POLES = [-8.25] + [2.92 * k for k in range(-2, 3)] + [8.25]
 SIDE_TOP = 4.4
 
 
