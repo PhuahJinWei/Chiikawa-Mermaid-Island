@@ -48,6 +48,10 @@ const SMALL_REACH = 60;
 const LABEL_PIXELS = 220;
 const ATLAS_WIDTH = 2048;
 const ATLAS_HEIGHT = 1024;
+/** Pixels of gutter round each label's patch in the atlas. A hand-lettered sign's edges are carried
+ * out into it, so a sign filling its board to the edges never takes its neighbour's colours there,
+ * near or far (where the texture's smaller copies blend neighbouring pixels). */
+const LABEL_GUTTER = 4;
 
 /** Which pieces of a group are drawn when: always, near, inside (closer still), far, or at night. */
 type Level = 'always' | 'near' | 'small' | 'inside' | 'far' | 'night';
@@ -192,8 +196,8 @@ function paintLabels(labels: Label[], painted: Map<string, ImageBitmap>): THREE.
   let used = 0;
   for (let density = LABEL_PIXELS; density >= 100; density -= 10) {
     sizes = labels.map((l) => [
-      Math.min(ATLAS_WIDTH, Math.round(l.info.size[0] * density)),
-      Math.min(ATLAS_WIDTH, Math.round(l.info.size[1] * density)),
+      Math.min(ATLAS_WIDTH - 2 * LABEL_GUTTER, Math.round(l.info.size[0] * density)),
+      Math.min(ATLAS_WIDTH - 2 * LABEL_GUTTER, Math.round(l.info.size[1] * density)),
     ]);
     const order = sizes.map((_, i) => i).sort((a, b) => sizes[b][1] - sizes[a][1]);
     places = new Array(labels.length);
@@ -201,13 +205,14 @@ function paintLabels(labels: Label[], painted: Map<string, ImageBitmap>): THREE.
     let y = 0;
     let shelf = 0;
     for (const i of order) {
-      const [w, h] = sizes[i];
+      const w = sizes[i][0] + 2 * LABEL_GUTTER;
+      const h = sizes[i][1] + 2 * LABEL_GUTTER;
       if (x + w > ATLAS_WIDTH) {
         x = 0;
         y += shelf;
         shelf = 0;
       }
-      places[i] = [x, y];
+      places[i] = [x + LABEL_GUTTER, y + LABEL_GUTTER];
       x += w;
       shelf = Math.max(shelf, h);
     }
@@ -228,6 +233,14 @@ function paintLabels(labels: Label[], painted: Map<string, ImageBitmap>): THREE.
       g.imageSmoothingEnabled = true;
       g.imageSmoothingQuality = 'high';
       g.drawImage(sign, px, py, w, h);
+      // Its edges carried out into the gutter: its top and bottom rows up and down, then its sides
+      // (and so the corners) out.
+      const e = LABEL_GUTTER;
+      g.imageSmoothingEnabled = false;
+      g.drawImage(canvas, px, py, w, 1, px, py - e, w, e);
+      g.drawImage(canvas, px, py + h - 1, w, 1, px, py + h, w, e);
+      g.drawImage(canvas, px, py - e, 1, h + 2 * e, px - e, py - e, e, h + 2 * e);
+      g.drawImage(canvas, px + w - 1, py - e, 1, h + 2 * e, px + w, py - e, e, h + 2 * e);
     } else if (g) {
       g.save();
       g.beginPath();

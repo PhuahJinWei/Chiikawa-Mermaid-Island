@@ -281,9 +281,17 @@ def label_bm(centre, width, height, lift=0.004):
     return bm, [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
 
 
-def join(name, pieces, collection):
+# Faces meeting at more than this are lit apart, as the flat faces they are (a box's sides, a log's
+# cut ends), where smooth shading would blend them and the film look's lighting draw a band across
+# them; rounder things (posts of six sides or more, lanterns, thatch) stay smooth. See join.
+SHARP = math.radians(70)
+
+
+def join(name, pieces, collection, sharp=None):
     """Join (bmesh, colour or a list of colours, one per vertex) pieces into one smooth-shaded
-    object with a vertex colour layer."""
+    object with a vertex colour layer. With `sharp` (radians), faces meeting at more than that are
+    lit as the flat faces they are, where smooth shading would blend a box's sides into one another
+    and the toon ramp draw a band across them."""
     flat = []
     combined = bmesh.new()
     for bm, colour in pieces:
@@ -305,6 +313,8 @@ def join(name, pieces, collection):
     except AttributeError:
         pass
     mesh.shade_smooth()
+    if sharp is not None:
+        mesh.set_sharp_from_angle(angle=sharp)
     obj = bpy.data.objects.new(name, mesh)
     collection.objects.link(obj)
     return obj

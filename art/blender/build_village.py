@@ -227,15 +227,19 @@ STALL_STYLES = {
     "red": {"trim": "#F2D04E", "inside": ("#E0603E", "#CC4E33"), "counter": "#F2A055", "words": "#FFFFFF"},
     "white": {"trim": "#4E8FCF", "inside": ("#E9845A", "#D96E47"), "counter": "#F4F1E8", "words": "#2F6FB5"},
 }
-# A stall's size, after the film's, where the islander who keeps it stands behind its counter with
-# their upper half above it and the header board just over their head: how wide and how deep the
-# booth is, the counter's top, and the header board's bottom and top (its roof), the board two and a
-# half times as long as it is deep, as the film's. About a metre clear between the counter and the
-# back wall for its keeper, and a metre between neighbouring booths (2.92 m apart along their rows)
-# for them to come in by.
-STALL = {"width": 1.9, "depth": 1.5, "counter": 0.52, "board": (1.3, 2.1)}
-# The stall's name across its header board: how wide and how high.
-STALL_LABEL = (1.8, 0.62)
+# A stall's size, after the film's: its counter as tall as a customer standing at it, and its keeper
+# on a raised floor behind it, two steps up from the ground (a step at each open side), so they show
+# over it from the shoulders up, the header board above their head. How wide and how deep the booth
+# is, wide enough that its tall counter is long and low, as the film's; the counter's top; the floor
+# behind it and the step up to it, each no higher than a walker steps up; and the header board's
+# bottom and top (the roof just under its top), its face in the proportions its hand-lettered
+# signs are painted in (1440 x 496), so a sign fills it edge to edge. About a metre clear between
+# the counter and the back wall for its keeper, and a metre between neighbouring booths (3.42 m
+# apart along their rows) for them to come in by.
+STALL = {"width": 2.4, "depth": 1.5, "counter": 0.9, "floor": 0.66, "step": 0.33, "board": (1.9, 2.76)}
+# The stall's name over the whole face of its header board, which is a little wider than the
+# booth: how wide and how high.
+STALL_LABEL = (STALL["width"] + 0.1, round(STALL["board"][1] - STALL["board"][0], 3))
 LANTERN_COLOURS = ("#F7D046", "#9CCB7A", "#F7A1C4", "#7EC3EA", "#F29E6B")
 
 
@@ -244,10 +248,11 @@ def make_stall(colour):
         """A festival stall as the film's: a booth on four thin posts under a flat roof, with a deep
         header board across its front for the game to paint its name on, a scalloped trim along
         the board's bottom and paper lanterns hanging under it; a wall of stripes at the back, and
-        a low counter across the front behind which the islander who keeps it stands, white menu
-        tags hanging off its front. It is open at its sides behind the counter, where its keeper
-        comes in from the alley behind the row. Light, as forty of them stand along the festival;
-        it faces -Y, its middle at the origin."""
+        a counter as tall as a customer across the front, white menu tags hanging off its front,
+        behind which the islander who keeps it stands on a raised floor. It is open at its sides
+        behind the counter, where its keeper comes in from the alley behind the row and steps up.
+        Light, as twenty-eight of them stand along the festival; it faces -Y, its middle at the
+        origin."""
         style = {k: (tuple(L.hex_color(c) for c in v) if isinstance(v, tuple) else L.hex_color(v))
                  for k, v in STALL_STYLES[colour].items() if k != "words"}
         s = STALL
@@ -255,17 +260,20 @@ def make_stall(colour):
         top = s["counter"]
         b0, b1 = s["board"]
         pieces = []
-        # Posts at the corners, up to the roof.
+        # Posts at the corners, up into the roof. No two of the stall's faces lie in one plane, or
+        # the nearer of the two would flicker from one to the other.
+        # (A segment is drawn a fiftieth longer at each end than asked.)
         for x in (-w + 0.04, w - 0.04):
             for y in (-d + 0.04, d - 0.04):
-                pieces.append((P.segment_bm(V(x, y, 0.0), V(x, y, b1), 0.04, 0.04, segments=6), C["plankLight"]))
-        # The roof, a flat board over it all.
-        pieces.append((P.box_bm(V(0.0, 0.0, b1 - 0.02), (s["width"], s["depth"], 0.04)), C["plank"]))
+                pieces.append((P.segment_bm(V(x, y, 0.0), V(x, y, (b1 - 0.03) / 1.02), 0.04, 0.04, segments=6),
+                               C["plankLight"]))
+        # The roof, a flat board over it all, its top a little under the header board's.
+        pieces.append((P.box_bm(V(0.0, 0.0, b1 - 0.03), (s["width"], s["depth"], 0.04)), C["plank"]))
         # The wall across the back, in upright stripes of two shades.
-        stripes = 6
+        stripes, span = 8, s["width"] - 0.03
         for k in range(stripes):
-            x = -w + s["width"] * (k + 0.5) / stripes
-            pieces.append((P.box_bm(V(x, d - 0.03, b1 / 2), (s["width"] / stripes + 0.002, 0.04, b1 - 0.04)),
+            x = -span / 2 + span * (k + 0.5) / stripes
+            pieces.append((P.box_bm(V(x, d - 0.03 - 0.002 * (k % 2), b1 / 2), (span / stripes + 0.002, 0.04, b1 - 0.04)),
                            style["inside"][k % 2]))
         # The counter across the front: its painted face, a pale grey frame round it and across it,
         # and a board on top.
@@ -278,6 +286,22 @@ def make_stall(colour):
         for x in (-w + 0.06, -w / 3, w / 3, w - 0.06):
             pieces.append((P.box_bm(V(x, face - 0.012, top / 2), (0.035, 0.03, top - 0.02)), frame))
         pieces.append((P.box_bm(V(0.0, cy + 0.02, top + 0.02), (s["width"] - 0.04, 0.46, 0.04)), C["plankLight"]))
+        # The raised plank floor behind the counter that its keeper stands on, and a step up onto
+        # it at each open side, its tread `tread` deep.
+        fl, st, tread = s["floor"], s["step"], 0.3
+        fy0, fy1 = cy + 0.2, d - 0.05
+        fy, fd = (fy0 + fy1) / 2, fy1 - fy0
+        fx = w - 0.03 - tread
+        pieces.append((P.box_bm(V(0.0, fy, fl / 2), (2 * fx, fd, fl)), C["plank"]))
+        for k in range(1, 4):
+            pieces.append((P.box_bm(V(0.0, fy0 + fd * k / 4, fl + 0.002), (2 * fx - 0.1, 0.012, 0.006)), C["plankDark"]))
+        for side in (-1.0, 1.0):
+            pieces.append((P.box_bm(V(side * (fx + tread / 2), fy, st / 2), (tread, fd, st)), C["plank"]))
+            # A dark edge along the top of the floor's side and of the step's, a little proud of
+            # their faces.
+            for edge, height in ((fx, fl), (w - 0.03, st)):
+                pieces.append((P.box_bm(V(side * (edge - 0.0175), fy, height - 0.0225), (0.045, fd + 0.01, 0.055)),
+                               C["plankDark"]))
         # White menu tags hanging off the counter's front, each with a few lines of writing.
         ink = L.hex_color("#4A3A33")
         for k, x in enumerate(f * w for f in (-0.69, -0.4, 0.36, 0.63)):
@@ -308,7 +332,7 @@ def make_stall(colour):
             for a, b in zip(arc, arc[1:]):
                 bm.faces.new((hub, b, a) if not normal_x else (hub, a, b))
             return bm
-        count = 11
+        count = 14
         r = (s["width"] + 0.1) / count / 2
         for k in range(count):
             x = -(s["width"] + 0.1) / 2 + r * (2 * k + 1)
@@ -318,17 +342,18 @@ def make_stall(colour):
                 y = hy - 0.19 + r * (2 * k + 1)
                 pieces.append((scallop(side * (w + 0.055), y, b0, r, True), style["trim"]))
         # Paper lanterns hanging under the board, inside the front of the booth.
-        for k, x in enumerate(f * w for f in (-0.71, -0.36, 0.0, 0.36, 0.71)):
+        for k, x in enumerate(f * w for f in (-0.75, -0.45, -0.15, 0.15, 0.45, 0.75)):
             z = b0 - 0.16 - 0.03 * (k % 2)
             pieces.append((P.segment_bm(V(x, -d + 0.3, b0), V(x, -d + 0.3, z + 0.07), 0.006, 0.006, segments=4), C["post"]))
             pieces.append((L.ellipsoid_bm(V(x, -d + 0.3, z), (0.075, 0.075, 0.07), u=8, v=5),
                            L.hex_color(LANTERN_COLOURS[k % len(LANTERN_COLOURS)])))
-        body = join(f"stall_{colour}", pieces, collection)
+        # Its boxes lit as flat faces, its round posts, cups, jar and lanterns smooth.
+        body = join(f"stall_{colour}", pieces, collection, sharp=P.SHARP)
         board = join(f"stall_{colour}_board", header, collection)
         # Its faces flat, as the sign laid on its front is, so the two are lit alike and a sign
         # painted solid meets the board round it unseen.
         board.data.shade_flat()
-        face_bm, uvs = P.label_bm(V(0.0, hy - 0.19, (b0 + b1) / 2 + 0.02), STALL_LABEL[0], STALL_LABEL[1])
+        face_bm, uvs = P.label_bm(V(0.0, hy - 0.19, (b0 + b1) / 2), STALL_LABEL[0], STALL_LABEL[1])
         label = P.object_with_uv(f"stall_{colour}_label", face_bm, uvs, collection)
         # What blocks walkers: the counter and the back wall, so its keeper can walk in at either
         # side and stand between them; the camera keeps out of the booth's top (in the game's frame,
@@ -336,7 +361,9 @@ def make_stall(colour):
         blocks = [{"box": [0.0, -cy, w, 0.22], "y": [0.0, top + 0.1]},
                   {"box": [0.0, -(d - 0.03), w, 0.05], "y": [0.0, b1]},
                   {"box": [0.0, 0.0, w + 0.05, d + 0.05], "y": [b0 - 0.05, b1], "walk": False}]
-        info = {"blocks": blocks, "height": b1,
+        decks = [{"box": [0.0, -fy, fx, fd / 2], "top": fl}] + [
+            {"box": [side * (fx + tread / 2), -fy, tread / 2, fd / 2], "top": st} for side in (-1.0, 1.0)]
+        info = {"blocks": blocks, "decks": decks, "height": b1,
                 "label": {"size": list(STALL_LABEL), "colour": STALL_STYLES[colour]["words"]}}
         return [body, board, label], info
     return build
@@ -358,8 +385,10 @@ def build_pier(collection):
     for i in range(n):
         y = -(i + 0.5) * step
         width = PIER_WIDTH + rng.uniform(-0.12, 0.12)
-        bm = P.box_bm(V(rng.uniform(-0.05, 0.05), y, -0.05), (width, 0.42, 0.1))
-        L.transformed(bm, Matrix.Translation(V(0.0, y, 0.0)) @ Matrix.Rotation(rng.uniform(-0.025, 0.025), 4, "Z")
+        # Turned a little, never so far that a plank's end reaches its neighbour's, and every
+        # other one a hair lower, so no two planks' faces meet in one plane.
+        bm = P.box_bm(V(rng.uniform(-0.05, 0.05), y, -0.05 - 0.004 * (i % 2)), (width, 0.42, 0.1))
+        L.transformed(bm, Matrix.Translation(V(0.0, y, 0.0)) @ Matrix.Rotation(rng.uniform(-0.015, 0.015), 4, "Z")
                       @ Matrix.Translation(V(0.0, -y, 0.0)))
         pieces.append((bm, shades[int(rng.integers(0, 3))]))
     for x in (-1.1, 1.1):
@@ -373,7 +402,7 @@ def build_pier(collection):
             # segment_bm overshoots each end by 2% of its length; the cut top sits on its end.
             pieces.append((P.disc_bm(V(x, y, top + 0.02 * (top + 4.0) + 0.003), UP, 0.13, 12), C["postTop"]))
         pieces.append((P.box_bm(V(0.0, y, -0.4), (PIER_WIDTH + 0.2, 0.18, 0.18)), C["plankDark"]))
-    body = join("pier", pieces, collection)
+    body = join("pier", pieces, collection, sharp=P.SHARP)
     # The deck to walk on stops a little short of the planks' edges, so no one stands half off them.
     info = {"decks": [{"box": [0.0, PIER_LENGTH / 2, PIER_WIDTH / 2 - 0.35, PIER_LENGTH / 2], "top": 0.0}],
             "height": 0.5}
@@ -701,7 +730,8 @@ def bunting_pole(x, top, pieces):
 def make_bunting(span, top, sag, flags, name, poles=True):
     """Festival bunting `span` long along X, `top` high: triangle flags in bright colours along a
     sagging string, with paper lanterns that glow at night; between two poles of its own, or
-    without, tied to poles that stand there already."""
+    without, tied to poles that stand there already, or (poles a pair: its -X end's, its +X end's)
+    one of each."""
     def build(collection):
         return build_bunting(collection, span, top, sag, flags, name, poles)
     return build
@@ -710,15 +740,16 @@ def make_bunting(span, top, sag, flags, name, poles=True):
 def build_bunting(collection, span, top, sag, flags, name, poles=True):
     half = span / 2
     pieces, glow = [], []
-    if poles:
-        for x in (-half, half):
-            bunting_pole(x, top, pieces)
+    own = (poles, poles) if isinstance(poles, bool) else poles
+    standing = [x for x, mine in zip((-half, half), own) if mine]
+    for x in standing:
+        bunting_pole(x, top, pieces)
     flag_string(V(-half, 0.0, top), V(half, 0.0, top), sag, flags, (0.25, 0.5, 0.75), pieces, glow)
-    body = join(name, pieces, collection)
+    body = join(name, pieces, collection, sharp=P.SHARP)
     lights = join(f"{name}_glow", glow, collection)
     info = {"height": top + 0.3}
-    if poles:
-        info["footprint"] = {"circles": [[-half, 0.0, 0.12], [half, 0.0, 0.12]]}
+    if standing:
+        info["footprint"] = {"circles": [[round(x, 3), 0.0, 0.12] for x in standing]}
     return [body, lights], info
 
 
@@ -727,9 +758,9 @@ def build_bunting(collection, span, top, sag, flags, name, poles=True):
 # insides, where the stalls' keepers come in), with two strings of flags sagging from each pole to
 # the next and a paper lantern in each span. The street's banners and the bunting across it are
 # tied to these poles. Where the poles stand along the street from its middle (its six stalls a
-# side stand 2.92 m apart), and how tall they are.
-SIDE_POLES = [-8.25] + [2.92 * k for k in range(-2, 3)] + [8.25]
-SIDE_TOP = 4.4
+# side stand 3.42 m apart), and how tall they are, the lower string's lanterns over the stalls' boards.
+SIDE_POLES = [-9.75] + [3.42 * k for k in range(-2, 3)] + [9.75]
+SIDE_TOP = 4.46
 
 
 def build_bunting_side(collection):
@@ -741,7 +772,7 @@ def build_bunting_side(collection):
         flag_string(V(x0, 0.0, SIDE_TOP - 0.1), V(x1, 0.0, SIDE_TOP - 0.1), 0.3, flags, (), pieces, glow, shift=i)
         flag_string(V(x0, 0.0, SIDE_TOP - 0.85), V(x1, 0.0, SIDE_TOP - 0.85), 0.22, flags, (0.5,), pieces, glow,
                     shift=i + 3)
-    body = join("bunting_side", pieces, collection)
+    body = join("bunting_side", pieces, collection, sharp=P.SHARP)
     lights = join("bunting_side_glow", glow, collection)
     return [body, lights], {"footprint": {"circles": [[round(x, 3), 0.0, 0.12] for x in SIDE_POLES]},
                             "height": SIDE_TOP + 0.3}
@@ -802,12 +833,13 @@ BUILDERS = {
     "stall_white": make_stall("white"),
     "pier": build_pier,
     "ferry": build_ferry,
-    # Along the front rows, pole to pole over four stalls; across the street, from behind one row
-    # to behind the other.
-    "bunting_row": make_bunting(11.68, 4.3, 0.45, 21, "bunting_row"),
+    # Along the front rows, pole to pole at the fronts of the gaps between the stalls: over the four
+    # stalls nearest the arch, and over the three beyond them, from the first one's outer pole.
+    "bunting_row": make_bunting(13.68, 4.3, 0.52, 25, "bunting_row"),
+    "bunting_row_short": make_bunting(10.26, 4.3, 0.4, 18, "bunting_row_short", poles=(False, True)),
     # Across the street, tied to the tops of the poles along its sides (bunting_side), as its
     # banners are.
-    "bunting_street": make_bunting(8.6, 4.3, 0.45, 15, "bunting_street", poles=False),
+    "bunting_street": make_bunting(8.6, 4.36, 0.45, 15, "bunting_street", poles=False),
     "bunting_side": build_bunting_side,
     "basket": build_basket,
     "pot": build_pot,

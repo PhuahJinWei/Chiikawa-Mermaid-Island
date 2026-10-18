@@ -85,24 +85,44 @@ FESTIVAL = {"level": 0.5, "row": (-13.6, 0.0022), "rows_half": 30.0, "behind": 5
 # metres further off.
 BACKS = {"boxes": [((-6.78, -29.6), (0.93, 15.5)), ((6.78, -29.6), (0.93, 15.5)), ((0.0, -45.95), (7.7, 0.95))],
          "rows": (0.65, 2.5), "rows_half": 13.6, "feather": 0.6, "room": 0.8}
-# Props that stood when the jungle was first planted and have been taken away or moved since: the
-# jungle is planted as though they still stood where they did, so it grows where it did; the alleys
-# keep their ground clear. The far row's two outer stalls; the street's four stalls a side furthest
-# from the arch, the far row, its lantern poles and the bunting across the street's far half, from
-# before the street was shortened to six stalls a side.
-PLANTED_ROUND = [("stall_orange", -6.28, -44.35, 0.0), ("stall_purple", 6.28, -44.35, 0.0),
+# The festival's stalls, banners, bunting, lantern poles and baskets as they stood when the jungle was
+# planted (kind, x, z, turn): its front rows of eight narrower stalls a side, a street of ten a side
+# with a row of four across its far end, and the banners, bunting, lantern poles and baskets among
+# them; and the village's lantern poles and baskets. The jungle is planted round these wherever the
+# layout has them now, so it grows as it did; the alleys keep their ground clear. The layout's own
+# props of these kinds (PLANTED_KINDS) are left out.
+PLANTED_ROUND = [("stall_pink", -6.5, -13.51, 1.6), ("stall_blue", 6.5, -13.51, -1.6),
+                 ("stall_blue", -9.42, -13.4, 2.4), ("stall_pink", 9.42, -13.4, -2.4),
+                 ("stall_red", -12.34, -13.26, 3.1), ("stall_orange", 12.34, -13.26, -3.1),
+                 ("stall_white", -15.26, -13.09, 3.8), ("stall_white", 15.26, -13.09, -3.8),
+                 ("stall_orange", -18.18, -12.87, 4.6), ("stall_blue", 18.18, -12.87, -4.6),
+                 ("stall_purple", -21.1, -12.62, 5.3), ("stall_red", 21.1, -12.62, -5.3),
+                 ("stall_pink", -24.02, -12.33, 6.0), ("stall_purple", 24.02, -12.33, -6.0),
+                 ("stall_blue", -26.94, -12, 6.8), ("stall_orange", 26.94, -12, -6.8),
+                 ("stall_pink", -5.2, -15.8, 90.0), ("stall_purple", 5.2, -15.8, -90.0),
+                 ("stall_red", -5.2, -18.72, 90.0), ("stall_red", 5.2, -18.72, -90.0),
+                 ("stall_white", -5.2, -21.64, 90.0), ("stall_blue", 5.2, -21.64, -90.0),
+                 ("stall_orange", -5.2, -24.56, 90.0), ("stall_orange", 5.2, -24.56, -90.0),
+                 ("stall_purple", -5.2, -27.48, 90.0), ("stall_pink", 5.2, -27.48, -90.0),
+                 ("stall_blue", -5.2, -30.4, 90.0), ("stall_white", 5.2, -30.4, -90.0),
+                 ("banner", 0, -20.18, 0.0), ("banner", 0, -23.1, 0.0),
+                 ("bunting_row", -10.88, -12.31, -177.3), ("bunting_row", -22.56, -11.46, -174.3),
+                 ("bunting_row", 10.88, -12.31, -2.7), ("bunting_row", 22.56, -11.46, -5.7),
+                 ("bunting_street", 0, -28.94, 0.0), ("lanterns", -29.2, -11.52, 0.0),
+                 ("lanterns", 29.2, -11.52, 0.0), ("lanterns", -3, -60.5, 0.0), ("lanterns", 3, -60.5, 0.0),
+                 ("stall_orange", -6.28, -44.35, 0.0), ("stall_purple", 6.28, -44.35, 0.0),
                  ("stall_red", -5.2, -33.32, 90.0), ("stall_purple", 5.2, -33.32, -90.0),
                  ("stall_white", -5.2, -36.24, 90.0), ("stall_orange", 5.2, -36.24, -90.0),
                  ("stall_orange", -5.2, -39.16, 90.0), ("stall_blue", 5.2, -39.16, -90.0),
                  ("stall_pink", -5.2, -42.08, 90.0), ("stall_red", 5.2, -42.08, -90.0),
                  ("stall_white", -3.36, -44.35, 0.0), ("stall_pink", 3.36, -44.35, 0.0),
-                 ("lanterns", -2.15, -43.3, 0.0), ("lanterns", 2.15, -43.3, 0.0), ("bunting_street", 0.0, -37.7, 0.0)]
-# And props placed since the jungle was planted, or moved to where they stand now (kind, x, z): the
-# jungle is planted without them. The street's poles along its sides; the far row and its lantern
-# poles where they stand now.
-PLANTED_WITHOUT = {("bunting_side", -4.3, -23.1), ("bunting_side", 4.3, -23.1),
-                   ("stall_white", -3.36, -32.67), ("stall_pink", 3.36, -32.67),
-                   ("lanterns", -2.15, -31.62), ("lanterns", 2.15, -31.62)}
+                 ("lanterns", -2.15, -43.3, 0.0), ("lanterns", 2.15, -43.3, 0.0),
+                 ("bunting_street", 0, -37.7, 0.0), ("basket", -9.42, -12.15, 11.5),
+                 ("basket", 15.26, -11.84, 204.6), ("basket", -21.1, -11.37, 299.3),
+                 ("basket", 24.02, -11.08, 168.7), ("basket", -4.25, -24.56, 141.0),
+                 ("basket", 4.25, -30.4, 235.0), ("basket", -4.25, -36.24, 329.0),
+                 ("basket", 4.25, -39.16, 16.0), ("basket", -6, -92, 40.0), ("basket", 6.5, -91, 300.0)]
+PLANTED_KINDS = ("stall_", "banner", "bunting_", "lanterns", "basket")
 # The village: a round clearing deep in the jungle, its huts round the watchtower stage. Its level
 # ground eases into the jungle's over `slope` metres, gently enough to walk up from the festival.
 VILLAGE = {"centre": (0.0, -84.0), "radius": 22.0, "feather": 6.0, "slope": 12.0}
@@ -290,7 +310,7 @@ EDGES = {"tufts": 0.9, "clover": 6.0, "seed": 61}
 PROP_ROOM = {"hut_green": 7.0, "hut_warm": 7.0, "hut_plank": 5.5, "beehive": 3.8, "stage": 6.5, "torch": 1.0,
              "stall_pink": 3.2, "stall_purple": 3.2, "stall_orange": 3.2, "stall_blue": 3.2, "stall_red": 3.2,
              "stall_white": 3.2, "arch": 2.5, "banner": 2.0, "bunting_row": 2.0, "bunting_street": 2.0,
-             "lanterns": 1.2, "palm": 2.0, "sign": 2.0,
+             "lanterns": 1.2, "palm": 2.0, "sign": 2.0, "bunting_row_short": 2.0,
              # Under the room the street's stalls keep, so the jungle was planted just as it was
              # before these poles stood along the street.
              "bunting_side": 1.0}
@@ -1196,7 +1216,7 @@ def build_plants(collection, outlines):
     per patch of the map; the understory near only. Returns the objects, each trunk (x, z, radius),
     each crown (x, y, z, radius) and each butterfly's bush (x, y, z), in game coordinates."""
     rng = np.random.default_rng(17)
-    props = [p for p in layout_props() if (p[0], p[1], p[2]) not in PLANTED_WITHOUT] + PLANTED_ROUND
+    props = [p for p in layout_props() if not p[0].startswith(PLANTED_KINDS)] + PLANTED_ROUND
     G = plant_ground(outlines, props)
     x0, z0 = CENTRE[0] - SIZE / 2, CENTRE[1] - SIZE / 2
     canopy = PL.Patchwork(x0, z0, SIZE, CANOPY_PATCHES)

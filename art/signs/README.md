@@ -18,10 +18,14 @@ shows the painting, and the rest keep their typed words.
 
 | Sign | Canvas (pixels) |
 |---|---|
-| The 38 stalls' header boards (`stall.…`) | 1440 × 496 |
+| The 28 stalls' header boards (`stall.…`) | 2000 × 688 |
 | The arch's board, `arch.welcome` 島へようこそ!! | 6256 × 880 |
 | The arch's banner, `arch.banner` ウェルカム・トゥ・シマ | 4712 × 760 |
 | The street's banners, `banner.welcome` いらっしゃいませ!! and `banner.enjoy` たのしんでね | 4856 × 600 |
+
+A stall's canvas is its board's whole front, so a stall sign fills its board
+edge to edge with no board showing round it. A stall sign painted at the old
+size, 1440 × 496, has the same shape and fills it too.
 
 `_guides/` lists every stall with its words and board colour. In the game the
 arch's board and all three banners curve. Paint them flat, and the game bends
@@ -37,10 +41,10 @@ them.
    - **Leave it transparent:** the board's own colour shows through, lit
      and shaded with the rest of the stall.
    - **Paint the whole board:** use your own colour, solid right to the
-     canvas edges. On a stall, the board takes that colour too, the
-     middling colour of your painting's edge, so the board round your
-     sign matches it. This works for stalls only; the arch and banners
-     keep their own colour round a painting.
+     canvas edges. On a stall, the board's top and ends take that colour
+     too, the middling colour of your painting's edge, so they match your
+     sign. This works for stalls only; the arch and banners keep their own
+     colour round a painting.
 3. Hide the template. Export your layer as a PNG with transparency, at the
    whole canvas size, with the template's name. Save it into `art/signs/`
    itself, the folder this README is in, not into `_guides/`. Don't trim or

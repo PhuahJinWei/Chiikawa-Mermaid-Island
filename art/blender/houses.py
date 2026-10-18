@@ -265,6 +265,10 @@ class Wall:
         # round bottoms showing, and the scales of a row overlap a little, so no wall shows
         # between them. Each stretch of wall is filled from end to end.
         drop, step = size * 0.95, size * 0.6
+        # Each scale leans out toward its round bottom by `lean`, so where a row hangs over the one
+        # below it lies clear of it (by 0.6 of the lean at least, less the stagger), and its
+        # neighbours in the row stand `stagger` apart: no two scales lie in one plane.
+        lean, stagger = 0.012, 0.004
         rows = int((v1 - v0 - drop) / step) + 1
         for r in range(rows):
             v = v1 - r * step
@@ -279,11 +283,14 @@ class Wall:
                     [0.25 * width] + [(j + 1.0) * width for j in range(n - 1)] + [(u1 - u0) - 0.25 * width]
                 for j, du in enumerate(offsets):
                     half = width * (0.3 if r % 2 and j in (0, len(offsets) - 1) else 0.56)
-                    top = self.point(u0 + du, v, -0.008 - 0.003 * (rows - r) - 0.0012 * (k % 2))
+                    top = self.point(u0 + du, v, -0.008 - stagger * (k % 2))
                     bm = bmesh.new()
                     hub = bm.verts.new(top)
-                    arc = [bm.verts.new(top + self.d * (math.cos(math.pi * i / 6) * half)
-                                        - UP * (math.sin(math.pi * i / 6) ** 0.8 * drop)) for i in range(7)]
+                    arc = []
+                    for i in range(7):
+                        down = math.sin(math.pi * i / 6) ** 0.8
+                        arc.append(bm.verts.new(top + self.d * (math.cos(math.pi * i / 6) * half) - UP * (down * drop)
+                                                - self.inward * (lean * down)))
                     for p, q in zip(arc, arc[1:]):
                         bm.faces.new((hub, p, q))
                     bm.normal_update()
@@ -312,15 +319,19 @@ class Wall:
         uc, vc = (u0 + u1) / 2, (v0 + v1) / 2
         out = []
         bar = 0.1
-        for c, size in ((self.point(uc, v1 + bar / 2, -0.035), (w + 2 * bar, 0.09, bar)),
-                        (self.point(uc, v0 - bar / 2, -0.05), (w + 2 * bar + 0.14, 0.14, bar)),
-                        (self.point(u0 - bar / 2, vc, -0.035), (bar, 0.09, h)),
-                        (self.point(u1 + bar / 2, vc, -0.035), (bar, 0.09, h))):
+        # The frame reaches `e` into the opening, and the panes, their bars and the cross inside
+        # reach `e` into the wall round it, so none of their faces lies in the opening's own.
+        e = 0.004
+        for c, size in ((self.point(uc, v1 + (bar - e) / 2, -0.035), (w + 2 * bar, 0.09, bar + e)),
+                        (self.point(uc, v0 - (bar - e) / 2, -0.05), (w + 2 * bar + 0.14, 0.14, bar + e)),
+                        (self.point(u0 - (bar - e) / 2, vc, -0.035), (bar + e, 0.09, h)),
+                        (self.point(u1 + (bar - e) / 2, vc, -0.035), (bar + e, 0.09, h))):
             out.append((oriented_box(c, self.d, self.inward, size), C["frame"]))
-        glow.append((oriented_box(self.point(uc, vc, self.t / 2), self.d, self.inward, (w, 0.02, h)), C["glass"]))
+        glow.append((oriented_box(self.point(uc, vc, self.t / 2), self.d, self.inward, (w + 2 * e, 0.02, h + 2 * e)),
+                     C["glass"]))
         for f in (1 / 3, 2 / 3):
-            out.append((oriented_box(self.point(u0 + w * f, vc, self.t / 2 - 0.014), self.d, self.inward, (0.025, 0.012, h)),
-                        C["frame"]))
+            out.append((oriented_box(self.point(u0 + w * f, vc, self.t / 2 - 0.014), self.d, self.inward,
+                                     (0.025, 0.012, h + e)), C["frame"]))
         # The zigzags: two Ws across the panes, one above the other, outside.
         for lo, hi in ((0.1, 0.42), (0.56, 0.88)):
             pts = [(u0 + w * f, v0 + h * (lo if i % 2 else hi)) for i, f in enumerate((0.06, 0.28, 0.5, 0.72, 0.94))]
@@ -328,8 +339,8 @@ class Wall:
                 p, q = self.point(pu, pv, self.t / 2 - 0.024), self.point(qu, qv, self.t / 2 - 0.024)
                 out.append((oriented_box((p + q) / 2, q - p, -self.inward, ((q - p).length + 0.03, 0.035, 0.012)),
                             C["lattice"]))
-        for c, size in ((self.point(uc, vc, self.t / 2 + 0.02), (0.04, 0.02, h)),
-                        (self.point(uc, vc, self.t / 2 + 0.02), (w, 0.02, 0.04))):
+        for c, size in ((self.point(uc, vc, self.t / 2 + 0.02), (0.04, 0.02, h + 2 * e)),
+                        (self.point(uc, vc, self.t / 2 + 0.02), (w + 2 * e, 0.02, 0.04))):
             out.append((oriented_box(c, self.d, self.inward, size), C["frame"]))
         return out
 
@@ -512,7 +523,7 @@ def furnish(room, floor, ceiling, glow):
     width = bx1 - bx0
     futon = rail_z + 0.22
     box(V(bx, by, rail_z + 0.13), (width - 0.14, by1 - by0 - 0.2, 0.18), C["mat"], bevel=0.07)
-    box(V(bx, by1 - 0.45, futon - 0.004), (width - 0.2, 0.62, 0.012), C["cream"])
+    box(V(bx, by1 - 0.45, futon - 0.001), (width - 0.2, 0.62, 0.012), C["cream"])
     qy0, qy1 = by0 + 0.12, by1 - 0.66
     quilt = futon + 0.03
     box(V(bx, (qy0 + qy1) / 2, futon - 0.02), (width - 0.06, qy1 - qy0, 0.1), C["blanket"], bevel=0.035)
@@ -550,10 +561,10 @@ def furnish(room, floor, ceiling, glow):
     sx, sy = (sx0 + sx1) / 2, (sy0 + sy1) / 2
     for side in (sx0 + 0.03, sx1 - 0.03):
         box(V(side, sy, floor + sh / 2), (0.06, sy1 - sy0, sh), C["plank"])
-    box(V(sx, sy1 - 0.015, floor + sh / 2), (sx1 - sx0, 0.03, sh), C["logDark"])
+    box(V(sx, sy1 - 0.015, floor + sh / 2 - 0.005), (sx1 - sx0 - 0.01, 0.03, sh - 0.01), C["logDark"])
     shelves = [floor + 0.04 + (sh - 0.08) * k / 3 for k in range(4)]
     for z in shelves:
-        box(V(sx, sy, z), (sx1 - sx0, sy1 - sy0, 0.04), C["plank"])
+        box(V(sx, sy - 0.005, z), (sx1 - sx0 - 0.12, sy1 - sy0 - 0.01, 0.04), C["plank"])
     books = [C[f"book{k}"] for k in range(1, 7)]
     for level, z in enumerate(shelves[:3]):
         x, k = sx0 + 0.1, level * 2
@@ -597,7 +608,7 @@ def furnish(room, floor, ceiling, glow):
     basin = (ky0 + ky1) / 2 + 0.28
     box(V(kx, basin, top + 0.02), (0.44, 0.54, 0.1), C["stone"], bevel=0.03)
     box(V(kx, basin, top + 0.055), (0.32, 0.42, 0.04), C["stoneDark"])
-    box(V(kx, basin, top + 0.07), (0.3, 0.4, 0.012), C["water"])
+    box(V(kx, basin, top + 0.076), (0.3, 0.4, 0.012), C["water"])
     # The water comes down a bamboo pipe on the wall from under the roof and out of a spout over it.
     pipe_x = x1 - 0.06
     pipe = [V(pipe_x, basin + 0.1, ceiling - 0.05), V(pipe_x, basin + 0.1, top + 0.44)]
@@ -761,10 +772,10 @@ def build_stilt_hut(name, pattern, collection):
     far += [w.far(pattern[0]) for w in (front, back, left, right)]
     far.append((P.box_bm(V(0.0, (porch + yo) / 2, floor / 2 - 0.1), (2 * xo, yo - porch, floor + 0.2)), C["logDark"]))
 
-    body = P.join(name, pieces, collection)
+    body = P.join(name, pieces, collection, sharp=P.SHARP)
     lights = P.join(f"{name}_glow", glow, collection)
-    room = P.join(f"{name}_inside", inside, collection)
-    distant = P.join(f"{name}_far", far, collection)
+    room = P.join(f"{name}_inside", inside, collection, sharp=P.SHARP)
+    distant = P.join(f"{name}_far", far, collection, sharp=P.SHARP)
     under = floor - 0.25
     blocks = [
         block_box(-xo, xo, yi, yo, -10, eave), block_box(-xo, -door, -yo, -yi, -10, eave),
@@ -837,10 +848,10 @@ def build_plank_hut(name, collection):
     pieces.append(hip_roof(*roof))
     far = [hip_roof(*roof, subdivide=False)]
     far += [w.far(C["plank"]) for w in (front, back, left, right)]
-    body = P.join(name, pieces, collection)
+    body = P.join(name, pieces, collection, sharp=P.SHARP)
     lights = P.join(f"{name}_glow", glow, collection)
-    room = P.join(f"{name}_inside", inside, collection)
-    distant = P.join(f"{name}_far", far, collection)
+    room = P.join(f"{name}_inside", inside, collection, sharp=P.SHARP)
+    distant = P.join(f"{name}_far", far, collection, sharp=P.SHARP)
     blocks = [
         block_box(-xo, xo, yi, yo, -10, eave), block_box(-xo, -door, -yo, -yi, -10, eave),
         block_box(door, xo, -yo, -yi, -10, eave), block_box(-xo, -xi, -yo, yo, -10, eave),
@@ -897,8 +908,8 @@ def build_stage(collection):
         pieces.append((P.box_bm(V(x, 0.0, top + 0.002), (PEN, 2 * deck - 0.04, 0.01)), C["floorLine"]))
     for z, colour in ((top - 0.2, C["plank"]), (top - 0.4, C["log"])):
         for s in (-1.0, 1.0):
-            pieces.append((P.box_bm(V(0.0, s * (deck + 0.02), z), (2 * deck + 0.12, 0.08, 0.19)), colour))
-            pieces.append((P.box_bm(V(s * (deck + 0.02), 0.0, z), (0.08, 2 * deck + 0.12, 0.19)), colour))
+            pieces.append((P.box_bm(V(0.0, s * (deck + 0.03), z), (2 * deck + 0.14, 0.08, 0.19)), colour))
+            pieces.append((P.box_bm(V(s * (deck + 0.03), 0.0, z), (0.08, 2 * deck + 0.14, 0.19)), colour))
     # The roof's posts, leaning out from the platform's corners, and beams across under the roof.
     def post(sx, sy, z):
         f = (z - top) / (eave + 0.05 - top)
@@ -922,7 +933,7 @@ def build_stage(collection):
     pieces.append(lathe_roof([(0.0, eave), (2.8, eave), (3.25, eave - 0.1), (3.4, eave + 0.08), (3.25, eave + 0.28),
                               (2.4, eave + 1.1), (1.5, eave + 1.95), (0.6, eave + 2.65), (0.0, eave + 2.95)],
                              V(0.0, 0.0, 0.0), samples=14, seed=1.3))
-    body = P.join("stage", pieces, collection)
+    body = P.join("stage", pieces, collection, sharp=P.SHARP)
     blocks = [{"circle": [*g(sx * leg_foot, sy * leg_foot), 0.22], "y": [-10, top], "walk": True, "camera": True}
               for sx, sy in corners]
     blocks += [{"circle": [*g(sx * 1.55, sy * 1.55), 0.15], "y": [top, eave], "walk": True, "camera": True}
@@ -995,7 +1006,7 @@ def build_torch(collection):
     pieces = [(log(V(0.0, 0.0, -0.2), V(0.0, 0.0, 1.85), 0.05, segments=6), C["torch"])]
     cup = L.Profile([(0.0, 1.78), (0.1, 1.8), (0.16, 2.0), (0.15, 2.05), (0.0, 2.0)], samples=6)
     pieces.append((L.lathe_bm(cup.samples, segments=8), C["basket"]))
-    body = P.join("torch", pieces, collection)
+    body = P.join("torch", pieces, collection, sharp=P.SHARP)
     fire = P.join("torch_flame", flame_pieces(V(0.0, 0.0, 1.98), 1.0, 0.56), collection)  # lit at night
     return [body, fire], {"footprint": {"circle": 0.15}, "height": 3.0}
 
@@ -1090,7 +1101,7 @@ def build_arch(collection):
     it is long, its top level with the poles' at its middle), wreathed in big yellow flowers that
     climb down the poles, a white banner hung below it, narrower than the arch and tied to the poles
     by ropes at its corners, and pink paper lanterns stacked on the poles below the flowers."""
-    half, pole_h = 4.4, 5.95
+    half, pole_h = 4.4, 6.41
     pieces, glow = [], []
     for s in (-1.0, 1.0):
         x = s * half
@@ -1102,7 +1113,7 @@ def build_arch(collection):
             base = V(x, -0.08, pole_h - 0.05)
             pieces.append((oriented_box((base + tip) / 2, tip - base, V(0, 1, 0), ((tip - base).length, 0.015, 0.09)),
                            colour))
-        lantern_stack(s * (half + 0.24), 0.0, 1.75, 5, glow, pieces)
+        lantern_stack(s * (half + 0.24), 0.0, 2.21, 5, glow, pieces)
     board_half, board_h = 4.25, 1.7
     board_mid, board_end = pole_h - board_h / 2 + 0.1, pole_h - board_h / 2 - 0.28
     board, board_z = arc_strip(board_half, board_mid, board_end, board_h, 0.0, 0.1)
@@ -1139,14 +1150,14 @@ def build_arch(collection):
             flower(V(s * (half - 0.16 + 0.1 * (i % 2)), -0.16, ends - 0.12 - i * 0.24),
                    0.19 + 0.03 * math.sin(i), V(-s * 0.4, 0.0, 0.1))
     # The banner, a fifth as deep as it is long, hung below the board and tied to the poles.
-    banner_half, banner_h, banner_mid, banner_end = 3.2, 1.3, 2.95, 3.05
+    banner_half, banner_h, banner_mid, banner_end = 3.2, 1.3, 3.41, 3.51
     banner, banner_z = arc_strip(banner_half, banner_mid, banner_end, banner_h, 0.05, 0.03)
     pieces.append((banner, C["white"]))
     for s in (-1.0, 1.0):
         for corner, tied in ((banner_end + banner_h / 2 - 0.05, banner_end + banner_h / 2 + 0.2),
                              (banner_end - banner_h / 2 + 0.05, banner_end - banner_h / 2 - 0.15)):
             tie_rope(V(s * banner_half, 0.05, corner), V(s * half, 0.0, tied), 0.1, pieces)
-    body = P.join("arch", pieces, collection)
+    body = P.join("arch", pieces, collection, sharp=P.SHARP)
     lights = P.join("arch_glow", glow, collection)
     board_label = arc_label(board_half, board_z, 1.1, -0.06, "arch_label", collection)
     banner_label = arc_label(banner_half, banner_z, 0.95, 0.03, "arch_label1", collection)
@@ -1162,23 +1173,23 @@ def build_banner(collection):
     its corners to the tall poles at the stalls' fronts on either side (the bunting's along the
     street, build_village.py)."""
     poles, pole_r = 4.3, 0.06
-    half, height, mid, end = 3.3, 1.0, 3.0, 3.1
+    half, height, mid, end = 3.3, 1.0, 3.51, 3.61
     pieces = []
     cloth, cloth_z = arc_strip(half, mid, end, height, 0.0, 0.03)
     pieces.append((cloth, C["white"]))
     for s in (-1.0, 1.0):
-        for corner, tied in ((end + height / 2 - 0.05, 4.05), (end - height / 2 + 0.05, 2.5)):
+        for corner, tied in ((end + height / 2 - 0.05, 4.41), (end - height / 2 + 0.05, 3.01)):
             tie_rope(V(s * half, 0.0, corner), V(s * poles, 0.0, tied), pole_r, pieces)
-    body = P.join("banner", pieces, collection)
+    body = P.join("banner", pieces, collection, sharp=P.SHARP)
     label = arc_label(half, cloth_z, 0.75, -0.02, "banner_label", collection)
     return [body, label], {"labels": [{"size": [round(2 * half * 0.92, 2), 0.75], "colour": "#E8679A"}],
-                           "height": 4.1}
+                           "height": 4.46}
 
 
 def build_lantern_pole(collection):
     """A pole with pink paper lanterns stacked on it, lit at night."""
     pieces, glow = [(log(V(0.0, 0.0, -0.3), V(0.0, 0.0, 2.7), 0.06, segments=6), C["torch"])], []
     lantern_stack(0.0, -0.15, 1.35, 3, glow, pieces)
-    body = P.join("lanterns", pieces, collection)
+    body = P.join("lanterns", pieces, collection, sharp=P.SHARP)
     lights = P.join("lanterns_glow", glow, collection)
     return [body, lights], {"footprint": {"circle": 0.15}, "height": 2.8}

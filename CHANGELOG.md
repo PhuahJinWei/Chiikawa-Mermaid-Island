@@ -85,9 +85,9 @@ stage, and along every path. Not yet checked on a real phone.
   across its far end facing back toward the arch, either side of the path
   on to the village; past them the street's ground runs on as open sand.
   The whole festival stands on level ground; the path climbs to the
-  jungle only past the street's end. Thirty stalls in all under
+  jungle only past the street's end. Twenty-eight stalls in all under
   signboards (じゃがバター, たこ焼き, いか焼き, りんごアメ, ケバブ, 冷しパイン,
-  金魚すくい, クレープ, やきそば, かき氷 and more), bunting with
+  わたあめ, クレープ, やきそば, かき氷 and more), bunting with
   paper lanterns strung along the beach rows, from pole to pole down both
   sides of the street and across it, white banners reading いらっしゃいませ!!
   and たのしんでね tied by ropes to the street's poles, poles of pink
@@ -177,7 +177,8 @@ stage, and along every path. Not yet checked on a real phone.
 - Hand-lettered signboards, as the film's are. Every sign the game types
   words on has a template to paint over in `art/signs/_guides/`: each
   stall's header board, the arch's board and banner, and the street's
-  banners. A template is the sign's lettering area at 800 pixels a metre,
+  banners. A template is the sign's lettering area at 800 pixels a metre
+  (a stall's is its board's whole face, so its sign fills it edge to edge),
   in its board's colour, with the typed words faint on it. A transparent
   PNG painted over a template and saved in `art/signs/` takes the place of
   the typed words. `art/blender/build_signs.py` draws the templates and
@@ -187,7 +188,7 @@ stage, and along every path. Not yet checked on a real phone.
   is kept. A painting that no longer fits its template's proportions (its
   board since reshaped) shows as it was painted, centred, never
   stretched. A stall's sign painted solid to its edges gives the stall's
-  board its own colour, so the board round the sign matches it; the board
+  board its own colour, so the board's top and ends match it; the board
   is shaded flat, as the sign on its front is, and in the film look the
   signs take the sun's shadows with their boards, so the two meet unseen
   in sun, shade and firelight. A sign without a painting keeps its typed
@@ -500,28 +501,32 @@ outlined is drawn twice, once for its pen line. To get there:
   sea darkens with the sky at sunset, and dusk passes through the film's
   cool steel blue before the night. Under half a millisecond more a frame
   at night on the dev PC, and no measurable cost by day.
-- The festival's stalls are the film's booths, a good deal lower: where
-  they were boxes 3.3 metres high, each is now a booth on four thin posts
-  under a flat roof 2.1 metres up. A deep header board runs across its
-  front for its name, two and a half times as long as it is deep, as the
-  film's, with a scalloped trim along its bottom (white, yellow or blue)
-  and five paper lanterns hanging under it. At its back
-  is a wall of upright stripes in two warm shades, and across its front a
-  low counter 0.52 metres high, framed in pale grey, with white menu tags
-  hanging off it and cups and a jar on top. An islander standing behind
-  the counter shows from the shoulders up, the board just over their
-  head.
+- The festival's stalls are the film's booths: where they were boxes 3.3
+  metres high, each is now a booth 2.4 metres wide on four thin posts
+  under a flat roof 2.75 metres up. A deep header board runs across its
+  front for its name, about three times as long as it is deep, its sign
+  covering its whole face, with a scalloped trim along its bottom (white,
+  yellow or blue) and six paper lanterns hanging under it. At its back is
+  a wall of upright stripes in two warm shades, and across its front a
+  counter as tall as a customer standing at it, 0.9 metres, long and low
+  as the film's, framed in pale grey, with white menu tags hanging off it
+  and cups and a jar on top. Its keeper stands behind the counter on a
+  raised plank floor two steps up, a step at each open side, so their
+  head shows over the counter, as the film's islanders do, the board
+  above them.
 - The stalls can be walked into, to keep them: each booth is open at its
   sides behind the counter, with about a metre clear between the counter
   and the back wall and a metre between neighbouring booths, so its
-  keeper walks in from the alley behind its row and stands behind the
-  counter. This was checked for every stall with the game's own
+  keeper walks in from the alley behind its row, steps up onto the floor
+  and stands behind the counter, and a customer can walk up to the middle
+  of every counter. This was checked for every stall with the game's own
   walking. The poles along the street stand at the fronts of the gaps
   between the booths, clear of the way in.
 - The festival's signs in the film's proportions, measured on its arch and
   street frames. The welcome arch's board is deep, a fifth as deep as it
   is long where it had been a tenth, its top level with the poles' tops,
-  which stand higher (6 metres). Big round yellow flowers are packed two
+  which stand higher (6.4 metres), its banner's foot level with the
+  stalls' tops. Big round yellow flowers are packed two
   deep along its top and along its bottom, clustering over its ends and
   trailing down the poles, with the pink lanterns stacked below them.
   The white banners are narrower and much deeper: the arch's
@@ -584,6 +589,37 @@ outlined is drawn twice, once for its pen line. To get there:
   The jungle round the alleys is planted just as before. The two stalls
   at the outer ends of the far row, hidden behind the street's rows, are
   gone.
+- The festival is laid out again round its wider stalls, a metre still
+  between neighbouring booths: seven stalls a side along the beach front
+  where there were eight (金魚すくい and ヨーヨー釣り are gone), so the rows
+  still end on level ground, and the street 2.5 metres longer for its six
+  a side, with the row across its far end, its poles and its bunting moved
+  to match. Each painted sign keeps its stall. The beach front's bunting
+  runs over the four stalls nearest the arch and over the three beyond.
+  The street's banners and bunting and the arch's banner hang 0.2 metres
+  higher, over the taller boards, and the fruit baskets stand to one side
+  of a counter, leaving its middle free. The jungle is planted just as
+  before.
+- The festival's and the village's props no longer flicker or show
+  bands. Where two faces lay in one plane, the nearer flickered from one to
+  the other: on the stalls (the header board's top and the roof, the posts'
+  tops, the floor's and the step's edges, the back wall's stripes), on the
+  huts (the round shingles, which overlapped their neighbours at one depth
+  and now each lean out a little toward their bottoms, so a row hangs clear
+  of the one below it and the walls' shingling stands half as far out; the
+  windows' frames, panes and bars at the openings' edges; the bookshelf,
+  the basin's water and the bed's sheet), on the stage's platform rim and
+  on the pier's planks. Their boxes are lit as the flat faces they are,
+  where smooth shading had blended each box's sides into one another and
+  the film look's lighting drew a wavy band across them (the plank huts'
+  walls, the pier's planks, the stalls' steps), while round posts, logs,
+  lanterns and thatch stay smooth. No measurable cost a frame.
+  `art/blender/check_flicker.py` finds any faces of the built props that
+  would flicker; only the paint on the ferry's windows and on the logs'
+  cut ends, layered by design, is left.
+- The game's sign atlas keeps a gutter round each sign, carrying a
+  hand-lettered sign's edges out into it, so a sign that fills its board
+  never takes a neighbouring sign's colours along its edges.
 - Building the props or the village with `--only` no longer overwrites
   their .blend file with just the one prop, and `--only` takes several,
   comma-separated.

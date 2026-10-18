@@ -45,7 +45,10 @@ never pushed, because it is other people's artwork.
   flat banks along the horizon, white where the light finds them and a
   pale sky-blue in their shade, flat and soft at the base, never a row of
   one cut-out nor a stack of separate balls; seen from high above they
-  float below as round cauliflower tops with their shadows on the sea. Stone splits into slabs or beds, each its own shade, stained
+  float below as round cauliflower tops with their shadows on the sea.
+  Built things show their flat faces: each side of a plank, a post or a box
+  takes its own light, never blended into the next, while logs, lanterns
+  and thatch stay round. Stone splits into slabs or beds, each its own shade, stained
   and streaked, with dark cracks between and moss in cushions lit along
   their tops; low down in the jungle's damp it is filmed green in broad
   patches. Trees' heads are heaped of rounded leafy lobes like a
@@ -190,14 +193,17 @@ Scale unit: **1 = Chiikawa's height.**
 - Sandy packed-earth paths with scattered confetti during the festival.
 - Festival stalls along the beach front: booths a step apart on thin
   posts under a flat roof, a deep coloured header board for the name
-  (pink crêpe stall, purple, orange) with a scalloped trim in white,
-  yellow or blue and paper lanterns hanging under it, a back wall of
-  upright stripes in warm red-orange shades, and a low counter framed in
-  pale grey with white menu tags hanging off it. The islander keeping a
-  stall shows from the shoulders up behind its counter, the board just
-  over their head. Triangle bunting strung between palms and, along the
-  festival street, from tall poles standing between the stalls, two
-  strings sagging from each pole to the next.
+  (pink crêpe stall, purple, orange), about three times as long as it is
+  deep, its hand-lettered sign covering its whole face, with a scalloped
+  trim in white, yellow or blue and paper lanterns hanging under it, a
+  back wall of upright stripes in warm red-orange shades, and a counter as
+  tall as the cast, framed in pale grey with white menu tags hanging off
+  it. The booth is wide, so the tall counter reads long and low: about two
+  and a half times as wide as the counter is tall. The islander keeping a
+  stall stands on a raised floor behind its counter, their head showing
+  over it, the board above them. Triangle bunting strung between palms
+  and, along the festival street, from tall poles standing between the
+  stalls, two strings sagging from each pole to the next.
 - The signboards are hand-lettered: chunky, rounded letters filling the
   board, a little uneven, as if brush-painted. They are white or pale with a
   dark brown outline on coloured boards, and coloured on white ones, often
