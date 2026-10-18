@@ -42,11 +42,11 @@ SHARED = palette({
     "leavesDark": "#3F8A3C",
 })
 # Stone by kind: the karst pillars pale and cool like the film's, the headland a warmer grey, the
-# sea cliffs' bedded sandstone cream and tan.
+# sea cliffs' bedded sandstone a pale, quiet cream with tan beds, as the film paints them.
 STONES = {
     "karst": palette({"stone": "#D5DFE2", "stoneMid": "#BECACF", "groove": "#8B9FAC", "streak": "#AFBDC3"}),
     "headland": palette({"stone": "#D4D1C6", "stoneMid": "#B9B6AB", "groove": "#8C8F8B", "streak": "#A8A9A2"}),
-    "sandstone": palette({"stone": "#E6D6B0", "stoneMid": "#CDB287", "groove": "#9A8260", "streak": "#BDA27A"}),
+    "sandstone": palette({"stone": "#F0ECDB", "stoneMid": "#DCD2B6", "groove": "#A49E8A", "streak": "#CEC7AB"}),
     # Damp limestone in the jungle's shade, as behind the film's waterfall: grey with green in it.
     "mossy": palette({"stone": "#B8C1AE", "stoneMid": "#A0AA95", "groove": "#6B7B6D", "streak": "#929E88"}),
 }
@@ -388,7 +388,8 @@ class Rock:
 
 def crown(rock, rim, gap=None, size=None, target=1200, mound=1.0, hang=0.35):
     """Jungle on a rock's top: blobs along the rim, leaning out over it, mounded over the middle
-    and spilling a little down the sides, fused into one soft mass. `gap` (angle, half width)
+    and spilling a little down the sides, each heaped of rounded leafy lobes as the film paints
+    the jungle on its rocks (never one smooth dome), fused into one mass. `gap` (angle, half width)
     leaves the rim bare where a waterfall pours; `size` overrides the top's radius, for a tuft on
     a pointed spire; `mound` swells the middle into a great dome of trees (1: a gentle mound);
     `hang` is how often a clump hangs over the edge."""
@@ -398,7 +399,7 @@ def crown(rock, rim, gap=None, size=None, target=1200, mound=1.0, hang=0.35):
     top = rock.top
     size = size or float(np.mean(np.hypot(x - cx, z - cz)))
     voxel = max(0.08, size * 0.035)
-    blobs = []
+    blobs, heads = [], []
     # Along the rim, every few metres.
     seg = np.hypot(np.diff(x, append=x[:1]), np.diff(z, append=z[:1]))
     along = np.concatenate([[0.0], np.cumsum(seg)[:-1]])
@@ -413,6 +414,7 @@ def crown(rock, rim, gap=None, size=None, target=1200, mound=1.0, hang=0.35):
         out = Vector((px - cx, -(pz - cz), 0.0)).normalized()
         c = Vector((px, -pz, py + r * 0.2)) + out * (r * 0.2)
         blobs.append(L.ellipsoid_bm(c, (r, r, r * 0.8), u=14, v=9))
+        heads.append((c, r, r * 0.8, 7))
         if rng.random() < hang:
             # A clump hanging over the edge.
             rh = r * rng.uniform(0.45, 0.6)
@@ -425,7 +427,25 @@ def crown(rock, rim, gap=None, size=None, target=1200, mound=1.0, hang=0.35):
             continue
         c = Vector((cx + d * math.cos(a), -(cz + d * math.sin(a)), top + r * 0.35 * math.sqrt(mound)))
         blobs.append(L.ellipsoid_bm(c, (r, r, r * 0.75 * mound ** 0.25), u=16, v=10))
-    bm = L.fuse(blobs, voxel=voxel, smooth_iterations=6, smooth_lambda=0.8, target_tris=target)
+        heads.append((c, r, r * 0.75 * mound ** 0.25, 13))
+    if mound >= 2.0:
+        # A great mound is a broad cap of greenery over the whole top, overhanging its edge all round,
+        # as the film's dome sits on its block of stone.
+        c = Vector((cx, -cz, top + size * 0.22))
+        blobs.append(L.ellipsoid_bm(c, (size * 1.12, size * 1.12, size * 0.55), u=20, v=12))
+        heads.append((c, size * 1.12, size * 0.55, 18))
+    # Each clump heaped of lobes standing out of its surface over its top and round its sides, from
+    # a generator of their own so the clumps stand where they did.
+    lob = np.random.default_rng(rock.seed + 300)
+    for c, r, rz, count in heads:
+        for k in range(count):
+            a = 2.0 * math.pi * k / count + lob.uniform(-0.4, 0.4)
+            up = lob.uniform(0.0, 0.95)
+            out_by = math.sqrt(max(1.0 - up * up, 0.0))
+            rr = r * lob.uniform(0.24, 0.36)
+            p = c + Vector((math.cos(a) * out_by * r, math.sin(a) * out_by * r, up * rz)) * lob.uniform(0.82, 0.95)
+            blobs.append(L.ellipsoid_bm(p, (rr, rr, rr * 0.85), u=9, v=6))
+    bm = L.fuse(blobs, voxel=voxel, smooth_iterations=3, smooth_lambda=0.7, target_tris=int(target * 1.6))
     bm.normal_update()
     cols = []
     for v in bm.verts:
@@ -612,7 +632,8 @@ def cliff(points, normals, tops, water, seed, base=-4.5, lip=2.6, column=1.2):
     rounds over at the top into a lip of turf `lip` metres inland, then goes back down into the
     ground. A closed solid, for the pen. Painted in bands bed by bed, darker in the joints and the
     hollows, streaked from the top, greenery hanging over the edge in tongues, wet where the sea
-    laps. Returns (bmesh, colours)."""
+    laps. Returns (bmesh, colours) and, apart, the greenery growing down the face of the tall cliffs
+    as on the film's (see below), as (bmesh, colours)."""
     rng = np.random.default_rng(seed)
     C = {**SHARED, **STONES["sandstone"]}
     grass, grass_dark = np.array(L.hex_color("#84C557")[:3]), np.array(L.hex_color("#5E9E44")[:3])
@@ -730,7 +751,73 @@ def cliff(points, normals, tops, water, seed, base=-4.5, lip=2.6, column=1.2):
             cols.append(c + (dark - c) * float(smoothstep(0.05, -0.6, up)))
         L.append_bm(bm, lump)
         lump.free()
-    return bm, cols
+    return bm, cols, cliff_greens(rng, u, P, N, T, beds, face_offset, water, column)
+
+
+def cliff_greens(rng, u, P, N, T, beds, face_offset, water, column):
+    """Greenery down the face of the tall sea cliffs, as on the film's: leafy tufts sitting on the
+    ledges where a bed of stone juts out past the one above it, and curtains of creepers hanging
+    over the lip, straight down past the beds' steps, their lower edge ragged. The cliff's columns
+    (`u` along the coast, P and N their foot and outward normal, T the land's height on top),
+    its beds and how far its face stands out (`face_offset`) say where. Returns (bmesh, colours)."""
+    leaves, mid_leaf, dark = SHARED["leaves"], SHARED["leavesMid"], SHARED["leavesDark"]
+    out, cols = bmesh.new(), []
+    # Tufts on the ledges.
+    for i in range(0, len(u), 2):
+        top = T[i]
+        if top < water + 8.0:
+            continue
+        for k in range(1, len(beds) - 1):
+            y = beds[k]
+            if y < water + 1.2 or y > top - 1.2:
+                continue
+            lower = face_offset(i, y - 0.1)[0]
+            upper = face_offset(i, y + 0.1)[0]
+            if lower - upper < 0.2 or rng.random() > 0.75:
+                continue
+            r = rng.uniform(0.5, 1.0)
+            p = P[i] + N[i] * (0.5 * (lower + upper))
+            tuft = L.ellipsoid_bm(Vector((float(p[0]), float(-p[1]), float(y + r * 0.25))), (r * 1.4, r * 1.4, r * 0.75),
+                                  u=8, v=5)
+            tuft.normal_update()
+            for v in tuft.verts:
+                up = v.normal.z
+                c = mid_leaf + (leaves - mid_leaf) * float(smoothstep(0.2, 0.9, up))
+                cols.append(c + (dark - c) * float(smoothstep(0.05, -0.6, up)))
+            L.append_bm(out, tuft)
+            tuft.free()
+    # Curtains of creepers over the lip, hanging straight down from the face's outermost point
+    # above, so they drape over the beds' steps rather than following them in.
+    s0 = rng.uniform(0.0, 3.0)
+    while s0 < u[-1] - 1.0:
+        i0 = int(s0 / column)
+        width = rng.uniform(1.2, 3.4)
+        span = [min(i0 + c, len(u) - 1) for c in range(max(2, int(round(width / column)) + 1))]
+        if min(T[c] for c in span) >= water + 9.0:
+            length = rng.uniform(2.0, 6.5)
+            rows = int(length / 0.5) + 1
+            grid = []
+            for c in span:
+                drop = length * (0.5 + 0.5 * rng.random())
+                ring, reach = [], -1e9
+                for r in range(rows):
+                    y = T[c] - 0.15 - drop * r / (rows - 1)
+                    reach = max(reach, face_offset(c, y)[0])
+                    p = P[c] + N[c] * (reach + 0.12)
+                    ring.append(out.verts.new((float(p[0]), float(-p[1]), float(y))))
+                    tone = r / (rows - 1)
+                    shade = 0.5 + 0.5 * math.sin(u[c] * 2.1 + y * 1.3)
+                    cols.append(mix(mix(leaves, mid_leaf, shade * 0.6), dark, 0.15 + 0.55 * tone))
+                grid.append(ring)
+            outward = Vector((float(N[span[0]][0]), float(-N[span[0]][1]), 0.0))
+            for a, b in zip(grid, grid[1:]):
+                for r in range(rows - 1):
+                    face = out.faces.new((a[r], a[r + 1], b[r + 1], b[r]))
+                    face.normal_update()
+                    if face.normal.dot(outward) < 0.0:
+                        face.normal_flip()
+        s0 += rng.uniform(3.0, 7.5)
+    return out, cols
 
 
 # How far the skylight's lip stands above the ground round it.

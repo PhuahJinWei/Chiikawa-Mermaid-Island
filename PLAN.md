@@ -357,7 +357,9 @@ colours painted into one texture seen from above. The rock landmarks (karst
 pillars and mesas, the rocks behind the night beach, sea spires, the sea
 cliffs, the waterfall's wall) are built with it, so their feet fit the
 ground. The waterfall is in the middle of the island, its pool the round
-water the aerial shot shows through the trees. Huts, palms,
+water the aerial shot shows through the trees. The ground rises steadily
+from the beach to the pool's bank, the village's clearing level part way
+up, each pillar in a wide, gentle slope of its own. Huts, palms,
 stalls and coral are props placed from a JSON layout file, so the map is
 editable without touching code. Where the cave is, its entrance and the
 passage in are to be planned with M2.

@@ -47,11 +47,17 @@ never pushed, because it is other people's artwork.
   patches. Trees' heads are heaped of rounded leafy lobes like a
   cauliflower's, on tall pale olive-tan trunks forking into limbs, never
   one smooth dome; palms fringe the jungle where it meets the beaches and
-  the village. Thatch lies in rows of straw, each row's ragged edge a dark
-  line over the one below. Leaves gather in round puffs overlapping like
+  the village. The jungle's domes are caps of greenery on blocks of pale
+  stone that show clear below them, never a ball of trees on its own.
+  Thatch lies in rows of straw, each row's ragged edge a dark line over the
+  one below. Leaves gather in round puffs overlapping like
   scales, yellow-green toward the sun and blue-green away from it, the
   crown's edge broken into puffs. Bark is furrowed, patched with pale
-  lichen and lit warm orange on the sun's side. Still water mirrors what
+  lichen and lit warm orange on the sun's side. The sea is a deep teal
+  seen across it from the shore, bright turquoise over the lagoon's sand
+  seen from above, paling into a hazy blue toward the horizon. The sea
+  cliffs are pale cream sandstone in long beds, tufts of leaves on their
+  ledges and creepers hanging over their lip. Still water mirrors what
   stands round it, darker and greener; falling water is a soft veil of
   streaks, glowing over its lip.
 - **Everyone is a round blob.** Head and body are one soft shape, wider at

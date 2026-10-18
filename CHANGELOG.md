@@ -374,6 +374,46 @@ outlined is drawn twice, once for its pen line. To get there:
 - At the waterfall, as in its frame, a leafy bough hangs down out of the
   bank's trees close over the cast, dark and softened by the depth of
   field, framing the top left.
+- The film look's sea, measured against the film's sea cliffs, boat and
+  aerial frames: seen across it from the shore it is a deeper teal, most
+  of all where it is deep, and it pales into the distance toward a hazy
+  blue at the horizon (between its deep blue and the hour's sky) where it
+  had stayed dark navy right up to it; seen from above, the lagoon is
+  still bright turquoise over its sand.
+- The sea cliffs after the film's frame: their sandstone is a pale, quiet
+  cream with tan beds, painted in long beds with few joints and little
+  stain where it had read as a brick wall; tufts of leaves sit on the
+  ledges where a bed juts out past the one above, and curtains of
+  creepers hang over the lip of the tall cliffs, straight down past the
+  beds' steps. The sea stack is a rounded, lumpy tooth of pale stone,
+  wider at its foot. Grass on a rock's flat top is left as grass, no
+  longer cracked like stone.
+- The jungle on the rocks' tops is heaped of rounded leafy lobes, as the
+  film paints it, like the trees: the great dome of trees on the mesa west
+  of the waterfall had still been one smooth ball. That dome is now as the
+  film's aerial shot has it, a cap of greenery on a tall block of pale
+  stone that shows clear below it: the stone stands 12 metres higher, its
+  cap is one broad, lobed mass overhanging its edge all round (as is the
+  dark mound's in the north-west), with less hanging down over the stone,
+  and trees at the foot of any rock but round the waterfall's pool grow a
+  little shorter, so the stone shows above the jungle. The mesa keeps the
+  footprint it had, so the jungle round it, and the waterfall's frame,
+  are as they were. About 16.7 ms a frame
+  at the waterfall, 13 ms at the sea cliffs and 10 ms on the beach on this
+  PC.
+- The island's ground rises steadily from the beach to the waterfall in
+  its middle, where it had been a low belt round the coast and a plateau
+  inland, met in steep banks. The village's clearing lies lower, at 3.5
+  metres where it stood at 8: the way up from the festival's street climbs
+  3 metres over about 20, where it had climbed more than 7 over 12 (up to
+  42 degrees), and on from the village to the waterfall's bank it climbs
+  evenly, nowhere steeper than about 16 degrees. Each tall pillar stands in
+  a wide, gentle slope of its own, where neighbouring pillars' steep mounds
+  had piled up into a high plateau in the east. Ground steeper than 27
+  degrees has gone from 15% of the land to 3%. The beaches, the
+  festival's level ground, the sea cliffs and the ground round the
+  waterfall's pool are as they were, and the jungle is planted where it
+  was, so the waterfall's frame is unchanged.
 - Building the props or the village with `--only` no longer overwrites
   their .blend file with just the one prop.
 - The offline cache now keeps the island's height grid and layout file,
@@ -385,6 +425,18 @@ outlined is drawn twice, once for its pen line. To get there:
 - Diving, swimming and everything underwater, from the plan (none of it
   had been built): you wade in the shallows, and only the rowboat goes
   onto deeper water.
+
+**Fixed**
+
+- Discs of green or blue light no longer flash up here and there among
+  the plants (behind the festival's stalls, at the jungle's edge). A thin
+  leaf seen edge on is shaded a little beyond its own shape at the
+  picture's smoothed edges, which stretched how deep it lay in the trees'
+  shade, and its own colours, past their range into negative or blinding
+  light; the brushwork and the glow then spread one such point into a
+  disc. Both are now kept within range, and the film look's first
+  finishing pass takes no light below black, no NaN and no blinding spike
+  from any shader.
 
 ## M0.1 — Downloaded cast and the island outfit (2026-10-16)
 

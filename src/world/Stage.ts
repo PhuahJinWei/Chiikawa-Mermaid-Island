@@ -63,6 +63,8 @@ export class Stage {
     uMoonDir: { value: new THREE.Vector3(0, -1, 0) },
     uNight: { value: 0 },
     uMoon: { value: new THREE.Color(COLORS.moon) },
+    /** In the film look, the haze the sea pales into toward the horizon (see setHour). */
+    uSeaHaze: { value: new THREE.Color(COLORS.skyHorizon) },
   };
   private readonly look = newSkyLook();
   /** Toward the sun (or the moon), for keeping the film look's shadows round the camera. */
@@ -258,6 +260,8 @@ export class Stage {
     jungleHaze.uJungleWarm.value.set(0.58 * a.r, 0.46 * a.g, 0.1 * a.b);
     this.cloudMaterial.uniforms.uTint.value.copy(look.cloud);
     this.waterLight.uTint.value.copy(look.sea);
+    // The sea's distance haze: between its deep blue at the hour and the open sky's horizon.
+    this.waterLight.uSeaHaze.value.set(COLORS.deep).multiply(look.sea).lerp(look.horizon, 0.55);
     this.waterLight.uMoonDir.value.copy(look.moonDir);
     this.waterLight.uNight.value = look.night;
     glowUniforms.uGlow.value = look.glow;
@@ -340,12 +344,14 @@ export class Stage {
       THREE.HalfFloatType,
     );
     deep.needsUpdate = true;
-    // No fog: the sea keeps its blue right up to the horizon line, as in the film. The water
+    // No fog: the sea keeps its blue right up to the horizon line; in the film look it pales a
+    // little into the distance, as the film's sea does toward its horizon. The water
     // stops where the height grid says the ground rises out of it, rather than leaving the edge
     // to the depth test: the ground sits a little back in it (for outlines where things touch
     // it), by an amount that changes with every triangle's slope, which would make a ragged edge
     // that covers the pen's waterline in places.
     return new THREE.ShaderMaterial({
+      defines: FILM ? { FILM: '' } : {},
       uniforms: {
         uTime: { value: 0 },
         uFloor: { value: deep },
@@ -375,6 +381,7 @@ export class Stage {
         uniform vec3 uMoonDir;
         uniform float uNight;
         uniform vec3 uMoon;
+        uniform vec3 uSeaHaze;
         ${FLOOR_GLSL}
         uniform float uLevel;
         uniform float uSurf;
@@ -430,7 +437,18 @@ export class Stage {
             float fresnel = 0.22 + 0.4 * pow(1.0 - abs(view.y), 3.0);
             col = mix(col, seen * vec3(0.36, 0.5, 0.44), fresnel * 0.8);
           }
+          #ifdef FILM
+          // The film paints its sea a deep teal seen across it from the shore, most of all where it
+          // is deep; seen from above, the bright lagoon over its sand.
+          float down = abs(normalize(vWorld - cameraPosition).y);
+          col *= mix(mix(0.66, 0.6, smoothstep(2.0, 12.0, depth)), 1.0, smoothstep(0.12, 0.5, down));
+          #endif
           col *= uTint;
+          #ifdef FILM
+          // Paling into the distance toward the horizon's haze, as the film's sea does.
+          float away = length(vWorld.xz - cameraPosition.xz);
+          col = mix(col, uSeaHaze, 0.8 * pow(smoothstep(25.0, 560.0, away), 0.7));
+          #endif
           vec2 cell = floor(vWorld.xz * 1.6);
           float sparkle = step(0.986, hash(cell + floor(uTime * 1.5))) * shallow * (1.0 - uNight);
           float dotMask = 1.0 - smoothstep(0.05, 0.18, length(fract(vWorld.xz * 1.6) - 0.5));

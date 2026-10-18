@@ -262,7 +262,9 @@ float underTrees(vec3 p) {
  */
 export function shadeUnderTrees(shader: THREE.WebGLProgramParametersWithUniforms, perPixel?: string): void {
   Object.assign(shader.uniforms, coverUniforms);
-  const dim = `reflectedLight.indirectDiffuse *= mix(1.0, ${UNDER_CANOPY.toFixed(2)}, ${perPixel ? `underTrees(${perPixel})` : 'vCover'});
+  // Kept within its range: at the picture's smoothed edges a thin leaf seen edge on is shaded beyond
+  // its triangle, stretching a per-vertex value past it, into negative or blinding light.
+  const dim = `reflectedLight.indirectDiffuse *= mix(1.0, ${UNDER_CANOPY.toFixed(2)}, ${perPixel ? `underTrees(${perPixel})` : 'clamp(vCover, 0.0, 1.0)'});
   #include <aomap_fragment>`;
   if (perPixel) {
     shader.fragmentShader = shader.fragmentShader
@@ -507,7 +509,7 @@ export function paintLeaves(shader: THREE.WebGLProgramParametersWithUniforms, cl
     shader.fragmentShader = shader.fragmentShader
       .replace(
         '#include <color_fragment>',
-        '#include <color_fragment>\ndiffuseColor.rgb *= mix(1.0, mix(0.8, 1.14, leafDabs(vLeaf)), leafy(vColor.rgb));',
+        '#include <color_fragment>\ndiffuseColor.rgb = clamp(diffuseColor.rgb, 0.0, 1.0);\ndiffuseColor.rgb *= mix(1.0, mix(0.8, 1.14, leafDabs(vLeaf)), leafy(vColor.rgb));',
       )
       .replace(
         '#include <normal_fragment_maps>',
@@ -517,6 +519,12 @@ export function paintLeaves(shader: THREE.WebGLProgramParametersWithUniforms, cl
       );
     return;
   }
+  // A leaf's own colours kept within theirs, for the same reason as the trees' shade (see
+  // shadeUnderTrees).
+  shader.fragmentShader = shader.fragmentShader.replace(
+    '#include <color_fragment>',
+    '#include <color_fragment>\ndiffuseColor.rgb = clamp(diffuseColor.rgb, 0.0, 1.0);',
+  );
   shader.fragmentShader = shader.fragmentShader.replace(
     '#include <normal_fragment_maps>',
     `#include <normal_fragment_maps>
@@ -653,21 +661,23 @@ export function lightShafts(bases: [number, number, number, number, number][], s
 
 /** How a kind of stone is painted (`paintStone`): the blocks it splits into (how wide and how tall,
  * in metres); whether it stands in upright slabs, each column of them breaking at heights of its own,
- * or lies in level beds, each bed's joints where they fall; and how readily moss grows on what faces
- * up. */
+ * or lies in level beds, each bed's joints where they fall; how readily moss grows on what faces up;
+ * and how strongly it is stained and streaked. */
 export interface StoneKind {
   block: [number, number];
   upright: boolean;
   moss: number;
+  stain: number;
 }
 
 /** Limestone splits into tall upright slabs, the sea spires' into narrower ones; bedded rock lies in
- * long, low blocks. */
+ * long, low blocks, the sea cliffs' sandstone in long beds with few joints and little stain, clean
+ * and pale as the film paints it (its beds and joints are in the rock's own shape). */
 export const STONES = {
-  limestone: { block: [2.6, 7.0], upright: true, moss: 1 },
-  spire: { block: [1.4, 3.5], upright: true, moss: 0.6 },
-  bedded: { block: [4.0, 1.4], upright: false, moss: 0.5 },
-  layered: { block: [3.0, 1.1], upright: false, moss: 0.7 },
+  limestone: { block: [2.6, 7.0], upright: true, moss: 1, stain: 1 },
+  spire: { block: [1.4, 3.5], upright: true, moss: 0.6, stain: 1 },
+  bedded: { block: [9.0, 2.4], upright: false, moss: 0.5, stain: 0.35 },
+  layered: { block: [3.0, 1.1], upright: false, moss: 0.7, stain: 1 },
 } satisfies Record<string, StoneKind>;
 
 /**
@@ -681,6 +691,7 @@ export const STONE_GLSL = /* glsl */ `
 uniform vec2 uBlock;
 uniform float uUpright;
 uniform float uMoss;
+uniform float uStain;
 uniform vec3 uMossLight;
 uniform vec3 uMossDark;
 vec2 stoneHash2(vec2 p) {
@@ -734,9 +745,9 @@ vec3 paintStone(vec3 base, vec3 p, vec3 n) {
   vec3 col = base * mix(0.86, 1.1, h.x);
   col *= mix(vec3(1.0), vec3(0.93, 1.03, 0.9), step(0.62, h.y));
   float stain = leafNoise(p * vec3(0.45, 0.18, 0.45) + h * 9.0) * 0.6 + leafNoise(p * vec3(1.3, 0.5, 1.3)) * 0.4;
-  col = mix(col, col * vec3(0.8, 0.86, 0.76), smoothstep(0.5, 0.54, stain));
+  col = mix(col, col * vec3(0.8, 0.86, 0.76), smoothstep(0.5, 0.54, stain) * uStain);
   float streak = leafNoise(vec3(p.x * 2.2, p.y * 0.12, p.z * 2.2));
-  col = mix(col, col * vec3(0.88, 0.9, 0.84), smoothstep(0.6, 0.66, streak) * 0.8);
+  col = mix(col, col * vec3(0.88, 0.9, 0.84), smoothstep(0.6, 0.66, streak) * 0.8 * uStain);
   // Low limestone, down in the jungle's damp, is filmed green in broad soft patches, as the film's
   // mossy cliffs are; the pillars' heights stay pale.
   float damp = smoothstep(0.4, 0.62, roundNoise(p * 0.2 + 2.4)) * (1.0 - smoothstep(24.0, 34.0, p.y)) * smoothstep(0.8, 1.0, uMoss);
@@ -761,7 +772,9 @@ vec3 paintStone(vec3 base, vec3 p, vec3 n) {
   float lit = smoothstep(0.3, 0.7, (mossBumps(p) - mossBumps(p + vec3(0.0, 0.3, 0.0))) * 4.5 + 0.5);
   vec3 mossCol = mix(uMossDark, uMossLight, clamp(0.15 + 0.7 * lit + 0.25 * n.y, 0.0, 1.0));
   mossCol *= mix(0.75, 1.0, smoothstep(0.53, 0.62, grow)) * mix(0.93, 1.06, leafDabs(p * 1.2));
-  return mix(col, mossCol, moss);
+  // Turf on a flat top (the rock's own grass colours) is left as grass, softly dabbed, uncracked.
+  float turf = smoothstep(0.15, 0.25, base.g - max(base.r, base.b)) * smoothstep(0.75, 0.9, n.y);
+  return mix(mix(col, mossCol, moss), base * mix(0.93, 1.05, leafDabs(p * 0.8)), turf);
 }
 `;
 
@@ -818,6 +831,7 @@ export function paintStone(shader: THREE.WebGLProgramParametersWithUniforms, kin
     uBlock: { value: new THREE.Vector2(...kind.block) },
     uUpright: { value: kind.upright ? 1 : 0 },
     uMoss: { value: kind.moss },
+    uStain: { value: kind.stain },
     uMossLight: { value: new THREE.Color('#9CCB55') },
     uMossDark: { value: new THREE.Color('#4E8A3A') },
   });
@@ -829,7 +843,7 @@ export function paintStone(shader: THREE.WebGLProgramParametersWithUniforms, kin
     .replace(
       '#include <normal_fragment_maps>',
       `#include <normal_fragment_maps>
-      diffuseColor.rgb = paintStone(diffuseColor.rgb, vStone, inverseTransformDirection(normal, viewMatrix));`,
+      diffuseColor.rgb = paintStone(clamp(diffuseColor.rgb, 0.0, 1.0), vStone, inverseTransformDirection(normal, viewMatrix));`,
     );
 }
 
@@ -1038,8 +1052,15 @@ const FOCUS = {
       float sunward = pow(max(dot(normalize(world - uCameraWorld[3].xyz), uSun), 0.0), 3.0);
       return mix(colour, mix(uJungle, uJungleWarm, sunward), amount);
     }
+    // The scene's light as it should be, whatever a shader let slip: never below black, NaN or a
+    // blinding spike, which the brushwork and the glow would spread into a disc of coloured light.
+    vec4 sceneAt(vec2 uv) {
+      vec4 c = texture2D(tDiffuse, uv);
+      c.rgb = any(isnan(c.rgb)) ? vec3(0.0) : clamp(c.rgb, 0.0, 4.0);
+      return c;
+    }
     void main() {
-      vec4 here = texture2D(tDiffuse, vUv);
+      vec4 here = sceneAt(vUv);
       here.rgb = jungleHaze(here.rgb, vUv);
       float soft = softness(vUv);
       if (here.a < 0.75 || soft < 0.01) {
@@ -1052,7 +1073,7 @@ const FOCUS = {
         for (int k = 0; k < 8; k++) {
           float a = 6.2831853 * (float(k) + 0.5 * float(ring)) / 8.0;
           vec2 uv = vUv + vec2(cos(a), sin(a)) * (float(ring) / 3.0) * uRadius * soft * uTexel;
-          vec4 c = texture2D(tDiffuse, uv);
+          vec4 c = sceneAt(uv);
           // Sharp things behind do not bleed forward into the blur, nor do the characters.
           float w = step(0.75, c.a) * max(softness(uv), 0.25);
           sum += c.rgb * w;
