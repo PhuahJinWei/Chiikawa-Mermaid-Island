@@ -4,7 +4,7 @@ The game paints words on each signboard's label face (a festival stall's header 
 board and its banner, the street's banners) in the phone's rounded font. Any of them can be
 hand-lettered instead, as the film's are: a transparent PNG in art/signs/, painted over that
 sign's template in art/signs/_guides/. Both are named by the key of the sign's words in
-src/locales/ja.json, the template with the words after it ("stall.takoyaki たこ焼き.png"); a
+src/locales/ja.json, the template with the words after it ("stall.takoyaki たこやき.png"); a
 painting may keep that name or drop the words.
 
 This script draws every sign's template, PAINT_PIXELS a metre of its face: the board's colour with
@@ -237,7 +237,7 @@ def board_colour(arr):
 
 def painting_files():
     """The paintings in art/signs/, by the sign each is for: the key its file name starts with
-    ("stall.takoyaki.png" or "stall.takoyaki たこ焼き.png"). Subfolders are ignored."""
+    ("stall.takoyaki.png" or "stall.takoyaki たこやき.png"). Subfolders are ignored."""
     out = {}
     if not os.path.isdir(PAINTINGS):
         return out

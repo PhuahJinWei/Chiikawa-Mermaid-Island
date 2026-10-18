@@ -648,6 +648,14 @@ outlined is drawn twice, once for its pen line. To get there:
 - The plants' bark is painted only on their wood, where every leaf had
   been painted with it and then shown without it. Nothing looks
   different, and the plants cost a little less to draw.
+- Every stall is named after the sign painted on it, where most had
+  carried the name of the stall that first stood there: its name in the
+  layout, its words, its painting's file and its template all read as its
+  sign does. Seventeen stalls were renamed, among them a ビール, a
+  トルネードポテト and a レインボーアイスクリーム stall. Signs painted twice are
+  numbered: two たこやき, two じゃがバター and two ジャンボ串焼 stalls. The
+  typed words follow the paintings' spelling (たこやき, いかやき, やきとり).
+  Every stall and every painting stands where it did.
 - The game's sign atlas keeps a gutter round each sign, carrying a
   hand-lettered sign's edges out into it, so a sign that fills its board
   never takes a neighbouring sign's colours along its edges.

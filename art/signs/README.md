@@ -9,9 +9,9 @@ shows the painting, and the rest keep their typed words.
 - **`_guides/`** holds a template for every sign. Each template is a canvas the
   size of the sign's lettering area, in the board's colour. It also shows the
   game's typed words, faint, and a dashed margin. It is named after the sign,
-  such as `stall.takoyaki たこ焼き.png`.
+  such as `stall.takoyaki たこやき.png`.
 - **Your paintings** go here in `art/signs/`, one transparent PNG per sign,
-  named like its template: `stall.takoyaki たこ焼き.png`. Only the part before
+  named like its template: `stall.takoyaki たこやき.png`. Only the part before
   the first space counts, so `stall.takoyaki.png` works too.
 
 ## The signs
@@ -101,3 +101,6 @@ From its festival frames:
   next rebuild brings back the typed words.
 - **Changing words:** changing a sign's words in `src/locales/ja.json`
   changes only the typed words. A painting stays as you painted it.
+- **A stall is named after its sign:** each stall's name and words are those
+  of the sign painted on it. Where two stalls have the same sign they are
+  numbered, as `stall.takoyaki` and `stall.takoyaki2` are.
