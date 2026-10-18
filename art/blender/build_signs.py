@@ -1,0 +1,269 @@
+"""Hand-lettered signboards: a template to paint each one over, and the paintings for the game.
+
+The game paints words on each signboard's label face (a festival stall's header board, the arch's
+board and its banner, the street's banners) in the phone's rounded font. Any of them can be
+hand-lettered instead, as the film's are: a transparent PNG in art/signs/, painted over that
+sign's template in art/signs/_guides/. Both are named by the key of the sign's words in
+src/locales/ja.json, the template with the words after it ("stall.takoyaki たこ焼き.png"); a
+painting may keep that name or drop the words.
+
+This script draws every sign's template, PAINT_PIXELS a metre of its face: the board's colour with
+the game's words faint on it and a dashed margin. It copies each painting into the game at the
+game's own sharpness (public/signs/, listed in signs.json), with black paint turned to the film's
+dark brown as on the faces. The game shows a painting in place of the typed words wherever there
+is one (src/world/Props.ts). It never changes the paintings. How to paint them:
+art/signs/README.md.
+
+    blender --background --factory-startup --disable-autoexec --python art/blender/build_signs.py
+"""
+
+import json
+import os
+import struct
+import sys
+
+import bpy
+import numpy as np
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import face_art as F  # noqa: E402  (PNG reading and writing, the film's dark brown)
+
+ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
+LAYOUT = os.path.join(ROOT, "public", "data", "layout.json")
+WORDS = os.path.join(ROOT, "src", "locales", "ja.json")
+PROPS = os.path.join(ROOT, "public", "models", "props")
+PAINTINGS = os.path.join(ROOT, "art", "signs")
+GUIDES = os.path.join(PAINTINGS, "_guides")
+OUT = os.path.join(ROOT, "public", "signs")
+# Pixels a metre of a sign's face: on its template, for painting, and in the game, where a
+# painting is copied at the sharpness the game paints words (LABEL_PIXELS in src/world/Props.ts).
+PAINT_PIXELS = 800
+GAME_PIXELS = 220
+# The board each prop's label faces are painted on, a colour a face, as its build script colours
+# it (build_village.py the stalls, houses.py the arch and the banners).
+BOARDS = {
+    "stall_pink": ["#F4A3B5"], "stall_purple": ["#B68FD6"], "stall_orange": ["#F2A65A"],
+    "stall_blue": ["#7EC3EA"], "stall_red": ["#E0674F"], "stall_white": ["#F7F4EC"],
+    "arch": ["#E2BE86", "#FFFFFF"], "banner": ["#FFFFFF"],
+}
+# The words on the templates: in the game's own font where there is one (--font-ja in
+# src/styles.css), this strong, laid out as the game lays them out (paintLabels in Props.ts).
+FONTS = ("C:/Windows/Fonts/BIZ-UDGothicB.ttc", "C:/Windows/Fonts/YuGothB.ttc", "C:/Windows/Fonts/meiryo.ttc")
+GUIDE_WORDS = 0.3
+# The dashed margin on the templates, in from each edge by this much of the face's height.
+GUIDE_MARGIN = 0.06
+# A painting further than this from its template's proportions is stretched to fit, with a warning.
+STRETCH = 0.03
+INK = "#3B2620"  # the words' colour where a face names none, as the game's
+
+
+def rgb(hex_colour):
+    return np.array([int(hex_colour[i:i + 2], 16) for i in (1, 3, 5)], dtype=np.float32) / 255.0
+
+
+def prop_info(kind):
+    """A built prop's info for the game, from its .glb: the sizes and colours of its label faces."""
+    path = os.path.join(PROPS, f"{kind}.glb")
+    if not os.path.exists(path):
+        return {}
+    with open(path, "rb") as f:
+        data = f.read()
+    length = struct.unpack_from("<I", data, 12)[0]
+    gltf = json.loads(data[20:20 + length])
+    for node in gltf.get("nodes", []):
+        prop = node.get("extras", {}).get("prop")
+        if isinstance(prop, str):
+            return json.loads(prop)
+    return {}
+
+
+def signs():
+    """Every sign the game paints words on, by the key of its words, in the layout's order: its
+    words, the prop it stands on, its face's size in metres and its words' colour, and the colour
+    of its board."""
+    with open(LAYOUT, encoding="utf-8") as f:
+        layout = json.load(f)
+    with open(WORDS, encoding="utf-8") as f:
+        words = json.load(f)
+    infos, out = {}, {}
+    for p in layout.get("props", []):
+        keys = p.get("labels") or ([p["label"]] if p.get("label") else [])
+        if not keys:
+            continue
+        if p["kind"] not in infos:
+            infos[p["kind"]] = prop_info(p["kind"])
+        info = infos[p["kind"]]
+        faces = info.get("labels") or ([info["label"]] if info.get("label") else [])
+        boards = BOARDS.get(p["kind"], ["#FFFFFF"])
+        for i, key in enumerate(keys):
+            if i < len(faces) and key not in out:
+                out[key] = {"words": words.get(key, key), "kind": p["kind"], "size": faces[i]["size"],
+                            "colour": faces[i].get("colour", INK), "board": boards[min(i, len(boards) - 1)]}
+    return out
+
+
+def guide_font():
+    for path in FONTS:
+        if os.path.exists(path):
+            return bpy.data.fonts.load(path)
+    return None
+
+
+def words_cover(text, width, height, font, ss=2):
+    """How much of each pixel of a face `width` x `height` the words cover, 0 to 1, laid out as the
+    game lays them out: across the face, centred, as large as fits (no taller than 0.74 of the
+    face, no wider than 0.9 of it). Drawn `ss` times as fine and averaged down, for soft edges."""
+    curve = bpy.data.curves.new("words", type="FONT")
+    curve.body = text
+    curve.font = font
+    curve.fill_mode = "BOTH"
+    obj = bpy.data.objects.new("words", curve)
+    bpy.context.scene.collection.objects.link(obj)
+    try:
+        evaluated = obj.evaluated_get(bpy.context.evaluated_depsgraph_get())
+        mesh = evaluated.to_mesh()
+        mesh.calc_loop_triangles()
+        co = np.array([v.co[:2] for v in mesh.vertices], dtype=np.float64).reshape(-1, 2)
+        tris = np.array([t.vertices[:] for t in mesh.loop_triangles], dtype=np.int64).reshape(-1, 3)
+        evaluated.to_mesh_clear()
+    finally:
+        bpy.data.objects.remove(obj)
+        bpy.data.curves.remove(curve)
+    if len(tris) == 0:
+        return np.zeros((height, width), dtype=np.float32)
+    lo, hi = co.min(axis=0), co.max(axis=0)
+    size = min(height * 0.74, width * 0.9 / max(hi[0] - lo[0], 1e-6))
+    px = np.empty_like(co)
+    px[:, 0] = (width / 2 + (co[:, 0] - (lo[0] + hi[0]) / 2) * size) * ss
+    px[:, 1] = (height / 2 - (co[:, 1] - (lo[1] + hi[1]) / 2) * size) * ss
+    cover = np.zeros((height * ss, width * ss), dtype=bool)
+    for a, b, c in px[tris]:
+        if abs((b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])) < 1e-9:
+            continue
+        x0 = max(int(np.floor(min(a[0], b[0], c[0]))), 0)
+        x1 = min(int(np.ceil(max(a[0], b[0], c[0]))), width * ss)
+        y0 = max(int(np.floor(min(a[1], b[1], c[1]))), 0)
+        y1 = min(int(np.ceil(max(a[1], b[1], c[1]))), height * ss)
+        if x0 >= x1 or y0 >= y1:
+            continue
+        gx, gy = np.meshgrid(np.arange(x0, x1) + 0.5, np.arange(y0, y1) + 0.5)
+        sides = [(q[0] - p[0]) * (gy - p[1]) - (q[1] - p[1]) * (gx - p[0]) for p, q in ((a, b), (b, c), (c, a))]
+        inside = ((sides[0] >= 0) & (sides[1] >= 0) & (sides[2] >= 0)) | \
+                 ((sides[0] <= 0) & (sides[1] <= 0) & (sides[2] <= 0))
+        cover[y0:y1, x0:x1] |= inside
+    return cover.reshape(height, ss, width, ss).mean(axis=(1, 3)).astype(np.float32)
+
+
+def draw_guide(path, sign, font):
+    """A sign's template: its face, PAINT_PIXELS a metre, in its board's colour, with the game's
+    words faint on it and a dashed margin a little darker than the board."""
+    width = max(1, round(sign["size"][0] * PAINT_PIXELS))
+    height = max(1, round(sign["size"][1] * PAINT_PIXELS))
+    board = rgb(sign["board"])
+    img = np.ones((height, width, 4), dtype=np.float32)
+    img[..., :3] = board
+    if font is not None:
+        cover = words_cover(sign["words"], width, height, font)[..., None] * GUIDE_WORDS
+        img[..., :3] = img[..., :3] * (1.0 - cover) + rgb(sign["colour"]) * cover
+    m, thick = max(2, round(GUIDE_MARGIN * height)), 3
+    xs, ys = np.arange(width), np.arange(height)
+    along_x = ((xs % 36) < 24) & (xs >= m) & (xs < width - m)
+    along_y = ((ys % 36) < 24) & (ys >= m) & (ys < height - m)
+    dashes = np.zeros((height, width), dtype=bool)
+    dashes[m:m + thick, :] |= along_x[None, :]
+    dashes[height - m - thick:height - m, :] |= along_x[None, :]
+    dashes[:, m:m + thick] |= along_y[:, None]
+    dashes[:, width - m - thick:width - m] |= along_y[:, None]
+    img[dashes, :3] = board * 0.8
+    F.write_png(path, F.to_uint8(img))
+    return width, height
+
+
+def resize(arr, width, height):
+    """Straight-alpha RGBA resized to `width` x `height`: each new pixel the average of the area it
+    covers when shrinking, bilinear when growing; with premultiplied alpha, so edges stay clean."""
+    def weights(n_in, n_out):
+        if n_out >= n_in:
+            t = (np.arange(n_out) + 0.5) * n_in / n_out - 0.5
+            i0 = np.floor(t).astype(int)
+            f = (t - i0).astype(np.float32)
+            w = np.zeros((n_out, n_in), dtype=np.float32)
+            np.add.at(w, (np.arange(n_out), np.clip(i0, 0, n_in - 1)), 1.0 - f)
+            np.add.at(w, (np.arange(n_out), np.clip(i0 + 1, 0, n_in - 1)), f)
+            return w
+        edges = np.arange(n_out + 1) * (n_in / n_out)
+        i = np.arange(n_in)
+        w = np.clip(np.minimum(edges[1:, None], i[None, :] + 1) - np.maximum(edges[:-1, None], i[None, :]), 0.0, None)
+        return (w / w.sum(axis=1, keepdims=True)).astype(np.float32)
+
+    alpha = arr[..., 3:4]
+    pre = np.concatenate([arr[..., :3] * alpha, alpha], axis=-1)
+    rows = np.tensordot(weights(arr.shape[0], height), pre, axes=(1, 0))
+    out = np.moveaxis(np.tensordot(rows, weights(arr.shape[1], width), axes=(1, 1)), 2, 1)
+    a = out[..., 3:4]
+    out[..., :3] = np.where(a > 1e-6, out[..., :3] / np.maximum(a, 1e-6), 0.0)
+    return np.clip(out, 0.0, 1.0)
+
+
+def painting_files():
+    """The paintings in art/signs/, by the sign each is for: the key its file name starts with
+    ("stall.takoyaki.png" or "stall.takoyaki たこ焼き.png"). Subfolders are ignored."""
+    out = {}
+    if not os.path.isdir(PAINTINGS):
+        return out
+    for entry in sorted(os.listdir(PAINTINGS)):
+        path = os.path.join(PAINTINGS, entry)
+        stem, ext = os.path.splitext(entry)
+        if ext.lower() == ".png" and os.path.isfile(path) and stem.strip() and not stem.startswith("_"):
+            out.setdefault(stem.split()[0], []).append(path)
+    return out
+
+
+def main():
+    every = signs()
+    font = guide_font()
+    if font is None:
+        print("WARNING no Japanese font found: the templates have no words on them")
+    # The templates, redrawn every time; those of signs no longer in the game go.
+    os.makedirs(GUIDES, exist_ok=True)
+    names = {key: f"{key} {sign['words']}.png" for key, sign in every.items()}
+    sizes = {key: draw_guide(os.path.join(GUIDES, names[key]), sign, font) for key, sign in every.items()}
+    for entry in os.listdir(GUIDES):
+        if entry.lower().endswith(".png") and entry not in names.values():
+            os.remove(os.path.join(GUIDES, entry))
+    # The paintings, copied into the game; the game's copies of paintings since taken away go.
+    os.makedirs(OUT, exist_ok=True)
+    painted, problems = [], []
+    for key, paths in painting_files().items():
+        if key not in every:
+            problems.extend(f"{os.path.basename(p)}: no sign is called {key} (the templates' names start with "
+                            "each sign's)" for p in paths)
+            continue
+        path = max(paths, key=os.path.getmtime)
+        if len(paths) > 1:
+            problems.append(f"{key} has {len(paths)} paintings: using the newest, {os.path.basename(path)}")
+        arr = F.ink_blacks(F.load_png(path))
+        h, w = arr.shape[:2]
+        tw, th = sizes[key]
+        if abs((w / h) / (tw / th) - 1.0) > STRETCH:
+            problems.append(f"{os.path.basename(path)} is {w} x {h} and its template {tw} x {th}: stretched to fit")
+        fw, fh = every[key]["size"]
+        F.write_png(os.path.join(OUT, f"{key}.png"),
+                    F.to_uint8(resize(arr, max(1, round(fw * GAME_PIXELS)), max(1, round(fh * GAME_PIXELS)))))
+        painted.append(key)
+    for entry in os.listdir(OUT):
+        stem, ext = os.path.splitext(entry)
+        if ext.lower() == ".png" and stem not in painted:
+            os.remove(os.path.join(OUT, entry))
+    with open(os.path.join(OUT, "signs.json"), "w", encoding="utf-8", newline="\n") as f:
+        json.dump({"about": "The hand-lettered signs, by the key of their words; written by "
+                            "art/blender/build_signs.py from the paintings in art/signs/.",
+                   "signs": painted}, f, ensure_ascii=False, indent=2)
+        f.write("\n")
+    for problem in problems:
+        print("WARNING", problem)
+    print(f"SIGNS: {len(every)} templates in art/signs/_guides; {len(painted)} painted: "
+          + (", ".join(painted) if painted else "none yet"))
+
+
+main()

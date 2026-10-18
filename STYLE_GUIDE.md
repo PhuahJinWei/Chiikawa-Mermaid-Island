@@ -174,6 +174,12 @@ Scale unit: **1 = Chiikawa's height.**
   pale grey with white menu tags hanging off it. The islander keeping a
   stall shows from the shoulders up behind its counter, the board just
   over their head. Triangle bunting strung between palms.
+- The signboards are hand-lettered: chunky, rounded letters filling the
+  board, a little uneven, as if brush-painted. They are white or pale with a
+  dark brown outline on coloured boards, and coloured on white ones, often
+  beside a small picture of what the stall sells (a kebab, an octopus, a
+  pineapple). The cloth banners are in wobbly, rounded pink writing, as if
+  done with a felt-tip pen.
 - A tall wooden welcome post reading 島へようこそ ("Welcome to the island").
 - Potted plants, baskets of fruit, logs as benches.
 

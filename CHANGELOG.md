@@ -165,6 +165,17 @@ stage, and along every path. Not yet checked on a real phone.
 - The waterline follows the height grid, the same edge the water stops at
   and characters wade to, so it runs smoothly round every shore. The rocks
   draw it too, where they stand in the water, the sea's or the pool's.
+- Hand-lettered signboards, as the film's are. Every sign the game types
+  words on has a template to paint over in `art/signs/_guides/`: each
+  stall's header board, the arch's board and banner, and the street's
+  banners. A template is the sign's lettering area at 800 pixels a metre,
+  in its board's colour, with the typed words faint on it. A transparent
+  PNG painted over a template and saved in `art/signs/` takes the place of
+  the typed words. `art/blender/build_signs.py` draws the templates and
+  copies the paintings into the game at its own sharpness, black paint
+  turned to the film's dark brown as on the faces. A sign without a
+  painting keeps its typed words. How to paint them is in
+  `art/signs/README.md`.
 
 **Performance**
 

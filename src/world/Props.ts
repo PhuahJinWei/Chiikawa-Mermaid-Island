@@ -62,8 +62,37 @@ interface Group {
 
 interface Label {
   geometry: THREE.BufferGeometry;
+  /** The key of its words in the game's text, which also names its hand-lettered sign. */
+  key: string;
   text: string;
   info: LabelInfo;
+}
+
+/**
+ * The hand-lettered signs, by the key of their words: paintings from art/signs/, copied into
+ * public/signs/ by art/blender/build_signs.py and listed in its signs.json. None if there is no
+ * list; a sign that fails to load keeps its typed words.
+ */
+async function loadPaintedSigns(): Promise<Map<string, ImageBitmap>> {
+  const painted = new Map<string, ImageBitmap>();
+  let names: string[] = [];
+  try {
+    const response = await fetch('signs/signs.json');
+    if (response.ok) names = ((await response.json()) as { signs?: string[] }).signs ?? [];
+  } catch {
+    return painted;
+  }
+  await Promise.all(
+    names.map(async (name) => {
+      try {
+        const response = await fetch(`signs/${encodeURIComponent(name)}.png`);
+        if (response.ok) painted.set(name, await createImageBitmap(await response.blob()));
+      } catch (error) {
+        console.warn(`Hand-lettered sign ${name} did not load`, error);
+      }
+    }),
+  );
+  return painted;
 }
 
 interface Floater {
@@ -137,11 +166,11 @@ function placedGeometry(
 }
 
 /**
- * Paints every label's words into one texture, each in its own patch, and points its UVs there.
- * Words run across, or down for a vertical face; the font is the phone's own rounded Japanese
- * one, as the HUD uses.
+ * Paints every label's words into one texture, each in its own patch, and points its UVs there:
+ * its hand-lettered sign where there is one, otherwise its words typed in the phone's own rounded
+ * Japanese font, as the HUD uses, running across the face, or down a vertical one.
  */
-function paintLabels(labels: Label[]): THREE.CanvasTexture {
+function paintLabels(labels: Label[], painted: Map<string, ImageBitmap>): THREE.CanvasTexture {
   // Shelves, tallest labels first: left to right, then down. Lower the density until all fit.
   let sizes: number[][] = [];
   let places: [number, number][] = [];
@@ -179,7 +208,12 @@ function paintLabels(labels: Label[]): THREE.CanvasTexture {
   labels.forEach((label, i) => {
     const [w, h] = sizes[i];
     const [px, py] = places[i];
-    if (g) {
+    const sign = painted.get(label.key);
+    if (g && sign) {
+      g.imageSmoothingEnabled = true;
+      g.imageSmoothingQuality = 'high';
+      g.drawImage(sign, px, py, w, h);
+    } else if (g) {
       g.save();
       g.beginPath();
       g.rect(px, py, w, h);
@@ -248,6 +282,7 @@ export class Props {
 
   static async load(placed: Placed[], waterLevel: number): Promise<Props> {
     const kinds = [...new Set(placed.map((p) => p.kind))];
+    const signs = loadPaintedSigns();
     const models = new Map(await Promise.all(kinds.map(async (k) => [k, await loadPropModel(k)] as const)));
     const props = new Props();
     const labels: Label[] = [];
@@ -283,7 +318,12 @@ export class Props {
           const text = words[part.index];
           const info = labelInfos[part.index];
           if (text && info) {
-            labels.push({ geometry: placedGeometry(part.geometry, matrix, null, true), text: t(text as StringKey), info });
+            labels.push({
+              geometry: placedGeometry(part.geometry, matrix, null, true),
+              key: text,
+              text: t(text as StringKey),
+              info,
+            });
           }
           continue;
         }
@@ -301,7 +341,7 @@ export class Props {
     props.build();
 
     if (labels.length > 0) {
-      const texture = paintLabels(labels);
+      const texture = paintLabels(labels, await signs);
       const words = new THREE.Mesh(
         mergeGeometries(labels.map((l) => l.geometry)),
         new THREE.MeshToonMaterial({

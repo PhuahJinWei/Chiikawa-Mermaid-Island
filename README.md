@@ -88,6 +88,9 @@ Every model comes out of Blender, driven by a Python script:
   lantern poles, the pier, the duck ferry, baskets and potted plants.
   `art/blender/houses.py` holds the houses, the stage, the arch and the
   banners.
+- `art/blender/build_signs.py` draws a template for every signboard into
+  `art/signs/_guides/`, and copies the hand-lettered signs painted over
+  them into `public/signs/`, at the game's own sharpness.
 
 Where everything stands is in `public/data/layout.json`: each prop's kind,
 place, turn and painted words (a key into `ja.json`), and the island's named
@@ -101,6 +104,13 @@ The faces are painted by hand. Each character's folder in
 `expressions.txt` that says which layers make up each expression. Repaint or
 add layers, change the combinations, and rebuild. See
 [art/faces/README.md](art/faces/README.md). Rebuilding never changes those
+files.
+
+The signboards can be hand-lettered too: each stall's header board, the
+arch's board and banner, and the street's banners. Each has a template in
+`art/signs/_guides/`. A transparent PNG painted over a template and saved in
+`art/signs/` takes the place of that sign's typed words. See
+[art/signs/README.md](art/signs/README.md). Rebuilding never changes those
 files.
 
 The island outfit is never part of a character model. Each wearer gets its
@@ -124,6 +134,10 @@ Run a script from the project folder:
 
 ```bash
 "/c/Program Files/Blender Foundation/Blender 5.2/blender.exe" --background --factory-startup --python art/blender/build_village.py
+```
+
+```bash
+"/c/Program Files/Blender Foundation/Blender 5.2/blender.exe" --background --factory-startup --disable-autoexec --python art/blender/build_signs.py
 ```
 
 `--disable-autoexec` matters for the import: the downloaded .blend files

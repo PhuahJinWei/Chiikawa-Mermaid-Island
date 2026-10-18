@@ -503,9 +503,11 @@ art/
     plants.py          * the jungle's plants: canopy clumps, palms, ferns, bushes, monstera, crops
     build_props.py     * palm, log, starfish, onigiri, No Entry sign, butterfly
     build_village.py   * the village and the festival: huts, stage, torches, stalls, arch, banners, bunting, pier, ferry
+    build_signs.py     * the signboards' templates; copies their hand-lettered paintings into the game
     houses.py          * houses you can walk into, the watchtower stage, the festival's arch and banners
     cast.blend         * generated: the converted cast with their outfits, for viewing in Blender
   faces/<id>/          * each cast member's painted face: layers, expressions.txt and a guide
+  signs/               * the signboards' hand-lettered paintings, and their templates in _guides/
     props.blend        * generated: all props
     village.blend      * generated: the village, the pier and the ferry
   previews/            * generated: front, three-quarter, side and back renders
