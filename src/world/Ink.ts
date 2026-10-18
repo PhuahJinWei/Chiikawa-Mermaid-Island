@@ -17,10 +17,12 @@ const PEN_REFERENCE_HEIGHT = 0.9;
 export const PEN_METRES = 0.02 * PEN_REFERENCE_HEIGHT;
 
 export const inkUniforms = {
-  /** Pen width in drawing-buffer pixels where the camera is looking. */
+  /** Pen width in drawing-buffer pixels where the camera is looking, never under 1.5 pixels
+   * (the backdrop's lines are drawn with it). */
   uPen: { value: 3 },
-  /** Distance from the camera to where it is looking, in metres. */
-  uPenFocus: { value: 7 },
+  /** The pen's true width, in drawing-buffer pixels, for something a metre in front of the
+   * camera: things further off take it divided by their distance. */
+  uPenMetre: { value: 21 },
   /** Widest line, in drawing-buffer pixels, for things right in front of the camera. */
   uPenMax: { value: 11 },
   uInk: { value: new THREE.Color(INK) },
@@ -31,25 +33,31 @@ const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v
 /** Sets the pen for this frame from the camera and the distance to what it looks at. */
 export function updatePen(camera: THREE.PerspectiveCamera, focusDistance: number, viewHeight: number, pixelRatio: number): void {
   const vfov = THREE.MathUtils.degToRad(camera.fov) / camera.zoom;
-  const pixelsPerMetre = viewHeight / (2 * Math.max(focusDistance, 0.1) * Math.tan(vfov / 2));
+  const pixelsPerMetreAway = viewHeight / (2 * Math.tan(vfov / 2));
+  const pixelsPerMetre = pixelsPerMetreAway / Math.max(focusDistance, 0.1);
   inkUniforms.uPen.value = clamp(PEN_METRES * pixelsPerMetre, 1.5, 11) * pixelRatio;
-  inkUniforms.uPenFocus.value = focusDistance;
+  inkUniforms.uPenMetre.value = PEN_METRES * pixelsPerMetreAway * pixelRatio;
   inkUniforms.uPenMax.value = 14 * pixelRatio;
 }
 
-/** Pen width in drawing-buffer pixels for something `depth` metres in front of the camera. */
+/**
+ * Pen width in drawing-buffer pixels for something `depth` metres in front of the camera: the
+ * pen's true width there, never under half the pen where the camera is looking. (Scaled from the
+ * pen where it looks, which is held at 1.5 pixels or more, a camera looking far off would draw
+ * everything near it many times too bold.)
+ */
 export function penAt(depth: number): number {
   const u = inkUniforms;
-  return Math.min(u.uPen.value * Math.max(u.uPenFocus.value / Math.max(depth, 1e-3), 0.5), u.uPenMax.value);
+  return Math.min(Math.max(u.uPenMetre.value / Math.max(depth, 1e-3), 0.5 * u.uPen.value), u.uPenMax.value);
 }
 
 /** GLSL twin of penAt, for shaders that include inkUniforms. */
 export const PEN_GLSL = /* glsl */ `
 uniform float uPen;
-uniform float uPenFocus;
+uniform float uPenMetre;
 uniform float uPenMax;
 float penAt(float depth) {
-  return min(uPen * max(uPenFocus / max(depth, 1e-3), 0.5), uPenMax);
+  return min(max(uPenMetre / max(depth, 1e-3), 0.5 * uPen), uPenMax);
 }
 `;
 

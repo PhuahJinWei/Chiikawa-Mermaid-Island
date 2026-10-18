@@ -452,6 +452,16 @@ outlined is drawn twice, once for its pen line. To get there:
   disc. Both are now kept within range, and the film look's first
   finishing pass takes no light below black, no NaN and no blinding spike
   from any shader.
+- Seen with the camera looking far off (out to sea, down the festival's
+  street), the cast's flower crowns and grass skirts no longer turn into
+  dark brown bands. The pen was scaled from its width where the camera
+  looks, which is never drawn under 1.5 pixels, so with the camera looking
+  far off everything nearer was drawn several times too bold (about 12
+  pixels at 6 metres in place of 2) and the lines round the crown's
+  flowers and the skirt's strokes ran together. Each thing now takes the
+  pen's true width at its own distance, still never under half the pen
+  where the camera looks; with the camera on the player, as in play,
+  nothing changes.
 
 ## M0.1 — Downloaded cast and the island outfit (2026-10-16)
 
