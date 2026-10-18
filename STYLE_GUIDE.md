@@ -234,7 +234,14 @@ green-turquoise water you can see sparkles in. Confetti welcome on arrival.
 
 - Tall palms with striped trunks, ferns, cycads, big monstera leaves.
 - Flower bushes everywhere: purple violets, white jasmine, yellow
-  hibiscus, red flowers, birds-of-paradise.
+  hibiscus, red flowers, birds-of-paradise. A bush is a mound thick with
+  oval leaves, light and dark, each with its midrib and veins, overlapping
+  down it like shingles, standing out all round its edge and up from its
+  crown, so its outline is leafy, never a smooth ball, and its dark heart
+  shows only deep between the leaves, from low down or above, painted
+  there as leaves further in. Its flowers have five rounded petals round a
+  yellow heart, facing every way among the leaves, some in twos and
+  threes.
 - Soft clover ground cover and bright green grass clearings.
 - Blue butterflies; bubbles float in one clearing.
 - Golden backlight through the canopy in the late afternoon.

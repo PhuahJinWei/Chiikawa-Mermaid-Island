@@ -66,10 +66,14 @@ C = {k: np.array(L.hex_color(v)[:3]) for k, v in {
 
 UP = Vector((0.0, 0.0, 1.0))
 # Each vertex of a leaf knows where on the leaf it is, for the game to paint its veins: how far
-# along it from the stalk (0) to the tip (1), plus 2 for a monstera's split leaf or 4 for a frond's
-# row of leaflets, and how far across it from the middle (-1 to 1). Anything not a leaf is across 9.
+# along it from the stalk (0) to the tip (1), plus 2 for a monstera's split leaf, 4 for a frond's
+# row of leaflets or 6 for an oval leaf the game cuts from its card (a bush's), and how far across it
+# from the middle (-1 to 1). A five-petalled flower cut from its card is 8 plus how far across it one
+# way (0 to 1), and how far the other (-1 to 1). Anything not a leaf is across 9, but a bush's heart,
+# across 7, which the game paints as leaves further in.
 NOT_LEAF = (0.0, 9.0)
-SPLIT, FROND = 2.0, 4.0
+HEART = (0.0, 7.0)
+SPLIT, FROND, OVAL, BLOOM = 2.0, 4.0, 6.0, 8.0
 
 
 def lerp(a, b, t):
@@ -421,42 +425,153 @@ def fern(rng):
     return merge(pieces)
 
 
+def leaf_card(base, along, face, length, width, colour, sway):
+    """A leaf as the film paints its bushes' leaves: a card from its stalk at `base` out `along`,
+    `width` across, facing `face`, which the game cuts into a pointed oval and paints with its veins
+    (leaf coordinates OVAL). It shows from both sides; `sway` is its weight at its stalk and its tip."""
+    along = along.normalized()
+    side = along.cross(face).normalized() * (width / 2)
+    tip = base + along * length
+    corners = [base - side, base + side, tip + side, tip - side]
+    coords = [(OVAL, -1.0), (OVAL, 1.0), (OVAL + 1.0, 1.0), (OVAL + 1.0, -1.0)]
+    bm = bmesh.new()
+    front = [bm.verts.new(c) for c in corners]
+    back = [bm.verts.new(c) for c in corners]
+    bm.faces.new(front)
+    bm.faces.new(list(reversed(back)))
+    return bm, [colour] * 8, [sway[0], sway[0], sway[1], sway[1]] * 2, coords * 2
+
+
+def bloom_card(centre, normal, radius, turn, colour, sway):
+    """A five-petalled flower facing `normal`, `radius` to its petals' tips, turned `turn` about its
+    middle: a card the game cuts into rounded petals round a yellow heart (leaf coordinates BLOOM)."""
+    n = normal.normalized()
+    u = n.cross(UP if abs(n.z) < 0.95 else Vector((1.0, 0.0, 0.0))).normalized()
+    v = n.cross(u)
+    u, v = u * math.cos(turn) + v * math.sin(turn), v * math.cos(turn) - u * math.sin(turn)
+    square = ((-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0))
+    bm = bmesh.new()
+    bm.faces.new([bm.verts.new(centre + (u * a + v * b) * radius) for a, b in square])
+    return bm, [colour] * 4, [sway] * 4, [(BLOOM + (a + 1.0) / 2.0, b) for a, b in square]
+
+
 def bush(rng, flower):
-    """A round flowering bush: two or three soft blobs thick with flowers over the top and sides; a
-    plain green shrub when `flower` is None."""
-    blobs = []
+    """A flowering bush after the film's: a mound of overlapping oval leaves, light and dark, standing
+    out all round its edge over its dark heart, thick with five-petalled flowers over its top and
+    sides, some in twos and threes; a plain green shrub when `flower` is None. Its draws from `rng`
+    are the first bush's (its mound's blobs and the seed of its colours), so whatever is planted
+    after it with the same generator stays where it was; its lobes, leaves and flowers come from a
+    generator of its own."""
+    blobs, centres = [], []
     for _ in range(int(rng.integers(2, 4))):
         a, d = rng.uniform(0, 2 * math.pi), rng.uniform(0.0, 0.35)
         r = rng.uniform(0.45, 0.62)
-        blobs.append(L.ellipsoid_bm(Vector((d * math.cos(a), d * math.sin(a), r * 0.7)), (r, r, r * 0.85), u=10, v=7))
-    mass = L.fuse(blobs, voxel=0.08, smooth_iterations=5, smooth_lambda=0.8, target_tris=64)
-    cols = leafy(mass, 0.0, 0.0, C["leafLight"], C["leaf"], C["leafDark"], seed=rng.uniform(0, 6))
+        c = Vector((d * math.cos(a), d * math.sin(a), r * 0.7))
+        blobs.append(L.ellipsoid_bm(c, (r * 0.86, r * 0.86, r * 0.74), u=10, v=7))
+        centres.append((c, r))
+    seed = rng.uniform(0, 6)
+    own = np.random.default_rng(int(seed * 1e6))
+    # Lobes round the mound, so its outline is bumpy under the leaves.
+    for _ in range(int(own.integers(4, 7))):
+        c, r = centres[int(own.integers(0, len(centres)))]
+        a, up = own.uniform(0, 2 * math.pi), own.uniform(-0.1, 0.8)
+        out = math.sqrt(max(1.0 - up * up, 0.0))
+        rr = r * own.uniform(0.38, 0.52)
+        blobs.append(L.ellipsoid_bm(c + Vector((math.cos(a) * out, math.sin(a) * out, up)) * (r * 0.62),
+                                    (rr, rr, rr * 0.85), u=8, v=6))
+    mass = L.fuse(blobs, voxel=0.07, smooth_iterations=4, smooth_lambda=0.75, target_tris=110)
+    mass.normal_update()
+    # The heart is darker than the leaves over it, as the film's bushes are deep between their leaves.
+    cols = leafy(mass, 0.0, 0.0, C["leaf"], C["leafDark"], C["leafDark"] * 0.7, seed=seed)
     sway = [smoothstep(0.0, 1.0, v.co.z) * 0.6 for v in mass.verts]
-    pieces = [(mass, cols, sway)]
-    # Flowers: five-pointed stars facing out all over its top and sides, thick as on the film's
-    # flowering bushes.
-    bvh_pts = [v.co.copy() for v in mass.verts if v.normal.z > -0.15]
-    for k in range(14 if flower else 0):
-        if not bvh_pts:
-            break
-        p = bvh_pts[int(rng.integers(0, len(bvh_pts)))]
-        n = (p - Vector((0.0, 0.0, 0.35))).normalized()
-        star = bmesh.new()
-        side = n.cross(UP if abs(n.z) < 0.95 else Vector((1.0, 0.0, 0.0))).normalized()
-        other = n.cross(side)
-        hub = star.verts.new(p + n * 0.035)
-        ring = []
-        for i in range(10):
-            a = math.pi * i / 5
-            r = 0.12 if i % 2 == 0 else 0.055
-            ring.append(star.verts.new(p + n * 0.02 + side * (math.cos(a) * r) + other * (math.sin(a) * r)))
-        for i in range(10):
-            star.faces.new((hub, ring[i], ring[(i + 1) % 10]))
-        star.normal_update()
-        if star.faces[:][0].normal.dot(n) < 0:
-            bmesh.ops.reverse_faces(star, faces=star.faces[:])
-        cols_s = [C["centre"]] + [C[flower]] * 10
-        pieces.append((star, cols_s, [0.6] * 11))
+    # Its heart comes before its leaves, so the game skips the leaves behind it.
+    pieces = [(mass, cols, sway, [HEART] * len(mass.verts))]
+    # Where leaves and flowers grow: anywhere on the mound but its underside, by area.
+    faces = [f for f in mass.faces if f.normal.z > -0.35]
+    areas = np.array([f.calc_area() for f in faces])
+    top = max(v.co.z for v in mass.verts)
+
+    def spot(among, weights):
+        f = among[int(own.choice(len(among), p=weights))]
+        a, b = own.uniform(0, 1), own.uniform(0, 1)
+        if a + b > 1.0:
+            a, b = 1.0 - a, 1.0 - b
+        vs = [v.co for v in f.verts[:3]]
+        return vs[0] + (vs[1] - vs[0]) * a + (vs[2] - vs[0]) * b, f.normal.copy()
+
+    def spread(among, count, apart, tries):
+        """`count` spots over the faces `among`, by area, none nearer another than `apart` as far
+        as `tries` darts allow, and the rest anywhere on them."""
+        sizes = np.array([f.calc_area() for f in among])
+        weights, spots = sizes / sizes.sum(), []
+        for _ in range(tries):
+            if len(spots) == count:
+                break
+            p, n = spot(among, weights)
+            if all((p - q).length >= apart for q, _ in spots):
+                spots.append((p, n))
+        while len(spots) < count:
+            spots.append(spot(among, weights))
+        return spots
+
+    # The leaves' stalks spread evenly over it, as many as its size needs to be covered, so no stretch
+    # of its dark heart is left bare.
+    shades = (C["leafLight"], C["leaf"], C["leafDark"])
+    for p, n in spread(faces, int(min(max(areas.sum() / 0.015, 100), 150)), 0.11, 1500):
+        # Overlapping down the mound like shingles, each turned a little either way and facing out
+        # from it: over its upper half lying close over it, so each shows its face from the side; low
+        # on it standing out, so its edge is leafy; and every way across its very top, rising from it.
+        # Each stalk is set a little into it, so the leaves grow out of it.
+        down = Vector((0.0, 0.0, -1.0)) + n * n.z
+        if down.length < 0.35:
+            lie = Matrix.Rotation(own.uniform(0, 2 * math.pi), 3, n) @ n.orthogonal().normalized()
+            out_by = own.uniform(0.3, 0.55)
+        else:
+            lie = down.normalized()
+            out_by = own.uniform(0.1, 0.25) if n.z > 0.2 else own.uniform(0.35, 0.65)
+        turn = Matrix.Rotation(own.uniform(-0.8, 0.8), 3, n)
+        along = (n * out_by + (turn @ lie)).normalized()
+        face = (n - along * n.dot(along)).normalized()
+        height = smoothstep(0.0, top, p.z)
+        pick = shades[int(own.choice(3, p=(0.2 + 0.4 * height, 0.5 - 0.2 * height, 0.3 - 0.2 * height)))]
+        colour = lerp(pick, shades[int(own.integers(0, 3))], own.uniform(0.0, 0.3))
+        w = 0.6 * smoothstep(0.0, 1.0, p.z)
+        # Wider over its shoulders and top, which are seen most across their slope.
+        length, width = own.uniform(0.3, 0.38), own.uniform(0.18, 0.22) * (1.2 if n.z > 0.55 else 1.0)
+        pieces.append(leaf_card(p - n * 0.03, along, face, length, width, colour, (w, w + 0.25)))
+    # Flowers over the leaves, on its top and sides, facing out and up, a few in twos and threes.
+    flowers, weights = 0, areas / areas.sum()
+    while flower and flowers < 15:
+        p, n = spot(faces, weights)
+        if n.z < -0.1:
+            continue
+        for _ in range(int(own.choice((1, 2, 3), p=(0.55, 0.3, 0.15)))):
+            if flowers >= 15:
+                break
+            q = p + n.orthogonal().normalized() * own.uniform(-0.12, 0.12) + n.cross(n.orthogonal()).normalized() * own.uniform(-0.12, 0.12)
+            facing = (n + Vector((own.uniform(-0.3, 0.3), own.uniform(-0.3, 0.3), own.uniform(0.25, 0.5)))).normalized()
+            pieces.append(bloom_card(q + n * 0.13, facing, own.uniform(0.1, 0.13), own.uniform(0, 2 * math.pi), C[flower],
+                                     0.6 * smoothstep(0.0, 1.0, q.z) + 0.1))
+            flowers += 1
+    # Leaves standing up all over its crown and leaning out, spread evenly, so its dark heart never
+    # shows over its top from low down, facing out; set into the crown, so it stands little taller.
+    crown = [f for f in mass.faces if f.normal.z > 0.55]
+    for p, n in spread(crown, 36, 0.1, 400) if crown else []:
+        outward = Vector((p.x, p.y, 0.0))
+        if outward.length < 0.05:
+            a = own.uniform(0, 2 * math.pi)
+            outward = Vector((math.cos(a), math.sin(a), 0.0))
+        outward = Matrix.Rotation(own.uniform(-0.6, 0.6), 3, UP) @ outward.normalized()
+        along = (UP * own.uniform(0.8, 1.2) + outward * own.uniform(0.45, 0.75)).normalized()
+        face = (outward - along * outward.dot(along)).normalized()
+        colour = lerp(C["leafLight"], C["leaf"], own.uniform(0.0, 0.6))
+        w = 0.6 * smoothstep(0.0, 1.0, p.z)
+        pieces.append(leaf_card(p - n * 0.08, along, face, own.uniform(0.24, 0.3), own.uniform(0.17, 0.22), colour,
+                                (w, w + 0.3)))
+    # Its heart set back under its leaves, so every leaf shows whole and the heart only deep between
+    # them, never as a smooth dome; its foot stays on the ground.
+    for v in mass.verts:
+        v.co -= v.normal * (0.05 * smoothstep(0.05, 0.3, v.co.z))
     return merge(pieces)
 
 

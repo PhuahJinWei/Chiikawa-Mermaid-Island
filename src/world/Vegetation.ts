@@ -4,7 +4,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { sceneryRamp } from '../core/toon';
 import { SWAY_GLSL, addOutline, windUniforms } from './Ink';
 import type { TerrainInfo } from './Island';
-import { FILM, moonEdges, paintLeaves, puffShadow, shadeUnderTrees } from './Look';
+import { FILM, LEAF_KEEP_GLSL, moonEdges, paintLeaves, puffShadow, shadeUnderTrees } from './Look';
 import { addCircle, addCrown } from './Obstacles';
 
 /** Plants under the canopy are drawn only this close to the camera, in metres; the canopy and the
@@ -41,6 +41,25 @@ function plantMaterial(clusters = 0): THREE.MeshToonMaterial {
   // In the film look a leaf's splits and leaflets are cut away through the picture's smoothing.
   material.alphaToCoverage = FILM && !clusters;
   return material;
+}
+
+/**
+ * The understory's shadow in the film look: it moves in the wind with the plants, and a leaf cut
+ * from its card (a bush's oval leaves and flowers, a monstera's splits, a frond's leaflets) casts
+ * only the leaf, as the plant's own material draws it.
+ */
+function leafShadow(): THREE.MeshDepthMaterial {
+  const depth = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking });
+  depth.onBeforeCompile = (shader) => {
+    swayVertices(shader);
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nattribute vec2 aLeaf;\nvarying vec2 vLeafAt;')
+      .replace('#include <project_vertex>', 'vLeafAt = aLeaf;\n#include <project_vertex>');
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', `#include <common>\nvarying vec2 vLeafAt;\n${LEAF_KEEP_GLSL}`)
+      .replace('void main() {', 'void main() {\n  if (leafKeep(vLeafAt) < 0.5) discard;');
+  };
+  return depth;
 }
 
 interface Patch {
@@ -90,6 +109,7 @@ export class Vegetation {
     const crownsFar = FILM ? plantMaterial(2.4) : material;
     // In the film look the sun comes through the gaps between the crowns' puffs.
     const shadows = FILM ? { near: puffShadow(0.85, swayVertices), far: puffShadow(2.4, swayVertices) } : null;
+    const underShadow = FILM ? leafShadow() : null;
     const shapes = new Map<number, THREE.BufferGeometry>();
     // Patches of the map, keyed "layer:i,j": the geometries to join into each.
     const parts = new Map<string, THREE.BufferGeometry[]>();
@@ -151,6 +171,7 @@ export class Vegetation {
       vegetation.group.add(mesh);
       mesh.castShadow = mesh.receiveShadow = FILM;
       if (shadows && (layer === 'near' || layer === 'far')) mesh.customDepthMaterial = shadows[layer];
+      if (underShadow && layer === 'under') mesh.customDepthMaterial = underShadow;
       const objects: THREE.Object3D[] = FILM ? [mesh] : [mesh, addOutline(mesh)];
       if (layer === 'under') {
         vegetation.understory.push({ meshes: objects, centre: sphere.center.clone(), radius: sphere.radius, far: [] });

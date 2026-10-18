@@ -458,24 +458,60 @@ vec3 paintBark(vec3 base, vec3 p, vec3 n) {
  * it is cut away, soft at the cut's edge), for alpha to coverage: a leaf that throws points away
  * outright would lose the depth test that skips the leaves hidden behind it.
  */
-export const VEIN_GLSL = /* glsl */ `
-float paintVeins(inout vec3 colour, vec3 vertexColour, vec2 at) {
+export const LEAF_KEEP_GLSL = /* glsl */ `
+// How much of a leaf is kept at \`at\`, its leaf coordinates (see NOT_LEAF in art/blender/plants.py):
+// a monstera's splits and a frond's gaps between its leaflets cut away, and a bush's oval leaves
+// and five-petalled flowers cut from their cards; all of it off the leaves.
+float leafKeep(vec2 at) {
   if (at.y > 2.0) return 1.0;
   float kind = floor(at.x / 2.0);
-  float along = at.x - kind * 2.0;
-  float across = abs(at.y);
-  float keep = 1.0;
+  float along = clamp(at.x - kind * 2.0, 0.0, 1.0);
+  float across = min(abs(at.y), 1.0);
   if (kind > 0.5 && kind < 1.5) {
     float run = along * 5.0 + across * 0.9 + 0.3;
     float d = abs(fract(run) - 0.5) - 0.1 * smoothstep(0.55, 0.9, across) * step(0.18, along);
     float w = fwidth(run) * 0.75 + 1e-4;
-    keep = smoothstep(-w, w, d);
+    return smoothstep(-w, w, d);
   }
-  if (kind > 1.5) {
+  if (kind > 1.5 && kind < 2.5) {
     float run = along * 10.0 - across * 0.6;
     float d = abs(fract(run) - 0.5) - 0.22 * smoothstep(0.45, 0.85, across);
     float w = fwidth(run) * 0.75 + 1e-4;
-    keep = smoothstep(-w, w, d);
+    return smoothstep(-w, w, d);
+  }
+  if (kind > 2.5 && kind < 3.5) {
+    // An oval leaf, rounded at its stalk and pointed at its tip.
+    float halfWidth = pow(sin(3.14159265 * along), 0.7) * (1.0 - 0.2 * along);
+    float w = fwidth(across) * 0.75 + 1e-4;
+    return smoothstep(-w, w, halfWidth - across);
+  }
+  if (kind > 3.5) {
+    // A flower: five rounded petals parted almost to its heart.
+    vec2 q = vec2(along * 2.0 - 1.0, clamp(at.y, -1.0, 1.0));
+    float r = length(q);
+    float petal = 0.36 + 0.62 * pow(abs(cos(2.5 * atan(q.y, q.x))), 0.6);
+    float w = fwidth(r) * 0.75 + 1e-4;
+    return smoothstep(-w, w, petal - r);
+  }
+  return 1.0;
+}
+`;
+
+export const VEIN_GLSL = /* glsl */ `
+${LEAF_KEEP_GLSL}
+float paintVeins(inout vec3 colour, vec3 vertexColour, vec2 at) {
+  if (at.y > 2.0) return 1.0;
+  float keep = leafKeep(at);
+  float kind = floor(at.x / 2.0);
+  float along = clamp(at.x - kind * 2.0, 0.0, 1.0);
+  float across = min(abs(at.y), 1.0);
+  if (kind > 3.5) {
+    // A flower's petals lighter toward their tips, its heart yellow round a darker eye.
+    float r = length(vec2(along * 2.0 - 1.0, clamp(at.y, -1.0, 1.0)));
+    colour *= mix(0.8, 1.06, smoothstep(0.16, 0.8, r));
+    colour = mix(colour, vec3(0.95, 0.7, 0.13), 1.0 - smoothstep(0.15, 0.21, r));
+    colour = mix(colour, vec3(0.55, 0.32, 0.06), 1.0 - smoothstep(0.04, 0.08, r));
+    return keep;
   }
   float rib = (1.0 - smoothstep(0.035, 0.08, across)) * smoothstep(0.03, 0.1, along) * (1.0 - smoothstep(0.85, 0.98, along));
   float v = fract(along * 6.0 - across * 1.5);
@@ -484,6 +520,23 @@ float paintVeins(inout vec3 colour, vec3 vertexColour, vec2 at) {
   vec3 veinColour = mix(c * 0.62, c * 1.25 + vec3(0.02, 0.03, 0.0), leafy(vertexColour));
   colour = mix(c, veinColour, max(rib, vein * 0.6));
   return keep;
+}
+`;
+
+/**
+ * GLSL: a bush's heart (across 7 in its leaf coordinates, see HEART in art/blender/plants.py), where
+ * it shows between the leaves, painted as leaves further in (needs PUFF_GLSL): puffs about a leaf
+ * across, lit toward the sun, cooler away from it and dark between them, so it never shows as a
+ * smooth dome.
+ */
+export const HEART_GLSL = /* glsl */ `
+vec3 heartTone(vec3 p, vec3 n) {
+  float lit, edge;
+  vec3 tint;
+  float inPuff = leafPuffs(p / 0.16, n, lit, edge, tint);
+  vec3 tone = mix(vec3(0.66, 0.76, 0.84), vec3(1.14, 1.1, 0.82), smoothstep(-0.1, 0.4, lit));
+  tone *= mix(1.0, 0.74, smoothstep(0.55, 1.0, edge)) * mix(0.9, 1.08, tint.x);
+  return mix(vec3(0.58, 0.64, 0.64), tone, inPuff);
 }
 `;
 
@@ -503,7 +556,7 @@ export function paintLeaves(shader: THREE.WebGLProgramParametersWithUniforms, cl
     );
   shader.fragmentShader = shader.fragmentShader.replace(
     '#include <common>',
-    `#include <common>\nvarying vec3 vLeaf;\nvarying vec2 vLeafAt;\n${LEAF_GLSL}\n${CLUSTER_GLSL}\n${PUFF_GLSL}\n${BARK_GLSL}\n${VEIN_GLSL}`,
+    `#include <common>\nvarying vec3 vLeaf;\nvarying vec2 vLeafAt;\n${LEAF_GLSL}\n${CLUSTER_GLSL}\n${PUFF_GLSL}\n${BARK_GLSL}\n${VEIN_GLSL}\n${HEART_GLSL}`,
   );
   shader.uniforms.uSun = sunUniform;
   if (!clusters) {
@@ -515,8 +568,11 @@ export function paintLeaves(shader: THREE.WebGLProgramParametersWithUniforms, cl
       .replace(
         '#include <normal_fragment_maps>',
         `#include <normal_fragment_maps>
-        diffuseColor.rgb = mix(diffuseColor.rgb, paintBark(diffuseColor.rgb, vLeaf, inverseTransformDirection(normal, viewMatrix)), woody(vColor.rgb));
-        diffuseColor.a *= paintVeins(diffuseColor.rgb, vColor.rgb, vLeafAt);`,
+        // Bark only on the wood, rather than painted on every leaf and thrown away.
+        float wood = woody(vColor.rgb);
+        if (wood > 0.0) diffuseColor.rgb = mix(diffuseColor.rgb, paintBark(diffuseColor.rgb, vLeaf, inverseTransformDirection(normal, viewMatrix)), wood);
+        diffuseColor.a *= paintVeins(diffuseColor.rgb, vColor.rgb, vLeafAt);
+        if (abs(vLeafAt.y - 7.0) < 0.5) diffuseColor.rgb *= heartTone(vLeaf, inverseTransformDirection(normal, viewMatrix));`,
       );
     return;
   }
@@ -545,7 +601,8 @@ export function paintLeaves(shader: THREE.WebGLProgramParametersWithUniforms, cl
       tone *= mix(1.0, 0.76, smoothstep(0.62, 1.0, puffEdge)) * mix(0.88, 1.1, puffTint.x);
       tone = mix(vec3(0.42, 0.5, 0.52), tone, inPuff) * mix(0.94, 1.05, leafDabs(vLeaf * 2.0));
       diffuseColor.rgb *= mix(vec3(1.0), tone, leaves);
-      diffuseColor.rgb = mix(diffuseColor.rgb, paintBark(diffuseColor.rgb, vLeaf, nWorld), woody(vColor.rgb));
+      float wood = woody(vColor.rgb);
+      if (wood > 0.0) diffuseColor.rgb = mix(diffuseColor.rgb, paintBark(diffuseColor.rgb, vLeaf, nWorld), wood);
     }`,
   );
 }

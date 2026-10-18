@@ -192,11 +192,11 @@ stage, and along every path. Not yet checked on a real phone.
   is shaded flat, as the sign on its front is, and in the film look the
   signs take the sun's shadows with their boards, so the two meet unseen
   in sun, shade and firelight. A sign without a painting keeps its typed
-  words. How to paint them is in `art/signs/README.md`. The first five
-  are painted: the arch's 島へようこそ!! and its Welcome to Shima banner,
-  the street's いらっしゃいませ!! and たのしんでね, and 味じまん お好み焼き on
-  a red board at the street's far end, as the film has it there, in place
-  of トロピカルジュース.
+  words. How to paint them is in `art/signs/README.md`. All 32 are
+  painted, among them the arch's 島へようこそ!! and its Welcome to Shima
+  banner, the street's いらっしゃいませ!! and たのしんでね, and 味じまん
+  お好み焼き on a red board at the street's far end, as the film has it
+  there, in place of トロピカルジュース.
 
 **Performance**
 
@@ -626,6 +626,28 @@ outlined is drawn twice, once for its pen line. To get there:
   its edges, and the lines stay crisp under the scenery's brushwork, as
   the characters' do. About 0.3 ms more a frame in the festival street on
   the dev PC.
+- The jungle's flowering bushes after the film's: each a bumpy mound
+  thick with oval leaves, light and dark, with their veins, overlapping
+  down it like shingles, standing out all round its edge and up all over
+  its crown, so from low down or above its dark heart shows only deep
+  between them, and is painted there as leaves further in, never as a
+  smooth dome; and five-petalled flowers round yellow hearts among them,
+  some in twos and threes, where they had been smooth balls stuck with
+  stars. The plain shrubs on the sea cliffs are leafy too. The game cuts
+  each leaf and flower from a card; a flowering bush is about 850
+  triangles, four times what it was, and a cliff shrub 650 to 850, from
+  64. The understory's shadows are cut the same way and move in the wind.
+  About 1 to 3 ms more a frame on the dev PC where they crowd the view
+  close up, as on the cliff tops and the jungle paths, and none from
+  above. The jungle is planted just as before.
+- The plants under the canopy are joined in smaller patches, 20 by 20
+  over the map where they were 8 by 8, so the game draws only those near
+  the camera and in its view. They still show from 34 metres in, but no
+  longer as far as 100 metres where a big patch reached that far, nor
+  behind the camera.
+- The plants' bark is painted only on their wood, where every leaf had
+  been painted with it and then shown without it. Nothing looks
+  different, and the plants cost a little less to draw.
 - The game's sign atlas keeps a gutter round each sign, carrying a
   hand-lettered sign's edges out into it, so a sign that fills its board
   never takes a neighbouring sign's colours along its edges.

@@ -302,7 +302,7 @@ PROP_PALMS = 6.0
 FIELD_ROW = 2.4         # metres between the fields' rows
 BUTTERFLIES = 16        # blue butterflies, each fluttering round a flowering bush
 CANOPY_PATCHES = 6      # the canopy and palms are joined into a mesh for each of 6 x 6 patches, near and far
-UNDERSTORY_PATCHES = 8  # what grows under them into 8 x 8, which the game draws only nearby
+UNDERSTORY_PATCHES = 20  # what grows under them into 20 x 20, small, so the game draws only what is near and in view
 # Tufts of grass along the paths' edges, this far apart, and patches of clover beside them, this far
 # apart (closer at the feet of trees); their generator's seed.
 EDGES = {"tufts": 0.9, "clover": 6.0, "seed": 61}
