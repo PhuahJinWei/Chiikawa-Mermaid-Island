@@ -229,12 +229,13 @@ STALL_STYLES = {
 }
 # A stall's size, after the film's, where the islander who keeps it stands behind its counter with
 # their upper half above it and the header board just over their head: how wide and how deep the
-# booth is, the counter's top, and the header board's bottom and top (its roof). About a metre clear
-# between the counter and the back wall for its keeper, and a metre between neighbouring booths
-# (2.92 m apart along their rows) for them to come in by.
-STALL = {"width": 1.9, "depth": 1.5, "counter": 0.52, "board": (1.3, 1.95)}
+# booth is, the counter's top, and the header board's bottom and top (its roof), the board two and a
+# half times as long as it is deep, as the film's. About a metre clear between the counter and the
+# back wall for its keeper, and a metre between neighbouring booths (2.92 m apart along their rows)
+# for them to come in by.
+STALL = {"width": 1.9, "depth": 1.5, "counter": 0.52, "board": (1.3, 2.1)}
 # The stall's name across its header board: how wide and how high.
-STALL_LABEL = (1.75, 0.5)
+STALL_LABEL = (1.8, 0.62)
 LANTERN_COLOURS = ("#F7D046", "#9CCB7A", "#F7A1C4", "#7EC3EA", "#F29E6B")
 
 
@@ -651,34 +652,22 @@ def build_ferry(collection):
 
 
 # ---------------------------------------------------------------------------- festival
-def make_bunting(span, top, sag, flags, name):
-    """Festival bunting between two poles `span` apart along X, `top` high: triangle flags in
-    bright colours along a sagging string, with paper lanterns that glow at night."""
-    def build(collection):
-        return build_bunting(collection, span, top, sag, flags, name)
-    return build
+def flag_string(a, b, sag, flags, lanterns, pieces, glow, shift=0):
+    """A string sagging `sag` from `a` to `b`, with `flags` triangle flags in bright colours along
+    it (their colours `shift`ed round) and paper lanterns hanging at the fractions `lanterns` of the
+    way along, lit at night."""
+    def at(t):
+        return a.lerp(b, t) - V(0.0, 0.0, sag * (1.0 - (2.0 * t - 1.0) ** 2))
 
-
-def build_bunting(collection, span, top, sag, flags, name):
-    half = span / 2
-    pieces, glow = [], []
-    for x in (-half, half):
-        pieces.append((P.segment_bm(V(x, 0.0, -0.3), V(x, 0.0, top + 0.12), 0.06, 0.05, segments=8), C["post"]))
-        pieces.append((L.ellipsoid_bm(V(x, 0.0, top + 0.14), (0.07, 0.07, 0.05), u=8, v=5), C["postTop"]))
-
-    def string(t):
-        x = -half + 2.0 * half * t
-        return V(x, 0.0, top - sag * (1.0 - (2.0 * t - 1.0) ** 2))
-
-    pts = [string(i / 8) for i in range(9)]
-    for a, b in zip(pts, pts[1:]):
-        pieces.append((cylinder_bm(a, b, 0.014, 4), C["ink"]))
+    pts = [at(i / 8) for i in range(9)]
+    for p, q in zip(pts, pts[1:]):
+        pieces.append((cylinder_bm(p, q, 0.014, 4), C["ink"]))
     colours = (C["pink"], C["yellow"], C["teal"], C["orange"], C["white"], C["purple"])
     for k in range(flags):
         t = (k + 0.5) / flags
-        if abs(t - 0.25) < 0.03 or abs(t - 0.5) < 0.03 or abs(t - 0.75) < 0.03:
+        if any(abs(t - u) < 0.03 for u in lanterns):
             continue
-        c = string(t)
+        c = at(t)
         bm = bmesh.new()
         pts3 = [(-0.17, 0.0), (0.17, 0.0), (0.0, -0.38)]
         front = [bm.verts.new(c + V(px, -0.008, pz)) for px, pz in pts3]
@@ -689,17 +678,68 @@ def build_bunting(collection, span, top, sag, flags, name):
             j = (i + 1) % 3
             bm.faces.new((front[i], back[i], back[j], front[j]))
         bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
-        pieces.append((bm, colours[k % len(colours)]))
-    for t in (0.25, 0.5, 0.75):
-        c = string(t) - V(0.0, 0.0, 0.32)
+        pieces.append((bm, colours[(k + shift) % len(colours)]))
+    for t in lanterns:
+        c = at(t) - V(0.0, 0.0, 0.32)
         pieces.append((cylinder_bm(c + V(0.0, 0.0, 0.2), c + V(0.0, 0.0, 0.3), 0.012, 4), C["ink"]))
         pieces.append((P.segment_bm(c + V(0.0, 0.0, 0.17), c + V(0.0, 0.0, 0.22), 0.08, 0.08, 8), C["ink"]))
         pieces.append((P.segment_bm(c - V(0.0, 0.0, 0.22), c - V(0.0, 0.0, 0.17), 0.08, 0.08, 8), C["ink"]))
         glow.append((L.ellipsoid_bm(c, (0.17, 0.17, 0.21), u=10, v=6), C["lantern"]))
+
+
+def bunting_pole(x, top, pieces):
+    """A thin pole for bunting at x, `top` high, with a round top."""
+    pieces.append((P.segment_bm(V(x, 0.0, -0.3), V(x, 0.0, top + 0.12), 0.06, 0.05, segments=8), C["post"]))
+    pieces.append((L.ellipsoid_bm(V(x, 0.0, top + 0.14), (0.07, 0.07, 0.05), u=8, v=5), C["postTop"]))
+
+
+def make_bunting(span, top, sag, flags, name, poles=True):
+    """Festival bunting `span` long along X, `top` high: triangle flags in bright colours along a
+    sagging string, with paper lanterns that glow at night; between two poles of its own, or
+    without, tied to poles that stand there already."""
+    def build(collection):
+        return build_bunting(collection, span, top, sag, flags, name, poles)
+    return build
+
+
+def build_bunting(collection, span, top, sag, flags, name, poles=True):
+    half = span / 2
+    pieces, glow = [], []
+    if poles:
+        for x in (-half, half):
+            bunting_pole(x, top, pieces)
+    flag_string(V(-half, 0.0, top), V(half, 0.0, top), sag, flags, (0.25, 0.5, 0.75), pieces, glow)
     body = join(name, pieces, collection)
     lights = join(f"{name}_glow", glow, collection)
-    info = {"footprint": {"circles": [[-half, 0.0, 0.12], [half, 0.0, 0.12]]}, "height": top + 0.3}
+    info = {"height": top + 0.3}
+    if poles:
+        info["footprint"] = {"circles": [[-half, 0.0, 0.12], [half, 0.0, 0.12]]}
     return [body, lights], info
+
+
+# Along each side of the festival street, as the film's: tall poles at the fronts of the gaps
+# between its stalls and at its two ends, a little in front of the counters (clear of the gaps'
+# insides, where the stalls' keepers come in), with two strings of flags sagging from each pole to
+# the next and a paper lantern in each span. The street's banners and the bunting across it are
+# tied to these poles. Where the poles stand along the street from its middle (its stalls stand
+# 2.92 m apart), and how tall they are.
+SIDE_POLES = [-14.09] + [2.92 * k for k in range(-4, 5)] + [14.09]
+SIDE_TOP = 4.4
+
+
+def build_bunting_side(collection):
+    pieces, glow = [], []
+    for x in SIDE_POLES:
+        bunting_pole(x, SIDE_TOP, pieces)
+    for i, (x0, x1) in enumerate(zip(SIDE_POLES, SIDE_POLES[1:])):
+        flags = max(3, round((x1 - x0) / 0.56))
+        flag_string(V(x0, 0.0, SIDE_TOP - 0.1), V(x1, 0.0, SIDE_TOP - 0.1), 0.3, flags, (), pieces, glow, shift=i)
+        flag_string(V(x0, 0.0, SIDE_TOP - 0.85), V(x1, 0.0, SIDE_TOP - 0.85), 0.22, flags, (0.5,), pieces, glow,
+                    shift=i + 3)
+    body = join("bunting_side", pieces, collection)
+    lights = join("bunting_side_glow", glow, collection)
+    return [body, lights], {"footprint": {"circles": [[round(x, 3), 0.0, 0.12] for x in SIDE_POLES]},
+                            "height": SIDE_TOP + 0.3}
 
 
 def build_basket(collection):
@@ -759,9 +799,10 @@ BUILDERS = {
     # Along the front rows, pole to pole over four stalls; across the street, from behind one row
     # to behind the other.
     "bunting_row": make_bunting(11.68, 4.3, 0.45, 21, "bunting_row"),
-    # The street's bunting on poles at the booths' fronts, as its banners, clear of the gaps between
-    # the booths that their keepers come in by.
-    "bunting_street": make_bunting(8.6, 4.4, 0.45, 15, "bunting_street"),
+    # Across the street, tied to the tops of the poles along its sides (bunting_side), as its
+    # banners are.
+    "bunting_street": make_bunting(8.6, 4.3, 0.45, 15, "bunting_street", poles=False),
+    "bunting_side": build_bunting_side,
     "basket": build_basket,
     "pot": build_pot,
 }

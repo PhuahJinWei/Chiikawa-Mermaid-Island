@@ -87,9 +87,11 @@ stage, and along every path. Not yet checked on a real phone.
   path climbs to the jungle only past the street's end. Thirty-eight
   stalls in all under signboards (じゃがバター, たこ焼き, いか焼き, りんごアメ, ケバブ,
   冷しパイン, 金魚すくい, 射的, クレープ, やきそば and more), bunting with
-  paper lanterns strung along the rows and across the street, white
-  banners reading いらっしゃいませ!! and たのしんでね, poles of pink lanterns,
-  palms behind the stalls and confetti over the beach and the street.
+  paper lanterns strung along the beach rows, from pole to pole down both
+  sides of the street and across it, white banners reading いらっしゃいませ!!
+  and たのしんでね tied by ropes to the street's poles, poles of pink
+  lanterns, palms behind the stalls and confetti over the beach and the
+  street.
   Behind each row of stalls runs a back alley of packed sand, clear of
   plants, for the islanders who keep them.
   Built in Blender by `art/blender/build_village.py` (the arch and banners
@@ -173,9 +175,12 @@ stage, and along every path. Not yet checked on a real phone.
   PNG painted over a template and saved in `art/signs/` takes the place of
   the typed words. `art/blender/build_signs.py` draws the templates and
   copies the paintings into the game at its own sharpness, black paint
-  turned to the film's dark brown as on the faces. A sign without a
-  painting keeps its typed words. How to paint them is in
-  `art/signs/README.md`.
+  turned to the film's dark brown as on the faces. It redraws a template
+  only while it is as it drew it, so a painting saved over one by mistake
+  is kept. A painting that no longer fits its template's proportions (its
+  board since reshaped) shows as it was painted, centred, never
+  stretched. A sign without a painting keeps its typed words. How to
+  paint them is in `art/signs/README.md`.
 
 **Performance**
 
@@ -482,9 +487,10 @@ outlined is drawn twice, once for its pen line. To get there:
   at night on the dev PC, and no measurable cost by day.
 - The festival's stalls are the film's booths, a good deal lower: where
   they were boxes 3.3 metres high, each is now a booth on four thin posts
-  under a flat roof 1.95 metres up. A deep header board runs across its
-  front for its name, with a scalloped trim along its bottom (white,
-  yellow or blue) and five paper lanterns hanging under it. At its back
+  under a flat roof 2.1 metres up. A deep header board runs across its
+  front for its name, two and a half times as long as it is deep, as the
+  film's, with a scalloped trim along its bottom (white, yellow or blue)
+  and five paper lanterns hanging under it. At its back
   is a wall of upright stripes in two warm shades, and across its front a
   low counter 0.52 metres high, framed in pale grey, with white menu tags
   hanging off it and cups and a jar on top. An islander standing behind
@@ -495,9 +501,24 @@ outlined is drawn twice, once for its pen line. To get there:
   and the back wall and a metre between neighbouring booths, so its
   keeper walks in from the alley behind its row and stands behind the
   counter. This was checked for all thirty-eight with the game's own
-  walking. The street's bunting now hangs from poles at the booths'
-  fronts, as its banners do, where its poles had stood in the gaps
-  between the booths.
+  walking. The poles along the street stand at the fronts of the gaps
+  between the booths, clear of the way in.
+- The festival's signs in the film's proportions, measured on its arch and
+  street frames. The welcome arch's board is deep, a fifth as deep as it
+  is long where it had been a tenth, its top level with the poles' tops,
+  which stand higher (6 metres). Big round yellow flowers are packed two
+  deep along its top and along its bottom, clustering over its ends and
+  trailing down the poles, with the pink lanterns stacked below them.
+  The white banners are narrower and much deeper: the arch's
+  ウェルカム・トゥ・シマ and the street's いらっしゃいませ!! and たのしんでね
+  are each four or five times as wide as they are deep, where they had
+  been sixteen. They no longer reach the poles but are tied to them by
+  dark ropes at their corners, wound round the poles, as in the film.
+- Bunting runs along both sides of the street, as in the film's street
+  frame. Tall poles stand at the fronts of the gaps between the stalls and
+  at the street's two ends, with two strings of flags sagging from each to
+  the next and a paper lantern in each span, lit at night. The street's
+  banners and the bunting across it are tied to these poles.
 - Behind each row of stalls (the street's two, the beach front's and the
   row across the street's far end) runs a back alley of packed sand,
   clear of plants, where only grass and the jungle had stood behind them.

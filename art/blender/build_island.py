@@ -275,7 +275,10 @@ EDGES = {"tufts": 0.9, "clover": 6.0, "seed": 61}
 PROP_ROOM = {"hut_green": 7.0, "hut_warm": 7.0, "hut_plank": 5.5, "beehive": 3.8, "stage": 6.5, "torch": 1.0,
              "stall_pink": 3.2, "stall_purple": 3.2, "stall_orange": 3.2, "stall_blue": 3.2, "stall_red": 3.2,
              "stall_white": 3.2, "arch": 2.5, "banner": 2.0, "bunting_row": 2.0, "bunting_street": 2.0,
-             "lanterns": 1.2, "palm": 2.0, "sign": 2.0}
+             "lanterns": 1.2, "palm": 2.0, "sign": 2.0,
+             # Under the room the street's stalls keep, so the jungle was planted just as it was
+             # before these poles stood along the street.
+             "bunting_side": 1.0}
 # Plants crowd round the backs of the village's houses, this far from their middles.
 HUT_ROOM = {"hut_green": (5.6, 6.6), "hut_warm": (5.6, 6.6), "hut_plank": (4.4, 5.2), "beehive": (3.0, 3.6)}
 

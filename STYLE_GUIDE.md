@@ -173,14 +173,23 @@ Scale unit: **1 = Chiikawa's height.**
   upright stripes in warm red-orange shades, and a low counter framed in
   pale grey with white menu tags hanging off it. The islander keeping a
   stall shows from the shoulders up behind its counter, the board just
-  over their head. Triangle bunting strung between palms.
+  over their head. Triangle bunting strung between palms and, along the
+  festival street, from tall poles standing between the stalls, two
+  strings sagging from each pole to the next.
 - The signboards are hand-lettered: chunky, rounded letters filling the
   board, a little uneven, as if brush-painted. They are white or pale with a
   dark brown outline on coloured boards, and coloured on white ones, often
   beside a small picture of what the stall sells (a kebab, an octopus, a
   pineapple). The cloth banners are in wobbly, rounded pink writing, as if
   done with a felt-tip pen.
-- A tall wooden welcome post reading 島へようこそ ("Welcome to the island").
+- A tall welcome arch: two tall poles with gold balls and ribbons carry a
+  deep arching wooden board, about five times as long as it is deep, reading
+  島へようこそ ("Welcome to the island") in brown hand-writing. It is wreathed
+  in big round yellow flowers with green leaves, packed along its top and
+  bottom and trailing down the poles. Below it hangs a white cloth banner,
+  Welcome to Shima in pink, narrower than the arch and tied to the poles
+  by ropes at its corners. The banners across the festival street are
+  tied the same way.
 - Potted plants, baskets of fruit, logs as benches.
 
 ### Pier (`chiikawa 8`)

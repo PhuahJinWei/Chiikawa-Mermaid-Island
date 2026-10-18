@@ -49,6 +49,8 @@
     {"kind": "bunting_row", "x": 22.56, "z": -11.46, "turn": -5.7, "group": "festival"},
     {"kind": "bunting_street", "x": 0, "z": -28.94, "group": "festival"},
     {"kind": "bunting_street", "x": 0, "z": -37.7, "group": "festival"},
+    {"kind": "bunting_side", "x": -4.3, "z": -28.94, "turn": 90, "group": "festival"},
+    {"kind": "bunting_side", "x": 4.3, "z": -28.94, "turn": -90, "group": "festival"},
     {"kind": "lanterns", "x": -29.2, "z": -11.52, "group": "festival"},
     {"kind": "lanterns", "x": -2.15, "z": -43.3, "group": "festival"},
     {"kind": "lanterns", "x": 29.2, "z": -11.52, "group": "festival"},

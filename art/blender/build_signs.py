@@ -8,15 +8,17 @@ src/locales/ja.json, the template with the words after it ("stall.takoyaki ãŸã
 painting may keep that name or drop the words.
 
 This script draws every sign's template, PAINT_PIXELS a metre of its face: the board's colour with
-the game's words faint on it and a dashed margin. It copies each painting into the game at the
-game's own sharpness (public/signs/, listed in signs.json), with black paint turned to the film's
-dark brown as on the faces. The game shows a painting in place of the typed words wherever there
-is one (src/world/Props.ts). It never changes the paintings. How to paint them:
+the game's words faint on it and a dashed margin. It redraws a template only while it is still as
+it drew it, so a painting saved over one by mistake is kept. It copies each painting into the
+game at the game's own sharpness (public/signs/, listed in signs.json), with black paint turned to
+the film's dark brown as on the faces. The game shows a painting in place of the typed words
+wherever there is one (src/world/Props.ts). It never changes the paintings. How to paint them:
 art/signs/README.md.
 
     blender --background --factory-startup --disable-autoexec --python art/blender/build_signs.py
 """
 
+import hashlib
 import json
 import os
 import struct
@@ -34,6 +36,9 @@ WORDS = os.path.join(ROOT, "src", "locales", "ja.json")
 PROPS = os.path.join(ROOT, "public", "models", "props")
 PAINTINGS = os.path.join(ROOT, "art", "signs")
 GUIDES = os.path.join(PAINTINGS, "_guides")
+# What this script last drew in GUIDES: each template's file name and its SHA-1, so it redraws
+# only templates no one has changed since.
+DRAWN = os.path.join(GUIDES, "_drawn.json")
 OUT = os.path.join(ROOT, "public", "signs")
 # Pixels a metre of a sign's face: on its template, for painting, and in the game, where a
 # painting is copied at the sharpness the game paints words (LABEL_PIXELS in src/world/Props.ts).
@@ -52,13 +57,19 @@ FONTS = ("C:/Windows/Fonts/BIZ-UDGothicB.ttc", "C:/Windows/Fonts/YuGothB.ttc", "
 GUIDE_WORDS = 0.3
 # The dashed margin on the templates, in from each edge by this much of the face's height.
 GUIDE_MARGIN = 0.06
-# A painting further than this from its template's proportions is stretched to fit, with a warning.
+# A painting further than this from its template's proportions is shown at its own, centred on the
+# face, with a warning.
 STRETCH = 0.03
 INK = "#3B2620"  # the words' colour where a face names none, as the game's
 
 
 def rgb(hex_colour):
     return np.array([int(hex_colour[i:i + 2], 16) for i in (1, 3, 5)], dtype=np.float32) / 255.0
+
+
+def sha1_of(path):
+    with open(path, "rb") as f:
+        return hashlib.sha1(f.read()).hexdigest()
 
 
 def prop_info(kind):
@@ -154,9 +165,10 @@ def words_cover(text, width, height, font, ss=2):
     return cover.reshape(height, ss, width, ss).mean(axis=(1, 3)).astype(np.float32)
 
 
-def draw_guide(path, sign, font):
-    """A sign's template: its face, PAINT_PIXELS a metre, in its board's colour, with the game's
-    words faint on it and a dashed margin a little darker than the board."""
+def guide_png(sign, font):
+    """A sign's template, as a PNG file's bytes, and its size: its face, PAINT_PIXELS a metre, in
+    its board's colour, with the game's words faint on it and a dashed margin a little darker than
+    the board."""
     width = max(1, round(sign["size"][0] * PAINT_PIXELS))
     height = max(1, round(sign["size"][1] * PAINT_PIXELS))
     board = rgb(sign["board"])
@@ -175,8 +187,7 @@ def draw_guide(path, sign, font):
     dashes[:, m:m + thick] |= along_y[:, None]
     dashes[:, width - m - thick:width - m] |= along_y[:, None]
     img[dashes, :3] = board * 0.8
-    F.write_png(path, F.to_uint8(img))
-    return width, height
+    return F.png_bytes(F.to_uint8(img)), (width, height)
 
 
 def resize(arr, width, height):
@@ -224,16 +235,43 @@ def main():
     font = guide_font()
     if font is None:
         print("WARNING no Japanese font found: the templates have no words on them")
-    # The templates, redrawn every time; those of signs no longer in the game go.
+    # The templates, redrawn every time, and those of signs no longer in the game taken away: but
+    # only those still as this script drew them. Anything else there (a painting saved over a
+    # template) is left as it is.
     os.makedirs(GUIDES, exist_ok=True)
+    try:
+        with open(DRAWN, encoding="utf-8") as f:
+            drawn = json.load(f)
+    except (OSError, ValueError):
+        drawn = {}
     names = {key: f"{key} {sign['words']}.png" for key, sign in every.items()}
-    sizes = {key: draw_guide(os.path.join(GUIDES, names[key]), sign, font) for key, sign in every.items()}
+    sizes, problems, now = {}, [], {}
+    for key, sign in every.items():
+        png, sizes[key] = guide_png(sign, font)
+        path = os.path.join(GUIDES, names[key])
+        if os.path.exists(path):
+            old = sha1_of(path)
+            if old != hashlib.sha1(png).hexdigest() and old != drawn.get(names[key]):
+                problems.append(f"_guides/{names[key]} was changed after it was drawn, so it is left as it is: "
+                                "a painting belongs in art/signs/ itself")
+                continue
+        with open(path, "wb") as f:
+            f.write(png)
+        now[names[key]] = hashlib.sha1(png).hexdigest()
     for entry in os.listdir(GUIDES):
-        if entry.lower().endswith(".png") and entry not in names.values():
-            os.remove(os.path.join(GUIDES, entry))
+        path = os.path.join(GUIDES, entry)
+        if entry.lower().endswith(".png") and os.path.isfile(path) and entry not in names.values():
+            if sha1_of(path) == drawn.get(entry):
+                os.remove(path)
+            else:
+                problems.append(f"_guides/{entry} is no sign's template, so it is left as it is: "
+                                "a painting belongs in art/signs/ itself")
+    with open(DRAWN, "w", encoding="utf-8", newline="\n") as f:
+        json.dump(now, f, ensure_ascii=False, indent=1, sort_keys=True)
+        f.write("\n")
     # The paintings, copied into the game; the game's copies of paintings since taken away go.
     os.makedirs(OUT, exist_ok=True)
-    painted, problems = [], []
+    painted = []
     for key, paths in painting_files().items():
         if key not in every:
             problems.extend(f"{os.path.basename(p)}: no sign is called {key} (the templates' names start with "
@@ -245,11 +283,21 @@ def main():
         arr = F.ink_blacks(F.load_png(path))
         h, w = arr.shape[:2]
         tw, th = sizes[key]
-        if abs((w / h) / (tw / th) - 1.0) > STRETCH:
-            problems.append(f"{os.path.basename(path)} is {w} x {h} and its template {tw} x {th}: stretched to fit")
         fw, fh = every[key]["size"]
-        F.write_png(os.path.join(OUT, f"{key}.png"),
-                    F.to_uint8(resize(arr, max(1, round(fw * GAME_PIXELS)), max(1, round(fh * GAME_PIXELS)))))
+        gw, gh = max(1, round(fw * GAME_PIXELS)), max(1, round(fh * GAME_PIXELS))
+        if abs((w / h) / (tw / th) - 1.0) > STRETCH:
+            # Not its template's proportions (painted for a board since reshaped): shown as it was
+            # painted, as large as fits and centred, never stretched.
+            problems.append(f"{os.path.basename(path)} is {w} x {h} and its template {tw} x {th}: shown at its "
+                            "own proportions, centred; repaint it on the template to fill the board")
+            scale = min(gw / w, gh / h)
+            pw, ph = max(1, round(w * scale)), max(1, round(h * scale))
+            out = np.zeros((gh, gw, 4), dtype=np.float32)
+            top, left = (gh - ph) // 2, (gw - pw) // 2
+            out[top:top + ph, left:left + pw] = resize(arr, pw, ph)
+        else:
+            out = resize(arr, gw, gh)
+        F.write_png(os.path.join(OUT, f"{key}.png"), F.to_uint8(out))
         painted.append(key)
     for entry in os.listdir(OUT):
         stem, ext = os.path.splitext(entry)

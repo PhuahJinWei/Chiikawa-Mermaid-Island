@@ -36,19 +36,23 @@ STARTER = {"skin": "skin", "cheeks": "cheeks", "tears": "tears eyes open", "eyes
 INK = np.array([0x3B, 0x26, 0x20], dtype=np.float32) / 255.0  # the film's dark brown for face lines
 
 
-def write_png(path, rgba):
-    """Minimal RGBA PNG writer; rgba is uint8 (H, W, 4), top row first."""
+def png_bytes(rgba):
+    """A minimal RGBA PNG file's bytes; rgba is uint8 (H, W, 4), top row first."""
     h, w = rgba.shape[:2]
     raw = b"".join(b"\x00" + rgba[y].tobytes() for y in range(h))
 
     def chunk(tag, data):
         return struct.pack(">I", len(data)) + tag + data + struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF)
 
-    png = (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 6, 0, 0, 0))
-           + chunk(b"IDAT", zlib.compress(raw, 9)) + chunk(b"IEND", b""))
+    return (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 6, 0, 0, 0))
+            + chunk(b"IDAT", zlib.compress(raw, 9)) + chunk(b"IEND", b""))
+
+
+def write_png(path, rgba):
+    """Minimal RGBA PNG writer; rgba is uint8 (H, W, 4), top row first."""
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "wb") as f:
-        f.write(png)
+        f.write(png_bytes(rgba))
 
 
 def to_uint8(arr):

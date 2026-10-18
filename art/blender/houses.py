@@ -61,6 +61,7 @@ C = {k: L.hex_color(v) for k, v in {
     "lantern": "#F6A2BD",
     "lanternBand": "#FFFFFF",
     "torch": "#8A5A3B",
+    "rope": "#54473D",
     "basket": "#C9A06A",
     "flame": "#FFB347",
     "flameCore": "#FFE58A",
@@ -595,19 +596,20 @@ def build_torch(collection):
 
 # ---------------------------------------------------------------------------- the festival street
 def flower_bm(centre, normal, radius):
-    """A five-petalled yellow flower facing `normal`, with an orange middle."""
+    """A yellow flower of five broad, round petals facing `normal`, with an orange middle, as the
+    film's arch is wreathed in."""
     n = normal.normalized()
     side = n.cross(UP if abs(n.z) < 0.9 else Vector((1.0, 0.0, 0.0))).normalized()
     other = n.cross(side)
     petals = bmesh.new()
     hub = petals.verts.new(centre)
-    ring = []
-    for i in range(10):
-        a = 2.0 * math.pi * i / 10
-        r = radius * (1.0 if i % 2 == 0 else 0.62)
+    ring, count = [], 30
+    for i in range(count):
+        a = 2.0 * math.pi * i / count
+        r = radius * (0.68 + 0.32 * math.cos(2.5 * a) ** 2)
         ring.append(petals.verts.new(centre + side * (math.cos(a) * r) + other * (math.sin(a) * r)))
-    for i in range(10):
-        petals.faces.new((hub, ring[i], ring[(i + 1) % 10]))
+    for i in range(count):
+        petals.faces.new((hub, ring[i], ring[(i + 1) % count]))
     petals.normal_update()
     if petals.faces[:][0].normal.dot(n) < 0:
         bmesh.ops.reverse_faces(petals, faces=petals.faces[:])
@@ -658,6 +660,16 @@ def arc_label(x_half, mid_z, height, y, name, collection, segments=16, inset=0.9
     return P.object_with_uv(name, bm, uvs, collection)
 
 
+def tie_rope(end, pole, pole_radius, pieces):
+    """A rope from `end` (a banner's corner) to the pole whose middle is at `pole` (at the height
+    the rope is tied), wound round the pole there."""
+    out = Vector((end.x - pole.x, end.y - pole.y, 0.0))
+    out = out.normalized() if out.length > 1e-6 else Vector((1.0, 0.0, 0.0))
+    pieces.append((log(end, pole + out * pole_radius, 0.02, segments=5), C["rope"]))
+    wound = pole_radius + 0.018
+    pieces.append((P.segment_bm(pole - V(0, 0, 0.04), pole + V(0, 0, 0.04), wound, wound, segments=8), C["rope"]))
+
+
 def lantern_stack(x, y, z0, count, glow, pieces):
     """Paper lanterns stacked on a pole, pink, lit at night."""
     for k in range(count):
@@ -667,10 +679,12 @@ def lantern_stack(x, y, z0, count, glow, pieces):
 
 
 def build_arch(collection):
-    """The welcome arch over the festival street: two tall poles with gold balls and ribbons, an
-    arching wooden board for 島へようこそ!! wreathed in big yellow flowers, a white banner hung below
-    it, and paper lanterns stacked on the poles."""
-    half, pole_h = 4.4, 4.9
+    """The welcome arch over the festival street, after the film's: two tall poles with gold balls
+    and ribbons, a deep arching wooden board for 島へようこそ!! across their tops (a fifth as deep as
+    it is long, its top level with the poles' at its middle), wreathed in big yellow flowers that
+    climb down the poles, a white banner hung below it, narrower than the arch and tied to the poles
+    by ropes at its corners, and pink paper lanterns stacked on the poles below the flowers."""
+    half, pole_h = 4.4, 5.95
     pieces, glow = [], []
     for s in (-1.0, 1.0):
         x = s * half
@@ -682,54 +696,77 @@ def build_arch(collection):
             base = V(x, -0.08, pole_h - 0.05)
             pieces.append((oriented_box((base + tip) / 2, tip - base, V(0, 1, 0), ((tip - base).length, 0.015, 0.09)),
                            colour))
-        lantern_stack(x, -0.18, 0.95, 3, glow, pieces)
-    board, board_z = arc_strip(4.1, 4.45, 4.05, 0.85, 0.0, 0.1)
+        lantern_stack(s * (half + 0.24), 0.0, 1.75, 5, glow, pieces)
+    board_half, board_h = 4.25, 1.7
+    board_mid, board_end = pole_h - board_h / 2 + 0.1, pole_h - board_h / 2 - 0.28
+    board, board_z = arc_strip(board_half, board_mid, board_end, board_h, 0.0, 0.1)
     pieces.append((board, C["board"]))
-    for dz in (0.43, -0.43):
-        edge, _ = arc_strip(4.1, 4.45 + dz, 4.05 + dz, 0.04, -0.06, 0.02)
+    for dz in (board_h / 2, -board_h / 2):
+        edge, _ = arc_strip(board_half, board_mid + dz, board_end + dz, 0.04, -0.06, 0.02)
         pieces.append((edge, C["boardEdge"]))
-    # Garlands of yellow flowers along the board's edges and down the poles, with leaves.
+    # Garlands of big yellow flowers packed along the board's edges, two deep along its top, with
+    # leaves among them; clustered over the board's ends and trailing down the poles.
     front = V(0.0, -1.0, 0.0)
-    k, x = 0, -4.2
-    while x <= 4.2:
-        for dz in (0.47, -0.47):
-            z = board_z(max(-4.1, min(4.1, x))) + dz + 0.06 * math.sin(k * 2.3)
-            r = 0.17 + 0.04 * math.sin(k * 1.7)
-            pieces += flower_bm(V(x, -0.12, z), front + V(0.15 * math.sin(k), 0.0, 0.25 * math.cos(k * 1.3)), r)
-            leaf = V(x + 0.17, -0.09, z - 0.06 * math.copysign(1, dz))
-            pieces.append((L.ellipsoid_bm(leaf, (0.13, 0.03, 0.07), u=6, v=4), C["vine"]))
-            k += 1
-        x += 0.36
+    k = 0
+
+    def flower(at, r, tilt):
+        nonlocal k
+        pieces.extend(flower_bm(at, front + tilt, r))
+        side = 1.0 if k % 2 else -1.0
+        leaf = at + V(0.17 * side, 0.04, -0.1)
+        pieces.append((L.ellipsoid_bm(leaf, (0.17, 0.03, 0.08), u=5, v=3), C["vine"]))
+        k += 1
+
+    for dz, shift in ((board_h / 2 - 0.05, 0.0), (board_h / 2 + 0.15, 0.15), (-board_h / 2 + 0.02, 0.07)):
+        x = -board_half + shift
+        while x <= board_half:
+            z = board_z(x) + dz + 0.05 * math.sin(k * 2.3)
+            flower(V(x, -0.12 - 0.03 * (k % 2), z), 0.24 + 0.05 * math.sin(k * 1.7),
+                   V(0.15 * math.sin(k), 0.0, 0.25 * math.cos(k * 1.3)))
+            x += 0.3
+    ends = board_end - board_h / 2
     for s in (-1.0, 1.0):
-        for i in range(9):
-            z = 4.1 - i * 0.33
-            pieces += flower_bm(V(s * (half - 0.14), -0.14, z), front + V(-s * 0.4, 0.0, 0.1), 0.15 + 0.03 * math.sin(i))
-            pieces.append((L.ellipsoid_bm(V(s * (half + 0.1), -0.1, z - 0.15), (0.06, 0.03, 0.13), u=6, v=4), C["vine"]))
-    banner, banner_z = arc_strip(4.3, 3.0, 3.25, 0.62, 0.05, 0.03)
+        for i in range(6):
+            flower(V(s * (board_half - 0.08 * (i % 2)), -0.16, board_end + board_h / 2 - 0.15 - i * 0.28),
+                   0.22 + 0.03 * math.sin(i), V(-s * 0.3, 0.0, 0.1))
+        for i in range(5):
+            flower(V(s * (half - 0.16 + 0.1 * (i % 2)), -0.16, ends - 0.12 - i * 0.24),
+                   0.19 + 0.03 * math.sin(i), V(-s * 0.4, 0.0, 0.1))
+    # The banner, a fifth as deep as it is long, hung below the board and tied to the poles.
+    banner_half, banner_h, banner_mid, banner_end = 3.2, 1.3, 2.95, 3.05
+    banner, banner_z = arc_strip(banner_half, banner_mid, banner_end, banner_h, 0.05, 0.03)
     pieces.append((banner, C["white"]))
+    for s in (-1.0, 1.0):
+        for corner, tied in ((banner_end + banner_h / 2 - 0.05, banner_end + banner_h / 2 + 0.2),
+                             (banner_end - banner_h / 2 + 0.05, banner_end - banner_h / 2 - 0.15)):
+            tie_rope(V(s * banner_half, 0.05, corner), V(s * half, 0.0, tied), 0.1, pieces)
     body = P.join("arch", pieces, collection)
     lights = P.join("arch_glow", glow, collection)
-    board_label = arc_label(4.1, board_z, 0.62, -0.06, "arch_label", collection)
-    banner_label = arc_label(4.3, banner_z, 0.46, 0.03, "arch_label1", collection)
-    labels = [{"size": [7.6, 0.62], "colour": "#5A3A2E"}, {"size": [7.9, 0.46], "colour": "#E8679A"}]
+    board_label = arc_label(board_half, board_z, 1.1, -0.06, "arch_label", collection)
+    banner_label = arc_label(banner_half, banner_z, 0.95, 0.03, "arch_label1", collection)
+    labels = [{"size": [round(2 * board_half * 0.92, 2), 1.1], "colour": "#5A3A2E"},
+              {"size": [round(2 * banner_half * 0.92, 2), 0.95], "colour": "#E8679A"}]
     blocks = [{"circle": [*g(s * half, 0.0), 0.2], "y": [-10, pole_h], "walk": True, "camera": True} for s in (-1, 1)]
-    return [body, lights, board_label, banner_label], {"blocks": blocks, "labels": labels, "height": 5.1}
+    return [body, lights, board_label, banner_label], {"blocks": blocks, "labels": labels, "height": pole_h + 0.3}
 
 
 def build_banner(collection):
-    """A white cloth banner strung across the festival street between two poles standing just in
-    front of the stalls on either side, for words in pink."""
-    half, pole_h = 4.3, 4.3
+    """A white cloth banner across the festival street for words in pink, after the film's:
+    narrower than the street and deeper than a strip, its middle sagging a little, tied by ropes at
+    its corners to the tall poles at the stalls' fronts on either side (the bunting's along the
+    street, build_village.py)."""
+    poles, pole_r = 4.3, 0.06
+    half, height, mid, end = 3.3, 1.0, 3.0, 3.1
     pieces = []
-    for s in (-1.0, 1.0):
-        pieces.append((log(V(s * half, 0.0, -0.3), V(s * half, 0.0, pole_h), 0.07, segments=6), C["torch"]))
-        pieces.append((L.ellipsoid_bm(V(s * half, 0.0, pole_h + 0.08), (0.1, 0.1, 0.1), u=8, v=5), C["gold"]))
-    cloth, cloth_z = arc_strip(4.2, 3.45, 3.75, 0.62, 0.0, 0.03)
+    cloth, cloth_z = arc_strip(half, mid, end, height, 0.0, 0.03)
     pieces.append((cloth, C["white"]))
+    for s in (-1.0, 1.0):
+        for corner, tied in ((end + height / 2 - 0.05, 4.05), (end - height / 2 + 0.05, 2.5)):
+            tie_rope(V(s * half, 0.0, corner), V(s * poles, 0.0, tied), pole_r, pieces)
     body = P.join("banner", pieces, collection)
-    label = arc_label(4.2, cloth_z, 0.48, -0.02, "banner_label", collection)
-    blocks = [{"circle": [*g(s * half, 0.0), 0.14], "y": [-10, pole_h], "walk": True, "camera": True} for s in (-1, 1)]
-    return [body, label], {"blocks": blocks, "labels": [{"size": [7.7, 0.48], "colour": "#E8679A"}], "height": 4.4}
+    label = arc_label(half, cloth_z, 0.75, -0.02, "banner_label", collection)
+    return [body, label], {"labels": [{"size": [round(2 * half * 0.92, 2), 0.75], "colour": "#E8679A"}],
+                           "height": 4.1}
 
 
 def build_lantern_pole(collection):

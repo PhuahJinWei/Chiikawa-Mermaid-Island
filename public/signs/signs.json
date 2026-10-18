@@ -1,4 +1,6 @@
 {
   "about": "The hand-lettered signs, by the key of their words; written by art/blender/build_signs.py from the paintings in art/signs/.",
-  "signs": []
+  "signs": [
+    "arch.welcome"
+  ]
 }

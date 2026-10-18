@@ -18,10 +18,10 @@ shows the painting, and the rest keep their typed words.
 
 | Sign | Canvas (pixels) |
 |---|---|
-| The 38 stalls' header boards (`stall.…`) | 1400 × 400 |
-| The arch's board, `arch.welcome` 島へようこそ!! | 6080 × 496 |
-| The arch's banner, `arch.banner` ウェルカム・トゥ・シマ | 6320 × 368 |
-| The street's banners, `banner.welcome` いらっしゃいませ!! and `banner.enjoy` たのしんでね | 6160 × 384 |
+| The 38 stalls' header boards (`stall.…`) | 1440 × 496 |
+| The arch's board, `arch.welcome` 島へようこそ!! | 6256 × 880 |
+| The arch's banner, `arch.banner` ウェルカム・トゥ・シマ | 4712 × 760 |
+| The street's banners, `banner.welcome` いらっしゃいませ!! and `banner.enjoy` たのしんでね | 4856 × 600 |
 
 `_guides/` lists every stall with its words and board colour. In the game the
 arch's board and all three banners curve. Paint them flat, and the game bends
@@ -36,8 +36,9 @@ them.
    board's own colour shows through, lit and shaded with the rest of the
    stall. Pictures are welcome, as on the film's signs.
 3. Hide the template. Export your layer as a PNG with transparency, at the
-   whole canvas size, into `art/signs/` with the template's name. Don't trim
-   or crop it on export, because the edges of the canvas are the edges of the
+   whole canvas size, with the template's name. Save it into `art/signs/`
+   itself, the folder this README is in, not into `_guides/`. Don't trim or
+   crop it on export, because the edges of the canvas are the edges of the
    lettering area.
 4. Rebuild the signs from the project folder, then reload the game:
 
@@ -72,12 +73,20 @@ From its festival frames:
 - **Margins:** keep the words inside the dashed line. Anything out to the
   canvas edge still shows on the board.
 - **Your files are never changed:** rebuilding only reads them, copies them
-  into the game (`public/signs/`) and redraws the templates. Don't paint on
-  a template, because the next rebuild redraws it.
+  into the game (`public/signs/`) and redraws the templates.
+- **Templates are redrawn only if untouched:** if a template in `_guides/`
+  has changed since the rebuild drew it, for example because a painting was
+  saved over it, the rebuild leaves it alone and says so. Move the painting
+  up into `art/signs/`. The rebuild keeps track of what it drew in
+  `_guides/_drawn.json`, so leave that file alone.
 - **Mistakes are listed when you rebuild:** that covers a file whose name
-  matches no sign, and a painting whose proportions don't match its template
-  (it is stretched to fit).
-- **Subfolders are ignored:** keep old versions in one, such as `v1`.
+  matches no sign, and a painting whose proportions don't match its
+  template. Such a painting, made for a board since reshaped, shows as you
+  painted it, centred, and is never stretched. Repaint it on its template
+  to fill the board.
+- **Subfolders are ignored:** keep old versions of your paintings in one,
+  such as `art/signs/v1/`. The templates need no backup, because every
+  rebuild can draw them again.
 - **Going back:** take a painting out, or move it into a subfolder, and the
   next rebuild brings back the typed words.
 - **Changing words:** changing a sign's words in `src/locales/ja.json`
