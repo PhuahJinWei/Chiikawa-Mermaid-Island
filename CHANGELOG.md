@@ -227,7 +227,27 @@ outlined is drawn twice, once for its pen line. To get there:
   where each copy stands, and joined at load: the file went from 9 MB to
   1.9 MB.
 - The drawing resolution steps down when the frame rate stays under 48
-  for a few seconds, and back up when there is room again.
+  for a few seconds, and back up when there is room again, though never
+  back to a resolution that proved too slow until the window changes. It
+  goes down to half the screen's own (it had stopped at the screen's own),
+  and a big window starts below full, at the steps that keep it within
+  1.5 million pixels: a 1920 x 1200 window starts at three quarters
+  (1440 x 900). The pen and the HUD keep their size on screen. On this PC
+  (Radeon 780M) the waterfall frame at 1440 x 900 takes 16.5 ms, against
+  45 ms at full size before, and holds 60 frames a second on the festival
+  street.
+- The film look's finishing passes draw the same picture for a quarter of
+  their cost. They had all run on pictures of four samples a pixel, which
+  every pass wrote and resolved before the next could read it; now only
+  the scene is drawn with four (the plants' cut-out leaves need them), into
+  a picture of its own resolved once, the depth of field, the brushwork
+  and the glow draw one sample a pixel in half floats, and the colour grade
+  draws straight to the screen, taking over the last pass's work. Drawn
+  through both, the waterfall frame and the festival street at 11:00 and
+  at 20:00 differ by at most one step in 255. Measured with the GPU's
+  timer (the median of about 18 frames drawn back to back): at 1920 x 1200
+  a frame takes 26 ms against 45 (the scene alone about 20, so the passes
+  went from about 25 ms to 6); at 1105 x 781, 12.5 ms against 18.7.
 
 **Changed**
 

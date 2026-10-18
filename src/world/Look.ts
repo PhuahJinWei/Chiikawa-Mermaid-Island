@@ -1,7 +1,5 @@
 import * as THREE from 'three';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
-import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 
@@ -1021,6 +1019,8 @@ const GRADE = {
       vec2 d = vUv - 0.5;
       g *= 1.0 - uVignette * dot(d, d);
       gl_FragColor = vec4(pow(max(g, 0.0), vec3(2.2)), c.a);
+      // Out to the screen's colours: the grade is the last pass, drawn straight to the screen.
+      #include <colorspace_fragment>
     }`,
 };
 
@@ -1208,47 +1208,68 @@ const FOCUS = {
  * high-precision picture, the jungle's depth hazed and what is nearest the camera softened, the
  * scenery's brushwork, a soft glow
  * round the brightest light (the hazy sky, sun on white), the colour grade, then out to the screen.
+ *
+ * Only the scene is drawn with antialiasing (4 samples a pixel, which the plants' cut-out leaves
+ * need), into a picture of its own that is resolved once; the passes after it each draw one sample
+ * a pixel, in half floats up to the glow (it picks out light brighter than white), and the grade
+ * draws straight to the screen.
  */
 export class FilmPost {
   private readonly composer: EffectComposer;
-  private readonly bloom: UnrealBloomPass;
+  /** The scene as rendered, with its depth (read by the depth of field). */
+  private readonly picture: THREE.WebGLRenderTarget;
   /** The depth of field (see FOCUS). */
   readonly focus: ShaderPass;
   /** The brushwork (see PAINT). */
   readonly paint: ShaderPass;
+  private readonly renderer: THREE.WebGLRenderer;
+  private readonly scene: THREE.Scene;
   private readonly camera: THREE.Camera;
 
   constructor(renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.Camera) {
+    this.renderer = renderer;
+    this.scene = scene;
     this.camera = camera;
     const size = renderer.getDrawingBufferSize(new THREE.Vector2());
-    const target = new THREE.WebGLRenderTarget(size.x, size.y, { type: THREE.HalfFloatType, samples: 4 });
-    target.depthTexture = new THREE.DepthTexture(size.x, size.y);
-    this.composer = new EffectComposer(renderer, target);
-    this.composer.addPass(new RenderPass(scene, camera));
-    this.focus = new ShaderPass(FOCUS);
-    this.focus.uniforms.uTexel.value.set(1 / size.x, 1 / size.y);
+    this.picture = new THREE.WebGLRenderTarget(size.x, size.y, { type: THREE.HalfFloatType, samples: 4 });
+    this.picture.depthTexture = new THREE.DepthTexture(size.x, size.y);
+    this.composer = new EffectComposer(
+      renderer,
+      new THREE.WebGLRenderTarget(size.x, size.y, { type: THREE.HalfFloatType, depthBuffer: false }),
+    );
+    // The depth of field reads the scene's picture, not the composer's (the uniform named here is
+    // one it does not have, so the composer leaves tDiffuse as set).
+    this.focus = new ShaderPass(FOCUS, 'tScene');
+    this.focus.uniforms.tDiffuse.value = this.picture.texture;
+    this.focus.uniforms.tDepth.value = this.picture.depthTexture;
     // The pass copies its uniforms; these are kept by the stage and the island.
     Object.assign(this.focus.uniforms, jungleHaze, coverUniforms, { uSun: sunUniform });
     this.composer.addPass(this.focus);
     this.paint = new ShaderPass(PAINT);
-    this.paint.uniforms.uTexel.value.set(1 / size.x, 1 / size.y);
     this.composer.addPass(this.paint);
     // Only light brighter than white glows (the sun, the hazy sky), not white things in daylight.
-    this.bloom = new UnrealBloomPass(new THREE.Vector2(size.x / 2, size.y / 2), 0.32, 0.75, 1.0);
-    this.composer.addPass(this.bloom);
+    this.composer.addPass(new UnrealBloomPass(new THREE.Vector2(size.x / 2, size.y / 2), 0.32, 0.75, 1.0));
     const grade = new ShaderPass(GRADE);
     // The pass copies its uniforms; the night is the stage's to keep (see nightUniform).
     grade.uniforms.uNight = nightUniform;
     grade.uniforms.uGolden = goldenUniform;
     this.composer.addPass(grade);
-    this.composer.addPass(new OutputPass());
+    this.setTexel(size.x, size.y);
   }
 
+  /** Sizes the pictures to the drawing buffer (`width` × `height` CSS pixels at `pixelRatio`). */
   setSize(width: number, height: number, pixelRatio: number): void {
-    this.composer.setPixelRatio(pixelRatio);
-    this.composer.setSize(width, height);
-    this.paint.uniforms.uTexel.value.set(1 / (width * pixelRatio), 1 / (height * pixelRatio));
-    this.focus.uniforms.uTexel.value.set(1 / (width * pixelRatio), 1 / (height * pixelRatio));
+    const w = Math.floor(width * pixelRatio);
+    const h = Math.floor(height * pixelRatio);
+    this.picture.setSize(w, h);
+    this.composer.setPixelRatio(1);
+    this.composer.setSize(w, h);
+    this.setTexel(w, h);
+  }
+
+  private setTexel(width: number, height: number): void {
+    this.paint.uniforms.uTexel.value.set(1 / width, 1 / height);
+    this.focus.uniforms.uTexel.value.set(1 / width, 1 / height);
   }
 
   render(): void {
@@ -1257,9 +1278,8 @@ export class FilmPost {
     this.focus.uniforms.uFar.value = camera.far;
     this.focus.uniforms.uProj.value.set(camera.projectionMatrix.elements[0], camera.projectionMatrix.elements[5]);
     this.focus.uniforms.uCameraWorld.value.copy(camera.matrixWorld);
-    // The scene is drawn into whichever picture is being read when the frame starts; the depth of
-    // field reads that one's depth.
-    this.focus.uniforms.tDepth.value = this.composer.readBuffer.depthTexture;
+    this.renderer.setRenderTarget(this.picture);
+    this.renderer.render(this.scene, this.camera);
     this.composer.render();
   }
 }

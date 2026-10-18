@@ -86,6 +86,13 @@ never pushed, because it is other people's artwork.
   floods the jungle with golden light, its haze gold toward the sun and
   thin elsewhere; the evening's haze takes the sky's colours, never a
   green fog.
+- **Judged at full resolution.** A big window starts below full
+  resolution (three quarters on a 1920 x 1200 screen) and the game draws
+  finer or coarser as the frame rate allows. The pen and the HUD keep their
+  size on screen, but the brushwork and the soft blur of what is nearest
+  are measured in drawn pixels, so they come out coarser when it draws
+  coarser. Judge the look, and take captures to set beside the film, at
+  full resolution (in development, `__game.setPixelRatio(1)` first).
 - **Everyone is a round blob.** Head and body are one soft shape, wider at
   the head, with tiny stub arms and almost invisible feet. Heights are close
   to one head tall. This is a gift for procedural modelling.

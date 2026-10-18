@@ -55,13 +55,25 @@ const FREE_FOCUS = 12;
 /**
  * The drawing resolution, in device pixels per CSS pixel, adapts to keep the game smooth: it steps
  * down when the frame rate stays under SLOW for a few seconds, and back up when it stays over FAST
- * for longer. It never goes above the screen's own (or 2) nor below MIN_RATIO.
+ * for longer, though never back to a resolution that has proved too slow until the window changes.
+ * It never goes above the screen's own (or 2) nor below MIN_RATIO. A big window starts below the
+ * screen's own, at the steps that keep it within START_PIXELS, as most of a frame's cost is its
+ * pixels.
  */
-const MIN_RATIO = 1;
+const MIN_RATIO = 0.5;
 const RATIO_STEP = 0.25;
+const START_PIXELS = 1.5e6;
 const SLOW = 48;
 const FAST = 58;
 const ZERO = new THREE.Vector3();
+
+/** The drawing resolution a `width` × `height` window starts at: `best`, or the step below it that keeps it within START_PIXELS. */
+function startRatio(width: number, height: number, best: number): number {
+  let ratio = best;
+  while (ratio > MIN_RATIO && width * height * ratio * ratio > START_PIXELS) ratio = Math.max(MIN_RATIO, ratio - RATIO_STEP);
+  return ratio;
+}
+
 const _focus = new THREE.Vector3();
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
@@ -103,6 +115,8 @@ export class Game {
   private slowFor = 0;
   private fastFor = 0;
   private pixelRatio = 1;
+  /** The highest drawing resolution not yet found too slow in this window. */
+  private ratioCeiling = 1;
   /** The island's time of day, and the time it was before a staged shot held it. */
   private readonly clock = new Clock();
   private hoursBeforeShot: number | null = null;
@@ -432,7 +446,6 @@ export class Game {
 
   /** Steps the drawing resolution down when frames are slow, and back up when there is room. */
   private adaptResolution(dt: number): void {
-    const best = Math.min(window.devicePixelRatio || 1, 2);
     if (this.fps < SLOW) {
       this.slowFor += dt;
       this.fastFor = 0;
@@ -443,8 +456,12 @@ export class Game {
       this.slowFor = this.fastFor = 0;
     }
     let ratio = this.pixelRatio;
-    if (this.slowFor > 3 && ratio > MIN_RATIO) ratio = Math.max(MIN_RATIO, ratio - RATIO_STEP);
-    else if (this.fastFor > 12 && ratio < best) ratio = Math.min(best, ratio + RATIO_STEP);
+    if (this.slowFor > 3 && ratio > MIN_RATIO) {
+      ratio = Math.max(MIN_RATIO, ratio - RATIO_STEP);
+      this.ratioCeiling = ratio;
+    } else if (this.fastFor > 12 && ratio < this.ratioCeiling) {
+      ratio = Math.min(this.ratioCeiling, ratio + RATIO_STEP);
+    }
     if (ratio !== this.pixelRatio) {
       this.slowFor = this.fastFor = 0;
       this.setPixelRatio(ratio);
@@ -474,7 +491,8 @@ export class Game {
     this.camera.updateProjectionMatrix();
     this.applyViewLift();
     this.ctx.viewHeight = h;
-    this.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    this.ratioCeiling = Math.min(window.devicePixelRatio || 1, 2);
+    this.setPixelRatio(startRatio(w, h, this.ratioCeiling));
     if (this.lineup) this.rig.frame(0, LINEUP_PITCH, this.lineupDistance());
   };
 
