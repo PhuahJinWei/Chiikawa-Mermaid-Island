@@ -37,15 +37,23 @@ never pushed, because it is other people's artwork.
   through the leaves, the jungle under its canopy in deep shade with the
   dapples bright in it, soft gradients across the turn from light to shade,
   haze into the distance and a warm haze where the light comes into a
-  clearing, a soft glow round the brightest light and the film's colour
-  grade. Stone splits into slabs or beds, each its own shade, stained and
-  streaked, with dark cracks between and moss in cushions lit along their
-  tops; low down in the jungle's damp it is filmed green in broad patches. Leaves gather in round puffs overlapping like scales,
-  yellow-green toward the sun and blue-green away from it, the crown's edge
-  broken into puffs. Bark is furrowed, patched with pale lichen and lit
-  warm orange on the sun's side. Still water mirrors what stands round it,
-  darker and greener; falling water is a soft veil of streaks, glowing
-  over its lip.
+  clearing, the jungle's depths fading into a soft teal haze (golden
+  toward the sun) while what is near stays dark and clear, a soft glow
+  round the brightest light and the film's colour grade. Clouds are
+  cumulus, white where the light finds them and softly blue-grey under
+  each puff. Stone splits into slabs or beds, each its own shade, stained
+  and streaked, with dark cracks between and moss in cushions lit along
+  their tops; low down in the jungle's damp it is filmed green in broad
+  patches. Trees' heads are heaped of rounded leafy lobes like a
+  cauliflower's, on tall pale olive-tan trunks forking into limbs, never
+  one smooth dome; palms fringe the jungle where it meets the beaches and
+  the village. Thatch lies in rows of straw, each row's ragged edge a dark
+  line over the one below. Leaves gather in round puffs overlapping like
+  scales, yellow-green toward the sun and blue-green away from it, the
+  crown's edge broken into puffs. Bark is furrowed, patched with pale
+  lichen and lit warm orange on the sun's side. Still water mirrors what
+  stands round it, darker and greener; falling water is a soft veil of
+  streaks, glowing over its lip.
 - **Everyone is a round blob.** Head and body are one soft shape, wider at
   the head, with tiny stub arms and almost invisible feet. Heights are close
   to one head tall. This is a gift for procedural modelling.
@@ -188,6 +196,9 @@ green-turquoise water you can see sparkles in. Confetti welcome on arrival.
   sand.
 - Starfish scattered on the sand. Bonfire of crossed logs with a big soft
   cartoon flame casting an orange pool of light.
+- Everything is painted in blues: a royal-blue sky, clouds barely lighter
+  than it, a deep blue sea, blue-grey sand and deep blue silhouettes,
+  never black; only firelight and lit windows stay warm.
 
 ### Night feast (`chiikawa 10`)
 

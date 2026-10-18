@@ -5,7 +5,7 @@ import { t, type StringKey } from '../i18n/I18n';
 import { glowMaterial, glowUniforms } from './Glow';
 import { INK, addOutline } from './Ink';
 import { terrainHeight } from './Island';
-import { FILM } from './Look';
+import { FILM, paintThatch } from './Look';
 import { addBox, addCircle, addDeck } from './Obstacles';
 import { loadPropModel, type LabelInfo, type PartRole, type PropInfo } from './PropModels';
 
@@ -71,8 +71,12 @@ interface Floater {
   phase: number;
 }
 
+/** The props' own material: toon-shaded vertex colours, in the film look with the huts' thatch
+ * painted the film's way (see paintThatch). */
 function toon(): THREE.MeshToonMaterial {
-  return new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: sceneryRamp() });
+  const material = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: sceneryRamp() });
+  if (FILM) material.onBeforeCompile = (shader) => paintThatch(shader);
+  return material;
 }
 
 /** Unlit vertex colours: flames, which make their own light. */

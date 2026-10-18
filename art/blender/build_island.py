@@ -126,13 +126,17 @@ POOL_PLANTS = [("monstera", 0, -3.4, 13.4, 1.5), ("monstera", 2, -4.4, 11.6, 1.3
                # Behind the stump, its fronds arching over the bromeliads.
                ("cycad", 1, 4.4, 8.4, 2.1)]
 POOL_ROCKS = [(-4.5, 10.5, (2.4, 1.4), 0.9, 1.7, 62), (3.0, 9.8, (1.0, 0.85), 0.2, 3.0, 63)]
+# A leafy bough hanging down out of the bank's trees over the cast, close to where the film's frame
+# is seen from, framing its top left as the film's does: its foot (across, toward), how high over
+# the ground, and which way it reaches (a turn, as the plants').
+POOL_BRANCHES = [(-3.0, 16.0, 3.9, -1.13)]
 # Clumps of canopy trees framing the view as in the film, each tree's (across, toward, height): over
 # the bank, closing in overhead, so the bank lies in their shade, deepest over the plants at the
 # left, while the pool and the waterfall are in the sun (their trunks off to the sides of the view
 # and behind it); and either side of the pool, hiding the pillars beyond and the ends of the
 # waterfall's wall. Other trees keep off the bank out to `BANK_ROOM` metres past the water.
 POOL_GROVE = [
-    [(-8.6, 15.0, 13.0), (-5.0, 24.5, 14.5), (1.0, 25.5, 13.5), (-4.6, 17.6, 12.5), (-12.5, 21.0, 12.0),
+    [(-8.6, 15.0, 14.5), (-5.0, 24.5, 14.5), (1.0, 25.5, 13.5), (-4.6, 17.6, 13.5), (-12.5, 21.0, 12.0),
      (-2.0, 22.8, 13.5), (4.5, 25.5, 14.0)],
     [(-14.5, -3.5, 14.5), (-16.5, 3.0, 13.0), (-13.5, -8.5, 13.5)],
     [(14.0, -5.0, 13.5), (12.5, -11.0, 14.0)],
@@ -221,8 +225,13 @@ SPIRES = [((-174.0, -118.0), 21, 4), ((-138.0, -174.0), 22, 2), ((-126.0, -56.0)
 # monstera, cycads and the rest crowd the floor as thickly as in the film's jungle, a little closer
 # together along paths and edges; the canopy opens into clearings where a noise rises past
 # `clearings`.
-JUNGLE = {"clump_spacing": 9.5, "trees": (5, 8), "tree_height": (9.0, 15.0), "palm_spacing": 6.0, "palms": 380,
+JUNGLE = {"clump_spacing": 9.5, "trees": (5, 8), "tree_height": (9.0, 15.0), "palm_spacing": 4.5, "palms": 560,
           "understory": (1.25, 1.4), "clearings": 0.8, "big_trees": 12, "big_spacing": 36.0}
+# The jungle's outermost metres by the beaches, and those round the village's huts and the
+# festival's stalls, are left to palms, as the film's jungle meets its beaches and its village; the
+# canopy still runs almost down to the sand, as its aerial shot has it.
+EDGE_PALMS = 3.5
+PROP_PALMS = 6.0
 FIELD_ROW = 2.4         # metres between the fields' rows
 BUTTERFLIES = 16        # blue butterflies, each fluttering round a flowering bush
 CANOPY_PATCHES = 6      # the canopy and palms are joined into a mesh for each of 6 x 6 patches, near and far
@@ -232,7 +241,7 @@ PROP_ROOM = {"hut_green": 7.0, "hut_warm": 7.0, "hut_plank": 5.5, "beehive": 3.8
              "stall_pink": 3.2, "stall_purple": 3.2, "stall_orange": 3.2, "stall_blue": 3.2, "stall_red": 3.2,
              "stall_white": 3.2, "arch": 2.5, "banner": 2.0, "bunting_row": 2.0, "bunting_street": 2.0,
              "lanterns": 1.2, "palm": 2.0, "sign": 2.0}
-# Flowering bushes grow round the backs of the village's houses, this far from their middles.
+# Plants crowd round the backs of the village's houses, this far from their middles.
 HUT_ROOM = {"hut_green": (5.6, 6.6), "hut_warm": (5.6, 6.6), "hut_plank": (4.4, 5.2), "beehive": (3.0, 3.6)}
 
 
@@ -543,10 +552,11 @@ def paint(x, z, h, masks, normal_y, shade):
     col = mix(col, grass, m_grass)
 
     # The festival's plaza and street: sand, then packed sand; the village's clearing and the paths:
-    # packed earth, with clover creeping in round the clearing's edge.
+    # packed sandy earth as in the film's village, a few patches of grass in it and clover creeping
+    # in round the clearing's edge.
     col = mix(col, c("sand"), smoothstep(0.45, 0.8, masks["plaza"]))
     col = mix(col, c("plaza"), smoothstep(0.45, 0.8, masks["street"]))
-    patches = smoothstep(-0.15, 0.3, noise(x, z, 6.0, 21.0) + 0.8 * smoothstep(0.98, 0.55, masks["village"]))
+    patches = smoothstep(0.45, 0.85, noise(x, z, 6.0, 21.0) + 0.9 * smoothstep(0.85, 0.45, masks["village"]))
     earth = mix(c("earth"), mix(c("grass"), c("clover"), smoothstep(0.3, 0.9, noise(x, z, 3.0, 22.0))), patches)
     col = mix(col, earth, smoothstep(0.3, 0.75, masks["village"]))
     col = mix(col, c("path"), masks["path"])
@@ -1042,7 +1052,7 @@ def build_plants(collection, outlines):
     deep = jungle & (G["inland"] > 22.0) & (G["path"] > 5.0)
     for x, z in scatter(rng, G, deep, JUNGLE["big_spacing"], taken=stems, limit=JUNGLE["big_trees"]):
         y = at(x, z)
-        built, tops = PL.big_tree(rng, lambda dx, dy, x=x, z=z, y=y: at(x + dx, z - dy) - y)
+        built, tops = PL.big_tree(np.random.default_rng(int(rng.integers(1 << 31))), lambda dx, dy, x=x, z=z, y=y: at(x + dx, z - dy) - y)
         canopy.add(PL.to_arrays(built), x, z, y)
         far = L.fuse([L.ellipsoid_bm(Vector((cx, cy, cz)), (r, r, r * 0.8), u=8, v=5) for cx, cy, cz, r in tops],
                      voxel=0.7, smooth_iterations=3, smooth_lambda=0.8, target_tris=40)
@@ -1054,7 +1064,7 @@ def build_plants(collection, outlines):
     # And one at the right end of the waterfall pool's bank, as in the film's frame.
     x, z = pool_spot(*POOL_TREE)
     y = at(x, z)
-    built, tops = PL.big_tree(rng, lambda dx, dy, x=x, z=z, y=y: at(x + dx, z - dy) - y)
+    built, tops = PL.big_tree(np.random.default_rng(int(rng.integers(1 << 31))), lambda dx, dy, x=x, z=z, y=y: at(x + dx, z - dy) - y)
     canopy.add(PL.to_arrays(built), x, z, y)
     far = L.fuse([L.ellipsoid_bm(Vector((cx, cy, cz)), (r, r, r * 0.8), u=8, v=5) for cx, cy, cz, r in tops],
                  voxel=0.7, smooth_iterations=3, smooth_lambda=0.8, target_tris=40)
@@ -1070,7 +1080,8 @@ def build_plants(collection, outlines):
         trees = [(*pool_spot(across, toward), height) for across, toward, height in grove]
         cx, cz = sum(t[0] for t in trees) / len(trees), sum(t[1] for t in trees) / len(trees)
         base = at(cx, cz)
-        built, tops, far = PL.clump(grow, [(tx - cx, -(tz - cz), height, at(tx, tz) - base) for tx, tz, height in trees])
+        built, tops, far = PL.clump(np.random.default_rng(int(grow.integers(1 << 31))),
+                                    [(tx - cx, -(tz - cz), height, at(tx, tz) - base) for tx, tz, height in trees])
         canopy.add(PL.to_arrays(built), cx, cz, base)
         canopy_far.add(PL.to_arrays(far), cx, cz, base)
         for tx, tz, height in trees:
@@ -1087,8 +1098,8 @@ def build_plants(collection, outlines):
                 break
             a, d = rng.uniform(0, 2 * math.pi), (0.0 if not trees else rng.uniform(3.0, 6.0))
             tx, tz = cx + d * math.cos(a), cz + d * math.sin(a)
-            if grid_at(G, "inland", tx, tz) < 2.5 or grid_at(G, "path", tx, tz) < 1.8 or grid_at(G, "rock", tx, tz) < 1.8 \
-                    or grid_at(G, "prop", tx, tz) < 0.0 or grid_at(G, "village", tx, tz) > 0.05 \
+            if grid_at(G, "inland", tx, tz) < EDGE_PALMS or grid_at(G, "path", tx, tz) < 1.8 or grid_at(G, "rock", tx, tz) < 1.8 \
+                    or grid_at(G, "prop", tx, tz) < PROP_PALMS or grid_at(G, "village", tx, tz) > 0.05 \
                     or grid_at(G, "festival", tx, tz) > 0.05 or grid_at(G, "bank_room", tx, tz) > 0.5 \
                     or grid_at(G, "pool", tx, tz) < pool_room or grid_at(G, "treeless", tx, tz) > 0.5 \
                     or not stems.free(tx, tz, 3.0):
@@ -1099,7 +1110,7 @@ def build_plants(collection, outlines):
             continue
         base = at(cx, cz)
         local = [(tx - cx, -(tz - cz), height, at(tx, tz) - base) for tx, tz, height in trees]
-        built, tops, far = PL.clump(rng, local)
+        built, tops, far = PL.clump(np.random.default_rng(int(rng.integers(1 << 31))), local)
         canopy.add(PL.to_arrays(built), cx, cz, base)
         canopy_far.add(PL.to_arrays(far), cx, cz, base)
         for (tx, tz, height) in trees:
@@ -1112,7 +1123,7 @@ def build_plants(collection, outlines):
     # as a few metres to a tree's trunk.
     palms = []
     for k in range(8):
-        near, far = PL.jungle_palm(rng, rng.uniform(6.5, 9.0))
+        near, far = PL.jungle_palm(np.random.default_rng(int(rng.integers(1 << 31))), rng.uniform(6.5, 9.0))
         palms.append((variants.shape(f"palm{k}", PL.to_arrays(near)), variants.shape(f"palmfar{k}", PL.to_arrays(far))))
     palm_ok = ((G["inland"] > -4.0) & open_ground & (G["path"] > 1.5) & (G["rock"] > 1.8) & (G["prop"] > 0.0)
                & (G["slope"] < 0.65) & (G["h"] > WATER + 0.45))
@@ -1131,19 +1142,16 @@ def build_plants(collection, outlines):
         trunks.append([round(x, 2), round(z, 2), 0.3])
 
     # The understory: thick everywhere under the trees, and along the paths and the jungle's edges.
+    # The understory's shapes grow from a generator of their own, so changing them never moves the
+    # jungle round.
+    shapes = np.random.default_rng(int(rng.integers(1 << 31)))
     kinds = {
-        "fern": [variants.shape("fern", PL.to_arrays(PL.fern(rng))) for _ in range(6)],
-        "monstera": [variants.shape("monstera", PL.to_arrays(PL.monstera(rng))) for _ in range(4)],
-    }
-    # The cycads grow from a generator of their own; the island's is moved on as far as the cycads
-    # used to take it, so the rest of the jungle grows as before.
-    rng.random(60)
-    cycads = np.random.default_rng(FALL["seed"] + 17)
-    kinds["cycad"] = [variants.shape("cycad", PL.to_arrays(PL.cycad(cycads))) for _ in range(4)]
-    kinds |= {
-        "ti": [variants.shape("ti", PL.to_arrays(PL.ti_plant(rng))) for _ in range(4)],
-        "brom": [variants.shape("brom", PL.to_arrays(PL.bromeliad(rng))) for _ in range(3)],
-        "bush": [variants.shape("bush", PL.to_arrays(PL.bush(rng, colour)))
+        "fern": [variants.shape("fern", PL.to_arrays(PL.fern(shapes))) for _ in range(6)],
+        "monstera": [variants.shape("monstera", PL.to_arrays(PL.monstera(shapes))) for _ in range(4)],
+        "cycad": [variants.shape("cycad", PL.to_arrays(PL.cycad(shapes))) for _ in range(4)],
+        "ti": [variants.shape("ti", PL.to_arrays(PL.ti_plant(shapes))) for _ in range(4)],
+        "brom": [variants.shape("brom", PL.to_arrays(PL.bromeliad(shapes))) for _ in range(3)],
+        "bush": [variants.shape("bush", PL.to_arrays(PL.bush(shapes, colour)))
                  for colour in ("purple", "white", "yellow", "red", "pink", "purple")],
     }
     mix_shade = [("fern", 0.36), ("monstera", 0.24), ("cycad", 0.16), ("ti", 0.1), ("brom", 0.08), ("bush", 0.06)]
@@ -1199,6 +1207,11 @@ def build_plants(collection, outlines):
         a = 2.0 * math.pi * k / 2 + 1.3
         x, z = sx + 1.3 * math.cos(a), sz + 1.3 * math.sin(a)
         variants.plant("under", kinds["brom"][(k + 1) % 3], x, at(x, z) - 0.04, z, rng.uniform(0, 2 * math.pi), 1.3)
+    # The bough hanging over the bank (see POOL_BRANCHES), from a generator of its own.
+    bough = variants.shape("bough", PL.to_arrays(PL.hanging_branch(np.random.default_rng(FALL["seed"] + 19))))
+    for across, toward, height, turn in POOL_BRANCHES:
+        x, z = pool_spot(across, toward)
+        variants.plant("under", bough, x, at(x, z) + height, z, turn, 1.0)
     # Ferns and small plants growing out of the waterfall's wall (see WALL_PLANTS), clear of the
     # falling water, from a generator of their own so the jungle is grown as before.
     wall = next(r for r, _ in outlines if r.s["notch"])
@@ -1269,23 +1282,36 @@ def build_plants(collection, outlines):
             variants.plant("under", crops[int(rng.integers(0, len(crops)))], x, at(x, zz) - 0.02, zz,
                            rng.uniform(0, 2 * math.pi), rng.uniform(0.85, 1.2))
 
-    # Flowering bushes round the backs and sides of the village's huts.
+    # Round the backs and sides of the village's huts, as lush as the film's village: flowering
+    # bushes, cycads, monstera, ferns and red ti, and a palm or two standing over each hut.
     for kind, hx_, hz_, turn in props:
         room = HUT_ROOM.get(kind)
         if room is None:
             continue
         front = math.radians(turn)
-        for _ in range(3):
-            a = front + math.radians(rng.uniform(100.0, 260.0))
+        for k, pick in enumerate(("bush", "cycad", "bush", "monstera", "fern", "ti", "bush", "cycad")):
+            a = front + math.radians(rng.uniform(95.0, 265.0))
             d = rng.uniform(*room)
             x, z = hx_ + d * math.sin(a), hz_ + d * math.cos(a)
             if grid_at(G, "path", x, z) < 1.2:
                 continue
             y = at(x, z) - 0.04
-            shapes = kinds["bush"] if rng.random() < 0.7 else kinds["ti"]
+            shapes = kinds[pick]
             variants.plant("under", shapes[int(rng.integers(0, len(shapes)))], x, y, z, rng.uniform(0, 2 * math.pi),
-                           rng.uniform(0.8, 1.0))
-            flowers.append((x, y, z))
+                           rng.uniform(0.85, 1.25))
+            if pick == "bush":
+                flowers.append((x, y, z))
+        if kind == "beehive":
+            continue
+        for k in range(2):
+            a = front + math.radians(180.0 + (k - 0.5) * 70.0 + rng.uniform(-15.0, 15.0))
+            d = room[1] + rng.uniform(0.6, 1.6)
+            x, z = hx_ + d * math.sin(a), hz_ + d * math.cos(a)
+            if grid_at(G, "path", x, z) < 1.5:
+                continue
+            near, far = palms[int(rng.integers(0, len(palms)))]
+            variants.plant("palms", near, x, at(x, z) - 0.05, z, rng.uniform(0, 2 * math.pi), rng.uniform(0.85, 1.1), far)
+            trunks.append([round(x, 2), round(z, 2), 0.3])
 
     # Blue butterflies flutter round flowering bushes, a few here and there; the nearer to the
     # festival and the village, the likelier.

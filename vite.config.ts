@@ -32,9 +32,9 @@ export default defineConfig({
       },
       workbox: {
         // The island's height grid (.bin) and the layout (.json) are needed offline too, and its
-        // plants come in one file of about 2.6 MB.
+        // plants come in one file of about 6 MB.
         globPatterns: ['**/*.{js,css,html,png,svg,ico,webmanifest,glb,bin,json}'],
-        maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
+        maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
       },
     }),
   ],

@@ -5,7 +5,7 @@ import { glowUniforms } from './Glow';
 import { inkUniforms, windUniforms } from './Ink';
 import { FLOOR_GLSL, WATER_EDGE, groundHeight, loadTerrain, terrainHeight, type Terrain } from './Island';
 import { Landmarks } from './Landmarks';
-import { FILM, coverAt, filmLights, filmSky, lightShafts, sunUniform } from './Look';
+import { FILM, coverAt, filmLights, filmSky, jungleHaze, lightShafts, nightUniform, sunUniform } from './Look';
 import { canopyShade } from './Obstacles';
 import { Butterflies } from './Butterflies';
 import { Props, type Placed } from './Props';
@@ -82,6 +82,11 @@ export class Stage {
   private enclosed = 0;
   private readonly enclosedAt = new THREE.Vector3();
   private enclosedTime = 0;
+  /** The hour's sky before the film look paints it (see paintSky), and how enclosed it was painted. */
+  private readonly skyTop = new THREE.Color();
+  private readonly skyHorizon = new THREE.Color();
+  private skyNight = 0;
+  private skyEnclosed = -1;
   /** The island's named places, once the layout has loaded. */
   zones: Zones | null = null;
 
@@ -229,14 +234,14 @@ export class Stage {
   setHour(hours: number): void {
     const look = skyAt(hours, this.look);
     const u = this.skyMaterial.uniforms;
-    u.uTop.value.copy(look.top);
-    u.uHorizon.value.copy(look.horizon);
-    if (FILM) filmSky(u.uTop.value, u.uHorizon.value, look.night);
+    this.skyTop.copy(look.top);
+    this.skyHorizon.copy(look.horizon);
+    this.skyNight = look.night;
+    this.paintSky();
     u.uSunDir.value.copy(look.sunDir);
     u.uMoonDir.value.copy(look.moonDir);
     u.uNight.value = look.night;
-    (this.scene.background as THREE.Color).copy(u.uHorizon.value);
-    (this.scene.fog as THREE.Fog).color.copy(u.uHorizon.value);
+    nightUniform.value = look.night;
     this.hemi.color.copy(look.hemiSky);
     this.hemi.groundColor.copy(look.hemiGround);
     this.hemi.intensity = look.hemiIntensity;
@@ -247,12 +252,28 @@ export class Stage {
     sunUniform.value.copy(look.lightDir);
     if (FILM) filmLights(this.light, this.hemi, look.night);
     sharedUniforms.uAmbient.value.copy(look.ambient);
+    // The jungle's depth haze takes the hour's light: teal in the shade, golden toward the sun.
+    const a = look.ambient;
+    jungleHaze.uJungle.value.set(0.06 * a.r, 0.26 * a.g, 0.22 * a.b);
+    jungleHaze.uJungleWarm.value.set(0.58 * a.r, 0.46 * a.g, 0.1 * a.b);
     this.cloudMaterial.uniforms.uTint.value.copy(look.cloud);
     this.waterLight.uTint.value.copy(look.sea);
     this.waterLight.uMoonDir.value.copy(look.moonDir);
     this.waterLight.uNight.value = look.night;
     glowUniforms.uGlow.value = look.glow;
     this.confettiMaterial?.color.copy(look.ambient);
+  }
+
+  /** The hour's sky colours onto the sky, the background and the haze, in the film look as seen
+   * from where the camera is (see update). */
+  private paintSky(): void {
+    const u = this.skyMaterial.uniforms;
+    u.uTop.value.copy(this.skyTop);
+    u.uHorizon.value.copy(this.skyHorizon);
+    if (FILM) filmSky(u.uTop.value, u.uHorizon.value, this.skyNight, this.enclosed);
+    (this.scene.background as THREE.Color).copy(u.uHorizon.value);
+    (this.scene.fog as THREE.Fog).color.copy(u.uHorizon.value);
+    this.skyEnclosed = this.enclosed;
   }
 
   /** How deep in the trees' shade the point (x, y, z) is from the sun (or the moon), 0 to 1. */
@@ -294,9 +315,9 @@ export class Stage {
     }
     this.skyMaterial.uniforms.uHorizonY.value = Math.sin(-Math.atan2(above, SEA_RADIUS * reach));
     if (FILM) {
-      // The film exposes for where its camera is: seen from under the trees the sky glows, out in
-      // the open it is a plain pale blue. The sky eases between the two as the camera goes in and
-      // out of the trees, at once when it jumps.
+      // The film exposes for where its camera is: seen from under the trees the sky is hazy and
+      // glows, out in the open it is plain blue. The sky eases between the two as the camera goes
+      // in and out of the trees, at once when it jumps.
       const p = camera.position;
       const target = coverAt(p.x, p.y, p.z);
       const step = THREE.MathUtils.clamp(time - this.enclosedTime, 0, 0.5);
@@ -305,6 +326,7 @@ export class Stage {
       this.enclosedAt.copy(p);
       this.enclosedTime = time;
       this.skyMaterial.uniforms.uEnclosed.value = this.enclosed;
+      if (Math.abs(this.enclosed - this.skyEnclosed) > 0.01) this.paintSky();
     }
   }
 
@@ -553,7 +575,8 @@ export class Stage {
         ...inkUniforms,
         uPuffs: { value: puffs.map(([x, y, r]) => new THREE.Vector3(x, y, r)) },
         uCloud: { value: new THREE.Color(COLORS.cloud) },
-        uShade: { value: new THREE.Color(COLORS.cloudShade) },
+        // The film's cumulus shade a little bluer under their puffs.
+        uShade: { value: new THREE.Color(FILM ? '#C9D6E6' : COLORS.cloudShade) },
         uTint: { value: new THREE.Color(1, 1, 1) },
         uAmbient: sharedUniforms.uAmbient,
       },
@@ -588,9 +611,19 @@ export class Stage {
           float px = body / max(fwidth(body), 1e-4);       // pixels outside the cloud
           float inside = 1.0 - smoothstep(-0.5, 0.5, px);
           #ifdef FILM
-          // Painted without a line, its shaded underside blending softly into the white.
-          float top = 1.0 - smoothstep(-6.0, 6.0, white / max(fwidth(white), 1e-4));
-          gl_FragColor = vec4(mix(uShade, uCloud, top) * uTint, inside);
+          // Painted without a line as the film's cumulus are: each puff white where the light finds
+          // it and softly blue-grey under it, the whole cloud shadowed toward its flat base, its
+          // edge soft.
+          float nearest = 1e5;
+          vec2 rel = vec2(0.0);
+          for (int i = 0; i < PUFFS; i++) {
+            vec3 c = uPuffs[i];
+            float d = length(p - c.xy) - c.z;
+            if (d < nearest) { nearest = d; rel = (p - c.xy) / c.z; }
+          }
+          float under = smoothstep(-0.2, 0.75, dot(rel, vec2(0.3, 0.95))) * 0.75;
+          float shaded = max(under, smoothstep(150.0, 222.0, p.y));
+          gl_FragColor = vec4(mix(uCloud, uShade, shaded) * uTint, 1.0 - smoothstep(-1.2, 1.2, px));
           #else
           float alpha = 1.0 - smoothstep(uPen - 0.5, uPen + 0.5, px);
           float top = 1.0 - smoothstep(-0.5, 0.5, white / max(fwidth(white), 1e-4));

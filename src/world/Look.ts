@@ -283,14 +283,15 @@ const hazeTop = new THREE.Color('#B4E1F4');
 const hazeHorizon = new THREE.Color('#E6FAF6');
 
 /**
- * The day's sky as the film paints it over the jungle: paler and hazier, almost white at the
- * horizon, so the distant trees fade into light. Takes the sky's top and horizon colours and
- * changes them in place.
+ * The day's sky as the film paints it seen from under the jungle's trees (`enclosed`, 0 to 1):
+ * paler and hazier, almost white at the horizon, so the distant trees fade into light; out in the
+ * open, the plain blue of its open skies. Takes the sky's top and horizon colours and changes them
+ * in place.
  */
-export function filmSky(top: THREE.Color, horizon: THREE.Color, night: number): void {
-  const day = 1 - night;
-  top.lerp(hazeTop, 0.6 * day);
-  horizon.lerp(hazeHorizon, 0.6 * day);
+export function filmSky(top: THREE.Color, horizon: THREE.Color, night: number, enclosed: number): void {
+  const haze = 0.6 * (1 - night) * enclosed;
+  top.lerp(hazeTop, haze);
+  horizon.lerp(hazeHorizon, haze);
 }
 const cool = new THREE.Color('#9DC2EC');
 
@@ -765,6 +766,50 @@ vec3 paintStone(vec3 base, vec3 p, vec3 n) {
 `;
 
 /**
+ * GLSL: thatch as the film paints its huts' roofs (needs LEAF_GLSL): straw laid in rows round the
+ * roof, each row's ragged lower edge a dark line where it overlaps the row below, the straw
+ * streaked along its fall and lighter along each row's top. `thatchy` picks out the straw by its
+ * colour on a slope, leaving wood, walls and floors of the same colour alone. `p` is the point in
+ * the world.
+ */
+const THATCH_GLSL = /* glsl */ `
+float thatchy(vec3 c, vec3 n) {
+  float warmth = c.g / max(c.r, 1e-3);
+  float straw = smoothstep(0.47, 0.52, warmth) * (1.0 - smoothstep(0.8, 0.9, warmth))
+    * (1.0 - smoothstep(0.3, 0.36, c.b / max(c.r, 1e-3))) * step(0.04, c.r);
+  return straw * smoothstep(0.12, 0.25, n.y) * (1.0 - smoothstep(0.96, 0.99, n.y));
+}
+vec3 paintThatch(vec3 base, vec3 p) {
+  float fall = leafNoise(vec3(p.x * 7.0, p.y * 0.9, p.z * 7.0));
+  float row = p.y / 0.34 + 0.18 * leafNoise(p * vec3(1.5, 0.0, 1.5)) + 0.08 * fall;
+  float within = fract(row);
+  vec3 col = base * mix(0.84, 1.12, fall);
+  col *= mix(1.0, 1.1, smoothstep(0.55, 0.95, within));
+  return col * mix(1.0, 0.6, 1.0 - smoothstep(0.0, 0.1 + 0.12 * fall, within));
+}
+`;
+
+/**
+ * Paints a toon material's thatch the film's way (see THATCH_GLSL), from its onBeforeCompile; the
+ * rest of what it draws is left as it is. Needs vertex colours.
+ */
+export function paintThatch(shader: THREE.WebGLProgramParametersWithUniforms): void {
+  shader.vertexShader = shader.vertexShader
+    .replace('#include <common>', '#include <common>\nvarying vec3 vThatch;')
+    .replace('#include <project_vertex>', 'vThatch = (modelMatrix * vec4(transformed, 1.0)).xyz;\n#include <project_vertex>');
+  shader.fragmentShader = shader.fragmentShader
+    .replace('#include <common>', `#include <common>\nvarying vec3 vThatch;\n${LEAF_GLSL}\n${THATCH_GLSL}`)
+    .replace(
+      '#include <normal_fragment_maps>',
+      `#include <normal_fragment_maps>
+      {
+        float thatch = thatchy(vColor.rgb, inverseTransformDirection(normal, viewMatrix));
+        if (thatch > 0.0) diffuseColor.rgb = mix(diffuseColor.rgb, paintThatch(diffuseColor.rgb, vThatch), thatch);
+      }`,
+    );
+}
+
+/**
  * Paints a toon material's stone the film's way (see STONE_GLSL), from its onBeforeCompile: the
  * rock's own vertex colours split into slabs of `kind`, cracked, stained and mossed.
  */
@@ -788,15 +833,22 @@ export function paintStone(shader: THREE.WebGLProgramParametersWithUniforms, kin
     );
 }
 
+/** How far into the night it is, 0 by day to 1 (see the grade); the stage keeps it with the hour. */
+export const nightUniform = { value: 0 };
+
 /**
  * The film's colour grade, on the finished picture (still in linear light), set by measuring the
  * film's jungle frames: warmer through the darks and the middle (the pale sky left alone), greens
  * leaning toward yellow, a little more colour and a fifth more contrast, shadows a touch green and
- * highlights warm, and the corners a little darker.
+ * highlights warm, and the corners a little darker. By night, measured on the film's moonlit
+ * beach, the picture is painted in blues: each colour drawn by its brightness toward a blue that
+ * deepens in the darks and pales to white in the lights, what is blue already (the sky) left as it
+ * is, firelight and lit windows keeping their warmth and the characters most of their own colours.
  */
 const GRADE = {
   uniforms: {
     tDiffuse: { value: null },
+    uNight: nightUniform,
     uSaturation: { value: 1.1 },
     uContrast: { value: 1.2 },
     uShadowTint: { value: new THREE.Vector3(-0.004, 0.008, 0.0) },
@@ -820,6 +872,7 @@ const GRADE = {
     uniform float uVignette;
     uniform vec3 uBalance;
     uniform float uYellow;
+    uniform float uNight;
     varying vec2 vUv;
     void main() {
       vec4 c = texture2D(tDiffuse, vUv);
@@ -832,6 +885,15 @@ const GRADE = {
       g = mix(vec3(l), g, uSaturation);
       g = (g - 0.5) * uContrast + 0.5;
       g += uShadowTint * (1.0 - smoothstep(0.0, 0.55, l)) + uHighlightTint * smoothstep(0.45, 1.0, l);
+      float night = smoothstep(0.4, 1.0, uNight);
+      if (night > 0.0) {
+        float n = clamp(dot(g, vec3(0.299, 0.587, 0.114)), 0.0, 1.0);
+        // Nothing goes black: the darkest shapes are a deep blue, as the film paints them.
+        vec3 moonlit = vec3(pow(n, 1.6), pow(n, 1.15), pow(n, 0.75)) + vec3(0.07, 0.18, 0.38) * (1.0 - smoothstep(0.0, 0.4, n));
+        float warm = smoothstep(0.12, 0.4, g.r - g.b) * smoothstep(0.3, 0.7, n);
+        float blue = smoothstep(0.15, 0.35, g.b - max(g.r, g.g));
+        g = mix(g, moonlit, night * 0.7 * (1.0 - warm) * (1.0 - blue) * (c.a < 0.75 ? 0.45 : 1.0));
+      }
       vec2 d = vUv - 0.5;
       g *= 1.0 - uVignette * dot(d, d);
       gl_FragColor = vec4(pow(max(g, 0.0), vec3(2.2)), c.a);
@@ -903,11 +965,21 @@ const PAINT = {
     }`,
 };
 
+/** The jungle's depth haze (see FOCUS): its colour in the shade and toward the sun, kept with the
+ * hour by the stage. */
+export const jungleHaze = {
+  uJungle: { value: new THREE.Vector3(0.06, 0.26, 0.22) },
+  uJungleWarm: { value: new THREE.Vector3(0.58, 0.46, 0.1) },
+};
+
 /**
  * The film's depth of field: leaves and stems hanging right in front of the camera go soft, as the
  * film blurs what is nearest its camera, while everything from a few metres on stays sharp, the
  * characters always. Reads the scene's depth; keeps the picture's alpha (the characters' mark) for
- * the brushwork after it.
+ * the brushwork after it. With it, the film's jungle depth: what lies deep under the trees fades
+ * with distance into a soft teal haze, golden toward the sun, as the film paints its jungle's
+ * layers and the jungle seen from its village; the open, and a clearing seen through the trees,
+ * stay clear.
  */
 const FOCUS = {
   uniforms: {
@@ -918,6 +990,13 @@ const FOCUS = {
     uFar: { value: 2000 },
     uSharp: { value: 3.5 },
     uRadius: { value: 9.0 },
+    uProj: { value: new THREE.Vector2(1, 1) },
+    uCameraWorld: { value: new THREE.Matrix4() },
+    uSun: { value: new THREE.Vector3(0, 1, 0) },
+    uJungle: { value: new THREE.Vector3() },
+    uJungleWarm: { value: new THREE.Vector3() },
+    uCover: { value: null },
+    uCoverMap: { value: new THREE.Vector3(0, 0, 1) },
   },
   vertexShader: /* glsl */ `
     varying vec2 vUv;
@@ -934,13 +1013,34 @@ const FOCUS = {
     uniform float uFar;
     uniform float uSharp;
     uniform float uRadius;
+    uniform vec2 uProj;
+    uniform mat4 uCameraWorld;
+    uniform vec3 uSun;
+    uniform vec3 uJungle;
+    uniform vec3 uJungleWarm;
     varying vec2 vUv;
+    ${COVER_GLSL}
     float softness(vec2 uv) {
       float metres = -perspectiveDepthToViewZ(texture2D(tDepth, uv).x, uNear, uFar);
       return clamp((uSharp - metres) / (uSharp - 0.4), 0.0, 1.0);
     }
+    // The jungle's depth haze over what is seen at uv: by how deep under the trees it lies and how
+    // far off it is.
+    vec3 jungleHaze(vec3 colour, vec2 uv) {
+      float viewZ = perspectiveDepthToViewZ(texture2D(tDepth, uv).x, uNear, uFar);
+      vec3 view = vec3((uv * 2.0 - 1.0) / uProj * -viewZ, viewZ);
+      float metres = length(view);
+      if (metres > 450.0) return colour;
+      vec3 world = (uCameraWorld * vec4(view, 1.0)).xyz;
+      float deep = smoothstep(0.2, 0.8, underTrees(world));
+      // Only the depth: what is near stays dark and clear, as the film keeps its foreground.
+      float amount = deep * 0.85 * (1.0 - exp(-0.04 * max(metres - 12.0, 0.0)));
+      float sunward = pow(max(dot(normalize(world - uCameraWorld[3].xyz), uSun), 0.0), 3.0);
+      return mix(colour, mix(uJungle, uJungleWarm, sunward), amount);
+    }
     void main() {
       vec4 here = texture2D(tDiffuse, vUv);
+      here.rgb = jungleHaze(here.rgb, vUv);
       float soft = softness(vUv);
       if (here.a < 0.75 || soft < 0.01) {
         gl_FragColor = here;
@@ -965,7 +1065,8 @@ const FOCUS = {
 
 /**
  * Draws the scene through the film's finishing passes: rendered with antialiasing into a
- * high-precision picture, what is nearest the camera softened, the scenery's brushwork, a soft glow
+ * high-precision picture, the jungle's depth hazed and what is nearest the camera softened, the
+ * scenery's brushwork, a soft glow
  * round the brightest light (the hazy sky, sun on white), the colour grade, then out to the screen.
  */
 export class FilmPost {
@@ -986,6 +1087,8 @@ export class FilmPost {
     this.composer.addPass(new RenderPass(scene, camera));
     this.focus = new ShaderPass(FOCUS);
     this.focus.uniforms.uTexel.value.set(1 / size.x, 1 / size.y);
+    // The pass copies its uniforms; these are kept by the stage and the island.
+    Object.assign(this.focus.uniforms, jungleHaze, coverUniforms, { uSun: sunUniform });
     this.composer.addPass(this.focus);
     this.paint = new ShaderPass(PAINT);
     this.paint.uniforms.uTexel.value.set(1 / size.x, 1 / size.y);
@@ -993,7 +1096,10 @@ export class FilmPost {
     // Only light brighter than white glows (the sun, the hazy sky), not white things in daylight.
     this.bloom = new UnrealBloomPass(new THREE.Vector2(size.x / 2, size.y / 2), 0.32, 0.75, 1.0);
     this.composer.addPass(this.bloom);
-    this.composer.addPass(new ShaderPass(GRADE));
+    const grade = new ShaderPass(GRADE);
+    // The pass copies its uniforms; the night is the stage's to keep (see nightUniform).
+    grade.uniforms.uNight = nightUniform;
+    this.composer.addPass(grade);
     this.composer.addPass(new OutputPass());
   }
 
@@ -1008,6 +1114,8 @@ export class FilmPost {
     const camera = this.camera as THREE.PerspectiveCamera;
     this.focus.uniforms.uNear.value = camera.near;
     this.focus.uniforms.uFar.value = camera.far;
+    this.focus.uniforms.uProj.value.set(camera.projectionMatrix.elements[0], camera.projectionMatrix.elements[5]);
+    this.focus.uniforms.uCameraWorld.value.copy(camera.matrixWorld);
     // The scene is drawn into whichever picture is being read when the frame starts; the depth of
     // field reads that one's depth.
     this.focus.uniforms.tDepth.value = this.composer.readBuffer.depthTexture;

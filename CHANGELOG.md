@@ -327,6 +327,53 @@ outlined is drawn twice, once for its pen line. To get there:
   six-sided tube, open at the top so it looked hollow, under seven broad
   fronds. The rest of the jungle grows as before. A frame in the jungle
   takes about 17.8 ms on this PC.
+- Canopy trees after the film's: each tree's head is heaped of rounded
+  leafy lobes like a cauliflower's, bumpy all round its outline, on a
+  taller trunk forking into limbs glimpsed between the lobes, where it had
+  been one smooth dome over a thin trunk, like a mushroom; the big trees'
+  heads are heaped the same way, and the far version keeps the bumps. The
+  jungle's outermost metres, and those round the village's huts and the
+  festival's stalls, are left to palms, as where the film's jungle meets
+  its beaches and village; palms have a fuller head of long fronds
+  drooping all round, two young ones standing up in the middle. The trees'
+  and palms' shapes now grow from generators of their own, so changing
+  them no longer moves the jungle round. About 16.3 ms a frame on the
+  festival street, 16.5 ms in the village, 16.9 ms at the waterfall and
+  18.3 ms in the jungle on this PC. The plants' file is about 6 MB (the
+  canopy no longer carries leaf coordinates it has no use for), and the
+  offline cache now keeps files up to 8 MB.
+- The film look's nights, measured on the film's moonlit beach: the
+  picture is painted in blues, each colour drawn by its brightness toward
+  a blue that deepens in the darks (nothing goes black) and pales to white
+  in the lights, firelight and lit windows keeping their warmth and the
+  characters most of their own colours. The night sky is a royal blue,
+  the clouds only a little lighter than it, and the sea a deep blue under
+  the moon's road, where it had glowed turquoise. Dusk and dawn are as
+  they were.
+- The film look's open skies are the deeper blue of the film's open
+  frames: the sky's pale haze, like its glow, now belongs under the trees.
+- The village after the film's: its huts' thatch is painted in rows of
+  straw, each row's ragged edge a dark line over the one below, where the
+  roofs had been smooth brown domes; the clearing is sandy earth with a
+  few patches of grass, where it had been mostly lawn; and the huts stand
+  among flowering bushes, cycads, monstera, ferns and red ti, with palms
+  over them.
+- The film look's jungle depth: what lies deep under the trees fades with
+  distance into a soft teal haze, golden toward the sun, as the film
+  paints its jungle's layers and the jungle seen from its village; what is
+  near stays dark and clear, and the open, and a clearing seen through
+  the trees, stay clear (the depth-of-field pass reads the scene's depth
+  and the trees' cover where each point lies).
+- The jungle's trunks are a pale olive tan, as in the film's jungle
+  frames, and its flowering bushes are thick with flowers. The
+  understory's shapes now grow from a generator of their own, so changing
+  them no longer moves the jungle round.
+- The film look's clouds are its cumulus: each puff white where the light
+  finds it and softly blue-grey under it, the whole cloud shadowed toward
+  its flat base, its edge soft, where they had been flat white shapes.
+- At the waterfall, as in its frame, a leafy bough hangs down out of the
+  bank's trees close over the cast, dark and softened by the depth of
+  field, framing the top left.
 - Building the props or the village with `--only` no longer overwrites
   their .blend file with just the one prop.
 - The offline cache now keeps the island's height grid and layout file,

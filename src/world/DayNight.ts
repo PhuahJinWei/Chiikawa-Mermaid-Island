@@ -67,10 +67,11 @@ interface Key {
 }
 
 // After the film's palette: bright turquoise-and-green days, a warm golden afternoon, orange and
-// pink at dusk, deep navy moonlit nights (STYLE_GUIDE.md, section 5).
+// pink at dusk, royal-blue moonlit nights, measured on the film's moonlit beach (STYLE_GUIDE.md,
+// section 5).
 const NIGHT: Key = {
-  top: '#0F2350', horizon: '#1E3A7A', ambient: [0.32, 0.38, 0.64], light: '#A9C0FF', lightIntensity: 0.8,
-  hemiSky: '#43609E', hemiGround: '#1C2442', hemiIntensity: 0.8, cloud: [0.2, 0.25, 0.44], sea: [0.24, 0.32, 0.56], night: 1,
+  top: '#1247A4', horizon: '#1653A4', ambient: [0.32, 0.38, 0.64], light: '#A9C0FF', lightIntensity: 0.8,
+  hemiSky: '#43609E', hemiGround: '#1C2442', hemiIntensity: 0.8, cloud: [0.03, 0.08, 0.3], sea: [0.14, 0.18, 0.44], night: 1,
 };
 const DAWN: Key = {
   top: '#6E8BCB', horizon: '#F7C4A4', ambient: [0.94, 0.84, 0.86], light: '#FFC9A2', lightIntensity: 1.7,

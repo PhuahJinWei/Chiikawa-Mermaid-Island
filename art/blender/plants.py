@@ -24,8 +24,8 @@ C = {k: np.array(L.hex_color(v)[:3]) for k, v in {
     "canopy": "#55AE4E",
     "canopyLight": "#86CC5F",
     "canopyDark": "#2E7A3B",
-    "trunk": "#8A6440",
-    "trunkLight": "#A47B52",
+    "trunk": "#94845A",
+    "trunkLight": "#B39F70",
     "palmTrunkA": "#A47B52",
     "palmTrunkB": "#7E5A3A",
     "fern": "#5DBB54",
@@ -214,7 +214,11 @@ class Patchwork:
             except AttributeError:
                 pass
             mesh.attributes.new("_sway", "FLOAT", "POINT").data.foreach_set("value", np.concatenate(part["sway"]))
-            mesh.attributes.new("_leaf", "FLOAT2", "POINT").data.foreach_set("vector", np.concatenate(part["leaf"]).ravel())
+            # Leaf coordinates only where there are leaves to paint veins on (the canopy has none;
+            # the game reads a missing one as off the leaves).
+            leaf = np.concatenate(part["leaf"])
+            if np.any(leaf[:, 1] != NOT_LEAF[1]):
+                mesh.attributes.new("_leaf", "FLOAT2", "POINT").data.foreach_set("vector", leaf.ravel())
             mesh.shade_smooth()
             obj = bpy.data.objects.new(f"{name}_{i}_{j}", mesh)
             collection.objects.link(obj)
@@ -267,39 +271,69 @@ class Variants:
 
 
 # ---------------------------------------------------------------------------- canopy
+def lobes(rng, heart, r, count):
+    """A tree's head as the film paints it, heaped of rounded leafy lobes like a cauliflower's: a
+    heart (`heart`, radius `r`) and `count` lobes round it, most over its top and round its sides,
+    a few hanging lower, so its outline is bumpy all round. Returns the shapes, to be fused."""
+    out = [L.ellipsoid_bm(heart, (0.7 * r, 0.7 * r, 0.55 * r), u=10, v=7)]
+    for k in range(count):
+        a = 2.0 * math.pi * k / count + rng.uniform(-0.45, 0.45)
+        up = rng.uniform(-0.35, 0.9)
+        out_by = math.sqrt(max(1.0 - up * up, 0.0))
+        d = r * rng.uniform(0.45, 0.68)
+        rr = r * rng.uniform(0.36, 0.52)
+        c = heart + Vector((math.cos(a) * out_by, math.sin(a) * out_by, up * 0.8)) * d
+        out.append(L.ellipsoid_bm(c, (rr, rr, rr * 0.85), u=9, v=6))
+    return out
+
+
+def limbs(rng, fork, heart, r, thickness, count):
+    """Limbs from a trunk's fork up and out into its head, glimpsed between the lobes."""
+    pieces = []
+    for _ in range(count):
+        a = rng.uniform(0.0, 2.0 * math.pi)
+        end = heart + Vector((math.cos(a) * 0.55 * r, math.sin(a) * 0.55 * r, rng.uniform(-0.1, 0.35) * r))
+        limb = P.segment_bm(fork, end, thickness, thickness * 0.45, segments=5)
+        pieces.append((limb, [C["trunk"]] * len(limb.verts), [0.25] * len(limb.verts)))
+    return pieces
+
+
 def clump(rng, trees, target=None):
-    """A clump of canopy trees: `trees` is a list of (x, y, height, base) for each, relative to
-    the clump's middle and the ground there. Their round crowns are fused into one soft mass over
-    bare trunks. Returns the plant, and each crown as (x, y, z, radius)."""
-    blobs, pieces, crowns = [], [], []
+    """A clump of canopy trees after the film's: tall trunks forking into limbs, each tree's head
+    heaped of rounded leafy lobes (see lobes), the clump's heads run together into one mass with a
+    bumpy, broken outline. `trees` is a list of (x, y, height, base) for each, relative to the
+    clump's middle and the ground there. Returns the plant, each crown as (x, y, z, radius) and the
+    far version."""
+    blobs, pieces, crowns, far_blobs = [], [], [], []
     for x, y, height, base in trees:
-        crown_z = base + height * 0.62
-        r = height * 0.4
+        crown_z = base + height * 0.66
+        r = height * 0.34
         lean = (rng.uniform(-0.4, 0.4), rng.uniform(-0.4, 0.4))
-        trunk = trunk_bm(Vector((x, y, base - 0.4)), Vector((x + lean[0], y + lean[1], crown_z + r * 0.2)),
-                         0.32 * height / 8.0 + 0.1, 0.18 * height / 8.0 + 0.06,
+        fork = Vector((x + lean[0], y + lean[1], crown_z))
+        trunk = trunk_bm(Vector((x, y, base - 0.4)), fork + UP * (r * 0.15),
+                         0.32 * height / 8.0 + 0.1, 0.17 * height / 8.0 + 0.06,
                          bend=(rng.uniform(-0.3, 0.3), rng.uniform(-0.3, 0.3)))
         pieces.append((trunk, [lerp(C["trunk"], C["trunkLight"], 0.5 + 0.5 * math.sin(v.co.z * 2.0))
                                for v in trunk.verts], [smoothstep(base, crown_z * 1.4, v.co.z) * 0.3 for v in trunk.verts]))
-        cx, cy, cz = x + lean[0], y + lean[1], crown_z + r * 0.55
-        crowns.append((cx, cy, cz, r * 1.05))
-        blobs.append(L.ellipsoid_bm(Vector((cx, cy, cz)), (r, r, r * 0.8), u=12, v=8))
-        for _ in range(int(rng.integers(2, 4))):
-            a = rng.uniform(0.0, 2.0 * math.pi)
-            d = r * rng.uniform(0.45, 0.75)
-            rr = r * rng.uniform(0.55, 0.75)
-            blobs.append(L.ellipsoid_bm(Vector((cx + d * math.cos(a), cy + d * math.sin(a),
-                                                cz + rng.uniform(-0.25, 0.35) * r)), (rr, rr, rr * 0.8), u=10, v=7))
+        heart = fork + UP * (r * 0.5)
+        crowns.append((heart.x, heart.y, heart.z, r * 1.15))
+        blobs.extend(lobes(rng, heart, r, int(rng.integers(7, 11))))
+        pieces.extend(limbs(rng, fork, heart, r, 0.13 * height / 8.0 + 0.04, int(rng.integers(2, 4))))
+        far_blobs.append(L.ellipsoid_bm(heart, (r, r, r * 0.8), u=8, v=5))
+        for k in range(3):
+            a = 2.0 * math.pi * k / 3 + rng.uniform(-0.5, 0.5)
+            far_blobs.append(L.ellipsoid_bm(heart + Vector((math.cos(a) * 0.6 * r, math.sin(a) * 0.6 * r, 0.2 * r)),
+                                            (0.55 * r, 0.55 * r, 0.47 * r), u=7, v=5))
     size = max(max(abs(x), abs(y)) for x, y, _, _ in trees) + max(h for _, _, h, _ in trees) * 0.4
-    mass = L.fuse(blobs, voxel=max(0.22, size * 0.03), smooth_iterations=6, smooth_lambda=0.8,
-                  target_tris=target or (50 + 45 * len(trees)))
+    mass = L.fuse(blobs, voxel=max(0.2, size * 0.024), smooth_iterations=3, smooth_lambda=0.7,
+                  target_tris=target or (90 + 120 * len(trees)))
     seed = rng.uniform(0, 6)
     cols = leafy(mass, 0.0, 0.0, C["canopyLight"], C["canopy"], C["canopyDark"], seed=seed)
     low = min(c[2] for c in crowns)
     sway = [0.55 + 0.45 * smoothstep(0.0, 1.0, (v.co.z - low + 2.0) / 6.0) for v in mass.verts]
-    # The far version: the crowns as one coarse soft mass, without trunks.
-    far = L.fuse([L.ellipsoid_bm(Vector((cx, cy, cz)), (r * 1.05, r * 1.05, r * 0.85), u=8, v=5) for cx, cy, cz, r in crowns],
-                 voxel=max(0.4, size * 0.06), smooth_iterations=4, smooth_lambda=0.8, target_tris=18 + 8 * len(trees))
+    # The far version: the heads as one coarse mass, still bumpy, without trunks.
+    far = L.fuse(far_blobs, voxel=max(0.4, size * 0.05), smooth_iterations=2, smooth_lambda=0.7,
+                 target_tris=24 + 14 * len(trees))
     far_cols = leafy(far, 0.0, 0.0, C["canopyLight"], C["canopy"], C["canopyDark"], seed=seed)
     pieces.append((mass, cols, sway))
     return merge(pieces), crowns, (far, far_cols, [0.6] * len(far.verts))
@@ -307,7 +341,9 @@ def clump(rng, trees, target=None):
 
 # ---------------------------------------------------------------------------- palms
 def jungle_palm(rng, height):
-    """A slim jungle palm with a ringed trunk, light enough to plant by the dozen."""
+    """A slim jungle palm with a ringed trunk, as the film's jungle is full of: a full head of long
+    fronds drooping all round, two young ones standing up in the middle; light enough to plant by
+    the hundred."""
     lean = rng.uniform(0.08, 0.2)
     n = 5
     pts = [Vector((math.sin(t * math.pi * 0.5) * lean * height, 0.0, t * height)) for t in (i / n for i in range(n + 1))]
@@ -317,18 +353,20 @@ def jungle_palm(rng, height):
         colour = C["palmTrunkA"] if i % 2 else C["palmTrunkB"]
         pieces.append((seg, [colour] * len(seg.verts), [0.15 * i / n] * len(seg.verts)))
     top = pts[-1]
-    fronds = 6
+    fronds = 9
     for k in range(fronds):
-        theta = (k / fronds) * 2 * math.pi + rng.uniform(-0.2, 0.2)
+        young = k >= 7
+        theta = (k / 7) * 2 * math.pi + rng.uniform(-0.2, 0.2) if not young else rng.uniform(0, 2 * math.pi)
         d = Vector((math.cos(theta), math.sin(theta), 0.0))
         side = Vector((-math.sin(theta), math.cos(theta), 0.0))
-        length = rng.uniform(2.0, 2.6)
+        length = rng.uniform(2.4, 3.0) if not young else rng.uniform(1.5, 1.9)
+        reach, rise, droop = (1.0, 0.45, 1.6) if not young else (0.45, 1.2, 0.3)
 
-        def centre(s, d=d, length=length):
-            return top + d * (s * length) + UP * (0.45 * math.sin(s * math.pi * 0.6) - 1.3 * s * s)
+        def centre(s, d=d, length=length, reach=reach, rise=rise, droop=droop):
+            return top + d * (s * length * reach) + UP * (rise * math.sin(s * math.pi * 0.6) - droop * s * s)
 
-        frond = blade_bm(centre, side, 0.55, rows=5, thickness=0.05)
-        cols = [C["leaf"] if k % 2 else C["leafLight"]] * len(frond.verts)
+        frond = blade_bm(centre, side, 0.45, rows=5, thickness=0.05)
+        cols = [C["leafLight"] if young else (C["leaf"] if k % 2 else C["leafLight"])] * len(frond.verts)
         sway = [0.4 + 0.6 * min(1.0, (v.co - top).length / length) for v in frond.verts]
         pieces.append((frond, cols, sway, blade_leaf(5)))
     # The far version: a plain trunk and five short fronds.
@@ -373,8 +411,8 @@ def fern(rng):
 
 
 def bush(rng, flower):
-    """A round flowering bush: two or three soft blobs with flowers dotted over the top; a plain
-    green shrub when `flower` is None."""
+    """A round flowering bush: two or three soft blobs thick with flowers over the top and sides; a
+    plain green shrub when `flower` is None."""
     blobs = []
     for _ in range(int(rng.integers(2, 4))):
         a, d = rng.uniform(0, 2 * math.pi), rng.uniform(0.0, 0.35)
@@ -384,9 +422,10 @@ def bush(rng, flower):
     cols = leafy(mass, 0.0, 0.0, C["leafLight"], C["leaf"], C["leafDark"], seed=rng.uniform(0, 6))
     sway = [smoothstep(0.0, 1.0, v.co.z) * 0.6 for v in mass.verts]
     pieces = [(mass, cols, sway)]
-    # Flowers: little five-pointed stars facing out from the top half.
-    bvh_pts = [v.co.copy() for v in mass.verts if v.normal.z > 0.2]
-    for k in range(4 if flower else 0):
+    # Flowers: five-pointed stars facing out all over its top and sides, thick as on the film's
+    # flowering bushes.
+    bvh_pts = [v.co.copy() for v in mass.verts if v.normal.z > -0.15]
+    for k in range(14 if flower else 0):
         if not bvh_pts:
             break
         p = bvh_pts[int(rng.integers(0, len(bvh_pts)))]
@@ -398,7 +437,7 @@ def bush(rng, flower):
         ring = []
         for i in range(10):
             a = math.pi * i / 5
-            r = 0.11 if i % 2 == 0 else 0.05
+            r = 0.12 if i % 2 == 0 else 0.055
             ring.append(star.verts.new(p + n * 0.02 + side * (math.cos(a) * r) + other * (math.sin(a) * r)))
         for i in range(10):
             star.faces.new((hub, ring[i], ring[(i + 1) % 10]))
@@ -570,6 +609,32 @@ def bromeliad(rng, heart=None):
     return merge(pieces)
 
 
+def hanging_branch(rng):
+    """A leafy bough hanging down out of a tree overhead, as the film frames its shots with one: it
+    curves down and out from its foot (at the origin) along +x, twigs off it, and broad leaves all
+    along them, dark against the light."""
+    pieces = []
+    bough = [Vector((0.0, 0.0, 0.0)), Vector((0.7, 0.1, -0.3)), Vector((1.4, 0.15, -0.75)), Vector((2.0, 0.1, -1.3)),
+             Vector((2.5, 0.0, -1.9))]
+    for i, (a, b) in enumerate(zip(bough, bough[1:])):
+        seg = P.segment_bm(a, b, 0.07 - 0.012 * i, 0.058 - 0.012 * i, segments=5)
+        pieces.append((seg, [C["trunk"]] * len(seg.verts), [0.2 + 0.15 * i] * len(seg.verts)))
+
+    def along(t):
+        f = min(max(t, 0.0), 0.999) * (len(bough) - 1)
+        i = int(f)
+        return bough[i].lerp(bough[i + 1], f - i)
+
+    for _ in range(60):
+        t = 1.0 - 0.85 * rng.random() ** 1.6
+        a = rng.uniform(0.0, 2.0 * math.pi)
+        out = Vector((rng.uniform(-0.2, 0.4), math.cos(a), math.sin(a) * 0.6 - 0.45)).normalized()
+        length = rng.uniform(0.22, 0.34)
+        colour = C["leafDark"] if rng.random() < 0.6 else C["leaf"]
+        pieces.append(leaf_blade(along(t), out, length, length * 0.75, colour, 0.6))
+    return merge(pieces)
+
+
 def big_tree(rng, base_heights):
     """A big jungle tree: a thick trunk standing on buttress roots, a broad crown of several soft
     masses, and vines hanging from its branches, as in the film's waterfall clearing.
@@ -599,7 +664,8 @@ def big_tree(rng, base_heights):
             fin.faces.new((front[i], back[i], back[j], front[j]))
         bmesh.ops.recalc_face_normals(fin, faces=fin.faces[:])
         pieces.append((fin, [C["bigTrunk"]] * len(fin.verts), [0.0] * len(fin.verts)))
-    # The crown: three or four big soft masses round the top.
+    # The crown: three or four heads round the top and one over it, each heaped of leafy lobes
+    # (see lobes), limbs reaching up into them.
     crowns, blobs = [], []
     top = Vector((0.0, 0.0, height * 0.72))
     for k in range(int(rng.integers(3, 5))):
@@ -607,10 +673,11 @@ def big_tree(rng, base_heights):
         r = rng.uniform(3.0, 4.0)
         c = top + Vector((math.cos(a) * 2.6, math.sin(a) * 2.6, rng.uniform(0.5, 2.5)))
         crowns.append((c.x, c.y, c.z, r))
-        blobs.append(L.ellipsoid_bm(c, (r, r, r * 0.75), u=12, v=8))
-    blobs.append(L.ellipsoid_bm(top + UP * 3.0, (3.6, 3.6, 2.6), u=12, v=8))
+        blobs.extend(lobes(rng, c, r, 7))
+        pieces.extend(limbs(rng, top, c, r, 0.28, 1))
+    blobs.extend(lobes(rng, top + UP * 3.0, 3.6, 8))
     crowns.append((top.x, top.y, top.z + 3.0, 3.6))
-    mass = L.fuse(blobs, voxel=0.45, smooth_iterations=6, smooth_lambda=0.8, target_tris=260)
+    mass = L.fuse(blobs, voxel=0.3, smooth_iterations=3, smooth_lambda=0.7, target_tris=700)
     cols = leafy(mass, 0.0, 0.0, C["canopyLight"], C["canopy"], C["canopyDark"], seed=rng.uniform(0, 6))
     pieces.append((mass, cols, [0.4] * len(mass.verts)))
     # Aerial roots hanging from under the crown, as round the film's big tree, a few green vines
