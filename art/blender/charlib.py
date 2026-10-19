@@ -11,6 +11,7 @@ import os
 
 import bmesh
 import bpy
+import numpy as np
 from mathutils import Matrix, Vector
 from mathutils.bvhtree import BVHTree
 
@@ -524,6 +525,40 @@ def assemble_colored(name, pieces, collection, smooth=True):
 
 
 # ------------------------------------------------------------------ output
+# Every model the build scripts export is compressed with Draco, for the game's download (PLAN.md's
+# first load): positions to 16 bits of each mesh's size (within 7 mm across the 520 m ground, a
+# fraction of a millimetre on a prop or a character), normals to 12 bits, texture coordinates to 16
+# (the faces, the houses' night maps), custom attributes to 14; colours stay exact. The game decodes
+# them in src/core/gltf.ts.
+DRACO = dict(
+    export_draco_mesh_compression_enable=True,
+    export_draco_mesh_compression_level=6,
+    export_draco_position_quantization=16,
+    export_draco_normal_quantization=12,
+    export_draco_texcoord_quantization=16,
+    export_draco_color_quantization=12,
+    export_draco_generic_quantization=14,
+)
+
+
+def write_webp(path, img):
+    """A lossless WebP of img (H, W, 3 or 4), top row first, uint8 or floats 0..1: every pixel kept,
+    except the colour under fully clear ones, which nothing draws."""
+    if img.dtype != np.uint8:
+        img = (np.clip(img, 0.0, 1.0) * 255.0 + 0.5).astype(np.uint8)
+    h, w, channels = img.shape
+    rgba = np.ones((h, w, 4), dtype=np.float32)
+    rgba[..., :channels] = img[::-1] / 255.0  # Blender's rows run from the bottom up
+    image = bpy.data.images.new("webp", w, h, alpha=channels == 4)
+    try:
+        image.pixels.foreach_set(rgba.ravel())
+        image.file_format = "WEBP"
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        image.save(filepath=path, quality=100)  # 100: lossless
+    finally:
+        bpy.data.images.remove(image)
+
+
 def export_glb(obj, path, data, key="rig"):
     """Export one object as .glb, with `data` as JSON in the node's extras under `key`."""
     obj[key] = json.dumps(data, separators=(",", ":"))
@@ -552,6 +587,7 @@ def export_glb(obj, path, data, key="rig"):
         export_cameras=False,
         export_lights=False,
         export_apply=False,
+        **DRACO,
     )
 
 

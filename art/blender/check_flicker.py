@@ -4,8 +4,9 @@ PLANE), facing the same way and overlapping, that differ in colour or belong to 
 apart, so the nearer flickers from one to the other, the more so the further off. A pair counts as
 seen unless a ray out from just in front of it first leaves a solid it lies inside, or meets a face
 right over it (within COVERED). Reads public/models/props/<kind>.glb; plain Python with numpy, no
-Blender. Each place found is given in Blender's frame (x, y = -z of the glTF, z up) with the palette
-names of its two colours.
+Blender, though it borrows Blender's Draco decoder (under BLENDER) for the compressed props. Each
+place found is given in Blender's frame (x, y = -z of the glTF, z up) with the palette names of its
+two colours.
 
     python art/blender/check_flicker.py [kind ...]      (all props when none is named)
 """
@@ -27,17 +28,99 @@ SHRINK = 0.003     # each triangle shrunk this much before testing, so faces onl
 COLOUR = 0.03      # a difference in any colour channel above this shows
 AHEAD, COVERED = 0.003, 0.02
 ROLES = ("_glow", "_lamp", "_pane", "_flame", "_inside", "_far", "_board", "_label")
+BLENDER = os.environ.get("BLENDER_DIR", r"C:\Program Files\Blender Foundation\Blender 5.2")
+
+
+def draco_decoder():
+    """Blender's Draco decoder: the glTF add-on's bridge library, loaded once, as its importer uses it."""
+    if not hasattr(draco_decoder, "dll"):
+        import ctypes as c
+        found = glob.glob(os.path.join(BLENDER, "*", "scripts", "addons_core", "io_scene_gltf2", "bf_intern_draco_bridge.dll"))
+        if not found:
+            sys.exit(f"The props are Draco-compressed, and Blender's decoder is not under {BLENDER}: set BLENDER_DIR")
+        if os.path.isdir(os.path.join(BLENDER, "blender.shared")):
+            os.add_dll_directory(os.path.join(BLENDER, "blender.shared"))  # draco.dll, which the bridge needs
+        dll = c.CDLL(found[0])
+        for name, res, args in (
+                ("decoderCreate", c.c_void_p, []), ("decoderRelease", None, [c.c_void_p]),
+                ("decoderDecode", c.c_bool, [c.c_void_p, c.c_void_p, c.c_size_t]),
+                ("decoderGetVertexCount", c.c_uint32, [c.c_void_p]), ("decoderGetIndexCount", c.c_uint32, [c.c_void_p]),
+                ("decoderReadAttribute", c.c_bool, [c.c_void_p, c.c_uint32, c.c_size_t, c.c_char_p]),
+                ("decoderGetAttributeByteLength", c.c_size_t, [c.c_void_p, c.c_uint32]),
+                ("decoderCopyAttribute", None, [c.c_void_p, c.c_uint32, c.c_void_p]),
+                ("decoderReadIndices", c.c_bool, [c.c_void_p, c.c_size_t]),
+                ("decoderGetIndicesByteLength", c.c_size_t, [c.c_void_p]),
+                ("decoderCopyIndices", None, [c.c_void_p, c.c_void_p])):
+            getattr(dll, name).restype = res
+            getattr(dll, name).argtypes = args
+        draco_decoder.dll = dll
+        draco_decoder.buffer = c.create_string_buffer
+    return draco_decoder.dll
+
+
+class Quiet:
+    """Sends what C code prints to nowhere until end(): the Draco bridge reports every mesh it decodes."""
+
+    def __init__(self):
+        import ctypes
+        self.flush = getattr(ctypes.cdll, "ucrtbase").fflush
+        sys.stdout.flush()
+        self.flush(None)
+        self.saved = os.dup(1)
+        self.null = os.open(os.devnull, os.O_WRONLY)
+        os.dup2(self.null, 1)
+
+    def end(self):
+        self.flush(None)
+        os.dup2(self.saved, 1)
+        os.close(self.null)
+        os.close(self.saved)
 
 
 def load(path):
     b = open(path, "rb").read()
     n = struct.unpack_from("<I", b, 12)[0]
     j = json.loads(b[20:20 + n])
-    binary = b[20 + n + 8:]
+    buffers = [b[20 + n + 8:]]
+
+    def keep(raw, i, count):
+        """Points accessor i at decoded data of its own."""
+        buffers.append(raw)
+        j["bufferViews"].append({"buffer": len(buffers) - 1, "byteLength": len(raw)})
+        j["accessors"][i].update(bufferView=len(j["bufferViews"]) - 1, byteOffset=0, count=count)
+
+    # Draco-compressed primitives (charlib.DRACO): their indices and attributes decoded, each once.
+    for p in {id(p): p for m in j["meshes"] for p in m["primitives"]}.values():
+        ext = p.get("extensions", {}).get("KHR_draco_mesh_compression")
+        if not ext:
+            continue
+        dll = draco_decoder()
+        v = j["bufferViews"][ext["bufferView"]]
+        data = buffers[0][v.get("byteOffset", 0):v.get("byteOffset", 0) + v["byteLength"]]
+        decoder = dll.decoderCreate()
+        quiet = Quiet()  # the bridge prints a line for every mesh it decodes
+        try:
+            if not dll.decoderDecode(decoder, data, len(data)) or \
+                    not dll.decoderReadIndices(decoder, j["accessors"][p["indices"]]["componentType"]):
+                sys.exit(f"{path}: a Draco mesh would not decode")
+            raw = draco_decoder.buffer(dll.decoderGetIndicesByteLength(decoder))
+            dll.decoderCopyIndices(decoder, raw)
+            keep(raw.raw, p["indices"], dll.decoderGetIndexCount(decoder))
+            for name, uid in ext["attributes"].items():
+                a = j["accessors"][p["attributes"][name]]
+                if not dll.decoderReadAttribute(decoder, uid, a["componentType"], a["type"].encode()):
+                    sys.exit(f"{path}: {name} of a Draco mesh would not decode")
+                raw = draco_decoder.buffer(dll.decoderGetAttributeByteLength(decoder, uid))
+                dll.decoderCopyAttribute(decoder, uid, raw)
+                keep(raw.raw, p["attributes"][name], dll.decoderGetVertexCount(decoder))
+        finally:
+            dll.decoderRelease(decoder)
+            quiet.end()
 
     def accessor(i):
         a = j["accessors"][i]
         v = j["bufferViews"][a["bufferView"]]
+        binary = buffers[v.get("buffer", 0)]
         start = v.get("byteOffset", 0) + a.get("byteOffset", 0)
         comps = {"SCALAR": 1, "VEC2": 2, "VEC3": 3, "VEC4": 4}[a["type"]]
         dtype = {5126: "<f4", 5125: "<u4", 5123: "<u2", 5121: "u1"}[a["componentType"]]
@@ -184,6 +267,12 @@ def scan(path):
     groups = defaultdict(list)
     for i in np.nonzero(ok)[0]:
         groups[(tuple(np.round(nrm[i], 2)), int(np.floor(d[i] / PLANE)))].append(i)
+
+    def apart(i, k):
+        """How far the corners of each face lie from the other's plane, at most. (Their offsets d,
+        each taken along its own normal, can differ by millimetres a few metres from the origin when
+        a small face tilts by a hair, as Draco's rounding tilts them, though neither has moved.)"""
+        return max(np.abs((tris[k] - tris[i][0]) @ nrm[i]).max(), np.abs((tris[i] - tris[k][0]) @ nrm[k]).max())
     places = defaultdict(list)
     done = set()
     for (n_key, d_bin), members in groups.items():
@@ -202,7 +291,7 @@ def scan(path):
             for k in order[a + 1:]:
                 if lo[k][0] >= hi[i][0]:
                     break
-                if lo[k][1] >= hi[i][1] or hi[k][1] <= lo[i][1] or abs(d[i] - d[k]) > PLANE or (i, k) in done:
+                if lo[k][1] >= hi[i][1] or hi[k][1] <= lo[i][1] or apart(i, k) > PLANE or (i, k) in done:
                     continue
                 done.add((i, k))
                 if "far" in (owners[i], owners[k]) and owners[i] != owners[k]:

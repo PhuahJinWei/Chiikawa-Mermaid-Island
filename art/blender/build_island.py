@@ -5,10 +5,11 @@ Run (from the project root):
 
 Outputs:
     public/models/island/terrain.glb    the ground: land, beaches and the sea floor near the island
-    public/models/island/terrain.png    its painted colours, mapped from above
-    public/models/island/terrain_kinds.png  where grass, bare earth and sand lie, mapped the same way,
+    public/models/island/terrain.webp   its painted colours, mapped from above
+    public/models/island/terrain_kinds.webp  where grass, bare earth and sand lie, mapped the same way,
                                         for the film look's painting of grass and earth
-    public/models/island/height.bin     ground heights on a grid, for walking and the sea's colours
+    public/models/island/height.bin     ground heights on a grid, for walking and the sea's colours, each
+                                        stored less what its neighbours predict
     public/models/island/landmarks.glb  the rocks (karst pillars and mesas, the rocks behind the
                                         night beach, sea spires, the sea cliffs, the tableland's
                                         white cliffs, the gorge's walls and the spur with the
@@ -1252,6 +1253,17 @@ def build_mesh(collection):
     return obj
 
 
+def predicted(q):
+    """Each sample of a grid as its neighbours predict it, west plus north less north-west (the first
+    row from the west alone, the first column from the north alone, the first sample 0), as the game
+    undoes it (unpredict in src/world/Island.ts)."""
+    p = np.zeros_like(q)
+    p[0, 1:] = q[0, :-1]
+    p[1:, 0] = q[:-1, 0]
+    p[1:, 1:] = q[1:, :-1] + q[:-1, 1:] - q[:-1, :-1]
+    return p
+
+
 def sample_heights(obj, n):
     """The finished ground's height under each point of an n x n grid, by casting rays down; in the
     cave's skylight, where the ground is cut away, the height it would have there (the game keeps
@@ -2268,7 +2280,7 @@ def export_objects(objects, path):
         filepath=path, export_format="GLB", use_selection=True, export_extras=False, export_yup=True,
         export_normals=True, export_texcoords=True, export_vertex_color="ACTIVE", export_materials="NONE",
         export_attributes=True, export_animations=False, export_skins=False, export_morph=False,
-        export_cameras=False, export_lights=False, export_apply=False,
+        export_cameras=False, export_lights=False, export_apply=False, **L.DRACO,
     )
 
 
@@ -2281,12 +2293,13 @@ def main():
     obj = build_mesh(collection)
     tris = len(obj.data.polygons)
 
-    # Heights the game walks on, sampled from the finished mesh so feet meet the ground.
+    # Heights the game walks on, sampled from the finished mesh so feet meet the ground. Each is
+    # stored less what its neighbours predict (see predicted), which compresses to less than half.
     heights = sample_heights(obj, HEIGHT_GRID)
     lo, hi = float(heights.min()), float(heights.max())
-    q = np.round((heights - lo) / (hi - lo) * 65535.0).astype("<u2")
+    q = np.round((heights - lo) / (hi - lo) * 65535.0).astype(np.int64)
     with open(os.path.join(OUT_DIR, "height.bin"), "wb") as f:
-        f.write(q.tobytes())
+        f.write(((q - predicted(q)) % 65536).astype("<u2").tobytes())
 
     # The rocks standing on it, and the waterfall.
     landmarks, outlines, foot, stones = build_landmarks(collection)
@@ -2307,9 +2320,10 @@ def main():
     rgb, kinds = paint(gx, gz, h, masks, normal_y, shade)
     # Colours are linear here; the PNG holds sRGB. The kinds stay linear, averaged down to their map.
     srgb = np.where(rgb <= 0.0031308, rgb * 12.92, 1.055 * np.power(rgb, 1.0 / 2.4) - 0.055)
-    write_png(os.path.join(OUT_DIR, "terrain.png"), srgb)
+    # Lossless: lossy WebP smears colour edges, such as the rows of the fields.
+    L.write_webp(os.path.join(OUT_DIR, "terrain.webp"), srgb)
     k = COLOUR_SIZE // KINDS_SIZE
-    write_png(os.path.join(OUT_DIR, "terrain_kinds.png"), kinds.reshape(KINDS_SIZE, k, KINDS_SIZE, k, 3).mean(axis=(1, 3)))
+    L.write_webp(os.path.join(OUT_DIR, "terrain_kinds.webp"), kinds.reshape(KINDS_SIZE, k, KINDS_SIZE, k, 3).mean(axis=(1, 3)))
     preview(srgb, outlines)
 
     info = {
@@ -2317,9 +2331,10 @@ def main():
         "size": SIZE,
         "origin": [CENTRE[0] - SIZE / 2, CENTRE[1] - SIZE / 2],
         "water": WATER,
-        "height": {"url": "models/island/height.bin", "grid": HEIGHT_GRID, "min": round(lo, 4), "max": round(hi, 4)},
-        "colours": "models/island/terrain.png",
-        "kinds": "models/island/terrain_kinds.png",
+        "height": {"url": "models/island/height.bin", "grid": HEIGHT_GRID, "min": round(lo, 4), "max": round(hi, 4),
+                   "predicted": True},
+        "colours": "models/island/terrain.webp",
+        "kinds": "models/island/terrain_kinds.webp",
         "landmarks": "models/island/landmarks.glb",
         "rocks": [{"centre": [round(r.cx, 2), round(r.cz, 2)], "outline": reach} for r, reach in outlines],
         "pool": {"centre": list(POOL["centre"]), "radius": POOL["radius"], "level": POOL["level"]},

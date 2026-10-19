@@ -14,12 +14,21 @@ its origin. What each tells the game is in the game's frame (x across, z toward 
 Blender's (x, -y, z): `blocks` (what stops walkers and the camera, each over a range of heights),
 `decks` (floors, porches and stairs to walk on; a deck with `front` rises or falls to that height at
 its front edge, like a ramp) and `labels` (faces for painted words).
+
+A house with a lantern also has its night (see bake_night): the lantern's light on its body and room,
+baked with Cycles into `public/models/props/<id>_night.webp` on the parts' UVs, and its doorways and
+windows (`openings`), where that light spills out onto the ground.
 """
 
+import base64
 import math
+import os
 
 import bmesh
+import bpy
+import numpy as np
 from mathutils import Matrix, Vector
+from mathutils.bvhtree import BVHTree
 
 import build_props as P
 import charlib as L
@@ -725,7 +734,273 @@ def furnish(room, floor, ceiling, glow):
     return out, blocks
 
 
+# ---------------------------------------------------------------------------- the night
+NIGHT_SIZE = 512          # each house's night map, texels across
+NIGHT_SAMPLES = 160       # Cycles' samples a texel
+NIGHT_PROBE_SAMPLES = 16  # the first, rough bake's, which finds the faces the light reaches
+NIGHT_DARK = 0.004        # a face whose light stays under this share of the brightest is left black
+NIGHT_GAP = 2             # texels between the map's patches, each keeping a ring of its own light
+NIGHT_CORNER = 6          # texels across the black corner every face left black points at
+NIGHT_MASK = 32           # texels across a doorway's or window's mask of where the light passes
+NIGHT_MASK_RAYS = 12      # points on the lantern's globe each texel of a mask looks at, and its middle
+LANTERN_POWER = 100.0     # the lantern's power in the bake, in watts; the game sets its own
+LANTERN_RADIUS = 0.17     # its paper globe, which softens the shadows' edges
+
+
+def openings_of(walls):
+    """The walls' doorways and windows, for the game: each one's middle on the wall's outer face
+    and the way out of it, in the house's frame (the game's), its width and height, and whether it
+    is a doorway."""
+    out = []
+    for wall in walls:
+        n = -wall.inward
+        for u0, u1, v0, v1 in wall.openings:
+            c = wall.point((u0 + u1) / 2, (v0 + v1) / 2, 0.0)
+            out.append({"at": [round(c.x, 3), round(c.z, 3), round(-c.y, 3)],
+                        "out": [round(n.x, 3), round(n.z, 3), round(-n.y, 3)],
+                        "size": [round(u1 - u0, 3), round(v1 - v0, 3)], "door": v0 < 0.1})
+    return out
+
+
+def opening_masks(openings, targets, lantern):
+    """Where the lantern at `lantern` lights through each of `openings` (see openings_of), for the
+    game's light out of them: over the opening's outer face, NIGHT_MASK points from its right to
+    its left as one looks out through it, and as many from its foot up, each how much of the
+    lantern's globe it sees past the house (an open door leaf, a window's lattice, the wall's
+    thickness at a slant), 0 to 255, row by row from the foot, as base64. Returns the openings with
+    their masks."""
+    bm = bmesh.new()
+    for o in targets:
+        mesh = o.data.copy()
+        mesh.transform(o.matrix_world)
+        bm.from_mesh(mesh)
+        bpy.data.meshes.remove(mesh)
+    bvh = BVHTree.FromBMesh(bm)
+    bm.free()
+    # The lantern's middle and points round its globe, on a spiral.
+    points = [lantern]
+    for k in range(NIGHT_MASK_RAYS):
+        z = 1.0 - 2.0 * (k + 0.5) / NIGHT_MASK_RAYS
+        r = math.sqrt(1.0 - z * z)
+        a = k * math.pi * (3.0 - math.sqrt(5.0))
+        points.append(lantern + Vector((math.cos(a) * r, math.sin(a) * r, z)) * LANTERN_RADIUS)
+    out = []
+    for opening in openings:
+        # Back into Blender's frame from the game's (x, z, -y).
+        at = Vector((opening["at"][0], -opening["at"][2], opening["at"][1]))
+        n = Vector((opening["out"][0], -opening["out"][2], opening["out"][1]))
+        side = Vector((-n.y, n.x, 0.0)).normalized()
+        width, height = opening["size"]
+        mask = bytearray()
+        for j in range(NIGHT_MASK):
+            for i in range(NIGHT_MASK):
+                q = (at + side * (i / (NIGHT_MASK - 1) - 0.5) * width
+                     + Vector((0.0, 0.0, 1.0)) * (j / (NIGHT_MASK - 1) - 0.5) * height)
+                seen = 0
+                for p in points:
+                    way = q - p
+                    hit = bvh.ray_cast(p, way.normalized(), way.length - 1e-3)
+                    seen += hit[0] is None
+                mask.append(round(255 * seen / len(points)))
+        out.append(dict(opening, mask=base64.b64encode(bytes(mask)).decode("ascii")))
+    return out
+
+
+def night_layout(unwrap, keep):
+    """Lays out the UV map `night` of the mesh object `unwrap`: the faces flagged in `keep`
+    unwrapped and packed tight into the map, short of its far corner, and every other face at one
+    texel in that corner, which the map keeps black."""
+    mesh = unwrap.data
+    faces = len(mesh.polygons)
+    mesh.polygons.foreach_set("hide", ~keep)
+    view_layer = bpy.context.view_layer
+    for o in view_layer.objects:
+        o.select_set(o is unwrap)
+    view_layer.objects.active = unwrap
+    bpy.ops.object.mode_set(mode="EDIT")
+    bpy.ops.mesh.select_all(action="SELECT")
+    margin = NIGHT_GAP / NIGHT_SIZE
+    bpy.ops.uv.smart_project(angle_limit=math.radians(66), island_margin=margin)
+    bpy.ops.uv.select_all(action="SELECT")
+    bpy.ops.uv.pack_islands(rotate=True, margin_method="FRACTION", margin=margin, shape_method="CONCAVE")
+    bpy.ops.object.mode_set(mode="OBJECT")
+    mesh.polygons.foreach_set("hide", np.zeros(faces, dtype=bool))
+    totals = np.empty(faces, dtype=np.int32)
+    mesh.polygons.foreach_get("loop_total", totals)
+    kept = np.repeat(keep, totals)
+    uvs = np.empty(len(mesh.loops) * 2, dtype=np.float32)
+    mesh.uv_layers["night"].data.foreach_get("uv", uvs)
+    uvs = uvs.reshape(-1, 2)
+    uvs[kept] *= 1.0 - NIGHT_CORNER / NIGHT_SIZE
+    uvs[~kept] = 1.0 - NIGHT_CORNER / 2 / NIGHT_SIZE
+    mesh.uv_layers["night"].data.foreach_set("uv", uvs.ravel())
+
+
+def night_lit(mesh, light):
+    """Which faces of `mesh` a bake's `light` (texel by texel, rows from the bottom, laid out on the
+    mesh's map `night`) finds lit: brighter than NIGHT_DARK of its brightest at any of their
+    corners, their middle, or halfway between."""
+    n = NIGHT_SIZE
+    lit = light[light > 1e-6]
+    top = float(np.percentile(lit, 99.5)) if lit.size else 1.0
+    faces = len(mesh.polygons)
+    starts = np.empty(faces, dtype=np.int32)
+    totals = np.empty(faces, dtype=np.int32)
+    mesh.polygons.foreach_get("loop_start", starts)
+    mesh.polygons.foreach_get("loop_total", totals)
+    uvs = np.empty(len(mesh.loops) * 2, dtype=np.float32)
+    mesh.uv_layers["night"].data.foreach_get("uv", uvs)
+    uvs = uvs.reshape(-1, 2)
+    middles = np.add.reduceat(uvs, starts, axis=0) / totals[:, None]
+    owner = np.repeat(np.arange(faces), totals)
+    samples = np.concatenate([uvs, middles, (uvs + middles[owner]) / 2])
+    sample_face = np.concatenate([owner, np.arange(faces), owner])
+    x = np.clip((samples[:, 0] * n).astype(int), 0, n - 1)
+    y = np.clip((samples[:, 1] * n).astype(int), 0, n - 1)
+    brightest = np.zeros(faces, dtype=np.float32)
+    np.maximum.at(brightest, sample_face, light.reshape(n, n)[y, x])
+    return brightest > NIGHT_DARK * top
+
+
+def bake_night(name, targets, lamp, openings):
+    """The room's lantern's light on the house, baked with Cycles: lit by the lantern alone, the
+    sky and every other prop left out, its light falling on the walls, the floor and the furniture,
+    shadowed under the bed and the table, coming back off the wood into the corners and out through
+    the windows and the doorway onto the porch. Each of `targets` (the body and the room) gets a UV
+    map `night` into one shared map, saved to <id>_night.webp with each texel's light as the square
+    root of its share of `scale` (the light at the brightest texels, less a few hottest ones),
+    so the darks keep their steps. A first, rough bake of every face finds those the light reaches,
+    and only those are laid out in the map, so its texels go to the light, not to the outside's
+    shingles, which point at its one black corner. Returns what the game needs to read it, and the
+    house's `openings` with where the light passes through each (see opening_masks)."""
+    scene = bpy.context.scene
+    view_layer = bpy.context.view_layer
+    hidden = {o: o.hide_render for o in scene.objects}
+    for o in scene.objects:
+        o.hide_render = o not in targets
+    corners = [lamp.matrix_world @ Vector(c) for c in lamp.bound_box]
+    light_data = bpy.data.lights.new(f"{name}_night_light", type="POINT")
+    light_data.energy = LANTERN_POWER
+    light_data.shadow_soft_size = LANTERN_RADIUS
+    light = bpy.data.objects.new(f"{name}_night_light", light_data)
+    light.location = sum(corners, Vector()) / len(corners)
+    scene.collection.objects.link(light)
+    # A black sky: a new world's sky is a dim grey, which would light the house's whole outside.
+    world = scene.world
+    scene.world = bpy.data.worlds.new(f"{name}_night_sky")
+    scene.world.color = (0.0, 0.0, 0.0)
+    if scene.world.node_tree:
+        for node in scene.world.node_tree.nodes:
+            if node.type == "BACKGROUND":
+                node.inputs["Strength"].default_value = 0.0
+
+    # The parts' UVs are laid out together in one map: as one mesh of them all, in order (in the
+    # background Blender edits only one object at a time), then handed back to each part.
+    bm = bmesh.new()
+    for o in targets:
+        bm.from_mesh(o.data)
+    joined = bpy.data.meshes.new(f"{name}_night_uv")
+    bm.to_mesh(joined)
+    bm.free()
+    joined.uv_layers.new(name="night")
+    unwrap = bpy.data.objects.new(f"{name}_night_uv", joined)
+    # Out of the bakes: lying on the house, it would shadow it all.
+    unwrap.hide_render = True
+    scene.collection.objects.link(unwrap)
+    for o in targets:
+        o.data.uv_layers.active = o.data.uv_layers.new(name="night")
+
+    def hand_out():
+        uvs = np.empty(len(joined.loops) * 2, dtype=np.float32)
+        joined.uv_layers["night"].data.foreach_get("uv", uvs)
+        start = 0
+        for o in targets:
+            n = len(o.data.loops)
+            o.data.uv_layers["night"].data.foreach_set("uv", uvs[start * 2:(start + n) * 2])
+            start += n
+
+    # The wood's own colours, for the light coming back off it, and the map to bake into.
+    image = bpy.data.images.new(f"{name}_night", NIGHT_SIZE, NIGHT_SIZE, alpha=False, float_buffer=True)
+    material = bpy.data.materials.new(f"{name}_night")
+    material.use_nodes = True
+    nodes, links = material.node_tree.nodes, material.node_tree.links
+    bsdf = next(n for n in nodes if n.type == "BSDF_PRINCIPLED")
+    colour = nodes.new("ShaderNodeAttribute")
+    colour.attribute_name = "Col"
+    links.new(colour.outputs["Color"], bsdf.inputs["Base Color"])
+    bsdf.inputs["Roughness"].default_value = 1.0
+    if "Specular IOR Level" in bsdf.inputs:
+        bsdf.inputs["Specular IOR Level"].default_value = 0.0
+    target = nodes.new("ShaderNodeTexImage")
+    target.image = image
+    nodes.active = target
+    for o in targets:
+        o.data.materials.clear()
+        o.data.materials.append(material)
+
+    engine = scene.render.engine
+    scene.render.engine = "CYCLES"
+    scene.cycles.device = "CPU"
+
+    def bake(samples):
+        scene.cycles.samples = samples
+        for o in view_layer.objects:
+            o.select_set(o in targets)
+        view_layer.objects.active = targets[0]
+        with bpy.context.temp_override(active_object=targets[0], object=targets[0], selected_objects=targets,
+                                       selected_editable_objects=targets):
+            bpy.ops.object.bake(type="DIFFUSE", pass_filter={"DIRECT", "INDIRECT"}, margin=NIGHT_GAP // 2,
+                                use_clear=True)
+        px = np.empty(NIGHT_SIZE * NIGHT_SIZE * 4, dtype=np.float32)
+        image.pixels.foreach_get(px)
+        return px.reshape(-1, 4)[:, :3].copy()
+
+    faces = len(joined.polygons)
+    night_layout(unwrap, np.ones(faces, dtype=bool))
+    hand_out()
+    keep = night_lit(joined, bake(NIGHT_PROBE_SAMPLES).max(axis=1))
+    night_layout(unwrap, keep)
+    hand_out()
+    rgb = bake(NIGHT_SAMPLES)
+    scene.render.engine = engine
+    corner = NIGHT_SIZE - NIGHT_CORNER
+    rgb.reshape(NIGHT_SIZE, NIGHT_SIZE, 3)[corner:, corner:] = 0.0
+    print(f"NIGHT {name}: {int(keep.sum())} of {faces} faces lit")
+
+    lit = rgb.max(axis=1)
+    scale = float(np.percentile(lit[lit > 1e-6], 99.5)) if (lit > 1e-6).any() else 1.0
+    encoded = np.sqrt(np.clip(rgb / scale, 0.0, 1.0))
+    out = bpy.data.images.new(f"{name}_night_png", NIGHT_SIZE, NIGHT_SIZE, alpha=False)
+    out.pixels.foreach_set(np.concatenate([encoded, np.ones((len(encoded), 1), np.float32)], axis=1).ravel())
+    # Lossless WebP, each texel as baked, about a third smaller than PNG; the PNG it was before goes.
+    path = os.path.join(P.OUT_MODELS, f"{name}_night.webp")
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    out.filepath_raw = path
+    out.file_format = "WEBP"
+    out.save(quality=100)  # 100: lossless
+    if os.path.exists(path[:-5] + ".png"):
+        os.remove(path[:-5] + ".png")
+    print(f"NIGHT {name}: scale {scale:.5f} -> {path}")
+
+    for o in targets:
+        o.data.materials.clear()
+    bpy.data.objects.remove(unwrap)
+    bpy.data.meshes.remove(joined)
+    bpy.data.materials.remove(material)
+    bpy.data.images.remove(image)
+    bpy.data.images.remove(out)
+    bpy.data.objects.remove(light)
+    bpy.data.lights.remove(light_data)
+    bpy.data.worlds.remove(scene.world)
+    scene.world = world
+    for o, h in hidden.items():
+        o.hide_render = h
+    return {"night": {"map": f"{name}_night.webp", "scale": round(scale, 6), "power": LANTERN_POWER},
+            "openings": opening_masks(openings, targets, sum(corners, Vector()) / len(corners))}
+
+
 # ---------------------------------------------------------------------------- the stilt hut
+
 def build_stilt_hut(name, pattern, collection):
     """A hut on log stilts you can walk into, as in the film's village: log stairs up to a plank
     porch, a doorway wide enough for three, lattice windows over a band of coloured scales, a
@@ -765,15 +1040,17 @@ def build_stilt_hut(name, pattern, collection):
         pieces.append((log(V(x, -yo - 0.03, floor), V(x, -yo - 0.03, floor + wall_h), 0.16, segments=10), C["log"]))
     pieces.append((oriented_box(V(0.0, -yo - 0.04, floor + 2.13), V(1, 0, 0), V(0, 1, 0), (2 * door + 0.4, 0.16, 0.17)),
                    C["logDark"]))
-    # The double plank door, both leaves open into the room against the doorway's sides, each with
-    # a dark handle.
+    # The double plank door, both leaves swung right back against the inside of the front wall, one
+    # either side of the doorway, each with a dark handle: open so, they leave the lantern's light
+    # the whole doorway. Each is just narrow enough to end short of the window beside it.
+    leaf_w, leaf_y = 0.58, -yi + 0.05
     for s in (-1.0, 1.0):
-        x = s * (door - 0.03)
-        pieces.append((oriented_box(V(x, -yi + 0.33, floor + 1.0), V(0, 1, 0), V(1, 0, 0), (0.64, 0.05, 1.96)), C["plank"]))
+        x = s * (door + 0.01 + leaf_w / 2)
+        pieces.append((oriented_box(V(x, leaf_y, floor + 1.0), V(1, 0, 0), V(0, 1, 0), (leaf_w, 0.05, 1.96)), C["plank"]))
         for k in (-1, 1):
-            pieces.append((oriented_box(V(x - s * 0.027, -yi + 0.33 + 0.16 * k, floor + 1.0), V(0, 1, 0), V(1, 0, 0),
+            pieces.append((oriented_box(V(x + leaf_w / 4 * k, leaf_y + 0.027, floor + 1.0), V(1, 0, 0), V(0, 1, 0),
                                         (PEN, 0.006, 1.9)), C["plankLine"]))
-        door_handle(V(x - s * 0.027, -yi + 0.56, floor + 1.0), V(-s, 0, 0), pieces)
+        door_handle(V(x + s * (leaf_w / 2 - 0.09), leaf_y + 0.027, floor + 1.0), V(0, 1, 0), pieces)
 
     # The floor, the porch and its railing, the stilts under them, and the log stairs.
     pieces.append((P.box_bm(V(0.0, (porch + yo) / 2, floor - 0.07), (2 * xo, yo - porch, 0.14)), C["floor"]))
@@ -827,13 +1104,15 @@ def build_stilt_hut(name, pattern, collection):
         block_box(0.62, xo, porch, porch + 0.1, floor - 0.3, floor + 0.7, camera=False),
         {"circle": [*g(0.0, roof_y), 4.6], "y": [eave - 0.05, eave + 2.8], "walk": False, "camera": True},
     ] + kept_out
-    # The door's open leaves, and the porch's pots.
-    blocks += [block_box(s * (door - 0.03) - 0.04, s * (door - 0.03) + 0.04, -yi, -yi + 0.66, floor - 0.1, floor + 2.0,
-                         camera=False) for s in (-1.0, 1.0)]
+    # The door's open leaves against the wall, and the porch's pots.
+    blocks += [block_box(min(s * (door + 0.01), s * (door + 0.01 + leaf_w)), max(s * (door + 0.01), s * (door + 0.01 + leaf_w)),
+                         -yi, leaf_y + 0.03, floor - 0.1, floor + 2.0, camera=False) for s in (-1.0, 1.0)]
     blocks += [{"circle": [*g(at.x, at.y), 0.2], "y": [floor - 0.1, floor + 0.6], "walk": True, "camera": False}
                for at, _ in pots]
     decks = [deck_box(-xo + 0.1, xo - 0.1, porch, yi, floor), deck_box(-0.62, 0.62, stairs_end, porch, floor, 0.02)]
-    return [body, lights, glass, room, distant], {"blocks": blocks, "decks": decks, "height": eave + 2.8}
+    info = {"blocks": blocks, "decks": decks, "height": eave + 2.8, "openings": openings_of((front, back, left, right))}
+    info.update(bake_night(name, [body, room], lights, info["openings"]))
+    return [body, lights, glass, room, distant], info
 
 
 # ---------------------------------------------------------------------------- the plank hut
@@ -901,7 +1180,9 @@ def build_plank_hut(name, collection):
     blocks += [{"circle": [*g(at.x, at.y), 0.2], "y": [floor - 0.1, floor + 0.6], "walk": True, "camera": False}
                for at, _ in pots]
     decks = [deck_box(-xo + 0.1, xo - 0.1, step, yi, floor), deck_box(-0.8, 0.8, ramp_end, step, floor, 0.02)]
-    return [body, lights, glass, room, distant], {"blocks": blocks, "decks": decks, "height": roof[6]}
+    info = {"blocks": blocks, "decks": decks, "height": roof[6], "openings": openings_of((front, back, left, right))}
+    info.update(bake_night(name, [body, room], lights, info["openings"]))
+    return [body, lights, glass, room, distant], info
 
 
 # ---------------------------------------------------------------------------- the guest houses
@@ -1227,7 +1508,9 @@ def build_guest_house(name, style, collection):
         block_box(0.62, 0.75, steps_end, -yo, -0.2, floor, camera=False),
     ]
     decks = [deck_box(-xi, xi, -yo - 0.02, yi, floor), deck_box(-0.6, 0.6, steps_end, -yo - 0.02, floor, 0.02)]
-    return [body, lights, glass, room, distant], {"blocks": blocks, "decks": decks, "height": ridge + 0.2}
+    info = {"blocks": blocks, "decks": decks, "height": ridge + 0.2, "openings": openings_of(walls)}
+    info.update(bake_night(name, [body, room], lights, info["openings"]))
+    return [body, lights, glass, room, distant], info
 
 
 # ---------------------------------------------------------------------------- 島二郎

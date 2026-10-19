@@ -1,7 +1,8 @@
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { loadGltf } from '../core/gltf';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { sceneryRamp } from '../core/toon';
+import { fireLights } from './Firelight';
 import { SWAY_GLSL, addOutline, windUniforms } from './Ink';
 import type { TerrainInfo } from './Island';
 import { FILM, LEAF_KEEP_GLSL, moonEdges, paintLeaves, puffShadow, shadeUnderTrees } from './Look';
@@ -34,6 +35,7 @@ function plantMaterial(clusters = 0): THREE.MeshToonMaterial {
       paintLeaves(shader, clusters);
       shadeUnderTrees(shader);
       moonEdges(shader);
+      fireLights(shader);
     }
   };
   // Each cluster size compiles its own shader: the setup above reads the same for all of them.
@@ -101,7 +103,7 @@ export class Vegetation {
   private readonly canopy: Patch[] = [];
 
   static async load(info: TerrainInfo): Promise<Vegetation> {
-    const gltf = await new GLTFLoader().loadAsync(info.plants.url);
+    const gltf = await loadGltf(info.plants.url);
     const vegetation = new Vegetation();
     const material = plantMaterial();
     // Tree crowns, near and far: in the film look painted in leaf clusters, larger far off.

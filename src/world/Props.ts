@@ -2,13 +2,13 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { sceneryRamp } from '../core/toon';
 import { t, type StringKey } from '../i18n/I18n';
-import type { FireKind } from './Firelight';
+import { fireLights, type FireKind, type Room, type SourceOptions } from './Firelight';
 import { glowMaterial, glowUniforms, paneMaterial } from './Glow';
 import { INK, addOutline, windUniforms } from './Ink';
 import { terrainHeight } from './Island';
 import { FILM, paintThatch } from './Look';
 import { addBox, addCircle, addDeck } from './Obstacles';
-import { loadPropModel, type LabelInfo, type PartRole, type PropInfo } from './PropModels';
+import { loadPropModel, type LabelInfo, type PartRole, type PropInfo, type PropModel } from './PropModels';
 
 /** One prop placed on the island, as public/data/layout.json lists it. */
 export interface Placed {
@@ -46,6 +46,14 @@ const UNLINED = new Set(['palm', 'starfish']);
  * rooms' insides only this close. */
 const NEAR_REACH = 75;
 const INSIDE_REACH = 32;
+/**
+ * The windows' glass (see paneMaterial): in the film look every room is lit by its lantern, from any
+ * distance (see Firelight), so the glass is clear as far off as the rooms are drawn (a pane that near
+ * is always in a group near enough for its insides), then a lit stand-in, a little brighter than the
+ * lantern-lit room seen through the glass and short of the glow. In the toon look, where nothing is
+ * lit by the lanterns, it is clear only close by, then lit as the windows are.
+ */
+const PANE = FILM ? { clear: INSIDE_REACH - 8, lit: INSIDE_REACH, bright: 0.4 } : { clear: 8, lit: 14, bright: 1 };
 /** Small props (within a metre and a half of their middle: baskets, pots, logs, starfish), and a
  * stall's goods however far they spread over its counter and table, are drawn only this close. */
 const SMALL_SIZE = 1.5;
@@ -66,7 +74,9 @@ const LIGHT_GAP = 0.6;
 
 /** Which pieces of a group are drawn when: always, near, inside (closer still), far, or at night. */
 type Level = 'always' | 'near' | 'small' | 'inside' | 'far' | 'night';
-type Kind = 'body' | 'glow' | 'pane' | 'flame';
+/** How a piece is drawn: as the props are, as a house lit at night by its own lantern's baked light
+ * (its body and room, see nightMaterial), glowing, as a window's pane, or as a flame. */
+type Kind = 'body' | 'baked' | 'glow' | 'pane' | 'flame';
 
 interface Group {
   geometries: Map<string, THREE.BufferGeometry[]>;
@@ -92,17 +102,20 @@ interface PaintedSigns {
 
 /**
  * The hand-lettered signs: paintings from art/signs/, copied into public/signs/ by
- * art/blender/build_signs.py and listed in its signs.json, with the colours of the boards under
- * those painted solid. None if there is no list; a sign that fails to load keeps its typed words.
+ * art/blender/build_signs.py (as lossless WebP, the list's `format`) and listed in its signs.json,
+ * with the colours of the boards under those painted solid. None if there is no list; a sign that
+ * fails to load keeps its typed words.
  */
 async function loadPaintedSigns(): Promise<PaintedSigns> {
   const painted: PaintedSigns = { paintings: new Map(), boards: new Map() };
   let names: string[] = [];
+  let format = 'png';
   try {
     const response = await fetch('signs/signs.json');
     if (!response.ok) return painted;
-    const list = (await response.json()) as { signs?: string[]; boards?: Record<string, string> };
+    const list = (await response.json()) as { signs?: string[]; boards?: Record<string, string>; format?: string };
     names = list.signs ?? [];
+    format = list.format ?? format;
     for (const [name, colour] of Object.entries(list.boards ?? {})) painted.boards.set(name, new THREE.Color(colour));
   } catch {
     return painted;
@@ -110,7 +123,7 @@ async function loadPaintedSigns(): Promise<PaintedSigns> {
   await Promise.all(
     names.map(async (name) => {
       try {
-        const response = await fetch(`signs/${encodeURIComponent(name)}.png`);
+        const response = await fetch(`signs/${encodeURIComponent(name)}.${format}`);
         if (response.ok) painted.paintings.set(name, await createImageBitmap(await response.blob()));
       } catch (error) {
         console.warn(`Hand-lettered sign ${name} did not load`, error);
@@ -130,8 +143,146 @@ interface Floater {
  * painted the film's way (see paintThatch). */
 function toon(): THREE.MeshToonMaterial {
   const material = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: sceneryRamp() });
-  if (FILM) material.onBeforeCompile = (shader) => paintThatch(shader);
+  if (FILM) {
+    material.onBeforeCompile = (shader) => {
+      paintThatch(shader);
+      fireLights(shader);
+    };
+  }
   return material;
+}
+
+/** The houses' night maps (see PropInfo.night) side by side in one texture, and where each map lies
+ * in it: its corner and size, in the texture's UVs. */
+interface NightMaps {
+  texture: THREE.Texture;
+  tiles: Map<string, [number, number, number, number]>;
+}
+
+/**
+ * Fetches the houses' night maps and lays them side by side in one texture, their light as Blender
+ * wrote it: no colour conversion, and no mipmaps, whose smaller copies would blend a map's
+ * neighbouring patches (a lit wall's inside into its dark outside). None if none loads.
+ */
+async function loadNightMaps(maps: string[]): Promise<NightMaps | null> {
+  const images = new Map<string, ImageBitmap>();
+  await Promise.all(
+    maps.map(async (map) => {
+      try {
+        const response = await fetch(`models/props/${map}`);
+        if (!response.ok) throw new Error(`${response.status}`);
+        images.set(map, await createImageBitmap(await response.blob(), { colorSpaceConversion: 'none', premultiplyAlpha: 'none' }));
+      } catch (error) {
+        console.warn(`Night map ${map} did not load`, error);
+      }
+    }),
+  );
+  if (images.size === 0) return null;
+  const size = Math.max(...[...images.values()].map((image) => Math.max(image.width, image.height)));
+  const columns = Math.ceil(Math.sqrt(images.size));
+  const canvas = document.createElement('canvas');
+  canvas.width = columns * size;
+  canvas.height = Math.ceil(images.size / columns) * size;
+  const g = canvas.getContext('2d');
+  const tiles: NightMaps['tiles'] = new Map();
+  [...images].forEach(([map, image], k) => {
+    const x = (k % columns) * size;
+    const y = Math.floor(k / columns) * size;
+    g?.drawImage(image, x, y, size, size);
+    tiles.set(map, [x / canvas.width, y / canvas.height, size / canvas.width, size / canvas.height]);
+  });
+  const texture = new THREE.CanvasTexture(canvas);
+  // The UVs count down from the top, as the canvas does (glTF's way).
+  texture.flipY = false;
+  texture.colorSpace = THREE.NoColorSpace;
+  texture.generateMipmaps = false;
+  texture.minFilter = THREE.LinearFilter;
+  return { texture, tiles };
+}
+
+const NIGHT_VERTEX = /* glsl */ `
+attribute vec2 aNightUv;
+attribute vec2 aNight;
+varying vec2 vNightUv;
+varying vec2 vNight;
+`;
+
+const NIGHT_PARS = /* glsl */ `
+uniform sampler2D uNightMap;
+varying vec2 vNightUv;
+varying vec2 vNight;
+`;
+
+/** GLSL, after three's own lights: the lantern's baked light, the map's (stored as its square root)
+ * times its gain and the lantern's colour this moment in the light grid. */
+const NIGHT_LIGHT = /* glsl */ `
+if (uFireOn > 0.5) {
+  vec3 nightLantern = texelFetch(uFireLights, ivec2(int(vNight.x - 0.5), 1), 0).rgb;
+  vec3 nightLight = texture2D(uNightMap, vNightUv).rgb;
+  reflectedLight.indirectDiffuse += nightLight * nightLight * vNight.y * nightLantern * BRDF_Lambert(material.diffuseColor);
+}
+`;
+
+/**
+ * A house's body and room in the film look: lit as the props are (see toon), and at night by its own
+ * lantern's light as Cycles baked it into the house (see PropInfo.night), shadowed under the
+ * furniture, dimmer in the corners, coming back off the wood and out through the windows and the
+ * doorway onto the porch. `map` holds every house's bake (see loadNightMaps), a part's aNightUv its
+ * place there and aNight its lantern in the light grid plus one and its map's gain, so the light
+ * flickers and fades with the lantern; the grid leaves that lantern, and its light out of the house's
+ * doorways and windows, off the house (NIGHT_MAP in Firelight).
+ */
+function nightMaterial(map: THREE.Texture): THREE.MeshToonMaterial {
+  const material = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: sceneryRamp() });
+  material.defines = { NIGHT_MAP: '' };
+  material.onBeforeCompile = (shader) => {
+    shader.uniforms.uNightMap = { value: map };
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', `#include <common>\n${NIGHT_VERTEX}`)
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvNightUv = aNightUv;\nvNight = aNight;');
+    shader.fragmentShader = shader.fragmentShader.replace('#include <common>', `#include <common>\n${NIGHT_PARS}`);
+    paintThatch(shader);
+    fireLights(shader);
+    shader.fragmentShader = shader.fragmentShader.replace('#include <lights_fragment_begin>', `#include <lights_fragment_begin>\n${NIGHT_LIGHT}`);
+  };
+  return material;
+}
+
+/** A house's baked part's way into its night map (see nightMaterial): its UVs moved to its map's
+ * place among the maps, its lantern's place among the fires plus one, and its map's gain. */
+function addNight(geometry: THREE.BufferGeometry, source: THREE.BufferGeometry, tile: [number, number, number, number], lantern: number, gain: number): void {
+  const uv = source.getAttribute('uv');
+  const at = new Float32Array(uv.count * 2);
+  const night = new Float32Array(uv.count * 2);
+  for (let i = 0; i < uv.count; i++) {
+    at.set([tile[0] + uv.getX(i) * tile[2], tile[1] + uv.getY(i) * tile[3]], i * 2);
+    night.set([lantern + 1, gain], i * 2);
+  }
+  geometry.setAttribute('aNightUv', new THREE.BufferAttribute(at, 2));
+  geometry.setAttribute('aNight', new THREE.BufferAttribute(night, 2));
+}
+
+/** How far a room's box reaches past its inside, in metres: the walls' inner faces lie on the box's
+ * sides, so they are kept inside it, while their outer faces, a plank's thickness out, stay out. */
+const ROOM_MARGIN = 0.06;
+
+/**
+ * The room a house's lantern lights, in the world: the box its inside (furniture, rugs, the walls'
+ * inner faces) takes up, raised to the house's top so the roof's underside is in it too.
+ */
+function roomOf(parts: { role: PartRole; geometry: THREE.BufferGeometry }[], matrix: THREE.Matrix4, angle: number, scale: number): Room | null {
+  const inside = parts.find((part) => part.role === 'inside');
+  if (!inside) return null;
+  if (!inside.geometry.boundingBox) inside.geometry.computeBoundingBox();
+  const box = (inside.geometry.boundingBox as THREE.Box3).clone();
+  const body = parts[0].geometry;
+  if (!body.boundingBox) body.computeBoundingBox();
+  box.max.y = Math.max(box.max.y, (body.boundingBox as THREE.Box3).max.y);
+  return {
+    centre: box.getCenter(new THREE.Vector3()).applyMatrix4(matrix),
+    half: box.getSize(new THREE.Vector3()).multiplyScalar(scale / 2).addScalar(ROOM_MARGIN),
+    yaw: angle,
+  };
 }
 
 /** How much brighter than white the film look burns flames, so they glow. */
@@ -384,8 +535,9 @@ export class Props {
   private readonly floaters: Floater[] = [];
   private readonly groups = new Map<string, Group>();
   private readonly flames: THREE.Object3D[] = [];
-  /** Where each flame, lit window and lantern is, for the firelight (see Firelight). */
-  readonly fires: { position: THREE.Vector3; kind: FireKind }[] = [];
+  /** Where each flame, lit window and lantern is, for the firelight (see Firelight), with the room a
+   * room's lantern lights, and each house's lantern's light out of its doorways and windows. */
+  readonly fires: ({ position: THREE.Vector3; kind: FireKind } & SourceOptions)[] = [];
 
   static async load(layout: Placed[], waterLevel: number): Promise<Props> {
     // A stall's goods stand in it, placed with it (after the layout's own, which keep their places
@@ -398,7 +550,11 @@ export class Props {
     const kinds = [...new Set(placed.map((p) => p.kind))];
     const signs = loadPaintedSigns();
     const models = new Map(await Promise.all(kinds.map(async (k) => [k, await loadPropModel(k)] as const)));
+    // In the film look, where the lanterns light the island, the houses' lanterns' light baked into them.
+    const maps = [...new Set([...models.values()].flatMap((m) => (m.info.night ? [m.info.night.map] : [])))];
+    const nights = FILM && maps.length > 0 ? loadNightMaps(maps) : Promise.resolve(null);
     const painted = await signs;
+    const night = await nights;
     const props = new Props();
     const labels: Label[] = [];
     const up = new THREE.Vector3(0, 1, 0);
@@ -428,6 +584,13 @@ export class Props {
       const key = p.group ?? `${Math.floor(p.x / PATCH)},${Math.floor(p.z / PATCH)}`;
       const words = p.labels ?? (p.label ? [p.label] : []);
       const labelInfos = model.info.labels ?? (model.info.label ? [model.info.label] : []);
+      const room = model.parts.some((part) => part.role === 'lamp') ? roomOf(model.parts, matrix, angle, scale) : null;
+      // A house with its lantern's light baked into it: the lantern first among its fires, so its
+      // body and room know it (see nightMaterial).
+      const bake = model.info.night;
+      const tile = bake ? night?.tiles.get(bake.map) : undefined;
+      const lantern = bake && tile ? props.addLantern(model, matrix, angle, scale, room) : -1;
+      const gain = bake ? (bake.scale * 4 * Math.PI ** 2) / bake.power : 0;
       for (const part of model.parts) {
         if (part.role === 'label') {
           const info = labelInfos[part.index];
@@ -444,34 +607,42 @@ export class Props {
         }
         const level = levelOf(part.role, hasFar, small);
         if (!level) continue;
-        const kind: Kind =
-          part.role === 'glow' || part.role === 'lamp' ? 'glow' : part.role === 'pane' || part.role === 'flame' ? part.role : 'body';
+        const baked = tile && (part.role === 'body' || part.role === 'inside') && part.geometry.hasAttribute('uv');
+        const kind: Kind = baked
+          ? 'baked'
+          : part.role === 'glow' || part.role === 'lamp'
+            ? 'glow'
+            : part.role === 'pane' || part.role === 'flame'
+              ? part.role
+              : 'body';
         // A board under a hand-lettered sign painted solid takes the painting's colour.
         const board = part.role === 'board' && words[0] ? (painted.boards.get(words[0]) ?? null) : null;
-        props.collect(key, level, kind, !UNLINED.has(p.kind), placedGeometry(part.geometry, matrix, tint, false, board));
-        if (kind === 'glow' || kind === 'flame') {
+        const geometry = placedGeometry(part.geometry, matrix, tint, false, board);
+        if (baked) addNight(geometry, part.geometry, tile, lantern, gain);
+        props.collect(key, level, kind, !UNLINED.has(p.kind), geometry);
+        if ((kind === 'glow' && !(part.role === 'lamp' && lantern >= 0)) || kind === 'flame') {
           for (const spot of lightSpots(part.geometry)) {
-            props.fires.push({ position: spot.clone().applyMatrix4(matrix), kind: part.role === 'lamp' ? 'lamp' : kind });
+            const lamp = part.role === 'lamp';
+            props.fires.push({ position: spot.clone().applyMatrix4(matrix), kind: lamp ? 'lamp' : kind, room: lamp ? room : null });
           }
         }
       }
     });
-    props.build();
+    props.build(night?.texture ?? null);
 
     if (labels.length > 0) {
       const texture = paintLabels(labels, painted.paintings);
-      const words = new THREE.Mesh(
-        mergeGeometries(labels.map((l) => l.geometry)),
-        new THREE.MeshToonMaterial({
-          map: texture,
-          gradientMap: sceneryRamp(),
-          transparent: true,
-          depthWrite: false,
-          polygonOffset: true,
-          polygonOffsetFactor: -2,
-          polygonOffsetUnits: -2,
-        }),
-      );
+      const material = new THREE.MeshToonMaterial({
+        map: texture,
+        gradientMap: sceneryRamp(),
+        transparent: true,
+        depthWrite: false,
+        polygonOffset: true,
+        polygonOffsetFactor: -2,
+        polygonOffsetUnits: -2,
+      });
+      if (FILM) material.onBeforeCompile = (shader) => fireLights(shader);
+      const words = new THREE.Mesh(mergeGeometries(labels.map((l) => l.geometry)), material);
       // In the film look the words take the sun's shadows with their boards, so a sign painted
       // solid stays the colour of the board round it, in shade as in sun.
       words.receiveShadow = FILM;
@@ -492,12 +663,39 @@ export class Props {
     group.geometries.set(id, list);
   }
 
-  /** Joins each group's pieces into a mesh per level and kind, outlined, and finds its bounds. */
-  private build(): void {
+  /**
+   * A house's lantern, its light baked into the house (see nightMaterial), into the firelight where
+   * the bake placed it, in the middle of its lantern: lighting its room (what stands in it besides the
+   * house), and out of each of the house's doorways and windows. Returns its place among the fires.
+   */
+  private addLantern(model: PropModel, matrix: THREE.Matrix4, angle: number, scale: number, room: Room | null): number {
+    const lamp = model.parts.find((part) => part.role === 'lamp');
+    if (!lamp) return -1;
+    if (!lamp.geometry.boundingBox) lamp.geometry.computeBoundingBox();
+    const position = (lamp.geometry.boundingBox as THREE.Box3).getCenter(new THREE.Vector3()).applyMatrix4(matrix);
+    const owner = this.fires.length;
+    this.fires.push({ position, kind: 'lamp', room, owner });
+    const up = new THREE.Vector3(0, 1, 0);
+    for (const o of model.info.openings ?? []) {
+      const opening = {
+        centre: new THREE.Vector3(...o.at).applyMatrix4(matrix),
+        out: new THREE.Vector3(...o.out).applyAxisAngle(up, angle),
+        half: [(o.size[0] / 2) * scale, (o.size[1] / 2) * scale] as [number, number],
+        mask: o.mask ? Uint8Array.from(atob(o.mask), (c) => c.charCodeAt(0)) : undefined,
+      };
+      this.fires.push({ position, kind: 'opening', opening, owner });
+    }
+    return owner;
+  }
+
+  /** Joins each group's pieces into a mesh per level and kind, outlined, and finds its bounds; the
+   * houses' baked parts with `nights`, their night maps (see loadNightMaps). */
+  private build(nights: THREE.Texture | null): void {
     const materials: Record<Kind, THREE.Material> = {
       body: toon(),
+      baked: nights ? nightMaterial(nights) : toon(),
       glow: glowMaterial(),
-      pane: paneMaterial(),
+      pane: paneMaterial(PANE.clear, PANE.lit, PANE.bright),
       flame: flameMaterial(),
     };
     const box = new THREE.Box3();
@@ -514,7 +712,7 @@ export class Props {
         objects.push(mesh);
         // In the film look what is made is drawn with the pen, as the film draws its props, and the
         // land's own things (UNLINED) are painted without a line; all cast and take the sun's shadows.
-        mesh.castShadow = mesh.receiveShadow = FILM && kind === 'body';
+        mesh.castShadow = mesh.receiveShadow = FILM && (kind === 'body' || kind === 'baked');
         if (kind === 'flame') this.flames.push(mesh);
         // A pane is one sheet, turned away from inside its room: the pen's hull of it would show
         // there as a sheet of ink.

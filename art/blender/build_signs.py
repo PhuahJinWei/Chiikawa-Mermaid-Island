@@ -11,7 +11,7 @@ painting may keep that name or drop the words.
 This script draws every sign's template, PAINT_PIXELS a metre of its face: the board's colour with
 the game's words faint on it and a dashed margin. It redraws a template only while it is still as
 it drew it, so a painting saved over one by mistake is kept. It copies each painting into the
-game at the game's own sharpness (public/signs/, listed in signs.json), with black paint turned to
+game at the game's own sharpness (public/signs/, lossless WebP, listed in signs.json), with black paint turned to
 the film's dark brown as on the faces. The game shows a painting in place of the typed words
 wherever there is one (src/world/Props.ts). It never changes the paintings. How to paint them:
 art/signs/README.md.
@@ -29,6 +29,7 @@ import bpy
 import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import charlib as L  # noqa: E402  (WebP writing)
 import face_art as F  # noqa: E402  (PNG reading and writing, the film's dark brown)
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
@@ -321,17 +322,18 @@ def main():
             out[top:top + ph, left:left + pw] = resize(arr, pw, ph)
         else:
             out = resize(arr, gw, gh)
-        F.write_png(os.path.join(OUT, f"{key}.png"), F.to_uint8(out))
+        L.write_webp(os.path.join(OUT, f"{key}.webp"), F.to_uint8(out))
         painted.append(key)
+    # Copies of paintings since taken away go, and the PNG copies from before the game took WebP.
     for entry in os.listdir(OUT):
         stem, ext = os.path.splitext(entry)
-        if ext.lower() == ".png" and stem not in painted:
+        if ext.lower() == ".png" or (ext.lower() == ".webp" and stem not in painted):
             os.remove(os.path.join(OUT, entry))
     with open(os.path.join(OUT, "signs.json"), "w", encoding="utf-8", newline="\n") as f:
         json.dump({"about": "The hand-lettered signs, by the key of their words, and the colours of the "
                             "boards under those painted solid to their edges; written by "
                             "art/blender/build_signs.py from the paintings in art/signs/.",
-                   "signs": painted, "boards": boards}, f, ensure_ascii=False, indent=2)
+                   "format": "webp", "signs": painted, "boards": boards}, f, ensure_ascii=False, indent=2)
         f.write("\n")
     for problem in problems:
         print("WARNING", problem)

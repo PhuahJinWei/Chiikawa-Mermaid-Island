@@ -1,5 +1,6 @@
 {
   "about": "The hand-lettered signs, by the key of their words, and the colours of the boards under those painted solid to their edges; written by art/blender/build_signs.py from the paintings in art/signs/.",
+  "format": "webp",
   "signs": [
     "arch.banner",
     "arch.welcome",

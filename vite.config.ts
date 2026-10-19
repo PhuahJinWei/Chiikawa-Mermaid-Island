@@ -10,6 +10,11 @@ export default defineConfig({
   build: { chunkSizeWarningLimit: 2000 },
   plugins: [
     VitePWA({
+      // Our own service worker (src/sw.ts), so the offline cache revalidates the files the game
+      // has just fetched instead of downloading them all again.
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.ts',
       registerType: 'autoUpdate',
       injectRegister: 'auto',
       includeAssets: ['favicon-64.png', 'apple-touch-icon.png'],
@@ -30,11 +35,18 @@ export default defineConfig({
           { src: 'pwa-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
-      workbox: {
-        // The island's height grid (.bin) and the layout (.json) are needed offline too, and its
-        // plants come in one file of about 6 MB.
-        globPatterns: ['**/*.{js,css,html,png,svg,ico,webmanifest,glb,bin,json}'],
-        maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
+      injectManifest: {
+        // The models (Draco-compressed, and the decoder's .wasm), the textures (.webp), the
+        // island's height grid (.bin) and the layout (.json) are needed offline too. All of it is
+        // cached together on the first visit, so the plants always match the ground they were
+        // planted on (where each copy stands is kept with the ground). The limit sits just above
+        // the biggest file, the plants at about 2.7 MB, so the build stops if they keep growing.
+        globPatterns: ['**/*.{js,css,html,png,webp,svg,ico,webmanifest,glb,bin,json,wasm}'],
+        // three's DRACOLoader brings its own copies of the decoder into assets/, unused: the game
+        // decodes with the one in public/draco/ (see src/core/gltf.ts).
+        globIgnores: ['assets/draco_*'],
+        maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
+        rollupFormat: 'iife',
       },
     }),
   ],

@@ -40,9 +40,19 @@ export interface FrameContext {
   splash?: (p: THREE.Vector3, y: number) => boolean;
   /** How deep in the trees' shade a point is, 0 in the sun to 1: in the film look only. */
   shade?: (x: number, y: number, z: number) => number;
-  /** The firelight's warmth at a point after dark, as a tint (white where none reaches): in the
-   * film look only. */
-  firelight?: (x: number, y: number, z: number, out: THREE.Color) => THREE.Color;
+  /** The firelight on someone at a point after dark: the strongest lights' ways from them and how
+   * much each warms them, into `out`, and where the strongest is, into `from`; `seen` is their own
+   * memory of how clearly each light reaches them, eased over `dt`. Returns how much a lit room they
+   * stand in warms them all round (see Firelight.lightsAt). In the film look only. */
+  firelight?: (
+    x: number,
+    y: number,
+    z: number,
+    seen: Map<number, number>,
+    dt: number,
+    out: THREE.Vector4[],
+    from: THREE.Vector3,
+  ) => number;
 }
 
 const GRAVITY = -24;
@@ -50,6 +60,9 @@ const JUMP_SPEED = 5.8;
 const ACCEL = 16;
 /** Walking off an edge deeper than this is a fall, not a step down. */
 const DROP = 0.6;
+/** How dark the firelight's shadow is for how much the light warms them: full where a light warms
+ * them a third of the way (see FrameContext.firelight). */
+const FIRE_SHADOW = 3;
 
 const _v = new THREE.Vector3();
 const _w = new THREE.Vector3();
@@ -59,7 +72,6 @@ const _e = new THREE.Euler();
 const _m = new THREE.Matrix4();
 const _from = new THREE.Vector3();
 const _s = new THREE.Vector3();
-const _warmth = new THREE.Color();
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 const smoothstep = (a: number, b: number, x: number) => {
@@ -96,6 +108,44 @@ function makeShadow(): THREE.Mesh {
   return mesh;
 }
 
+let castTexture: THREE.Texture | null = null;
+
+/** A shadow cast along the ground: darkest at its foot (the bottom of its picture, toward the
+ * character), fading toward its far end and its sides. */
+function makeCastShadow(): THREE.Mesh {
+  if (!castTexture) {
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = 64;
+    const c = canvas.getContext('2d');
+    if (c) {
+      const g = c.createRadialGradient(32, 54, 0, 32, 50, 58);
+      g.addColorStop(0, 'rgba(60, 40, 30, 0.55)');
+      g.addColorStop(0.5, 'rgba(60, 40, 30, 0.32)');
+      g.addColorStop(1, 'rgba(60, 40, 30, 0)');
+      c.fillStyle = g;
+      c.fillRect(0, 0, 64, 64);
+      // Soft at its sides.
+      const sides = c.createLinearGradient(0, 0, 64, 0);
+      sides.addColorStop(0, 'rgba(0, 0, 0, 0)');
+      sides.addColorStop(0.3, 'rgba(0, 0, 0, 1)');
+      sides.addColorStop(0.7, 'rgba(0, 0, 0, 1)');
+      sides.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      c.globalCompositeOperation = 'destination-in';
+      c.fillStyle = sides;
+      c.fillRect(0, 0, 64, 64);
+    }
+    castTexture = new THREE.CanvasTexture(canvas);
+    castTexture.colorSpace = THREE.SRGBColorSpace;
+  }
+  const mesh = new THREE.Mesh(
+    shadowGeometry,
+    new THREE.MeshBasicMaterial({ map: castTexture, transparent: true, depthWrite: false }),
+  );
+  mesh.renderOrder = 1;
+  mesh.visible = false;
+  return mesh;
+}
+
 /**
  * One character: the Blender model, a soft-body shader, springs for
  * follow-through, procedural actions and a drawn face.
@@ -118,6 +168,12 @@ export class Character implements EmoteHost {
   private readonly uniforms: CharacterUniforms;
   private readonly parts: THREE.Matrix4[];
   private readonly shadow: THREE.Mesh;
+  /** The shadow the strongest firelight casts after dark, leaning away from it along the ground. */
+  private readonly fireShadow: THREE.Mesh;
+  /** How clearly each firelight reaches them (see FrameContext.firelight), and where the strongest
+   * one burns. */
+  private readonly fireSeen = new Map<number, number>();
+  private readonly fireFrom = new THREE.Vector3();
   private readonly prop: THREE.Object3D;
   private readonly outfit: THREE.Group | null = null;
   /** The skirt's height when seated, as a fraction of standing, so its hem settles on the ground. */
@@ -204,6 +260,7 @@ export class Character implements EmoteHost {
     }
     this.root.add(this.poseGroup);
     this.shadow = makeShadow();
+    this.fireShadow = makeCastShadow();
     this.prop = prop;
     this.prop.visible = false;
     this.updateParts();
@@ -227,7 +284,7 @@ export class Character implements EmoteHost {
   }
 
   attach(scene: THREE.Scene, emotes: EmoteSystem): void {
-    scene.add(this.root, this.shadow, this.prop);
+    scene.add(this.root, this.shadow, this.fireShadow, this.prop);
     this.emotes = emotes;
   }
 
@@ -285,8 +342,8 @@ export class Character implements EmoteHost {
     this.updateParts();
     this.root.updateMatrixWorld(true);
     this.updateFace(dt, ctx);
-    this.updateShadowAndProp(ctx);
     this.updateShade(dt, ctx);
+    this.updateShadowAndProp(ctx);
   }
 
   /** World position of a rig anchor, following the current pose and squash. */
@@ -601,7 +658,7 @@ export class Character implements EmoteHost {
   }
 
   /** The trees' shade on the character, easing as they walk into it and out into the sun; after
-   * dark, warmed by the firelight near them. */
+   * dark, the firelight near them, each light from its own side (see FrameContext.firelight). */
   private updateShade(dt: number, ctx: FrameContext): void {
     if (!ctx.shade) return;
     const pos = this.root.position;
@@ -609,7 +666,9 @@ export class Character implements EmoteHost {
     const shade = ctx.shade(pos.x, y, pos.z);
     this.shaded = Number.isNaN(this.shaded) ? shade : this.shaded + (shade - this.shaded) * Math.min(1, dt * 5);
     this.uniforms.uShade.value.setRGB(1, 1, 1).lerp(CANOPY_SHADE, this.shaded);
-    if (ctx.firelight) this.uniforms.uShade.value.multiply(ctx.firelight(pos.x, y, pos.z, _warmth));
+    if (ctx.firelight) {
+      this.uniforms.uFireFill.value = ctx.firelight(pos.x, y, pos.z, this.fireSeen, dt, this.uniforms.uFire.value, this.fireFrom);
+    }
   }
 
   private updateShadowAndProp(ctx: FrameContext): void {
@@ -620,6 +679,7 @@ export class Character implements EmoteHost {
     this.shadow.position.set(pos.x, ground + 0.025, pos.z);
     this.shadow.scale.setScalar(this.width * 1.15 * k);
     (this.shadow.material as THREE.MeshBasicMaterial).opacity = k;
+    this.updateFireShadow(ground, k);
 
     if (this.prop.visible) {
       // Held up just under the mouth, in front of the face.
@@ -632,5 +692,37 @@ export class Character implements EmoteHost {
       );
       this.prop.rotation.set(-0.15, this.facing, 0);
     }
+  }
+
+  /**
+   * The strongest firelight's shadow on the ground at `ground`: from their feet away from the light,
+   * as long as their height throws it from the light's height and distance (a lantern overhead
+   * throws a short one, a torch off to the side a longer one), as dark as the light on them is
+   * strong. `k` thins it as they leave the ground.
+   */
+  private updateFireShadow(ground: number, k: number): void {
+    const light = this.uniforms.uFire.value[0];
+    const pos = this.root.position;
+    let ax = pos.x - this.fireFrom.x;
+    let az = pos.z - this.fireFrom.z;
+    const flat = Math.hypot(ax, az);
+    const strength = Math.min(light.w * FIRE_SHADOW, 1);
+    if (strength < 0.03 || flat < 0.05) {
+      this.fireShadow.visible = false;
+      return;
+    }
+    ax /= flat;
+    az /= flat;
+    const tall = this.height * 0.9;
+    const above = this.fireFrom.y - ground;
+    const length = clamp((flat * tall) / Math.max(above - tall, 0.25), 0.3, 2.5);
+    // From a little behind their feet (under them) out to the shadow's end.
+    const back = this.width * 0.25;
+    const middle = (length - back) / 2;
+    this.fireShadow.visible = true;
+    this.fireShadow.position.set(pos.x + ax * middle, ground + 0.03, pos.z + az * middle);
+    this.fireShadow.rotation.set(-Math.PI / 2, 0, Math.atan2(-ax, -az));
+    this.fireShadow.scale.set(this.width * 0.95 * k, length + back, 1);
+    (this.fireShadow.material as THREE.MeshBasicMaterial).opacity = strength * k;
   }
 }

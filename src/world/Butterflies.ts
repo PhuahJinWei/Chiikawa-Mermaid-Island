@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { toonRamp } from '../core/toon';
+import { fireLights } from './Firelight';
 import { FLAP_GLSL, addOutline, windUniforms } from './Ink';
 import { loadPropModel } from './PropModels';
 
@@ -23,6 +24,7 @@ function wingMaterial(): THREE.MeshToonMaterial {
         `#include <begin_vertex>
         if (isWing) transformed = flapTurn(transformed, flapSide, flapA);`,
       );
+    fireLights(shader);
   };
   return material;
 }

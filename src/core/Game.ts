@@ -185,10 +185,10 @@ export class Game {
       splash: splashDown,
     };
     // In the film look, characters walking under the trees go into their shade, and after dark the
-    // firelight near them warms them.
+    // firelight near them lights them from its side.
     if (FILM) {
       this.ctx.shade = (x, y, z) => this.stage.shadeAt(x, y, z);
-      this.ctx.firelight = (x, y, z, out) => this.stage.firelightAt(x, y, z, out);
+      this.ctx.firelight = (x, y, z, seen, dt, out, from) => this.stage.firelightAt(x, y, z, seen, dt, out, from);
     }
     this.timer.connect(document);
     window.addEventListener('resize', this.resize);

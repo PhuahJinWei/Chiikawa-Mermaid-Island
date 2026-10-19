@@ -1,7 +1,8 @@
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { loadGltf } from '../core/gltf';
 import { sharedUniforms } from '../characters/CharacterMaterial';
 import { sceneryRamp, toonRamp } from '../core/toon';
+import { fireLights } from './Firelight';
 import { PEN_GLSL, addOutline, inkUniforms } from './Ink';
 import { poolUniform, type TerrainInfo } from './Island';
 import { FILM, STONES, moonEdges, paintLeaves, paintStone, paintedRamp, puffShadow, type StoneKind } from './Look';
@@ -194,7 +195,7 @@ export class Landmarks {
   private constructor(private readonly fall: THREE.ShaderMaterial) {}
 
   static async load(info: TerrainInfo): Promise<Landmarks> {
-    const gltf = await new GLTFLoader().loadAsync(info.landmarks);
+    const gltf = await loadGltf(info.landmarks);
     const landmarks = new Landmarks(waterfallMaterial());
     const meshes: THREE.Mesh[] = [];
     gltf.scene.traverse((o) => {
@@ -223,6 +224,7 @@ export class Landmarks {
         stone.onBeforeCompile = (shader) => {
           paintStone(shader, kind);
           moonEdges(shader);
+          fireLights(shader);
         };
         stone.customProgramCacheKey = () => 'stone';
         painted.set(kind, (material = stone));
@@ -239,12 +241,14 @@ export class Landmarks {
       leaves.onBeforeCompile = (shader) => {
         paintLeaves(shader, 1.9);
         moonEdges(shader);
+        fireLights(shader);
       };
       crowns = leaves;
       const hanging = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: paintedRamp() });
       hanging.onBeforeCompile = (shader) => {
         paintLeaves(shader);
         moonEdges(shader);
+        fireLights(shader);
       };
       vines = hanging;
     }

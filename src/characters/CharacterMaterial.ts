@@ -1,10 +1,12 @@
 import * as THREE from 'three';
+import { CHARACTER_LIGHTS } from '../world/Firelight';
 import { FILM } from '../world/Look';
 import { MAX_PARTS, type OutfitInfo, type Rig, type SkirtPattern } from './Model';
 
 /**
  * Uniforms every character shares: screen size and the day/night tint.
- * Characters are drawn in flat colour like the film, so there is no light direction.
+ * Characters are drawn in flat colour like the film, so neither the sun nor the moon has a
+ * direction on them; only the firelight after dark does (see uFire).
  */
 export const sharedUniforms = {
   uResolution: { value: new THREE.Vector2(1, 1) },
@@ -24,6 +26,11 @@ export interface CharacterUniforms {
   uColorOverride: THREE.IUniform<THREE.Vector4>;
   /** The trees' shade on the character (white in the sun), which their outfit shares. */
   uShade: THREE.IUniform<THREE.Color>;
+  /** The firelight on the character after dark, strongest first: each light's way from them (x, y,
+   * z) and how much it warms them (w); see Firelight.lightsAt. Shared with their outfit. */
+  uFire: THREE.IUniform<THREE.Vector4[]>;
+  /** How much a lit room they stand in warms them all round, its light coming back off the walls. */
+  uFireFill: THREE.IUniform<number>;
 }
 
 const NO_TEXTURE = new THREE.Texture();
@@ -53,6 +60,8 @@ export function makeCharacterUniforms(
     uFaceOn: { value: 1 },
     uColorOverride: { value: new THREE.Vector4(1, 1, 1, 0) },
     uShade: { value: new THREE.Color(1, 1, 1) },
+    uFire: { value: Array.from({ length: CHARACTER_LIGHTS }, () => new THREE.Vector4()) },
+    uFireFill: { value: 0 },
     uMaskOn: { value: mask ? 1 : 0 },
     uMaskColor: { value: new THREE.Color(mask ?? '#ffffff') },
     uMaskTex: { value: maskTexture ?? NO_TEXTURE },
@@ -109,6 +118,7 @@ varying float vPaint;
 varying float vMask;
 varying vec2 vMaskUv;
 varying float vFacing;
+varying vec3 vFireNormal;
 
 // Soft body: volume-keeping squash and stretch, plus a bend that grows with height.
 vec3 softBody(vec3 p) {
@@ -153,6 +163,7 @@ void main() {
 #endif
   // 1 where the surface faces the camera, 0 where it turns away at the silhouette.
   vFacing = abs(dot(nV, normalize(-mvPosition.xyz)));
+  vFireNormal = transpose(mat3(viewMatrix)) * nV;
 #ifdef OUTLINE
   // Inverted hull. Solid parts (arms, legs) pull their hull toward the camera so their
   // outline shows where they overlap the body, like the inner lines of the drawings.
@@ -183,9 +194,41 @@ void main() {
 }
 `;
 
+/**
+ * GLSL: the firelight on a point of a character (see Firelight.lightsAt), as the film paints its
+ * firelit cast (`chiikawa 6`): each light warms the side turned toward it, through a soft edge, a
+ * warm cream at full strength against the night (FIRE_WARM); the side turned away keeps the night's
+ * blue, the darker the stronger the fire round them, as the film exposes for its fire (its far side
+ * about half as bright as the near), with a little of the fire's warmth coming back off the ground.
+ * Lights on two sides light both; a lit room they stand in warms them all round (uFireFill). Far from
+ * any fire, nothing changes.
+ */
+const FIRE_GLSL = /* glsl */ `
+uniform vec4 uFire[FIRE_LIGHTS];
+uniform float uFireFill;
+varying vec3 vFireNormal;
+const vec3 FIRE_WARM = vec3(2.9, 2.05, 1.1);
+const float FIRE_DIM = 0.4;
+const float FIRE_FILL = 0.08;
+vec3 fireTint() {
+  vec3 n = normalize(vFireNormal);
+  float near = uFireFill;
+  float lit = uFireFill;
+  for (int i = 0; i < FIRE_LIGHTS; i++) {
+    near += uFire[i].w;
+    lit += uFire[i].w * smoothstep(-0.1, 0.3, dot(n, uFire[i].xyz));
+  }
+  near = min(near, 1.0);
+  vec3 away = (1.0 - FIRE_DIM * near) * (1.0 + (FIRE_WARM - 1.0) * FIRE_FILL * near);
+  vec3 toward = 1.0 + (FIRE_WARM - 1.0) * near;
+  return mix(away, toward, min(lit, near) / max(near, 1e-3));
+}
+`;
+
 const FRAG = /* glsl */ `
 #include <common>
 #include <fog_pars_fragment>
+${FIRE_GLSL}
 
 uniform vec3 uAmbient;
 uniform vec3 uShade;
@@ -281,7 +324,7 @@ void main() {
     col = mix(col, uLineColor, max(topLine, strokes));
   }
 
-  gl_FragColor = vec4(col * uAmbient * uShade, 1.0);
+  gl_FragColor = vec4(col * uAmbient * uShade * fireTint(), 1.0);
   #ifdef FILM_MASK
   gl_FragColor.a = 0.5;
   #endif
@@ -294,11 +337,12 @@ void main() {
 const OUTLINE_FRAG = /* glsl */ `
 #include <common>
 #include <fog_pars_fragment>
+${FIRE_GLSL}
 uniform vec3 uLineColor;
 uniform vec3 uAmbient;
 uniform vec3 uShade;
 void main() {
-  gl_FragColor = vec4(uLineColor * uAmbient * uShade, 1.0);
+  gl_FragColor = vec4(uLineColor * uAmbient * uShade * fireTint(), 1.0);
   #ifdef FILM_MASK
   gl_FragColor.a = 0.5;
   #endif
@@ -324,14 +368,14 @@ export function createCharacterMaterials(
     uniforms: { ...THREE.UniformsUtils.clone(THREE.UniformsLib.fog), ...uniforms },
     vertexShader: VERT,
     fragmentShader: FRAG,
-    defines: { MAX_PARTS, ...extra },
+    defines: { MAX_PARTS, FIRE_LIGHTS: CHARACTER_LIGHTS, ...extra },
     fog: true,
   });
   const outline = new THREE.ShaderMaterial({
     uniforms: { ...THREE.UniformsUtils.clone(THREE.UniformsLib.fog), ...uniforms },
     vertexShader: VERT,
     fragmentShader: OUTLINE_FRAG,
-    defines: { MAX_PARTS, OUTLINE: 1, ...extra },
+    defines: { MAX_PARTS, FIRE_LIGHTS: CHARACTER_LIGHTS, OUTLINE: 1, ...extra },
     side: THREE.BackSide,
     fog: true,
   });

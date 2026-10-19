@@ -224,6 +224,78 @@ export function deckUnder(x: number, z: number, reach: number): number | null {
   return top;
 }
 
+/**
+ * Whether the way from a to b passes through block `k`, where it stands: its span along the way,
+ * seen from above, and the way's heights over that span against the block's. A block either end
+ * stands inside does not count: a torch's flame is on its own pole, a lantern hangs in its own stall.
+ */
+function crosses(k: Block, ax: number, ay: number, az: number, bx: number, by: number, bz: number): boolean {
+  const [px, pz] = local(k, ax, az);
+  const [qx, qz] = local(k, bx, bz);
+  const dx = qx - px;
+  const dz = qz - pz;
+  let t0 = 0;
+  let t1 = 1;
+  if (k.r > 0) {
+    const a = dx * dx + dz * dz;
+    const c = px * px + pz * pz - k.r * k.r;
+    if (a < 1e-9) {
+      if (c > 0) return false;
+    } else {
+      const half = px * dx + pz * dz;
+      const disc = half * half - a * c;
+      if (disc <= 0) return false;
+      const s = Math.sqrt(disc);
+      t0 = Math.max(t0, (-half - s) / a);
+      t1 = Math.min(t1, (-half + s) / a);
+    }
+  } else {
+    for (const [p, d, h] of [
+      [px, dx, k.hx],
+      [pz, dz, k.hz],
+    ]) {
+      if (Math.abs(d) < 1e-9) {
+        if (Math.abs(p) > h) return false;
+        continue;
+      }
+      const e0 = (-h - p) / d;
+      const e1 = (h - p) / d;
+      t0 = Math.max(t0, Math.min(e0, e1));
+      t1 = Math.min(t1, Math.max(e0, e1));
+    }
+  }
+  if (t0 >= t1) return false;
+  const y0 = ay + (by - ay) * t0;
+  const y1 = ay + (by - ay) * t1;
+  if ((t0 <= 0 && y0 > k.y0 && y0 < k.y1) || (t1 >= 1 && y1 > k.y0 && y1 < k.y1)) return false;
+  return Math.max(y0, y1) > k.y0 && Math.min(y0, y1) < k.y1;
+}
+
+/** The blocks already looked at on one way (see lightBlocked), each looked at once. */
+const met = new Set<Block>();
+/** A block narrower than this at its widest, in metres (a pole, a post, a stage's leg), throws only
+ * a stripe of shadow, too narrow to put someone in its shade (see lightBlocked). */
+const SLENDER = 0.5;
+
+/**
+ * Whether something solid stands between the points a and b, as light from a would find it on its
+ * way to b: anything the camera keeps out of (walls, roofs, rocks, stalls), not a stool or a basket,
+ * nor anything slender.
+ */
+export function lightBlocked(ax: number, ay: number, az: number, bx: number, by: number, bz: number): boolean {
+  met.clear();
+  const steps = Math.max(Math.ceil(Math.hypot(bx - ax, bz - az) / (CELL / 4)), 1);
+  for (let s = 0; s <= steps; s++) {
+    const t = s / steps;
+    for (const k of blocks.at(ax + (bx - ax) * t, az + (bz - az) * t)) {
+      if (!k.camera || met.has(k) || 2 * (k.r > 0 ? k.r : Math.max(k.hx, k.hz)) < SLENDER) continue;
+      met.add(k);
+      if (crosses(k, ax, ay, az, bx, by, bz)) return true;
+    }
+  }
+  return false;
+}
+
 /** Whether the camera at (x, y, z) would be inside something: a block it minds, or a crown. */
 export function cameraBlocked(x: number, y: number, z: number, margin: number): boolean {
   for (const b of blocks.at(x, z)) {

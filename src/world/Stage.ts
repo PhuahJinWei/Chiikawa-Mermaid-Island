@@ -199,8 +199,9 @@ export class Stage {
     this.props = await Props.load(layout.props, terrain.info.water);
     this.world.add(this.props.group);
     if (FILM) {
-      this.firelight = new Firelight(this.scene);
-      for (const fire of this.props.fires) this.firelight.add(fire.position, fire.kind);
+      this.firelight = new Firelight();
+      for (const fire of this.props.fires) this.firelight.add(fire.position, fire.kind, fire);
+      this.firelight.build();
     }
     this.world.add(this.makeConfetti());
   }
@@ -290,8 +291,10 @@ export class Stage {
     surface.visible = false;
     this.vegetation?.update(probe as unknown as THREE.Camera);
     this.sky.position.copy(probe.position);
+    // The last frame's shadows, once there are any: the first capture, before the first frame has
+    // drawn them, draws its own, or everything lit would be left out of the mirror.
     const auto = renderer.shadowMap.autoUpdate;
-    renderer.shadowMap.autoUpdate = false;
+    if (this.light.shadow.map) renderer.shadowMap.autoUpdate = false;
     probe.update(renderer, this.scene);
     renderer.shadowMap.autoUpdate = auto;
     this.sky.position.copy(camera.position);
@@ -380,24 +383,26 @@ export class Stage {
     return canopyShade(x, y, z, this.lightDir);
   }
 
-  /** The firelight's warmth at (x, y, z), as a tint for a character's colours: white where none
-   * reaches (see Firelight). */
-  firelightAt(x: number, y: number, z: number, out: THREE.Color): THREE.Color {
-    return this.firelight ? this.firelight.warmth(x, y, z, out) : out.setRGB(1, 1, 1);
+  /** The firelight on a character at (x, y, z): the strongest sources' ways and warmth, and where
+   * the strongest is; returns how much a lit room they stand in warms them all round (see
+   * Firelight.lightsAt). None by day or where none reaches. */
+  firelightAt(
+    x: number,
+    y: number,
+    z: number,
+    seen: Map<number, number>,
+    dt: number,
+    out: THREE.Vector4[],
+    from: THREE.Vector3,
+  ): number {
+    if (this.firelight) return this.firelight.lightsAt(x, y, z, seen, dt, out, from);
+    for (const v of out) v.set(0, 0, 0, 0);
+    return 0;
   }
 
-  /**
-   * Compiles the shaders of everything in the scene ahead of its first frame, once with the
-   * firelight's lights in the scene and once without: the two need different shaders (see
-   * Firelight.hold), and compiling them at dusk would stall the game. Called once everything is
-   * in the scene.
-   */
+  /** Compiles the shaders of everything in the scene ahead of its first frame, so none stalls the
+   * game as it first comes into view. Called once everything is in the scene. */
   async warmShaders(renderer: THREE.WebGLRenderer, camera: THREE.Camera): Promise<void> {
-    if (this.firelight) {
-      this.firelight.hold(true);
-      await renderer.compileAsync(this.scene, camera);
-      this.firelight.hold(false);
-    }
     await renderer.compileAsync(this.scene, camera);
   }
 
@@ -407,7 +412,7 @@ export class Stage {
     this.skyMaterial.uniforms.uTime.value = time;
     this.landmarks?.update(time);
     this.props?.update(time, camera);
-    this.firelight?.update(camera, glowUniforms.uGlow.value, time);
+    this.firelight?.update(glowUniforms.uGlow.value, time);
     windUniforms.uTime.value = time;
     this.vegetation?.update(camera);
     this.butterflies?.update(time);

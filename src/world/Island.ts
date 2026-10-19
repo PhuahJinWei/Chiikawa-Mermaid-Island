@@ -1,6 +1,7 @@
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { loadGltf } from '../core/gltf';
 import { sharedUniforms } from '../characters/CharacterMaterial';
+import { fireLights } from './Firelight';
 import { PEN_GLSL, inkUniforms } from './Ink';
 import { FILM, coverTrees, hazeClearing, paintedRamp, shadeUnderTrees } from './Look';
 import { addCircle, addPad, blocked, cameraBlocked, deckUnder, outlineAt } from './Obstacles';
@@ -13,8 +14,9 @@ export interface TerrainInfo {
   origin: [number, number];
   /** The sea's surface height. */
   water: number;
-  /** Ground heights on a grid x grid square over the map, as 16-bit values between min and max. */
-  height: { url: string; grid: number; min: number; max: number };
+  /** Ground heights on a grid x grid square over the map, as 16-bit values between min and max;
+   * `predicted`: each stored less what its neighbours predict (see unpredict). */
+  height: { url: string; grid: number; min: number; max: number; predicted?: boolean };
   /** The painted colour map, laid over the whole square from above. */
   colours: string;
   /** Where grass (red), bare earth (green: the paths, the village's clearing, the festival's street)
@@ -536,15 +538,28 @@ function filmGroundMaterial(
         }`,
       );
     shadeUnderTrees(shader, 'vGroundWorld');
+    fireLights(shader);
   };
   return material;
 }
 
 let terrain: Terrain | null = null;
 
+/** Puts back a height grid stored as each sample less what its neighbours west, north and
+ * north-west predict, round 65536 (predicted in art/blender/build_island.py), in place. */
+function unpredict(q: Uint16Array, n: number): void {
+  for (let j = 0; j < n; j++) {
+    for (let i = 0; i < n; i++) {
+      const k = j * n + i;
+      const guess = i > 0 && j > 0 ? q[k - 1] + q[k - n] - q[k - n - 1] : i > 0 ? q[k - 1] : j > 0 ? q[k - n] : 0;
+      q[k] = (q[k] + guess) & 0xffff;
+    }
+  }
+}
+
 /** Loads the island's ground once: its mesh, painted colours and height grid. */
 export async function loadTerrain(): Promise<Terrain> {
-  const gltf = await new GLTFLoader().loadAsync('models/island/terrain.glb');
+  const gltf = await loadGltf('models/island/terrain.glb');
   let mesh: THREE.Mesh | null = null;
   gltf.scene.traverse((o) => {
     if (!mesh && (o as THREE.Mesh).isMesh) mesh = o as THREE.Mesh;
@@ -574,6 +589,7 @@ export async function loadTerrain(): Promise<Terrain> {
   const { grid, min, max } = info.height;
   const q = new Uint16Array(buffer);
   if (q.length !== grid * grid) throw new Error('height.bin does not match its grid');
+  if (info.height.predicted) unpredict(q, grid);
   const heights = new Float32Array(q.length);
   for (let i = 0; i < q.length; i++) heights[i] = min + (q[i] / 65535) * (max - min);
 

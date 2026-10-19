@@ -547,7 +547,7 @@ def export_parts(objs, path, info):
         filepath=path, export_format="GLB", use_selection=True, export_extras=True, export_attributes=True,
         export_yup=True, export_normals=True, export_texcoords=True, export_vertex_color="ACTIVE",
         export_materials="NONE", export_animations=False, export_skins=False, export_morph=False,
-        export_cameras=False, export_lights=False, export_apply=False,
+        export_cameras=False, export_lights=False, export_apply=False, **L.DRACO,
     )
 
 

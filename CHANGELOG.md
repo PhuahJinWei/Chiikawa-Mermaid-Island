@@ -411,7 +411,8 @@ outlined is drawn twice, once for its pen line. To get there:
   everything lit is drawn working out each light in the scene, burning or
   not, so by day they are out of it (the picture is pixel for pixel the
   same; both sets of shaders are compiled while the game loads, so dusk
-  no longer stalls on them). The stone painter works its moss, turf and
+  no longer stalls on them; the six lights have since given way to the
+  light grid, below). The stone painter works its moss, turf and
   damp noise only where they can show. The sun's shadow map is 1536
   texels across where it was 2048, 5.5 cm a texel over its 84 m: in the
   waterfall frame about 2 pixels in 100 change by more than 8 steps in
@@ -817,12 +818,13 @@ outlined is drawn twice, once for its pen line. To get there:
   foot, under their windows and along their top. Their windows are taller,
   in heavy board frames with deep sills, two thin bars down the green
   panes and a double white zigzag over them. A double plank door stands
-  open into the room, each leaf with a dark C-shaped handle. The porch has
-  no railing, as the film's, its planks on a thick log edge, its log steps
-  chunky, and on it stand the film's potted plants: a gnarled succulent in
-  a terracotta pot and purple thistles in a round clay pot. The plank huts
-  have the same heavier posts, rails, windows, handle and pots. About
-  0.2 to 0.3 ms more a frame in the village on the dev PC.
+  open, its leaves swung right back flat against the inside of the front
+  wall either side of the doorway, each with a dark C-shaped handle. The
+  porch has no railing, as the film's, its planks on a thick log edge, its
+  log steps chunky, and on it stand the film's potted plants: a gnarled
+  succulent in a terracotta pot and purple thistles in a round clay pot.
+  The plank huts have the same heavier posts, rails, windows, handle and
+  pots. About 0.2 to 0.3 ms more a frame in the village on the dev PC.
 - The houses are lit at night by their lanterns, not their windows. A
   window had been a glowing block of glass, lit the same from inside and
   out, and the house's light hung in the middle of its windows. Now each
@@ -831,13 +833,95 @@ outlined is drawn twice, once for its pen line. To get there:
   and reaching little past the room), and the guest houses hang one from
   the ridge. Close up the windows are clear, inside and out: from inside
   you look out at the night through the bars and zigzags, and from the
-  porch into the lit room. Within 8 to 14 metres of the camera a pane
-  fades in to its warm glow, which stands in for the lit room from
-  further off, where the room's lantern has no light of its own (only
-  the six sources nearest the camera do). The guest houses' gable and
-  roof windows are cut through, so they too show the lit roof inside or
-  the sky beyond. No measurable cost a frame (the night village, inside
-  and out, about 11 to 13 ms before and after on the dev PC).
+  porch into the lit room. Further off a pane fades in to a warm glow,
+  which stands in for the lit room (since the light grid, below, from 24
+  to 32 metres, where the rooms' insides stop being drawn). The guest
+  houses' gable and roof windows are cut through, so they too show the
+  lit roof inside or the sky beyond. No measurable cost a frame (the night
+  village, inside and out, about 11 to 13 ms before and after on the dev
+  PC).
+- Every light lights what it reaches at night, from any distance. Only
+  the six lights nearest the camera had lit anything (of 51: four
+  torches, 37 lanterns, ten room lanterns), so from about 40 metres the
+  plaza's torches lit nothing, and where lanterns stand close together,
+  along the festival's street, the six dimmed one another to almost
+  nothing and left the street moon-blue. A grid over the island now
+  lists which lights reach each two-metre patch, and everything lit (the
+  ground, plants, rocks, houses, stalls) takes the few that reach it,
+  with the same falloff as before. A room's lantern lights only its room,
+  and its light, coming back off the walls, fills the room softly; it
+  had lit the porch, the steps, the eaves and the sand round the hut
+  through the walls and floor, and left the room itself murky. The
+  windows' glass is clear as far off as the rooms are drawn (about 30
+  metres), showing the lit room, and beyond that a calmer stand-in, short
+  of the glow: the old one measured over three times as bright as the
+  room it stood for. Measured at 1920 x 1440 on the dev PC in five night
+  views, in one session: the six lights cost 1.9 to 2.8 ms a frame where
+  there was firelight, the grid within the measuring noise (about 0.3 ms
+  on average where the lanterns are thickest). The game no longer
+  compiles a second set of shaders for the lights while it loads. How the
+  firelight falls on the characters is below.
+- The lanterns light a warm pool round where they hang, the night blue
+  between the pools. With every lantern lighting at once, the festival's
+  street had turned orange from end to end, more evening than night; a
+  lantern now shines at three fifths of its old strength and reaches 6
+  metres where it reached 8. Chosen from three settings side by side at
+  21:00, in the player's view into the street and from above: what the
+  lanterns add to the street's mean colour fell from 56 steps of red in
+  255 to 24, the stalls staying warm. The torches and the rooms' lanterns
+  are as they were.
+- The firelight lights the characters from its side, as the film lights
+  its cast by the fire (`chiikawa 6`). They had been warmed evenly all
+  over, their backs as much as their faces, through walls, and with a
+  round shadow straight down whatever the light. Now the four strongest
+  lights reaching someone each warm the side turned toward them, through
+  a soft edge, to a warm cream; the side turned away keeps the night's
+  blue, the darker the stronger the fire, as the film exposes for its
+  fire: lit by one torch from the side, Chiikawa's far side measures 114,
+  120, 163 against the near side's 255, 242, 231, the film's frame 114,
+  118, 133 against 244, 231, 215 (ours bluer, as our nights are). A
+  wall, a roof, a rock or a stall between a light and someone shuts it
+  out, coming and going softly as they pass (a pole or a post, too
+  slender to shade someone whole, does not); a room's lantern lights only
+  who is in its room, where its light, coming back off the walls, warms
+  them all round, as it does the room. Each character's shadow from the
+  strongest light leans away from it along the ground, longer the lower
+  and further off the light. The lights and walls for all eleven
+  characters take about 0.15 ms a frame on the dev PC in the festival's
+  street, where every one of them has four. By day nothing changes.
+- A house's lantern lights its room as it would really light it, baked
+  into the house in Blender with Cycles: its light falls off across the
+  walls and the floor, the corners and the ceiling away from it go dark,
+  the floor is shadowed under the table, the bed and the shelves, and the
+  light comes back off the wood as warm as the wood is. A room's light had
+  been even all over, a flat fill with no shadows and no dark corners.
+  The lantern burns twice as bright for it, so the side of the room it
+  lights stays as warm as before while the rest falls away: inside a stilt
+  hut at 21:00, the wall by the lantern measures 134 against 146 before,
+  the wall across the room 75 against 115, the floor in the room's far
+  half 109 against 170 (mean red, 0 to 255). Its light also leaves the
+  house through the windows and the doorway, as it had not: onto the
+  porch and the steps in the bake, then out over the sand, the paths and
+  the plants, from any distance (from above the village, 85 metres off,
+  each house throws its fans of light onto the sand). What stands in its
+  way inside cuts it as the bake found: the windows' zigzag lattice falls
+  on the sand in stripes. The stilt huts' door leaves had stood open into
+  the room, the left one between the lantern over the table and the
+  doorway, and kept all but a sliver of the doorway's light in; they now
+  swing right back flat against the inside of the front wall (each 6 cm
+  narrower, 0.58 m, so it ends short of the window beside it), and every
+  house's doorway throws its full beam across the porch and down onto
+  the sand: on a stilt hut's porch before the door the bake now adds 23
+  steps of red in 255 where it added 3. Whoever stands in a doorway's or
+  window's light is warmed by it from its side, about as much as by a
+  festival lantern a metre and a half away. Blender bakes each house
+  twice: a quick pass finds the faces the lantern reaches, and only those
+  share the house's 512-texel map, at about 2.5 cm a texel (15 cm when
+  every shingle outside took its share). The five maps come to 1.4 MB. By
+  day nothing changes (not a pixel differs), nor in the toon look. About
+  0.5 ms a frame for the bake and 1 ms for the light out of the houses, at
+  1906 x 1562 on the dev PC in the lane between the stilt huts, within the
+  measuring noise.
 - The village's watchtower stage after the film's (its night frame of the
   stage): its legs splay out to the ground where they stood straight, each
   side braced in two tiers of crossed planks; the platform stands higher,
@@ -933,6 +1017,39 @@ outlined is drawn twice, once for its pen line. To get there:
   comma-separated.
 - The offline cache now keeps the island's height grid and layout file,
   and files up to 4 MB.
+- The game downloads half as much, and a first visit downloads it once:
+  9.1 MB in all where it was 19.7 (compressed, as GitHub Pages sends it).
+  The plants' file had grown to 10 MB with the island's third shape and
+  stopped the game building. Every model is now compressed with Draco as
+  the Blender scripts export it (DRACO in charlib.py), and the game unpacks
+  them in workers it lets go once everything has loaded: the plants went
+  from 6.8 MB to 2.4, the rocks from 3.7 to 1.2, the ground from 0.97 to
+  0.35, the props from 1.5 to 0.56 and the cast from 1.1 to 0.39. No point
+  of any model moves more than 7 mm (on the 520 m ground; a fraction of a
+  millimetre on a prop or a character), colours and texture coordinates
+  come back exact, every model keeps all its triangles, and staged views
+  before and after look the same. The exporter's other compression,
+  meshopt, moved the island's points by up to 21 cm. The ground's colour
+  maps, the faces, the masks and the hand-lettered signs are lossless WebP,
+  every pixel kept: 2.8 MB of PNG is now 1.7. Lossy WebP was tried on the
+  colour map, and blurred the rows of the fields seen from above. The
+  offline cache had downloaded every file a second time on the first
+  visit, just after the game fetched it; it now asks the server whether
+  the copy the browser holds is current, and is told "not modified", with
+  nothing to download (its own service worker, src/sw.ts). Everything
+  stays in that cache together, so an old plants file is never drawn on a
+  newer ground (where each copy stands is kept with the ground), and the
+  cache's limit sits just above the plants, at 4 MB, so the build stops if
+  they keep growing. The houses' night maps are lossless WebP too, every
+  texel as baked, a third smaller; the guest houses are rebuilt, and the
+  three huts change on their next build (their bake comes out a little
+  different each time, so they were left as they are). The ground's height
+  grid is stored as each height less what its neighbours predict, and the
+  game puts it back exactly: 363 KB compressed is now 143. With the huts
+  rebuilt the game is about 8.4 MB. The plan's 5 MB is now a soft target,
+  judged by how long a first visit takes on a real phone (PLAN.md): the rest
+  is mostly the jungle, and loading its far patches and the village after
+  the start could bring the first load to about 5 if that is ever needed.
 
 **Removed**
 
@@ -971,6 +1088,23 @@ outlined is drawn twice, once for its pen line. To get there:
   lights sit on its two stacks. The side bunting's lanterns and the
   restaurant's two corner lanterns, which shared one light the same way,
   have one each too. Checked at the arch in a staged view at 21:00.
+- The waterfall's pool mirrors the ground, rocks and plants round it
+  from the moment the game opens. Its first picture of them, taken before
+  the first frame, kept the last frame's shadows when there were none
+  yet, and the graphics card refused to draw anything lit into it
+  (about 200 refused draws, each a warning in the console), so until the
+  light had moved on half an hour of the island's time the pool mirrored
+  the sky but not the land round it. That first picture now draws its
+  own shadows. Checked with every draw watched while the game loads and
+  the night's lights come on: none refused.
+- `art/blender/check_flicker.py` reads the compressed props (with
+  Blender's own Draco decoder), and no longer counts two faces 15 to 22 mm
+  apart as lying in one plane. It compared how far each lay from the
+  world's origin along its own slant, which a few metres out shifts by
+  millimetres when a small face tilts by a hair, as the compression tilts
+  them. The ferry's one reported pair was such. It now reports only the
+  guest houses' door outline, set exactly 2 mm in front of the glass, the
+  check's own limit, which the compression rounds to 1.99 mm.
 
 ## M0.1 — Downloaded cast and the island outfit (2026-10-16)
 

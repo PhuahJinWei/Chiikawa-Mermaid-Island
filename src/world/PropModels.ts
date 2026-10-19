@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { loadGltf } from '../core/gltf';
 
 /** Props the game's code asks for by name (the rest are placed by the layout file). */
 export type PropId = 'onigiri';
@@ -39,6 +39,20 @@ export interface PropInfo {
   /** Faces for painted words, in the order of its `_label`, `_label1`... parts. */
   label?: LabelInfo;
   labels?: LabelInfo[];
+  /** A house's night: its lantern's light on its body and room, baked in Blender into `map` (in
+   * models/props) on the parts' UVs, each texel the square root of its light's share of `scale`,
+   * for a lantern of `power` watts (see bake_night in art/blender/houses.py). */
+  night?: { map: string; scale: number; power: number };
+  /** A house's doorways and windows: each one's middle on the wall's outer face, the way out of it,
+   * its width and height, and whether it is a doorway; its lantern's light spills out of them, as
+   * its `mask` (base64) says it passes (see Opening in Firelight). */
+  openings?: {
+    at: [number, number, number];
+    out: [number, number, number];
+    size: [number, number];
+    door: boolean;
+    mask?: string;
+  }[];
 }
 
 /**
@@ -57,7 +71,6 @@ export interface PropModel {
   info: PropInfo;
 }
 
-const loader = new GLTFLoader();
 const cache = new Map<string, Promise<PropModel>>();
 
 function roleOf(name: string): [PartRole, number] {
@@ -71,7 +84,7 @@ function roleOf(name: string): [PartRole, number] {
 export function loadPropModel(id: string): Promise<PropModel> {
   let pending = cache.get(id);
   if (!pending) {
-    pending = loader.loadAsync(`models/props/${id}.glb`).then((gltf) => {
+    pending = loadGltf(`models/props/${id}.glb`).then((gltf) => {
       gltf.scene.updateMatrixWorld(true);
       const parts: PropModel['parts'] = [];
       let info: PropInfo = {};

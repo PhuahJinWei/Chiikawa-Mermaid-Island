@@ -10,7 +10,7 @@ opened with scripts disabled and never modified.
 
 Outputs:
     public/models/<id>.glb                 the character in the game's vertex format, with rig data
-    public/models/faces/<id>.png           the character's painted face layers (art/faces/<id>/), packed
+    public/models/faces/<id>.webp          the character's painted face layers (art/faces/<id>/), packed
     public/models/outfits/island_<id>.glb  its island outfit (flower crown + grass skirt), a separate asset
     art/previews/cast_*.png                turnaround renders with and without the outfit
     art/blender/cast.blend                 the exported models side by side, for opening in Blender
@@ -52,7 +52,6 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import charlib as L  # noqa: E402
 import face_art as FA  # noqa: E402
 import outfits as O  # noqa: E402
-from face_art import write_png  # noqa: E402
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 DEFAULT_SOURCE = os.path.join(ROOT, "Chiikawa Models-20261016T095113Z-1-001", "Chiikawa Models")
@@ -354,11 +353,11 @@ def mask_image(tex, mcfg):
     return m
 
 
-def write_mask_png(m, path):
-    """Write a mask image (bottom row first) as the grey PNG the game loads."""
+def write_mask(m, path):
+    """Write a mask image (bottom row first) as the grey lossless WebP the game loads."""
     img = (np.clip(m[::-1], 0.0, 1.0) * 255.0 + 0.5).astype(np.uint8)  # top row first, like the source
     rgba = np.stack([img, img, img, np.full_like(img, 255)], axis=-1)
-    write_png(path, rgba)
+    L.write_webp(path, rgba)
     log("mask texture", path)
     return path
 
@@ -757,8 +756,8 @@ def convert(cfg, source):
         face.update(FA.face_layout(layers, expressions))
         small = {name: FA.downsample(arr, FA.PAINT_SIZE // FACE_SIZE) for name, arr in layers.items()}
         atlas, rects = pack_layers(small)
-        write_png(os.path.join(OUT_FACES, f"{cid}.png"), atlas)
-        face_atlas = {"url": f"models/faces/{cid}.png", "size": FACE_SIZE, "layers": rects,
+        L.write_webp(os.path.join(OUT_FACES, f"{cid}.webp"), atlas)
+        face_atlas = {"url": f"models/faces/{cid}.webp", "size": FACE_SIZE, "layers": rects,
                       "expressions": expressions}
         log(f"face: {len(expressions)} expressions from {len(rects)} layers, atlas {atlas.shape[1]} x {atlas.shape[0]}")
 
@@ -838,7 +837,7 @@ def convert(cfg, source):
         if lift and head_obj in masks:
             image, masks[head_obj] = raise_mask_edge(image, head_bm, masks[head_obj], lift)
             log(f"mask: edge raised {lift:.3f} m on the face")
-        mask_texture = write_mask_png(image, os.path.join(OUT_MASKS, f"{cid}.png"))
+        mask_texture = write_mask(image, os.path.join(OUT_MASKS, f"{cid}.webp"))
     lo_all, hi_all = bounds(src.values())
     hlo_f, hhi_f = bounds([head_bm])
     head_top = hhi_f.z
@@ -1000,7 +999,7 @@ def convert(cfg, source):
         # level they would sink into it: the game stops them here and brings them forward instead.
         "armReach": round(ARM_DOWN + math.radians(25.0), 4),
         "maskColor": mask_color,
-        "maskTexture": f"models/masks/{cid}.png" if mask_texture else None,
+        "maskTexture": f"models/masks/{cid}.webp" if mask_texture else None,
         "parts": [{"pivot": L.to_three(p["pivot"]), "parent": p["parent"]} for p in parts],
         "anchors": {k: L.to_three(v) for k, v in anchors.items()},
         "patterns": {"skirt": own_skirt},

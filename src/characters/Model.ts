@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { ExpressionId } from './types';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { loadGltf } from '../core/gltf';
 
 /** Part indices, shared with art/blender/charlib.py. */
 export const PART = {
@@ -165,7 +165,6 @@ const REQUIRED = [
   'aMask',
 ];
 
-const loader = new GLTFLoader();
 const cache = new Map<string, Promise<CharacterModel>>();
 const outfitCache = new Map<string, Promise<OutfitModel>>();
 
@@ -189,7 +188,7 @@ export function loadOutfitModel(url: string): Promise<OutfitModel> {
 
 /** First mesh in a .glb, its attributes renamed for the character shader, plus its JSON extras. */
 async function loadMesh(url: string, key: string): Promise<{ geometry: THREE.BufferGeometry; data: unknown }> {
-  const gltf = await loader.loadAsync(url);
+  const gltf = await loadGltf(url);
   const meshes: THREE.Mesh[] = [];
   gltf.scene.traverse((o) => {
     if ((o as THREE.Mesh).isMesh) meshes.push(o as THREE.Mesh);
