@@ -217,6 +217,7 @@ export class Game {
         extra.attach(this.scene, this.emotes);
         this.crowd.push(extra);
       }
+      await this.stage.warmShaders(this.renderer, this.camera);
     } catch (err) {
       console.error(err);
       this.hud.showError();

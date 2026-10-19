@@ -251,6 +251,24 @@ outlined is drawn twice, once for its pen line. To get there:
 
 **Changed**
 
+- The island scene costs less to draw, the picture the same. The
+  firelight's six lights are in the scene only while something burns:
+  everything lit is drawn working out each light in the scene, burning or
+  not, so by day they are out of it (the picture is pixel for pixel the
+  same; both sets of shaders are compiled while the game loads, so dusk
+  no longer stalls on them). The stone painter works its moss, turf and
+  damp noise only where they can show. The sun's shadow map is 1536
+  texels across where it was 2048, 5.5 cm a texel over its 84 m: in the
+  waterfall frame about 2 pixels in 100 change by more than 8 steps in
+  255, the soft shadows' edges a touch softer. Measured back to back on
+  the dev PC at 1920 x 1200, the scene alone went from 34 to 27 ms on the
+  jungle path and from 39 to 32 in the waterfall frame; whole frames at
+  three-quarter resolution from 32 to 27 and from 33 to 30. The foliage,
+  the biggest share (the canopy near and far and the bushes, about 15 ms
+  of the path's scene), and the far canopy's range were measured and left
+  as they are: beyond 140 m the far canopy costs about 1 ms and the
+  island's vistas need it, and nothing cheaper draws the leaves the same,
+  so they are the graphics setting's to trim.
 - The island has the film's look. The land is painted without lines, as
   the film's backgrounds are, while the characters, their outfits and held
   props, the duck ferry and everything made keep the pen. Sunlight is

@@ -33,8 +33,11 @@ const SEA_RADIUS = 600;
  * look, whose distant jungle and hills fade into a pale blue haze. */
 const FOG_NEAR = FILM ? 18 : 180;
 const FOG_FAR = FILM ? 320 : 900;
-/** The film look's sun shadows: how far round the spot ahead of the camera they reach, in metres. */
+/** The film look's sun shadows: how far round the spot ahead of the camera they reach, in metres,
+ * and the shadow map's size (1536 over 84 m is 5.5 cm a texel; at 2048 the map cost about 3 ms
+ * more a frame at 1920 x 1200 on the dev PC, for shadows hardly sharper under the soft filter). */
 const SHADOW_REACH = 42;
+const SHADOW_MAP = 1536;
 
 // Sampled from the film's beach frames.
 const COLORS = {
@@ -138,7 +141,7 @@ export class Stage {
       // Rocks, trees and houses cast soft shadows round wherever the camera is looking.
       const shadow = this.light.shadow;
       this.light.castShadow = true;
-      shadow.mapSize.set(2048, 2048);
+      shadow.mapSize.set(SHADOW_MAP, SHADOW_MAP);
       shadow.camera.left = shadow.camera.bottom = -SHADOW_REACH;
       shadow.camera.right = shadow.camera.top = SHADOW_REACH;
       shadow.camera.near = 1;
@@ -357,6 +360,21 @@ export class Stage {
    * reaches (see Firelight). */
   firelightAt(x: number, y: number, z: number, out: THREE.Color): THREE.Color {
     return this.firelight ? this.firelight.warmth(x, y, z, out) : out.setRGB(1, 1, 1);
+  }
+
+  /**
+   * Compiles the shaders of everything in the scene ahead of its first frame, once with the
+   * firelight's lights in the scene and once without: the two need different shaders (see
+   * Firelight.hold), and compiling them at dusk would stall the game. Called once everything is
+   * in the scene.
+   */
+  async warmShaders(renderer: THREE.WebGLRenderer, camera: THREE.Camera): Promise<void> {
+    if (this.firelight) {
+      this.firelight.hold(true);
+      await renderer.compileAsync(this.scene, camera);
+      this.firelight.hold(false);
+    }
+    await renderer.compileAsync(this.scene, camera);
   }
 
   update(camera: THREE.Camera, time: number): void {

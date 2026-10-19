@@ -808,9 +808,12 @@ vec3 paintStone(vec3 base, vec3 p, vec3 n) {
   float streak = leafNoise(vec3(p.x * 2.2, p.y * 0.12, p.z * 2.2));
   col = mix(col, col * vec3(0.88, 0.9, 0.84), smoothstep(0.6, 0.66, streak) * 0.8 * uStain);
   // Low limestone, down in the jungle's damp, is filmed green in broad soft patches, as the film's
-  // mossy cliffs are; the pillars' heights stay pale.
-  float damp = smoothstep(0.4, 0.62, roundNoise(p * 0.2 + 2.4)) * (1.0 - smoothstep(24.0, 34.0, p.y)) * smoothstep(0.8, 1.0, uMoss);
-  col = mix(col, col * vec3(0.7, 0.86, 0.6), damp * 0.75);
+  // mossy cliffs are; the pillars' heights stay pale. (Painted only where it can show: the noise
+  // behind it is dear, and its weight is nought on other stone and above 34 m.)
+  if (uMoss > 0.8 && p.y < 34.0) {
+    float damp = smoothstep(0.4, 0.62, roundNoise(p * 0.2 + 2.4)) * (1.0 - smoothstep(24.0, 34.0, p.y)) * smoothstep(0.8, 1.0, uMoss);
+    col = mix(col, col * vec3(0.7, 0.86, 0.6), damp * 0.75);
+  }
   // Cracks taper and widen along their length; only some blocks break from the one above.
   float wide = 0.3 + 1.4 * leafNoise(p * vec3(0.9, 0.22, 0.9));
   float joint = step(0.45, cellHash3(vec3(cid, floor(rise + 0.5)) + 3.0).z);
@@ -821,19 +824,26 @@ vec3 paintStone(vec3 base, vec3 p, vec3 n) {
   float edge = min(upright, level);
   col = mix(col, col * 0.86, 1.0 - smoothstep(0.15 * wide, 0.45 * wide, edge));
   col = mix(col, base * vec3(0.38, 0.43, 0.32), 1.0 - smoothstep(0.07 * wide, 0.14 * wide, edge));
-  // Moss in clumps: the rock's own moss thinned out in broad stretches, and what faces up.
-  float clumps = smoothstep(0.34, 0.5, roundNoise(p * 0.16 + 1.7));
-  float cover = max(mossy(base) * 0.85 * clumps, smoothstep(0.45, 0.85, n.y) * uMoss);
-  float broken = roundNoise(p * 0.8 + 5.0);
-  float grow = cover * (0.4 + 0.9 * broken);
-  float moss = smoothstep(0.48, 0.53, grow);
-  // Each cushion lit along its top and shaded under it, darker round the clump's edge.
-  float lit = smoothstep(0.3, 0.7, (mossBumps(p) - mossBumps(p + vec3(0.0, 0.3, 0.0))) * 4.5 + 0.5);
-  vec3 mossCol = mix(uMossDark, uMossLight, clamp(0.15 + 0.7 * lit + 0.25 * n.y, 0.0, 1.0));
-  mossCol *= mix(0.75, 1.0, smoothstep(0.53, 0.62, grow)) * mix(0.93, 1.06, leafDabs(p * 1.2));
+  // Moss in clumps: the rock's own moss thinned out in broad stretches, and what faces up. Its
+  // noise is only worked where moss can grow (the picture is the same: elsewhere it weighs nought).
+  float own = mossy(base);
+  float cover = smoothstep(0.45, 0.85, n.y) * uMoss;
+  if (own > 0.0) cover = max(own * 0.85 * smoothstep(0.34, 0.5, roundNoise(p * 0.16 + 1.7)), cover);
+  if (cover > 0.0) {
+    float grow = cover * (0.4 + 0.9 * roundNoise(p * 0.8 + 5.0));
+    float moss = smoothstep(0.48, 0.53, grow);
+    if (moss > 0.0) {
+      // Each cushion lit along its top and shaded under it, darker round the clump's edge.
+      float lit = smoothstep(0.3, 0.7, (mossBumps(p) - mossBumps(p + vec3(0.0, 0.3, 0.0))) * 4.5 + 0.5);
+      vec3 mossCol = mix(uMossDark, uMossLight, clamp(0.15 + 0.7 * lit + 0.25 * n.y, 0.0, 1.0));
+      mossCol *= mix(0.75, 1.0, smoothstep(0.53, 0.62, grow)) * mix(0.93, 1.06, leafDabs(p * 1.2));
+      col = mix(col, mossCol, moss);
+    }
+  }
   // Turf on a flat top (the rock's own grass colours) is left as grass, softly dabbed, uncracked.
   float turf = smoothstep(0.15, 0.25, base.g - max(base.r, base.b)) * smoothstep(0.75, 0.9, n.y);
-  return mix(mix(col, mossCol, moss), base * mix(0.93, 1.05, leafDabs(p * 0.8)), turf);
+  if (turf > 0.0) col = mix(col, base * mix(0.93, 1.05, leafDabs(p * 0.8)), turf);
+  return col;
 }
 `;
 

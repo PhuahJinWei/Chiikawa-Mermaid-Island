@@ -32,17 +32,30 @@ const smoothstep = (a: number, b: number, x: number) => {
  * plants, rocks and houses round them; characters are warmed by every source near them.
  */
 export class Firelight {
+  private readonly scene: THREE.Scene;
   private readonly sources: Source[] = [];
   private readonly lights: THREE.PointLight[] = [];
   private readonly ranked: { source: Source; distance: number }[] = [];
   private glow = 0;
   private time = 0;
+  private held = false;
 
   constructor(scene: THREE.Scene) {
-    for (let i = 0; i < LIGHTS; i++) {
-      const light = new THREE.PointLight(0xffffff, 0, 1, 2);
-      scene.add(light);
-      this.lights.push(light);
+    this.scene = scene;
+    for (let i = 0; i < LIGHTS; i++) this.lights.push(new THREE.PointLight(0xffffff, 0, 1, 2));
+  }
+
+  /**
+   * Puts the lights into the scene, or takes them out. Everything lit is drawn working out each
+   * light in the scene, burning or not, so by day, when none burns, they are out of it. Each
+   * state needs its own shaders: see Stage.warmShaders.
+   */
+  hold(on: boolean): void {
+    if (on === this.held) return;
+    this.held = on;
+    for (const light of this.lights) {
+      if (on) this.scene.add(light);
+      else this.scene.remove(light);
     }
   }
 
@@ -70,12 +83,14 @@ export class Firelight {
       if (distance < REACH) ranked.push({ source, distance });
     }
     ranked.sort((a, b) => a.distance - b.distance);
+    this.hold(glow > 0 && ranked.length > 0);
+    if (!this.held) return;
     // A light fades out as its source nears the next one in line (or the reach), so moving the
     // lights from source to source never shows.
     const cut = ranked.length > LIGHTS ? ranked[LIGHTS].distance : REACH;
     this.lights.forEach((light, i) => {
       const entry = ranked[i];
-      if (!entry || glow <= 0) {
+      if (!entry) {
         light.intensity = 0;
         return;
       }
