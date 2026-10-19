@@ -59,6 +59,10 @@ const ATLAS_HEIGHT = 1024;
  * out into it, so a sign filling its board to the edges never takes its neighbour's colours there,
  * near or far (where the texture's smaller copies blend neighbouring pixels). */
 const LABEL_GUTTER = 4;
+/** Pieces of a part that glows or burns lying closer than this, in metres, are one light (a stack
+ * of lanterns on a pole); further apart, each is its own (the arch's two stacks, the lanterns
+ * along a string). */
+const LIGHT_GAP = 0.6;
 
 /** Which pieces of a group are drawn when: always, near, inside (closer still), far, or at night. */
 type Level = 'always' | 'near' | 'small' | 'inside' | 'far' | 'night';
@@ -295,6 +299,62 @@ function paintLabels(all: Label[], painted: Map<string, ImageBitmap>): THREE.Can
   return texture;
 }
 
+const lightSpotsOf = new WeakMap<THREE.BufferGeometry, THREE.Vector3[]>();
+
+/**
+ * Where the lights of a part that glows or burns are, in the prop's frame: the middle of each
+ * cluster of its pieces (see LIGHT_GAP). A part's lanterns can stand metres apart, and the middle
+ * of them all is empty air, often right against something (the arch's banner, between its poles'
+ * lanterns), which a light there would burn white.
+ */
+function lightSpots(geometry: THREE.BufferGeometry): THREE.Vector3[] {
+  const known = lightSpotsOf.get(geometry);
+  if (known) return known;
+  const position = geometry.getAttribute('position');
+  const count = position.count;
+  // The pieces: vertices joined by triangles.
+  const parent = new Int32Array(count).map((_, i) => i);
+  const root = (i: number): number => {
+    while (parent[i] !== i) i = parent[i] = parent[parent[i]];
+    return i;
+  };
+  const index = geometry.getIndex();
+  const corners = index ? index.count : count;
+  for (let t = 0; t + 2 < corners; t += 3) {
+    const a = root(index ? index.getX(t) : t);
+    for (let k = 1; k < 3; k++) {
+      const b = root(index ? index.getX(t + k) : t + k);
+      if (a !== b) parent[b] = a;
+    }
+  }
+  const pieces = new Map<number, THREE.Box3>();
+  const p = new THREE.Vector3();
+  for (let i = 0; i < count; i++) {
+    const r = root(i);
+    let box = pieces.get(r);
+    if (!box) pieces.set(r, (box = new THREE.Box3()));
+    box.expandByPoint(p.fromBufferAttribute(position, i));
+  }
+  // Pieces closer than the gap join into one cluster, until no two clusters are that close.
+  const clusters = [...pieces.values()];
+  for (let joined = true; joined; ) {
+    joined = false;
+    for (let i = 0; i < clusters.length && !joined; i++) {
+      const near = clusters[i].clone().expandByScalar(LIGHT_GAP / 2);
+      for (let j = i + 1; j < clusters.length; j++) {
+        if (!near.intersectsBox(clusters[j].clone().expandByScalar(LIGHT_GAP / 2))) continue;
+        clusters[i].union(clusters[j]);
+        clusters.splice(j, 1);
+        joined = true;
+        break;
+      }
+    }
+  }
+  const spots = clusters.map((box) => box.getCenter(new THREE.Vector3()));
+  lightSpotsOf.set(geometry, spots);
+  return spots;
+}
+
 /** When each part of a prop is drawn. */
 function levelOf(role: PartRole, hasFar: boolean, small: boolean): Level | null {
   switch (role) {
@@ -389,9 +449,9 @@ export class Props {
         const board = part.role === 'board' && words[0] ? (painted.boards.get(words[0]) ?? null) : null;
         props.collect(key, level, kind, !UNLINED.has(p.kind), placedGeometry(part.geometry, matrix, tint, false, board));
         if (kind !== 'body') {
-          if (!part.geometry.boundingBox) part.geometry.computeBoundingBox();
-          const centre = (part.geometry.boundingBox as THREE.Box3).getCenter(new THREE.Vector3()).applyMatrix4(matrix);
-          props.fires.push({ position: centre, kind });
+          for (const spot of lightSpots(part.geometry)) {
+            props.fires.push({ position: spot.clone().applyMatrix4(matrix), kind });
+          }
         }
       }
     });

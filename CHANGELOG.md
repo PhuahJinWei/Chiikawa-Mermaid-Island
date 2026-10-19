@@ -947,6 +947,15 @@ outlined is drawn twice, once for its pen line. To get there:
   pen's true width at its own distance, still never under half the pen
   where the camera looks; with the camera on the player, as in play,
   nothing changes.
+- At night the festival's arch no longer burns its banner white. A prop's
+  glowing part had one light, at the middle of all its pieces: the arch's
+  two stacks of lanterns, one on each pole, put theirs in the air between
+  them, a few centimetres behind the banner, which it lit white and the
+  glow spread into a halo. Each cluster of a part's pieces (those within
+  0.6 metres of each other) is now a light of its own, so the arch's
+  lights sit on its two stacks. The side bunting's lanterns and the
+  restaurant's two corner lanterns, which shared one light the same way,
+  have one each too. Checked at the arch in a staged view at 21:00.
 
 ## M0.1 — Downloaded cast and the island outfit (2026-10-16)
 
