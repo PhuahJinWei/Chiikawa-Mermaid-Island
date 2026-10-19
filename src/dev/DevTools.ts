@@ -64,11 +64,47 @@ export const SHOTS: Record<string, StagedShot> = {
     camera: { position: [0, 0.6, 3.7], target: [0, 0.53, 0], fov: 16 },
   },
   // The film's aerial shot of the island (`mermaid island 1`), from high over the bay to the
-  // south-south-west, through the camera the island was laid out with. Matches the frame in a
-  // window shaped like it (1.86 : 1).
+  // south-south-west, through the camera the island was first laid out with. The island has grown
+  // since (its third shape): aimed at the same place on it from as far off, the lens widened to take
+  // it all in, so the frame is matched only roughly now.
   aerial: {
     characters: {},
-    camera: { position: [-78.73, 395.19, 427.39], target: [0.4, 0, -72.21], fov: 20 },
+    camera: { position: [-97.5, 395.19, 399.9], target: [-18.4, 0, -99.7], fov: 24.7 },
+  },
+  // The film's jungle-waterfall frame: low on the pool's bank behind Chiikawa and Hachiware, a 35
+  // degree lens, 3 pm (the film look is judged against it).
+  waterfall: {
+    characters: {
+      chiikawa: { x: -8.9, z: -194.46, yaw: 2.006 },
+      hachiware: { x: -8.48, z: -193.55, yaw: 2.006 },
+    },
+    camera: { position: [-12.04, 3.0, -192.44], target: [14.7, 4.4, -204.9], fov: 35 },
+    hour: 15,
+  },
+  // The film's sea-cliffs frame: on the headland's grassy top at the mouth of the cove, looking
+  // east-south-east across it at the cliffs, the sea stack on the left, the cast in a row ahead.
+  cliffs: {
+    characters: {
+      chiikawa: { x: 30.06, z: -266.54, yaw: 1.047 },
+      hachiware: { x: 30.76, z: -267.75, yaw: 1.047 },
+      usagi: { x: 31.46, z: -268.96, yaw: 1.047 },
+    },
+    camera: { position: [26, 8.69, -270.5], target: [51.98, 5.89, -255.5], fov: 45 },
+    hour: 11,
+  },
+  // The film's frame of the bay from the water (`bay 3`): the quay's timber wall end on across the
+  // frame, the pier in its middle, the jungle above.
+  bay: {
+    characters: {},
+    camera: { position: [-12, 2.0, 62], target: [-4, 3, -10], fov: 30 },
+    hour: 11,
+  },
+  // The film's frame of the forbidden cave by night (`cave entrance 1`): from down the beach, the sea
+  // on the left, the spur running in from it with the cave's mouth at its foot, palms on the right.
+  cave: {
+    characters: {},
+    camera: { position: [-190, 1.6, -70], target: [-183, 2.5, -108], fov: 50 },
+    hour: 21,
   },
   // Lineup of the main cast at eye level, for checking proportions side by side.
   cast: {

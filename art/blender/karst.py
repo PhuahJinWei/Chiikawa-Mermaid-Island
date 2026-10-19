@@ -624,7 +624,8 @@ def spray(level, seed=7):
     return bm, cols
 
 
-def cliff(points, normals, tops, water, seed, base=-4.5, lip=2.6, column=1.2):
+def cliff(points, normals, tops, water, seed, base=-4.5, lip=2.6, column=1.2, stone="sandstone", stand=1.6,
+          jut=1.0, row=0.7, beds=(0.7, 2.0), joints=(3.5, 9.0)):
     """Sea cliffs of bedded sandstone along a stretch of coast, after the film's frame of them:
     `points` (x, z) along the foot of the face at the water, each with its outward normal (x, z) and
     the height of the land on top. The face rises from below the water at `base`, stepped in and
@@ -633,9 +634,14 @@ def cliff(points, normals, tops, water, seed, base=-4.5, lip=2.6, column=1.2):
     ground. A closed solid, for the pen. Painted in bands bed by bed, darker in the joints and the
     hollows, streaked from the top, greenery hanging over the edge in tongues, wet where the sea
     laps. Returns (bmesh, colours) and, apart, the greenery growing down the face of the tall cliffs
-    as on the film's (see below), as (bmesh, colours)."""
+    as on the film's (see below), as (bmesh, colours).
+
+    The same makes the white limestone cliffs round the tableland and down its gorge: another
+    `stone`, its face standing `stand` metres out from the points (1.6 for the sea cliffs), its
+    beds jutting `jut` times as far, rows every `row` metres up it, beds and joints (upright
+    cracks) as far apart as `beds` and `joints` say."""
     rng = np.random.default_rng(seed)
-    C = {**SHARED, **STONES["sandstone"]}
+    C = {**SHARED, **STONES[stone]}
     grass, grass_dark = np.array(L.hex_color("#84C557")[:3]), np.array(L.hex_color("#5E9E44")[:3])
     pts = np.asarray(points, dtype=float)
     nrm = np.asarray(normals, dtype=float)
@@ -649,24 +655,26 @@ def cliff(points, normals, tops, water, seed, base=-4.5, lip=2.6, column=1.2):
     N /= np.linalg.norm(N, axis=1, keepdims=True)
     T = np.interp(u, along, tops)
     # Level beds of stone from below the water to the highest top: each sticks out or sits back.
+    bed_gap, joint_gap = beds, joints
     beds, y = [], base
     while y < T.max() + 1.0:
         beds.append(y)
-        y += rng.uniform(0.7, 2.0)
+        y += rng.uniform(*bed_gap)
     beds.append(y)
-    jut = rng.uniform(-0.6, 0.6, len(beds))
+    jut_scale = jut
+    jut = rng.uniform(-0.6, 0.6, len(beds)) * jut_scale
     shade = rng.choice([0.0, 0.0, 0.45, 0.8, 1.0], len(beds))
     # Upright joints split the face into blocks, each standing in or out.
     joints = [0.0]
     while joints[-1] < u[-1]:
-        joints.append(joints[-1] + rng.uniform(3.5, 9.0))
-    block_jut = rng.uniform(-0.9, 0.7, len(joints) + 1)
+        joints.append(joints[-1] + rng.uniform(*joint_gap))
+    block_jut = rng.uniform(-0.9, 0.7, len(joints) + 1) * jut_scale
     streak_p = rng.uniform(0.0, 2.0 * math.pi, 3)
     hang = 0.6 + 2.6 * rng.uniform(0.0, 1.0, len(u)) ** 2
     hang = np.convolve(hang, np.ones(3) / 3.0, mode="same")
     # Rows at fixed heights, with a pair at every bed's edge so the steps stay crisp; any row above a
     # column's top folds down onto it.
-    levels = sorted({base, water - 0.9, water - 0.25, water + 0.3, *np.arange(base, T.max() + 0.7, 0.7),
+    levels = sorted({base, water - 0.9, water - 0.25, water + 0.3, *np.arange(base, T.max() + 0.7, row),
                      *[b + d for b in beds for d in (-0.05, 0.05)]})
     levels = np.array([v for v in levels if base <= v <= T.max() - 0.6])
 
@@ -675,8 +683,8 @@ def cliff(points, normals, tops, water, seed, base=-4.5, lip=2.6, column=1.2):
         k = np.clip(np.searchsorted(beds, y) - 1, 0, len(beds) - 1)
         j = int(np.searchsorted(joints, u[i]))
         d_joint = min(abs(u[i] - joints[max(j - 1, 0)]), abs(u[i] - joints[min(j, len(joints) - 1)]))
-        crack = -1.1 * (1.0 - smoothstep(0.25, 0.75, d_joint))
-        return 1.6 + jut[k] + block_jut[j] + crack - 0.02 * (np.asarray(y) - water), k, d_joint
+        crack = -1.1 * jut_scale * (1.0 - smoothstep(0.25, 0.75, d_joint))
+        return stand + jut[k] + block_jut[j] + crack - 0.02 * (np.asarray(y) - water), k, d_joint
 
     bm = bmesh.new()
     grid, cols = [], []

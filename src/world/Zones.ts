@@ -5,6 +5,8 @@ export type ZoneId =
   | 'pier'
   | 'waterfall'
   | 'cliffs'
+  | 'gorge'
+  | 'westBeach'
   | 'fields'
   | 'village'
   | 'festival'

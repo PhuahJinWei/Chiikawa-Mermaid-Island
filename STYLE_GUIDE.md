@@ -154,7 +154,11 @@ Scale unit: **1 = Chiikawa's height.**
 
 ### From above (`mermaid island 1`)
 
-- **Shape:** a rounded, slightly wide island, sandy ring all around.
+- **Shape:** a rounded, slightly wide island, sandy ring all around. Flat,
+  as the film's later frames show it: the jungle, the village and the
+  festival lie low, a metre or two over the sea, and only the karst stands
+  up out of it. (The island has grown north and west since this shot, for
+  the places those frames show.)
 - **Karst pillars:** seven tall pale grey-white limestone towers #C9D6D9
   standing in a ring round the island's middle, jungle on their tops and
   white rock standing out of it: rounded knobs on the flat-topped ones,
@@ -248,6 +252,16 @@ Scale unit: **1 = Chiikawa's height.**
 Rough wide planks, round log posts at the edges, sitting right on vivid
 green-turquoise water you can see sparkles in. Confetti welcome on arrival.
 
+### The bay (`bay 1` to `bay 5`)
+
+- The bay's sand stands above the sea, level with the pier's deck: along
+  its edge a low wall of timber, planks laid on edge behind round log posts
+  a couple of metres apart, drops straight into the water. The posts' cut
+  tops stand a little proud of the sand, like stumps.
+- A row of plain clay pots on the sand behind the wall, either side of the
+  pier; palms and the jungle's canopy behind them.
+- The festival's stalls and arch stand back from it across open sand.
+
 ### Jungle (`chiikawa 2`, `11`, `13`, `15`)
 
 - Tall palms with striped trunks, ferns, cycads, big monstera leaves.
@@ -308,16 +322,38 @@ green-turquoise water you can see sparkles in. Confetti welcome on arrival.
 Dozens of islanders seated in rows on the sand in warm firelight, plates of
 food and cups on the ground, everyone toasting. This is the festival.
 
+### The stepping-stone gorge (`parkour stone landmark 1` to `3`, `river below parkour stone landmark 1`, `2`)
+
+- A wide river of pale, bright blue water between sheer white limestone
+  cliffs, grass and shrubs along their tops, greenery spilling over.
+- Across it, tall thin pillars of the same pale rock, cracked and stained,
+  each with a flat round top of bright grass, a short jump apart, from one
+  clifftop to the other.
+- At the foot of a cliff, a narrow riverside path of rounded pebbles and
+  boulders, ferns and dark leafy plants at the rock, vines hanging down it,
+  leading along the water to a wooden restaurant.
+
+### The forbidden cave's entrance (`cave entrance 1` to `4`, `cave signboard 1` to `3`)
+
+- On a beach on the west coast: a heap of bare rock, rounded and bulging
+  in layered masses like great boulders run together, rising out of the
+  sea at one end and climbing along the beach, a few tufts of plants on
+  it, palms and jungle beyond. Nothing to walk on over it.
+- At its foot over the sand, a small dark arched opening into the rock,
+  only a few times the cast's height.
+- Before it on the sand, a weathered grey board on one post, 立入禁止!!
+  written on it top to bottom in dark brush strokes.
+
 ### The forbidden cave (`cave 1`, `cave 2`, `cave 3`, `chiikawa 17`)
 
-- Reached by rowing a small wooden boat in from the beach.
+- Entered on foot through its one mouth on the west beach; a boat crosses
+  its sea.
 - Dark blue rock walls with cyan rim light on the edges.
 - **The heart of the cave:** a round opening in the ceiling, ringed by
   hanging vines, with the full moon directly above. A wide shaft of
   moonlight falls onto still, glowing water. Sparkling particles drift in
   the beam and low mist hugs the water. Seen from above, this opening is
-  the round water in the island's middle (`mermaid island 1`): the cave
-  lies under the island's centre.
+  a round hole ringed with moss on the spur over the cave.
 - A flat stone ledge beside the water, lit by a small fire, where the Siren
   and the mermaids sit.
 
@@ -363,8 +399,10 @@ shading toward the water. At anchor out in the bay.
 
 Nothing here blocks Milestone 0. These would sharpen later milestones.
 
-- Where the forbidden cave is, its entrance and No Entry sign, and the
-  tunnel between the entrance and the moonlit chamber under its skylight.
+- The forbidden cave's inside between its mouth and the moonlit chamber
+  under its skylight, and the ground beyond it (`cave interior 1` to `8`
+  show it: a passage on foot, the cave's sea crossed by boat, the round
+  chamber, landed ground).
 - A clear look at the food-shop building and its owner.
 - What sits at the top of the karst pillars, if the film ever goes there.
 

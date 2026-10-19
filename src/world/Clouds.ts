@@ -195,14 +195,14 @@ function aerialCards(): Card[] {
     const t = (eye.y - altitude) / -ray.y;
     return { kind: 'top', centre: eye.clone().addScaledVector(ray, t), width: w * 2 * tan * aspect * t, haze: 0 };
   });
-  // More round the island, over the sea.
+  // More round the island (its middle about -35, -140), over the sea.
   const rand = random(4242);
   for (let i = 0; i < 9; i++) {
     const a = (i / 9) * Math.PI * 2 + rand() * 0.4;
-    const d = 210 + rand() * 70;
+    const d = 240 + rand() * 70;
     out.push({
       kind: 'top',
-      centre: new THREE.Vector3(Math.cos(a) * d, 170 + rand() * 80, -97 + Math.sin(a) * d),
+      centre: new THREE.Vector3(-35 + Math.cos(a) * d, 170 + rand() * 80, -140 + Math.sin(a) * d),
       width: 45 + rand() * 40,
       haze: 0,
     });

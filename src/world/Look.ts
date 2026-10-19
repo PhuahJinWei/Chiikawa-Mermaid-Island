@@ -731,12 +731,14 @@ export interface StoneKind {
 
 /** Limestone splits into tall upright slabs, the sea spires' into narrower ones; bedded rock lies in
  * long, low blocks, the sea cliffs' sandstone in long beds with few joints and little stain, clean
- * and pale as the film paints it (its beds and joints are in the rock's own shape). */
+ * and pale as the film paints it (its beds and joints are in the rock's own shape). The forbidden
+ * cave's heap is limestone left bare, as the film's is, but for a few tufts on its tops. */
 export const STONES = {
   limestone: { block: [2.6, 7.0], upright: true, moss: 1, stain: 1 },
   spire: { block: [1.4, 3.5], upright: true, moss: 0.6, stain: 1 },
   bedded: { block: [9.0, 2.4], upright: false, moss: 0.5, stain: 0.35 },
   layered: { block: [3.0, 1.1], upright: false, moss: 0.7, stain: 1 },
+  bare: { block: [2.6, 7.0], upright: true, moss: 0.4, stain: 1 },
 } satisfies Record<string, StoneKind>;
 
 /**

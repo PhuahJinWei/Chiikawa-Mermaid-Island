@@ -11,14 +11,16 @@ stage, and along every path. Not yet checked on a real phone.
 
 **Added**
 
-- The island's ground, built in Blender by `art/blender/build_island.py`
-  after the film's aerial shot, traced through a game camera matched to the
-  shot so the island seen from there looks as the film draws it: a rounded
-  island about 290 metres across with a sandy ring all round (narrow where
-  the jungle runs down to the water in the west and north, widest on the
-  night beach), grass inland, the festival street behind the main beach,
-  fields just west of it, the village's clearing deep in the jungle and
-  paths between them up to the waterfall. Its colours are painted into
+- The island's ground, built in Blender by `art/blender/build_island.py`,
+  first after the film's aerial shot, traced through a game camera matched
+  to the shot, then grown to the north and west for what the film's later
+  frames show: a rounded island about 340 metres across and 285 from north
+  to south with a sandy ring all round (narrow where the jungle runs down
+  to the water in the west and north, widest on the night beach), flat and
+  low as the film draws it, grass inland, the festival behind the bay's
+  quay, fields just west of it, the village's clearing deep in the jungle
+  and paths between them up to the waterfall; in the north-west a tableland
+  of white limestone cut through by a gorge. Its colours are painted into
   one texture with soft hill shading, and its heights come as a grid the
   game walks on.
 - The island's landmarks, built with the ground (`art/blender/karst.py`
@@ -60,12 +62,24 @@ stage, and along every path. Not yet checked on a real phone.
   waterfall, looks across the cove at the cliffs; the place is named 北の崖.
   Inland the land on top rises gently from the headland's height to the
   cliffs', so the path climbs it.
-- The forbidden cave, its entrance and the way in are still to be placed
-  and planned; the No Entry sign (立入禁止) waits for the entrance.
+- The forbidden cave's entrance, on the west coast, after the film's frames
+  of it: a heap of bare, rounded, layered rock rises out of the sea and
+  climbs inland past a beach to the end of a spur of the tableland, nowhere
+  on it to walk. At its foot over the beach a small arched mouth opens into
+  the dark, the No Entry sign (立入禁止) on the sand before it and nothing
+  growing in front of it; the place is named 西の浜. The cave inside, its
+  sea running in under the spur to the skylight on the spur's top, is to
+  come.
 - The bay is the festival, laid out as in the film's arrival: a short
   wooden pier (rough planks on log posts, over turquoise water) reaches out
   from the middle of the beach, and the white duck ferry lies at anchor out
-  in the bay, bobbing, as in the film's aerial shot. The ferry is built
+  in the bay, bobbing, as in the film's aerial shot. The bay is a quay, as
+  in the film's frames of it: its sand stands level half a metre over the
+  sea out to a low wall of timber, planks laid on edge behind log posts
+  every two metres, their cut tops a little proud of the sand, dropping
+  straight into water a metre and a half deep; the pier's deck meets the
+  quay's top, and a row of clay pots stands on the sand behind the wall
+  either side of it. The ferry is built
   after the film's and sketches of it from the front, both sides and above:
   simple and round all over, no hard edges, a bell in section and an egg
   from above, widest at the cabin's front wall. A tall, bendy neck rises
@@ -121,7 +135,7 @@ stage, and along every path. Not yet checked on a real phone.
 - Logs to sit on round the stage, potted plants by the porches, baskets of
   fruit, flowering bushes and grass round the huts.
 - The jungle fills the island's interior, dense like the film's: a
-  canopy of tree clumps whose round crowns run together, nearly two hundred
+  canopy of tree clumps whose round crowns run together, nearly four hundred
   palms among them and thick along the beaches, a dozen big trees with
   buttress roots and hanging vines, and under them all ferns, cycads, red
   ti plants, bromeliads, monstera and flowering bushes (purple, white,
@@ -135,17 +149,19 @@ stage, and along every path. Not yet checked on a real phone.
   is drawn with, and the island's named places. The Blender build reads it
   too, to keep the jungle clear of the props.
 - Places have names. Walking into one shows its name for a moment under
-  the title: お祭り通り, 村, 浜辺, 畑, 桟橋, 洞くつの天窓, 東の浜, and the
-  sand, the jungle, the lagoon, the reef and the deep sea elsewhere. The Test panel's info line shows it too.
+  the title: お祭り通り, 村, 浜辺, 畑, 桟橋, 森の滝, 北の崖, 渓谷, 西の浜, 東の浜,
+  and the sand, the jungle, the lagoon, the reef and the deep sea elsewhere. The Test panel's info line shows it too.
 - A free camera in the Test panel (フリーカメラ), for looking round the
   island quickly: fly the way the camera looks with the stick or WASD,
   drag to look round, pinch, scroll or E and Q to rise and sink, Shift to
   go faster. ここへ移動 puts the character you control down under it.
 - For checking the island against the film: in development, `__dev.shot('aerial')`
   in the browser console frames the island as the film's aerial shot does,
-  through the camera it was laid out with (in a window shaped like the
-  frame, about 1.86 : 1). From high above, the sea reaches further and the
-  haze thins, so the island still reads.
+  through the camera it was first laid out with (in a window shaped like
+  the frame, about 1.86 : 1), its lens widened since to take in the grown
+  island. From high above, the sea reaches further and the haze thins, so
+  the island still reads. `waterfall`, `cliffs`, `bay` and `cave` stage the
+  film's frames of those places the same way.
 - Day and night: a whole day passes in 24 minutes, starting at ten in the
   morning. The sky goes from dawn pinks to bright blue, to a golden
   afternoon, an orange and pink dusk and a deep navy night with twinkling
@@ -195,8 +211,9 @@ stage, and along every path. Not yet checked on a real phone.
   is shaded flat, as the sign on its front is, and in the film look the
   signs take the sun's shadows with their boards, so the two meet unseen
   in sun, shade and firelight. A sign without a painting keeps its typed
-  words. How to paint them is in `art/signs/README.md`. All 32 are
-  painted, among them the arch's 島へようこそ!! and its Welcome to Shima
+  words. How to paint them is in `art/signs/README.md`. All but the
+  cave's new No Entry sign (33 in all) are painted, among them the arch's
+  島へようこそ!! and its Welcome to Shima
   banner, the street's いらっしゃいませ!! and たのしんでね, and 味じまん
   お好み焼き on a red board at the street's far end, as the film has it
   there, in place of トロピカルジュース.
@@ -255,6 +272,42 @@ outlined is drawn twice, once for its pen line. To get there:
 
 **Changed**
 
+- The island has its third shape, after the film's later frames of it:
+  bigger, grown most to the north and west (about 340 metres across and
+  285 from north to south, on a map 520 metres square, where it was 290 by
+  215 on 430), and flat, as the film draws it. The village, the festival,
+  the fields and the jungle paths lie on level ground a metre or two over
+  the sea, climbing to it from the beaches' tops over about twelve metres,
+  and the karst stands up out of it sheer; the waterfall's pool, its wall
+  and the pillars round it moved 40 metres north with the island, each
+  pillar as tall over the ground round it as before. The bay is a quay of
+  timber, its sand half a metre over the sea (see the bay above). In the
+  north-west the land stands up as a tableland of white limestone 11
+  metres high, ringed with sheer pale cliffs, cracked upright more than
+  bedded, greenery spilling over their tops and shrubs along them, a strip
+  of beach and palms at its foot by the sea. A gorge cuts through it from
+  the waterfall's lowland to the west coast: a dry ravine at its head,
+  then a wide river the sea runs into, 20 metres across between walls 26
+  apart, with a narrow ledge along the foot of its south wall a little over
+  the water, where a path runs down to where the restaurant will stand
+  (the stepping-stone pillars across the river and the restaurant are to
+  come); the place is named 渓谷. Ramps climb onto the tableland north of
+  the gorge, from beside the waterfall, and onto its rim south of it from
+  the jungle. From the rim a spur runs out toward the west coast, the
+  cave's skylight on its top, and ends against the heap of rock the
+  forbidden cave opens in (see the cave above). The dark mound in the
+  north-west stands on the tableland's north side, a little smaller. The
+  jungle is replanted over the new ground, its trees standing back from
+  the high ground's cliff tops and feet so the white stone shows. Every
+  path, the riverside ledge, the ramps' tops, the skylight's lip, the
+  cave's mouth and the sea cliffs' headland can be walked to from the
+  festival. The staged sea-cliffs view stands on the headland at the
+  cove's mouth looking across it at the cliffs, the stack on the left.
+  Measured on the dev PC at 1488 x 800: the waterfall frame takes 21 ms,
+  the cave's beach 18 and the riverside ledge 16, of which the tableland's
+  cliffs and the cave's rock (92,000 triangles) take about 1 to 3 ms where
+  they fill the view (not compared with the old island, whose files this
+  replaces).
 - The island scene costs less to draw, the picture the same. The
   firelight's six lights are in the scene only while something burns:
   everything lit is drawn working out each light in the scene, burning or
