@@ -62,6 +62,10 @@ C = {k: np.array(L.hex_color(v)[:3]) for k, v in {
     "grassDark": "#3F8F3A",
     "clover": "#4FA94A",
     "cloverLight": "#86CF66",
+    "banana": "#6CBF4D",
+    "bananaLight": "#9AD467",
+    "bananaDark": "#4A9A3F",
+    "bananaStem": "#86A44A",
 }.items()}
 
 UP = Vector((0.0, 0.0, 1.0))
@@ -691,6 +695,68 @@ def leaf_blade(base, direction, length, width, colour, sway_base=0.4):
     sway = [sway_base + (1 - sway_base) * min(1.0, (v.co - base).length / length) for v in bm.verts]
     where = [(0.0, 0.0), (0.45, 1.0), (1.0, 0.0), (0.45, -1.0), (0.45, 0.0), (0.45, 0.0)]
     return bm, [colour] * len(bm.verts), sway, where
+
+
+def paddle_bm(centre, side, width, rows, tears, thickness=0.025):
+    """A banana leaf: a long solid blade three vertices across along `centre`, full and rounded, its
+    halves drooping from the midrib, torn at the rows `tears` names (narrower there, as the film's
+    banana leaves are split by the wind). Its vertices' leaf coordinates come from paddle_leaf."""
+    bm = bmesh.new()
+    rings = []
+    for i in range(rows + 1):
+        s = 0.05 + 0.95 * i / rows
+        c = centre(s)
+        tangent = (centre(min(1.0, s + 0.01)) - centre(max(0.0, s - 0.01))).normalized()
+        normal = tangent.cross(side).normalized()
+        if normal.z < 0:
+            normal = -normal
+        half = width * math.sin(math.pi * min(s * 1.08, 1.0)) ** 0.45 * (0.55 if i in tears else 1.0)
+        droop = -UP * (0.35 * half)
+        rings.append([bm.verts.new(c + side * half + droop), bm.verts.new(c + normal * thickness),
+                      bm.verts.new(c - side * half + droop)])
+    for a, b in zip(rings, rings[1:]):
+        for k in range(3):
+            bm.faces.new((a[k], a[(k + 1) % 3], b[(k + 1) % 3], b[k]))
+    bm.faces.new(rings[0])
+    bm.faces.new(list(reversed(rings[-1])))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    return bm
+
+
+def paddle_leaf(rows):
+    """Leaf coordinates for paddle_bm's vertices, in the order it makes them: a plain leaf's."""
+    return [(0.05 + 0.95 * i / rows, across) for i in range(rows + 1) for across in (1.0, 0.0, -1.0)]
+
+
+def banana(rng):
+    """A banana plant, as round the film's guest houses: a stout green stem and a fountain of long,
+    broad paddle leaves from its top, the young ones standing up, the old arching out and down, some
+    torn by the wind."""
+    pieces = []
+    height = rng.uniform(1.3, 1.9)
+    stem = trunk_bm(Vector((0.0, 0.0, -0.1)), Vector((0.0, 0.0, height + 0.05)), 0.13, 0.085, segments=7, rings=3,
+                    bend=(rng.uniform(-0.06, 0.06), rng.uniform(-0.06, 0.06)))
+    pieces.append((stem, [C["bananaStem"]] * len(stem.verts), [min(1.0, 0.1 + 0.3 * max(v.co.z, 0.0) / height) for v in stem.verts]))
+    top = Vector((0.0, 0.0, height))
+    count = int(rng.integers(6, 9))
+    rows = 8
+    for k in range(count):
+        theta = 2 * math.pi * k / count + rng.uniform(-0.25, 0.25)
+        d = Vector((math.cos(theta), math.sin(theta), 0.0))
+        side = Vector((-math.sin(theta), math.cos(theta), 0.0))
+        young = k % 3 == 0
+        length = rng.uniform(1.4, 2.0) * (0.75 if young else 1.0)
+        reach, rise, droop = (0.4, 1.05, 0.12) if young else (0.85, 0.55, 0.6)
+
+        def centre(s, d=d, length=length, reach=reach, rise=rise, droop=droop):
+            return top + d * (s * length * reach) + UP * ((rise * math.sin(s * math.pi * 0.55) - droop * s * s) * length)
+
+        tears = set() if young else {int(t) for t in rng.integers(3, rows, size=int(rng.integers(0, 3)))}
+        blade = paddle_bm(centre, side, rng.uniform(0.22, 0.3), rows, tears)
+        colour = C["bananaLight"] if young else (C["banana"] if k % 2 else C["bananaDark"])
+        pieces.append((blade, [colour] * len(blade.verts),
+                       [min(1.0, 0.3 + (v.co - top).length / length) for v in blade.verts], paddle_leaf(rows)))
+    return merge(pieces)
 
 
 def ti_plant(rng):

@@ -1004,6 +1004,9 @@ BUILDERS = {
     "stage": H.build_stage,
     "torch": H.build_torch,
     "restaurant": H.build_restaurant,
+    # The guest houses where the visitors sleep: an orange-shingled one and a tan one, as the film's.
+    "guest_orange": lambda collection: H.build_guest_house("guest_orange", "orange", collection),
+    "guest_tan": lambda collection: H.build_guest_house("guest_tan", "tan", collection),
     "arch": H.build_arch,
     "banner": H.build_banner,
     "lanterns": H.build_lantern_pole,

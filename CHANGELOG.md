@@ -139,33 +139,54 @@ stage, and along every path. Not yet checked on a real phone.
   plants, for the islanders who keep them.
   Built in Blender by `art/blender/build_village.py` (the arch and banners
   by `art/blender/houses.py`).
-- The village is a clearing deep in the jungle, in the middle of the ring
-  of pillars, on the path from the festival street to the waterfall. Eight big huts stand round it, each
-  one you can walk into, after the film's village frames: chunky log
-  stairs up to a porch of wide planks on a thick log edge, with no
-  railing and potted plants on it, a double plank door wide enough for
-  three, walls shingled all over in round scales between thick log posts
-  and rails, tall windows in heavy frames with a double white zigzag, a
-  roomy log-cabin room inside furnished as an islander's home, and a big
-  mushroom-shaped thatched roof over the porch. Two are plank huts on the
-  ground under wide thatched roofs; two round thatched huts stand at the
-  edge. Built by `art/blender/houses.py`.
-- In the middle of the village, the tall wooden watchtower stage where
-  announcements are made, after the film's: squared timber legs splaying
-  out to the ground, braced on every side with two tiers of crossed
-  planks over cross beams; an open platform 3.6 metres up on a thick rim
-  of two boards, with no railing; posts leaning out from its corners to a
-  tall conical thatched roof twice as wide as the tower; and stairs up its
-  back. Its edge still keeps whoever stands on it from stepping off. Four
-  tiki torches stand in front of it, lit at night.
-- Logs to sit on round the stage, potted plants by the porches, baskets of
-  fruit, flowering bushes and grass round the huts.
+- The village lies in the jungle in the middle of the ring of pillars, on
+  the path from the festival street to the waterfall, its houses in groups
+  of their own as in the film's frames of it: a sandy plaza where the
+  islanders gather, the islanders' own houses to the west of it, and the
+  guest houses in a glade of their own to the north-east. Four big stilt
+  huts face each other in pairs across a sandy lane running from the
+  plaza to the fields, each one you can walk into, after the film's
+  village frames: chunky log stairs up to a porch of wide planks on a
+  thick log edge, with no railing and potted plants on it, a double plank
+  door wide enough for three, walls shingled all over in round scales
+  between thick log posts and rails, tall windows in heavy frames with a
+  double white zigzag, a roomy log-cabin room inside furnished as an
+  islander's home, and a big mushroom-shaped thatched roof over the porch.
+  Two plank huts stand side by side on the ground under wide thatched
+  roofs, with two round thatched huts beside them, in a yard to the
+  north-west. Built by `art/blender/houses.py`.
+- The guest houses, where the visitors sleep, after the film's frames of
+  them: four small log cabins of pale round logs, their cut ends stacked
+  at the corners, on short stilts under steep gable roofs of wooden
+  shingles, two orange and two tan, each with a window in its roof's
+  slope. The door is in the front gable end, up three half-log steps, a
+  plank door with a diamond window and a long handle; the gable over it
+  is boarded cream or pale green, patterned with chevrons round a small
+  window. Inside, the room of bare log walls and a plank floor is empty
+  but for a red cloth hammock slung from wall to wall before the window
+  opposite the door; the windows light up at night. Each
+  stands in a crowd of flowering bushes, banana plants, monstera, ferns,
+  red ti and cycads, palms over it, along a path through their glade.
+- At the plaza's north-east corner, the tall wooden watchtower stage
+  where announcements are made, facing the plaza, after the film's:
+  squared timber legs splaying out to the ground, braced on every side
+  with two tiers of crossed planks over cross beams; an open platform 3.6
+  metres up on a thick rim of two boards, with no railing; posts leaning
+  out from its corners to a tall conical thatched roof twice as wide as
+  the tower; and stairs up its back. Its edge still keeps whoever stands
+  on it from stepping off. Four tiki torches stand in a row in front of
+  it, lit at night, a palisade of rough log posts runs out either side of
+  it, and the jungle's flowers crowd behind, as in the film's frame.
+- Log benches round the plaza and in the lane, potted plants by the
+  porches, baskets of fruit at the stage's foot, flowering bushes and
+  grass round the huts.
 - The jungle fills the island's interior, dense like the film's: a
   canopy of tree clumps whose round crowns run together, nearly four hundred
   palms among them and thick along the beaches, a dozen big trees with
   buttress roots and hanging vines, and under them all ferns, cycads, red
   ti plants, bromeliads, monstera and flowering bushes (purple, white,
-  yellow, red, pink), thickest along the paths. The ground under the trees
+  yellow, red, pink), thickest along the paths; banana plants, their long
+  paddle leaves torn here and there, round the guest houses. The ground under the trees
   is shaded. Everything sways gently in the wind, outlines and all.
 - Crops grow along the fields' rows, just west of the festival street.
 - Blue butterflies flutter round flowering bushes, mostly near the beach
@@ -187,8 +208,8 @@ stage, and along every path. Not yet checked on a real phone.
   the frame, about 1.86 : 1), its lens widened since to take in the grown
   island. From high above, the sea reaches further and the haze thins, so
   the island still reads. `waterfall`, `cliffs`, `bay`, `cave`, `stones`,
-  `riverside` and `shimajiro` stage the film's frames of those places the
-  same way.
+  `riverside`, `shimajiro`, `village`, `lane` and `guesthouse` stage the
+  film's frames of those places the same way.
 - Day and night: a whole day passes in 24 minutes, starting at ten in the
   morning. The sky goes from dawn pinks to bright blue, to a golden
   afternoon, an orange and pink dusk and a deep navy night with twinkling
@@ -299,6 +320,18 @@ outlined is drawn twice, once for its pen line. To get there:
 
 **Changed**
 
+- The village is relaid after the film's frames of it, its houses in
+  groups of their own where they had stood in a ring round the stage:
+  the stage at the plaza's corner, the stilt huts facing each other across
+  the lane to the fields, the plank and round huts in a yard to the
+  north-west, and the new guest houses in their own glade (see the village
+  above). Its sand is the plaza, the lane and the yard; the paths to the
+  cave's beach and to the waterfall start from the plaza, a path winds
+  through the guest houses' glade, and the lane is the way to the fields.
+  The jungle is replanted round it; the waterfall's frame is as before.
+  Measured on the dev PC at 1488 x 800, a few hours into the day (warm):
+  the plaza 21.7 ms, the lane 19.5, a guest house in its greenery 28.3,
+  the waterfall frame 24.2.
 - Jumps carry on through the air. A character jumping keeps going, over
   gaps, drops and water, comes down on whatever is under them when they
   land (the ground, a deck, a stone's top), and is stopped only by what

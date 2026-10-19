@@ -247,6 +247,32 @@ Scale unit: **1 = Chiikawa's height.**
   tied the same way.
 - Potted plants, baskets of fruit, logs as benches.
 
+### How the village is laid out (`village 1`, `3` to `7`)
+
+- Houses stand in groups, never in a ring: the islanders' own huts
+  together, facing each other in pairs across sandy lanes or side by side
+  round a yard; the guest houses together in their own corner.
+- The watchtower stage stands at a corner of a sandy clearing, among the
+  jungle's flowers with a low fence and a palisade of rough posts by it,
+  not in the clearing's middle; the islanders gather before it.
+
+### Guest houses (`guesthouse exterior 1`, `2`, `guesthouse interior 1` to `4`)
+
+- Small log cabins of pale round logs on short stilts, the logs' cut ends
+  stacked at the corners, under steep gable roofs of wooden shingles
+  (orange or tan) with a window lying in the slope. The door is in the
+  front gable end, a plank door with a small diamond window and a long
+  handle, up two or three half-log steps; the gable over it is boarded
+  cream or pale green with chevrons and a small four-paned window.
+- Inside: bare log walls, a plank floor, big many-paned windows full of
+  flowers outside, and a red cloth hammock slung across the room from
+  hooks, before the window opposite the door. The film lays white futons
+  out on the floor at night; the game's rooms are left empty but for the
+  hammock.
+- Lots of greenery right round them: banana plants, flowering bushes
+  (pink, purple, red), monstera, ferns, palms over them; a path of packed
+  earth past their doors.
+
 ### Pier (`chiikawa 8`)
 
 Rough wide planks, round log posts at the edges, sitting right on vivid

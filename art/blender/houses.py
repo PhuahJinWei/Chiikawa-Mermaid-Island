@@ -78,6 +78,15 @@ C = {k: L.hex_color(v) for k, v in {
     "norenLight": "#F3EAD6",
     "chochin": "#E0503E",
     "chochinBand": "#3A2A22",
+    # The guest houses: pale logs, the doors' light planks and diamond windows, and a red hammock.
+    "guestLog": "#E3C28B",
+    "guestLogDark": "#B08A55",
+    "guestLogEnd": "#F4DFB5",
+    "guestDoor": "#D7AD74",
+    "guestDoorLine": "#A97B47",
+    "doorGlass": "#9FD3E6",
+    "hammock": "#D9566B",
+    "hammockDark": "#B4425A",
     # The rooms' furnishing: stone and clay, bamboo, rattan, cloth and the books' bindings.
     "stone": "#A8A196",
     "stoneDark": "#6F6A63",
@@ -875,6 +884,283 @@ def build_plank_hut(name, collection):
                for at, _ in pots]
     decks = [deck_box(-xo + 0.1, xo - 0.1, step, yi, floor), deck_box(-0.8, 0.8, ramp_end, step, floor, 0.02)]
     return [body, lights, room, distant], {"blocks": blocks, "decks": decks, "height": roof[6]}
+
+
+# ---------------------------------------------------------------------------- the guest houses
+# Each guest house's roof and gable colours: the film's two, an orange-shingled one with a cream
+# gable and a tan one with a pale green gable, each patterned with chevrons.
+GUEST_STYLES = {
+    "orange": {"roof": "#D98A4B", "roofLine": "#A6602E", "gable": "#F4E4B4", "chevron": "#FFF8E2"},
+    "tan": {"roof": "#B39469", "roofLine": "#7F6544", "gable": "#DCEBC0", "chevron": "#F2F8E2"},
+}
+
+
+def exact_log(a, b, radius, segments=8):
+    """A log from exactly a to b (segment_bm lengthens what it makes by 4%)."""
+    mid = (a + b) / 2
+    half = (b - a) / 2 / 1.04
+    return P.segment_bm(mid - half, mid + half, radius, radius, segments)
+
+
+def cut_log(a, b, radius, colour, end_colour, pieces, ends=(True, True)):
+    """A log from a to b, each end cut to show its pale grain."""
+    d = (b - a).normalized()
+    cut = 0.03
+    a2 = a + d * cut if ends[0] else a
+    b2 = b - d * cut if ends[1] else b
+    pieces.append((exact_log(a2, b2, radius), colour))
+    if ends[0]:
+        pieces.append((exact_log(a, a2, radius * 0.94), end_colour))
+    if ends[1]:
+        pieces.append((exact_log(b2, b, radius * 0.94), end_colour))
+
+
+def gable_bm(y, half, z0, z1, thickness):
+    """A gable: a triangle over x -half..half from z0 up to z1 at its middle, `thickness` deep from y
+    toward +y."""
+    bm = bmesh.new()
+    front = [bm.verts.new((-half, y, z0)), bm.verts.new((half, y, z0)), bm.verts.new((0.0, y, z1))]
+    back = [bm.verts.new((v.co.x, y + thickness, v.co.z)) for v in front]
+    bm.faces.new(front)
+    bm.faces.new(list(reversed(back)))
+    for i in range(3):
+        j = (i + 1) % 3
+        bm.faces.new((front[i], back[i], back[j], front[j]))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    return bm
+
+
+def grid_window(wall, opening, glow, cols, rows, pieces, inside):
+    """A window in one of a log wall's openings, as the guest houses' are: a dark board frame with a
+    deep sill outside, panes that light up at night, a grid of bars across them, a frame inside."""
+    u0, u1, v0, v1 = opening
+    w, h = u1 - u0, v1 - v0
+    uc, vc = (u0 + u1) / 2, (v0 + v1) / 2
+    bar, e = 0.09, 0.004
+    for c, size in ((wall.point(uc, v1 + (bar - e) / 2, -0.06), (w + 2 * bar, 0.12, bar + e)),
+                    (wall.point(uc, v0 - (bar - e) / 2, -0.08), (w + 2 * bar + 0.12, 0.16, bar + e)),
+                    (wall.point(u0 - (bar - e) / 2, vc, -0.06), (bar + e, 0.12, h)),
+                    (wall.point(u1 + (bar - e) / 2, vc, -0.06), (bar + e, 0.12, h))):
+        pieces.append((oriented_box(c, wall.d, wall.inward, size), C["frame"]))
+    glow.append((oriented_box(wall.point(uc, vc, wall.t / 2), wall.d, wall.inward, (w + 2 * e, 0.02, h + 2 * e)), C["glass"]))
+    for k in range(1, cols):
+        pieces.append((oriented_box(wall.point(u0 + w * k / cols, vc, wall.t / 2 - 0.02), wall.d, wall.inward,
+                                    (0.035, 0.016, h + e)), C["frame"]))
+    for k in range(1, rows):
+        pieces.append((oriented_box(wall.point(uc, v0 + h * k / rows, wall.t / 2 - 0.035), wall.d, wall.inward,
+                                    (w + e, 0.016, 0.035)), C["frame"]))
+    for k in range(0, 2):
+        inside.append((oriented_box(wall.point(uc, v0 + h * k, wall.t + 0.03), wall.d, wall.inward,
+                                    (w + 0.16, 0.06, 0.07)), C["frame"]))
+
+
+def hammock(x0, x1, y, hook_z, low_z, width, pieces):
+    """A red cloth hammock slung across a room from hooks on its walls at x0 and x1: ropes from the
+    hooks to the cloth's gathered ends, the cloth sagging between them, its sides curling up a little
+    like a cradle. A thin solid, so the pen draws its edge."""
+    end0, end1 = x0 + 0.35, x1 - 0.35
+    for hx, ex in ((x0, end0), (x1, end1)):
+        pieces.append((P.segment_bm(V(hx, y, hook_z + 0.05), V(hx, y, hook_z - 0.05), 0.03, 0.03, 6), C["iron"]))
+        for dy in (-width * 0.3, width * 0.3):
+            pieces.append((P.segment_bm(V(hx, y, hook_z), V(ex, y + dy * 0.4, hook_z - 0.12), 0.012, 0.012, 4), C["rope"]))
+    cols, rows = 14, 5
+    top, bottom, colours = [], [], []
+    bm = bmesh.new()
+    for i in range(cols + 1):
+        u = i / cols
+        x = end0 + (end1 - end0) * u
+        sag = 4.0 * u * (1.0 - u)
+        gather = math.sin(math.pi * u) ** 0.6
+        for j in range(rows + 1):
+            v = j / rows * 2.0 - 1.0
+            z = hook_z - 0.12 - (hook_z - 0.12 - low_z) * sag + 0.1 * v * v * gather
+            yy = y + v * width / 2 * gather
+            top.append(bm.verts.new((x, yy, z + 0.012)))
+            bottom.append(bm.verts.new((x, yy, z - 0.012)))
+            colours += [C["hammockDark"] if i % 3 == 0 else C["hammock"]] * 2
+    n = rows + 1
+    for i in range(cols):
+        for j in range(rows):
+            a, b, c, d = i * n + j, (i + 1) * n + j, (i + 1) * n + j + 1, i * n + j + 1
+            bm.faces.new((top[a], top[b], top[c], top[d]))
+            bm.faces.new((bottom[d], bottom[c], bottom[b], bottom[a]))
+    for i in range(cols):
+        for j in (0, rows):
+            a, b = i * n + j, (i + 1) * n + j
+            bm.faces.new((top[a], bottom[a], bottom[b], top[b]))
+    for i in (0, cols):
+        for j in range(rows):
+            a, b = i * n + j, i * n + j + 1
+            bm.faces.new((top[a], top[b], bottom[b], bottom[a]))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    pieces.append((bm, colours))
+
+
+def build_guest_house(name, style, collection):
+    """A guest house, as in the film's, where the visitors sleep: a small log cabin of pale round
+    logs, their cut ends showing at the corners, on short stilts, under a steep gable roof of wooden
+    shingles with a window in its slope. Its door is in the front gable end, a plank door with a
+    diamond window, up three half-log steps; the gable above it is boarded in a pale colour patterned
+    with chevrons round a small window. Inside, an empty room of bare log walls and a plank floor, but
+    for a red hammock slung across it before the window opposite the door. Faces -Y."""
+    s = GUEST_STYLES[style]
+    roof_colour, roof_line = L.hex_color(s["roof"]), L.hex_color(s["roofLine"])
+    floor, wall_h, t = 0.55, 2.0, 0.2
+    xi, yi = 1.95, 2.4
+    xo, yo = xi + t, yi + t
+    eave = floor + wall_h
+    pitch = math.radians(52.0)
+    ridge = eave + xo * math.tan(pitch)
+    over, gable_over = 0.45, 0.4
+    door = 0.45
+    pieces, glow, inside = [], [], []
+    sill, head = 0.85, 1.6
+    front = Wall((-xo, -yo + t / 2), (xo, -yo + t / 2), floor, wall_h, t, [(xo - door, xo + door, 0.0, 1.85)])
+    back = Wall((xo, yo - t / 2), (-xo, yo - t / 2), floor, wall_h, t, [(xo - 0.5, xo + 0.5, sill, head)])
+    left = Wall((-xo + t / 2, yi), (-xo + t / 2, -yi), floor, wall_h, t, [(yi - 0.5, yi + 0.5, sill, head)])
+    right = Wall((xo - t / 2, -yi), (xo - t / 2, yi), floor, wall_h, t, [(yi - 0.5, yi + 0.5, sill, head)])
+    walls = (front, back, left, right)
+    r = 0.12
+    courses = int(wall_h / (2 * r))
+    for wall in walls:
+        pieces.extend(wall.skins(C["guestLogDark"], C["guestLog"]))
+        inside.extend(wall.courses(C["insideLine"], 1, start=2 * r, step=2 * r))
+        # Round logs along the wall's outer face, course on course, cut at its openings; at the corners
+        # every other course runs on past the corner, so the logs' ends stack there as the film draws.
+        ends_out = wall in (front, back)
+        for k in range(courses):
+            v = r + 2 * r * k
+            past = (0.24 if ends_out else 0.24 + t) if (k % 2 == 0) == ends_out else (-0.05 if ends_out else 0.15)
+            spans = solid_spans(wall.length, v, [(a - 0.02, b + 0.02, c - r, d + r) for a, b, c, d in wall.openings])
+            for u0, u1 in spans:
+                if u1 - u0 < 0.12:
+                    continue
+                start = u0 - (past if u0 < 1e-6 else 0.0)
+                end = u1 + (past if u1 > wall.length - 1e-6 else 0.0)
+                if end - start < 0.12:
+                    continue
+                cut_log(wall.point(start, v, -0.03), wall.point(end, v, -0.03), r, C["guestLog"], C["guestLogEnd"], pieces)
+        for o in wall.openings:
+            if o[2] > 0.1:
+                grid_window(wall, o, glow, 3, 3, pieces, inside)
+    # The door's frame, and the plank door open into the room against the wall beside it, a diamond
+    # window and a long handle on it.
+    e = 0.004
+    for c, size in ((V(0.0, -yo - 0.04, floor + 1.85 + 0.05 - e), (2 * door + 0.2, 0.14, 0.1)),
+                    (V(-door - 0.05 + e, -yo - 0.04, floor + 0.9), (0.1, 0.14, 1.9)),
+                    (V(door + 0.05 - e, -yo - 0.04, floor + 0.9), (0.1, 0.14, 1.9))):
+        pieces.append((P.box_bm(c, size), C["frame"]))
+    leaf_x = -door + 0.03
+    pieces.append((oriented_box(V(leaf_x, -yi + 0.46, floor + 0.92), V(0, 1, 0), V(1, 0, 0), (0.88, 0.05, 1.8)),
+                   C["guestDoor"]))
+    for k in (-1, 0, 1):
+        pieces.append((oriented_box(V(leaf_x + 0.027, -yi + 0.46 + 0.22 * k, floor + 0.92), V(0, 1, 0), V(1, 0, 0),
+                                    (PEN, 0.006, 1.74)), C["guestDoorLine"]))
+    diamond = Matrix.Rotation(math.pi / 4, 3, "X")
+    for side in (-1.0, 1.0):
+        at = V(leaf_x + side * 0.028, -yi + 0.46, floor + 1.32)
+        bm = P.box_bm(V(0.0, 0.0, 0.0), (0.012, 0.16, 0.16))
+        L.transformed(bm, Matrix.Translation(at) @ diamond.to_4x4())
+        pieces.append((bm, C["doorGlass"]))
+    pieces.append((oriented_box(V(leaf_x + 0.042, -yi + 0.8, floor + 0.95), UP, V(1, 0, 0), (0.34, 0.035, 0.035)),
+                   C["handle"]))
+    # The floor on its stilts, its planks drawn inside, and the half-log steps up to the door.
+    pieces.append((P.box_bm(V(0.0, 0.0, floor - 0.08), (2 * xo + 0.1, 2 * yo + 0.1, 0.16)), C["floor"]))
+    for k in range(1, 9):
+        x = -xi + 2 * xi * k / 9
+        inside.append((P.box_bm(V(x, 0.0, floor + 0.002), (PEN, 2 * yi - 0.02, 0.01)), C["floorLine"]))
+    for x in (-xo + 0.15, xo - 0.15):
+        for y in (-yo + 0.15, 0.0, yo - 0.15):
+            pieces.append((P.box_bm(V(x, y, (floor - 0.16 - 0.3) / 2), (0.24, 0.24, floor - 0.16 + 0.3)), C["logDark"]))
+    steps_end = -yo - 1.05
+    for x in (-0.62, 0.62):
+        pieces.append((log(V(x, -yo - 0.02, floor - 0.08), V(x, steps_end, -0.08), 0.08, segments=8), C["logDark"]))
+    for k in range(3):
+        f = (k + 1) / 4
+        y = -yo + (steps_end + yo) * f
+        z = floor * (1 - f)
+        pieces.append((P.box_bm(V(0.0, y + 0.02, z - 0.05), (1.36, 0.3, 0.1)), C["guestLog"]))
+        cut_log(V(-0.7, y - 0.13, z - 0.06), V(0.7, y - 0.13, z - 0.06), 0.07, C["guestLog"], C["guestLogEnd"], pieces)
+    # The gables over the front and back walls, boarded pale and patterned with chevrons, a small
+    # window in each.
+    gable_colour, chevron = L.hex_color(s["gable"]), L.hex_color(s["chevron"])
+    rise = ridge - eave
+    for sign in (-1.0, 1.0):
+        # Its face as far out as the logs' middles, reaching back into the wall.
+        y_face = sign * (yo + 0.1)
+        pieces.append((gable_bm(y_face if sign < 0 else y_face - 0.18, xo, eave - 0.02, ridge - 0.04, 0.18), gable_colour))
+        out = V(0.0, sign, 0.0)
+        face_y = y_face + sign * 0.012
+        for k in range(3):
+            inset = 0.32 + 0.34 * k
+            top_z = ridge - 0.04 - inset / math.cos(pitch) - 0.1
+            half = (top_z - eave) / math.tan(pitch)
+            if half < 0.25:
+                continue
+            for sx in (-1.0, 1.0):
+                p, q = V(0.0, face_y, top_z), V(sx * half, face_y, eave + 0.06)
+                pieces.append((oriented_box((p + q) / 2, q - p, out, ((q - p).length, 0.012, 0.07)), chevron))
+        wz = eave + rise * 0.42
+        for c, size in ((V(0.0, y_face + sign * 0.03, wz + 0.29), (0.68, 0.05, 0.08)),
+                        (V(0.0, y_face + sign * 0.03, wz - 0.29), (0.68, 0.05, 0.08)),
+                        (V(-0.3, y_face + sign * 0.03, wz), (0.08, 0.05, 0.5)),
+                        (V(0.3, y_face + sign * 0.03, wz), (0.08, 0.05, 0.5))):
+            pieces.append((P.box_bm(c, size), C["frame"]))
+        glow.append((P.box_bm(V(0.0, y_face + sign * 0.022, wz), (0.52, 0.012, 0.52)), C["glass"]))
+        for c, size in ((V(0.0, y_face + sign * 0.03, wz), (0.03, 0.03, 0.5)), (V(0.0, y_face + sign * 0.03, wz), (0.5, 0.03, 0.03))):
+            pieces.append((P.box_bm(c, size), C["frame"]))
+    # The roof: two slabs of wooden shingles, their rows drawn along them, over a log at the ridge,
+    # and a window lying in the right slope.
+    length = (xo + over) / math.cos(pitch) + 0.06
+    depth = 2 * (yo + gable_over)
+    thick = 0.12
+    far = []
+    for sx in (-1.0, 1.0):
+        down = V(sx * math.cos(pitch), 0.0, -math.sin(pitch))
+        normal = V(sx * math.sin(pitch), 0.0, math.cos(pitch))
+        top_edge = V(0.0, 0.0, ridge) - down * 0.06
+        centre = top_edge + down * (length / 2) + normal * (thick / 2)
+        slab = oriented_box(centre, down, V(0, 1, 0), (length, depth, thick))
+        pieces.append((slab, roof_colour))
+        far.append((oriented_box(centre, down, V(0, 1, 0), (length, depth, thick)), roof_colour))
+        rows = int(length / 0.24)
+        for k in range(1, rows):
+            c = top_edge + down * (length * k / rows) + normal * (thick + 0.012)
+            pieces.append((oriented_box(c, V(0, 1, 0), normal, (depth - 0.02, 0.012, PEN)), roof_line))
+        if sx > 0:
+            c = top_edge + down * (length * 0.5) + V(0.0, 0.7, 0.0) + normal * (thick + 0.045)
+            pieces.append((oriented_box(c, down, V(0, 1, 0), (0.82, 0.72, 0.1)), C["frame"]))
+            glow.append((oriented_box(c + normal * 0.04, down, V(0, 1, 0), (0.66, 0.56, 0.03)), C["glass"]))
+            for k in (-1, 1):
+                pieces.append((oriented_box(c + normal * 0.06 + down * (0.11 * k), V(0, 1, 0), normal, (0.62, 0.03, 0.02)),
+                               C["frame"]))
+                pieces.append((oriented_box(c + normal * 0.06 + V(0.0, 0.093 * k, 0.0), down, normal, (0.72, 0.03, 0.02)),
+                               C["frame"]))
+    pieces.append((log(V(0.0, -yo - gable_over - 0.05, ridge + 0.05), V(0.0, yo + gable_over + 0.05, ridge + 0.05), 0.09,
+                       segments=10), C["logDark"]))
+    # Inside, nothing but a red hammock slung from wall to wall before the window opposite the door.
+    hammock(-xi, xi, yi - 0.6, floor + 1.75, floor + 1.15, 0.75, inside)
+    far += [wall.far(C["guestLog"]) for wall in walls]
+    for sign in (-1.0, 1.0):
+        far.append((gable_bm(sign * (yo + 0.1) - (0.2 if sign > 0 else 0.0), xo, eave - 0.02, ridge - 0.04, 0.2), gable_colour))
+    far.append((P.box_bm(V(0.0, 0.0, (floor - 0.3) / 2), (2 * xo, 2 * yo, floor + 0.3)), C["logDark"]))
+
+    body = P.join(name, pieces, collection, sharp=P.SHARP)
+    lights = P.join(f"{name}_glow", glow, collection)
+    room = P.join(f"{name}_inside", inside, collection, sharp=P.SHARP)
+    distant = P.join(f"{name}_far", far, collection, sharp=P.SHARP)
+    blocks = [
+        block_box(-xo, xo, yi, yo, -10, eave), block_box(-xo, -door, -yo, -yi, -10, eave),
+        block_box(door, xo, -yo, -yi, -10, eave), block_box(-xo, -xi, -yo, yo, -10, eave),
+        block_box(xi, xo, -yo, yo, -10, eave),
+        block_box(-xo, xo, -yo, yo, -10, floor - 0.16, camera=False),
+        block_box(-xo - over, xo + over, -yo - gable_over, yo + gable_over, eave - 0.05, ridge + 0.1, walk=False),
+        block_box(leaf_x - 0.05, leaf_x + 0.05, -yi, -yi + 0.92, floor - 0.1, floor + 1.85, camera=False),
+        block_box(-0.75, -0.62, steps_end, -yo, -0.2, floor, camera=False),
+        block_box(0.62, 0.75, steps_end, -yo, -0.2, floor, camera=False),
+    ]
+    decks = [deck_box(-xi, xi, -yo - 0.02, yi, floor), deck_box(-0.6, 0.6, steps_end, -yo - 0.02, floor, 0.02)]
+    return [body, lights, room, distant], {"blocks": blocks, "decks": decks, "height": ridge + 0.2}
 
 
 # ---------------------------------------------------------------------------- 島二郎

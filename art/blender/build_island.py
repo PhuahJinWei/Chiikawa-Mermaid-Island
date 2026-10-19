@@ -130,11 +130,22 @@ PLANTED_ROUND = [("stall_pink", -6.5, -13.51, 1.6), ("stall_blue", 6.5, -13.51, 
                  ("basket", 15.26, -11.84, 204.6), ("basket", -21.1, -11.37, 299.3),
                  ("basket", 24.02, -11.08, 168.7), ("basket", -4.25, -24.56, 141.0),
                  ("basket", 4.25, -30.4, 235.0), ("basket", -4.25, -36.24, 329.0),
-                 ("basket", 4.25, -39.16, 16.0), ("basket", -6, -92, 40.0), ("basket", 6.5, -91, 300.0)]
+                 ("basket", 4.25, -39.16, 16.0), ("basket", 5.55, -88.91, 40.0), ("basket", 10.44, -84.61, 300.0)]
 PLANTED_KINDS = ("stall_", "banner", "bunting_", "lanterns", "basket")
-# The village: a clearing in the jungle, its huts round the watchtower stage, on the lowland's level
-# ground.
-VILLAGE = {"centre": (0.0, -84.0), "radius": 22.0, "feather": 6.0}
+# The village, as the film's: its houses in groups of their own, not round a ring. A sandy plaza
+# where the islanders gather, the watchtower stage at its north-east corner; the local houses' lane
+# to the fields, its stilt huts facing each other across it, and a yard to the north-west with the
+# plank and beehive huts (each a polyline, or a point, and how far its sand reaches round it). The
+# guest houses stand in a glade of their own to the north-east, in the jungle's greenery (see
+# GUEST_GREENS). All on the lowland's level ground.
+VILLAGE = {"plaza": ((0.0, -78.0), 14.0), "lanes": [([(-11.0, -71.0), (-24.0, -63.5), (-36.0, -56.5), (-44.0, -50.0)], 4.6)],
+           "yards": [((-19.0, -97.0), 9.0)], "feather": 5.0}
+# Round each guest house, as in the film's frames of them: a crowd of flowering bushes, banana
+# plants, monstera, ferns, red ti and cycads all round it but in front of its steps, this far out
+# from its eaves (a range; its half width, depth behind and reach in front, steps and all, `half`), and
+# a few palms over it.
+GUEST_GREENS = {"count": 16, "room": (0.5, 2.6), "front": 40.0, "palms": 3, "half": (2.6, 3.0, 4.1),
+                "mix": ("bush", "banana", "bush", "monstera", "bush", "ti", "fern", "banana", "cycad", "bush")}
 FIELDS = {"centre": (-45.0, -38.0), "half": (14.0, 12.0), "feather": 6.0, "height": 1.2}
 # The jungle waterfall, after the film's frame of it, in the middle of the island: the round water
 # the aerial shot shows through the trees in the middle of the ring of pillars is its pool. The
@@ -395,9 +406,13 @@ PROP_ROOM = {"hut_green": 7.0, "hut_warm": 7.0, "hut_plank": 5.5, "beehive": 3.8
              # before these poles stood along the street.
              "bunting_side": 1.0,
              # 島二郎, the restaurant at the end of the riverside path, and its sign hung over the path.
-             "restaurant": 7.5, "sign_hanging": 1.6}
+             "restaurant": 7.5, "sign_hanging": 1.6,
+             # The guest houses keep the trees off their roofs; the plants crowd in closer (see
+             # GUEST_GREENS). The palisade by the stage.
+             "guest_orange": 6.5, "guest_tan": 6.5, "fence": 1.2}
 # Plants crowd round the backs of the village's houses, this far from their middles.
-HUT_ROOM = {"hut_green": (5.6, 6.6), "hut_warm": (5.6, 6.6), "hut_plank": (4.4, 5.2), "beehive": (3.0, 3.6)}
+HUT_ROOM = {"hut_green": (5.6, 6.6), "hut_warm": (5.6, 6.6), "hut_plank": (4.4, 5.2), "beehive": (3.0, 3.6),
+            "stage": (7.0, 8.4)}
 # Nothing is planted nearer a beehive hut's middle than this: its eave reaches 2.2 m, a bush 0.7 m
 # more, and a palm's trunk leans.
 BEEHIVE_CLEAR = 3.0
@@ -432,14 +447,16 @@ def offset_line(points, offset, x_from, x_to, step=4.0):
 # Packed-earth paths: polylines (x, z) and their width in metres.
 PATHS = [
     ([(0.0, -45.0), (0.5, -54.0), (0.0, -62.0)], 3.4),                                  # the street up to the village
-    ([(1.0, -105.0), (0.0, -130.0), (-3.0, -158.0), (-2.2, -175.0), (-7.5, -179.1), (-10.9, -184.1),
+    ([(0.0, -91.0), (0.5, -105.0), (0.0, -130.0), (-3.0, -158.0), (-2.2, -175.0), (-7.5, -179.1), (-10.9, -184.1),
       (-13.9, -189.4)], 3.0),                                                           # the village to the waterfall's bank
-    ([(-22.0, -90.0), (-32.0, -72.0), (-40.0, -57.0), (-44.0, -50.0)], 2.6),            # the village to the fields
+    ([(0.5, -100.0), (9.0, -103.5), (18.0, -106.0), (26.0, -111.0), (28.5, -119.0), (24.0, -126.0)], 2.0),
+                                                                                        # through the guest houses' glade
     ([(14.0, -1.0), (38.0, -8.0), (58.0, -16.0), (74.0, -24.0)], 2.6),                  # the plaza to the night beach
     ([(15.0, -74.0), (22.0, -56.0), (34.0, -34.0), (40.0, -14.0)], 2.4),                # the village down to the beach
     ([(-2.2, -175.0), (8.0, -180.0), (17.0, -185.5), (24.7, -190.7), (30.5, -198.0), (27.5, -208.0), (21.0, -219.0),
       (22.0, -232.0), (25.0, -250.0), (27.0, -266.4)], 2.2),                            # past the waterfall to the sea cliffs
-    ([(-22.0, -92.0), (-55.0, -98.0), (-90.0, -100.0), (-130.0, -98.0), (-165.0, -100.0), (-186.0, -95.0)], 2.4),
+    ([(-14.0, -82.0), (-32.0, -86.0), (-52.0, -91.0), (-90.0, -100.0), (-130.0, -98.0), (-165.0, -100.0), (-186.0, -95.0)],
+     2.4),
                                                                                         # the village to the cave's beach
     ([(-13.9, -189.4), (-25.0, -199.0), (-52.0, -201.0), (-70.0, -195.0)]
      + offset_line(GORGE["line"], -(GORGE["water"] + GORGE["ledge"][1] / 2), -76.0, -142.0)
@@ -801,6 +818,18 @@ def boulder_specs():
     return specs
 
 
+def village_mask(x, z):
+    """1 on the village's sand (its plaza, its lane, its yard; see VILLAGE), easing to 0 round it."""
+    v = VILLAGE
+    (px, pz), r = v["plaza"]
+    d = np.hypot(x - px, z - pz) - r
+    for points, half in v["lanes"]:
+        d = np.minimum(d, polyline_distance(x, z, points) - half)
+    for (yx, yz), r in v["yards"]:
+        d = np.minimum(d, np.hypot(x - yx, z - yz) - r)
+    return 1.0 - smoothstep(0.0, v["feather"], d)
+
+
 def tableland_sdf(x, z, s):
     """How far inside the tableland (x, z) is, in metres (negative outside it): within its outline,
     back from the sea, outside the gorge."""
@@ -928,8 +957,7 @@ def ground(x, z, natural=False, ramps=True):
     inland = smoothstep(0.0, 6.0, s)
     m_plaza = box_mask(x, z, PLAZA["centre"], PLAZA["half"], PLAZA["feather"]) * inland
     m_street = box_mask(x, z, STREET["centre"], STREET["half"], STREET["feather"]) * inland
-    vx, vz = VILLAGE["centre"]
-    m_village = 1.0 - smoothstep(VILLAGE["radius"], VILLAGE["radius"] + VILLAGE["feather"], np.hypot(x - vx, z - vz))
+    m_village = village_mask(x, z)
     if not natural:
         h = h + (FESTIVAL["level"] - h) * festival_level(x, z) * inland
         h = h + (low["height"] + 0.04 * noise(x, z, 9.0, 4.0) - h) * m_village
@@ -1966,7 +1994,7 @@ def build_plants(collection, outlines):
     tuft_ok = (G["village"] > 0.05) & (G["path"] > 1.0) & (G["prop"] > 0.5) & (G["slope"] < 0.8)
     tuft_gap = np.where(G["village"] < 0.85, 1.3, 2.6)
     for x, z in scatter(rng, G, tuft_ok, tuft_gap, taken=None, stride=1, limit=260):
-        if math.hypot(x - VILLAGE["centre"][0], z - VILLAGE["centre"][1]) < 8.0:
+        if math.hypot(x - VILLAGE["plaza"][0][0], z - VILLAGE["plaza"][0][1]) < 8.0:
             continue
         variants.plant("under", tufts[int(rng.integers(0, len(tufts)))], x, at(x, z) - 0.02, z,
                        rng.uniform(0, 2 * math.pi), rng.uniform(0.8, 1.3))
@@ -2061,11 +2089,50 @@ def build_plants(collection, outlines):
             if variants.plant("palms", near, x, at(x, z) - 0.05, z, rng.uniform(0, 2 * math.pi), rng.uniform(0.85, 1.1), far):
                 trunks.append([round(x, 2), round(z, 2), 0.3])
 
+    # Round the guest houses, as thick as the film's: flowering bushes, banana plants, monstera, ferns,
+    # red ti and cycads all round each but before its steps, and palms over it; from a generator of
+    # their own.
+    greens = np.random.default_rng(131)
+    kinds["banana"] = [variants.shape("banana", PL.to_arrays(PL.banana(greens))) for _ in range(3)]
+    g = GUEST_GREENS
+    for kind, hx_, hz_, turn in props:
+        if not kind.startswith("guest_"):
+            continue
+        front = math.radians(turn)
+        hx, hz_back, hz_front = g["half"]
+        for k in range(g["count"]):
+            rel = math.radians(greens.uniform(g["front"], 360.0 - g["front"]))
+            # Out from the eaves: where a line from the middle that way leaves the house's box.
+            hz = hz_front if math.cos(rel) > 0.0 else hz_back
+            edge = min(hx / max(abs(math.sin(rel)), 1e-6), hz / max(abs(math.cos(rel)), 1e-6))
+            d = edge + greens.uniform(*g["room"])
+            a = front + rel
+            x, z = hx_ + d * math.sin(a), hz_ + d * math.cos(a)
+            if grid_at(G, "path", x, z) < 1.1:
+                continue
+            pick = g["mix"][k % len(g["mix"])]
+            y = at(x, z) - 0.04
+            shapes = kinds[pick]
+            grown = variants.plant("under", shapes[int(greens.integers(0, len(shapes)))], x, y, z,
+                                   greens.uniform(0, 2 * math.pi), greens.uniform(0.9, 1.3))
+            if pick == "bush" and grown:
+                flowers.append((x, y, z))
+        for k in range(g["palms"]):
+            a = front + math.radians(120.0 + 60.0 * k + greens.uniform(-20.0, 20.0))
+            d = g["half"][1] + g["room"][1] + greens.uniform(0.8, 2.0)
+            x, z = hx_ + d * math.sin(a), hz_ + d * math.cos(a)
+            if grid_at(G, "path", x, z) < 1.5:
+                continue
+            near, far = palms[int(greens.integers(0, len(palms)))]
+            if variants.plant("palms", near, x, at(x, z) - 0.05, z, greens.uniform(0, 2 * math.pi), greens.uniform(0.9, 1.15), far):
+                trunks.append([round(x, 2), round(z, 2), 0.3])
+
     # Blue butterflies flutter round flowering bushes, a few here and there; the nearer to the
     # festival and the village, the likelier.
     rng.shuffle(flowers)
-    vx, vz = VILLAGE["centre"]
-    flowers.sort(key=lambda p: min(math.hypot(p[0], p[2] + 20.0), math.hypot(p[0] - vx, p[2] - vz)) * rng.uniform(0.6, 1.4))
+    vx, vz = VILLAGE["plaza"][0]
+    flowers.sort(key=lambda p: min(math.hypot(p[0], p[2] + 20.0), math.hypot(p[0] - vx, p[2] - vz),
+                                   math.hypot(p[0] - 21.0, p[2] + 112.0)) * rng.uniform(0.6, 1.4))
     homes, spaced = [], Spacing(8.0)
     for x, y, z in flowers:
         if spaced.free(x, z, 14.0):

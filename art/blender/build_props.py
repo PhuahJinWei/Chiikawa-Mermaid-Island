@@ -419,6 +419,26 @@ def build_sign_hanging(collection):
     return [sign, label], info
 
 
+def build_fence(collection):
+    """A short length of palisade, as by the film's village stage: thick log posts of uneven heights
+    side by side, their sawn tops pale, a rail across their backs. Faces -Y, 2.4 m long."""
+    def exact(a, b, r0, r1):
+        # segment_bm makes what it is given 4% longer, about its middle.
+        mid, half = (a + b) / 2, (b - a) / 2 / 1.04
+        return segment_bm(mid - half, mid + half, r0, r1, segments=9)
+
+    pieces = []
+    heights = (1.15, 0.95, 1.3, 1.05, 1.22, 0.9)
+    for k, h in enumerate(heights):
+        x = -1.0 + 0.4 * k
+        r = 0.105 + 0.012 * (k % 3)
+        pieces.append((exact(Vector((x, 0.0, -0.3)), Vector((x, 0.0, h - 0.03)), r, r * 0.97), C["bark"]))
+        pieces.append((exact(Vector((x, 0.0, h - 0.03)), Vector((x, 0.0, h)), r * 0.93, r * 0.9), C["logEnd"]))
+    pieces.append((segment_bm(Vector((-1.2, 0.13, 0.6)), Vector((1.2, 0.13, 0.62)), 0.055, 0.05, segments=7), C["bark"]))
+    fence = L.assemble_colored("fence", pieces, collection)
+    return [fence], {"footprint": {"box": [1.2, 0.18]}, "height": 1.3}
+
+
 def wing_bm(outline, thickness):
     """A thin solid wing from an outline of (x, y) points round its edge, flat in the XY plane."""
     bm = bmesh.new()
@@ -486,6 +506,7 @@ BUILDERS = {
     "onigiri": build_onigiri,
     "sign": build_sign,
     "sign_hanging": build_sign_hanging,
+    "fence": build_fence,
     "butterfly": build_butterfly,
     "quay": build_quay,
 }

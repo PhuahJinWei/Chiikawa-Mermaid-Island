@@ -131,6 +131,41 @@ export const SHOTS: Record<string, StagedShot> = {
     camera: { position: [-153.5, 1.35, -170.6], target: [-159.0, 2.0, -166.7], fov: 50 },
     hour: 21.5,
   },
+  // The film's frame of the village's plaza (`village 3`): the islanders lined up across the sand,
+  // the watchtower stage at its corner behind them among the jungle's flowers.
+  village: {
+    characters: {
+      chiikawa: { x: -1.2, z: -79.0, yaw: 2.4 },
+      hachiware: { x: 0.2, z: -80.2, yaw: 2.4 },
+      usagi: { x: 1.6, z: -81.4, yaw: 2.4 },
+    },
+    crowd: [
+      [-4.0, -76.6, 2.4],
+      [-2.6, -77.8, 2.4],
+      [3.0, -82.6, 2.4],
+      [4.4, -83.8, 2.4],
+      [5.8, -85.0, 2.4],
+    ],
+    camera: { position: [-9.5, 2.5, -64.5], target: [7.0, 3.6, -86.5], fov: 45 },
+    hour: 11,
+  },
+  // The film's frames of the local houses' lane (`village 1`, `5`, `7`): two stilt huts facing each
+  // other across the sand, the cast between them.
+  lane: {
+    characters: {
+      usagi: { x: -23.6, z: -64.8, yaw: -2.1 },
+      hachiware: { x: -22.4, z: -66.0, yaw: -2.1 },
+      chiikawa: { x: -22.9, z: -63.4, yaw: -2.1 },
+    },
+    camera: { position: [-15.5, 2.6, -68.5], target: [-26.5, 2.4, -62.0], fov: 55 },
+    hour: 11,
+  },
+  // The film's frame of a guest house (`guesthouse exterior 1`): from its path, in its greenery.
+  guesthouse: {
+    characters: {},
+    camera: { position: [13.6, 2.7, -101.5], target: [12.0, 3.6, -110.5], fov: 55 },
+    hour: 11,
+  },
   // Lineup of the main cast at eye level, for checking proportions side by side.
   cast: {
     characters: {
