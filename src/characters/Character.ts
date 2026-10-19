@@ -31,6 +31,13 @@ export interface FrameContext {
   groundHeight: (x: number, z: number, feet?: number) => number;
   /** Keeps a character who moved from `from` (from.y: their feet) to `p` on ground they can stand on. */
   clamp: (p: THREE.Vector3, from: THREE.Vector3) => void;
+  /** In the air, their feet at `y`: keeps a character who moved from `from` to `p` from passing into
+   * anything standing higher than their feet. Without it, jumps go straight up and down and no one
+   * falls off an edge. */
+  air?: (p: THREE.Vector3, from: THREE.Vector3, y: number) => void;
+  /** Whether someone whose feet came down to `y` at p fell into water too deep to stand in; if so,
+   * p is moved to the nearest place they can climb out. */
+  splash?: (p: THREE.Vector3, y: number) => boolean;
   /** How deep in the trees' shade a point is, 0 in the sun to 1: in the film look only. */
   shade?: (x: number, y: number, z: number) => number;
   /** The firelight's warmth at a point after dark, as a tint (white where none reaches): in the
@@ -41,6 +48,8 @@ export interface FrameContext {
 const GRAVITY = -24;
 const JUMP_SPEED = 5.8;
 const ACCEL = 16;
+/** Walking off an edge deeper than this is a fall, not a step down. */
+const DROP = 0.6;
 
 const _v = new THREE.Vector3();
 const _w = new THREE.Vector3();
@@ -240,6 +249,10 @@ export class Character implements EmoteHost {
     this.root.position.set(x, 0, z);
     this.feet = NaN;
     this.shaded = NaN;
+    this.airborne = false;
+    this.jumpY = 0;
+    this.vy = 0;
+    this.crouch = -1;
     this.velocity.set(0, 0, 0);
     this.desired.set(0, 0, 0);
     this.facing = this.targetFacing = yaw;
@@ -317,7 +330,10 @@ export class Character implements EmoteHost {
     _from.y = this.feet;
     pos.x += this.velocity.x * dt;
     pos.z += this.velocity.z * dt;
-    ctx.clamp(pos, _from);
+    // In the air they carry on over gaps, drops and water, stopped only by what stands higher than
+    // their feet; on their feet they keep to what they can walk on.
+    if (this.airborne && ctx.air) ctx.air(pos, _from, this.feet + this.jumpY);
+    else ctx.clamp(pos, _from);
 
     const inv = 1 / Math.max(dt, 1e-4);
     const k = Math.min(1, dt * 12);
@@ -340,22 +356,58 @@ export class Character implements EmoteHost {
         this.squash.velocity += 2.5;
       }
     }
-    if (this.airborne) {
+    if (this.airborne && ctx.air) {
+      // Their feet's height in the air against what is under them where they are now: a deck or
+      // ground they come down on (or one a step above them, which they land on all the same), water
+      // too deep to stand in (they climb out at the nearest shore), or nothing yet.
       this.vy += GRAVITY * dt;
-      this.jumpY += this.vy * dt;
-      if (this.jumpY <= 0) {
-        const impact = Math.min(1.4, -this.vy / JUMP_SPEED);
+      const was = this.feet + this.jumpY;
+      const y = was + this.vy * dt;
+      const under = ctx.groundHeight(pos.x, pos.z, Math.max(y, was));
+      if (y <= under) {
+        this.feet = under;
+        this.jumpY = 0;
+        this.land();
+      } else if (ctx.splash?.(pos, y)) {
+        this.feet = ctx.groundHeight(pos.x, pos.z);
         this.jumpY = 0;
         this.vy = 0;
         this.airborne = false;
-        this.squash.velocity -= 3.2 * impact;
-        for (const s of this.earBend) s.velocity += 7 * impact;
-        for (const s of this.earPitch) s.velocity += 2.5 * impact;
+        this.velocity.set(0, 0, 0);
+      } else {
+        this.feet = under;
+        this.jumpY = y - under;
       }
+    } else {
+      if (this.airborne) {
+        this.vy += GRAVITY * dt;
+        this.jumpY += this.vy * dt;
+        if (this.jumpY <= 0) {
+          this.jumpY = 0;
+          this.land();
+        }
+      }
+      const below = ctx.groundHeight(pos.x, pos.z, this.feet);
+      if (!this.airborne && ctx.air && below < this.feet - DROP) {
+        // Walked off an edge: they fall from where their feet were.
+        this.airborne = true;
+        this.vy = 0;
+        this.jumpY = this.feet - below;
+      }
+      this.feet = below;
     }
-    this.feet = ctx.groundHeight(pos.x, pos.z, this.feet);
     pos.y = this.feet + this.jumpY;
     this.root.rotation.y = this.facing;
+  }
+
+  /** Coming down on their feet: a squash and a bounce of the ears, as hard as they came down. */
+  private land(): void {
+    const impact = Math.min(1.4, -this.vy / JUMP_SPEED);
+    this.vy = 0;
+    this.airborne = false;
+    this.squash.velocity -= 3.2 * impact;
+    for (const s of this.earBend) s.velocity += 7 * impact;
+    for (const s of this.earPitch) s.velocity += 2.5 * impact;
   }
 
   /** Height of the character's feet when not jumping: what they stand on. */
@@ -427,7 +479,7 @@ export class Character implements EmoteHost {
     const lx = this.leanX.update(p.leanX - ax * 0.004, dt);
     const lz = this.leanZ.update(p.leanZ + this.speed() * 0.014 - az * 0.004, dt);
 
-    const air = this.airborne ? this.vy * 0.025 : 0;
+    const air = this.airborne ? clamp(this.vy * 0.025, -0.3, 0.3) : 0;
     this.earPitch[0].update(p.earLPitch - lz * 1.5 - air, dt);
     this.earPitch[1].update(p.earRPitch - lz * 1.5 - air, dt);
     this.earRoll[0].update(p.earLRoll + (1 - sq) * 1.2 + lx * 1.2, dt);

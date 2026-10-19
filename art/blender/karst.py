@@ -386,6 +386,49 @@ class Rock:
         return np.where(inside[..., None], C["cave"], col)
 
 
+def grass_cap(rock, rim, seed, overhang=0.22, fringe=(0.16, 0.4), inset=0.15):
+    """A mat of grass on a stepping stone's flat top, as the film draws them: lying a little over
+    the top's rim and reaching `overhang` past it all round, its edge hanging down in a ragged fringe
+    (`fringe`: its tongues' shortest and longest). Returns (bmesh, colours), the mat's height, and
+    where to stand on it: radii from the top's middle at 32 even angles from east toward south,
+    `inset` in from its edge."""
+    rng = np.random.default_rng(seed)
+    x, y, z = (np.asarray(v, dtype=float) for v in rim)
+    cx, cz = (float(v) for v in rock.middle(rock.top))
+    top = float(y.max()) + 0.05
+    theta = np.arctan2(z - cz, x - cx)
+    reach = np.hypot(x - cx, z - cz) + overhang
+    n = len(x)
+    bm = bmesh.new()
+    hub = bm.verts.new((cx, -cz, top + 0.03))
+    edge = [bm.verts.new((float(cx + r * math.cos(a)), float(-(cz + r * math.sin(a))), top)) for r, a in zip(reach, theta)]
+    hang = []
+    for i, (r, a) in enumerate(zip(reach, theta)):
+        # Long and short tongues in turn, each a little different.
+        drop = rng.uniform(*fringe) * (1.0 if i % 2 == 0 else 0.5)
+        out = r + 0.05
+        hang.append(bm.verts.new((float(cx + out * math.cos(a)), float(-(cz + out * math.sin(a))), top - drop)))
+    middle = Vector((cx, -cz, top))
+    for i in range(n):
+        j = (i + 1) % n
+        face = bm.faces.new((hub, edge[i], edge[j]))
+        face.normal_update()
+        if face.normal.z < 0.0:
+            face.normal_flip()
+        face = bm.faces.new((edge[i], hang[i], hang[j], edge[j]))
+        face.normal_update()
+        out = face.calc_center_median() - middle
+        out.z = 0.0
+        if face.normal.dot(out) < 0.0:
+            face.normal_flip()
+    cols = [SHARED["leaves"]] + [SHARED["leaves"] + (SHARED["leavesMid"] - SHARED["leaves"]) * 0.4] * n
+    cols += [SHARED["leavesDark"]] * n
+    angles = np.linspace(0.0, 2.0 * math.pi, 32, endpoint=False)
+    stand = np.interp(np.where(angles > math.pi, angles - 2.0 * math.pi, angles), theta[np.argsort(theta)],
+                      reach[np.argsort(theta)], period=2.0 * math.pi) - inset
+    return bm, cols, top, [round(float(r), 3) for r in stand]
+
+
 def crown(rock, rim, gap=None, size=None, target=1200, mound=1.0, hang=0.35):
     """Jungle on a rock's top: blobs along the rim, leaning out over it, mounded over the middle
     and spilling a little down the sides, each heaped of rounded leafy lobes as the film paints

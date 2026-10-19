@@ -1,8 +1,9 @@
 /**
  * What stands on the island for characters to walk round, under or on, and for the camera to keep
- * out of: blocks (a prop's foot, a hut's walls, a roof, each over a range of heights), decks to walk
- * on (porches, floors, stairs, the pier, the lip round a cave's skylight), and tree crowns, which
- * only the camera minds. Kept in a coarse grid, so a test looks only at what is near.
+ * out of: blocks (a prop's foot, a hut's walls, a roof, a stepping stone's body, each over a range
+ * of heights), decks to walk on (porches, floors, stairs, the pier, the lip round a cave's
+ * skylight, the stepping stones' tops), and tree crowns, which only the camera minds. Kept in a
+ * coarse grid, so a test looks only at what is near.
  */
 
 const CELL = 8;
@@ -52,6 +53,16 @@ interface Ring {
   top: number;
 }
 
+/** A flat deck within an outline round its middle: a stepping stone's top, a ledge on a cliff's top. */
+interface Pad {
+  x: number;
+  z: number;
+  /** Its edge, as an outline (see `outlineAt`). */
+  outline: number[];
+  reach: number;
+  top: number;
+}
+
 interface Crown {
   x: number;
   y: number;
@@ -82,6 +93,7 @@ const EMPTY: never[] = [];
 const blocks = new Grid<Block>();
 const decks = new Grid<Deck>();
 const rings = new Grid<Ring>();
+const pads = new Grid<Pad>();
 const crowns = new Grid<Crown>();
 
 /**
@@ -146,6 +158,12 @@ export function addDeck(x: number, z: number, hx: number, hz: number, angle: num
 /** A flat walkable ring at `top` round a hole at (x, z): from the hole's edge (an outline) out to `outer`. */
 export function addRing(x: number, z: number, inner: number[], outer: number, top: number): void {
   rings.add({ x, z, inner, outer, top }, x, z, outer);
+}
+
+/** A flat walkable pad at `top` within an outline round (x, z). */
+export function addPad(x: number, z: number, outline: number[], top: number): void {
+  const reach = Math.max(...outline);
+  pads.add({ x, z, outline, reach, top }, x, z, reach);
 }
 
 /** A tree's crown: a ball the camera keeps out of. */
@@ -218,6 +236,13 @@ export function deckUnder(x: number, z: number, reach: number): number | null {
     const d = Math.hypot(dx, dz);
     if (d > g.outer || d < outlineAt(g.inner, dx, dz)) continue;
     if (g.top <= reach && (top === null || g.top > top)) top = g.top;
+  }
+  for (const p of pads.at(x, z)) {
+    if (p.top > reach || (top !== null && p.top <= top)) continue;
+    const dx = x - p.x;
+    const dz = z - p.z;
+    const d = Math.hypot(dx, dz);
+    if (d <= p.reach && d <= outlineAt(p.outline, dx, dz)) top = p.top;
   }
   return top;
 }

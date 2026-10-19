@@ -3,7 +3,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { sharedUniforms } from '../characters/CharacterMaterial';
 import { PEN_GLSL, inkUniforms } from './Ink';
 import { FILM, coverTrees, hazeClearing, paintedRamp, shadeUnderTrees } from './Look';
-import { addRing, blocked, cameraBlocked, deckUnder, outlineAt } from './Obstacles';
+import { addCircle, addPad, addRing, blocked, cameraBlocked, deckUnder, outlineAt } from './Obstacles';
 
 /** What art/blender/build_island.py writes into the ground's glTF extras. */
 export interface TerrainInfo {
@@ -33,6 +33,14 @@ export interface TerrainInfo {
   pool?: { centre: [number, number]; radius: number; level: number };
   /** Where the waterfall lands in its pool (x, z), and how far its splash spreads. */
   waterfall?: { foot: [number, number]; splash: number };
+  /** The stepping stones across the gorge's river: pads to stand on (each pillar's top, and the
+   * ledges walked on from the rims onto the end ones: a middle (x, z), an outline as `outlineAt`
+   * reads it, a height), and each pillar's body to bump into between its bottom (the south end's
+   * shelf juts out over the riverside path) and its top. */
+  stones?: {
+    pads: { centre: [number, number]; outline: number[]; top: number }[];
+    pillars: { centre: [number, number]; radius: number; bottom: number; top: number }[];
+  };
   /** The jungle and the crops: the meshes, each trunk (x, z, radius) and each crown (x, y, z,
    * radius), and the flowering bushes butterflies flutter round (x, y, z). */
   plants: {
@@ -253,7 +261,8 @@ function groundMaterial(colours: THREE.Texture, info: TerrainInfo, floor: THREE.
  * GLSL: the film's grass and earth, painted over the ground's colours where its map of kinds (see
  * TerrainInfo.kinds) says they lie. The lawn is clumps of grass, each a crown of blade tips, the
  * nearer over the farther; packed earth has long soft sweeps of the brush and a scatter of pebbles;
- * where the two meet, the border follows the clumps' tufted outlines.
+ * where the two meet, the border follows the clumps' tufted outlines. Bare ground painted grey (the
+ * gorge's floor) is a bank of rounded pebbles.
  */
 const GROUND_PAINT_GLSL = /* glsl */ `
 uniform sampler2D uKinds;
@@ -349,6 +358,49 @@ vec3 earthTone(vec2 p, float inside, float px) {
   }
   return tone;
 }
+// A bank of rounded pebbles packed close, as along the film's riverside path: each a little lighter
+// or darker, cooler or warmer than its neighbours, lit along one side and shaded along the other,
+// dark in the cracks between them; fading to the bank's plain colour before they are small enough to
+// shimmer ('px' is how many metres a pixel spans there).
+vec3 pebbleTone(vec2 p, float px) {
+  const float size = 0.2;
+  float fade = 1.0 - smoothstep(0.03, 0.08, px);
+  if (fade <= 0.0) return vec3(1.0);
+  vec2 q = p / size;
+  vec2 i = floor(q);
+  vec2 f = q - i;
+  float d1 = 9.0;
+  float d2 = 9.0;
+  vec2 r1 = vec2(0.0);
+  vec3 h1 = vec3(0.0);
+  for (int y = -1; y <= 1; y++) {
+    for (int x = -1; x <= 1; x++) {
+      vec2 g = vec2(float(x), float(y));
+      vec3 h = groundHash(i + g + 71.0);
+      vec2 r = g + 0.15 + 0.7 * h.xy - f;
+      float d = dot(r, r);
+      if (d < d1) {
+        d2 = d1;
+        d1 = d;
+        r1 = r;
+        h1 = h;
+      } else if (d < d2) {
+        d2 = d;
+      }
+    }
+  }
+  float aa = 0.8 * px / size;
+  // Each pebble rounded: lit on its sunward side and shaded down its other, out to its rim; the
+  // gaps between them only a little darker, the bank's own grit showing there.
+  float edge = sqrt(d2) - sqrt(d1);
+  float crack = (1.0 - smoothstep(0.03, 0.08 + 2.0 * aa, edge)) * mix(0.5, 1.0, h1.y);
+  float dome = smoothstep(0.0, 0.35, edge);
+  float lit = smoothstep(-0.45, 0.45, dot(-r1, vec2(-0.6, -0.8)) * 2.0);
+  vec3 tone = vec3(mix(0.88, 1.1, lit * dome + 0.5 * (1.0 - dome)) * mix(0.88, 1.1, h1.z));
+  tone *= mix(vec3(0.96, 0.99, 1.04), vec3(1.05, 1.0, 0.93), fract(h1.z * 5.3));
+  tone = mix(tone, vec3(0.72, 0.71, 0.7), crack);
+  return mix(vec3(1.0), tone, fade);
+}
 `;
 
 /** GLSL, after the colour map is read: the film's grass and earth over it (needs GROUND_PAINT_GLSL,
@@ -394,6 +446,14 @@ const GROUND_PAINT = /* glsl */ `
     vec3 tone = mix(vec3(1.0), lawn, grassy);
     float earth = (1.0 - grassy) * kind.g / max(bare, 1e-3);
     if (earth > 0.01) tone *= mix(vec3(1.0), earthTone(p, kind.g, px), earth);
+    // Bare ground painted grey, not sand's warm colour, is the gorge's pebble bank.
+    float sand = (1.0 - grassy) * kind.b / max(bare, 1e-3);
+    if (sand > 0.01) {
+      vec3 c = diffuseColor.rgb;
+      float hi = max(c.r, max(c.g, c.b));
+      float grey = 1.0 - smoothstep(0.38, 0.5, (hi - min(c.r, min(c.g, c.b))) / max(hi, 1e-3));
+      if (grey > 0.01) tone *= mix(vec3(1.0), pebbleTone(p, px), sand * grey);
+    }
     diffuseColor.rgb *= tone;
   }
 }
@@ -520,6 +580,9 @@ export async function loadTerrain(): Promise<Terrain> {
     const { centre, edge, lip, top } = info.skylight;
     addRing(centre[0], centre[1], edge.map((r) => r + EDGE_MARGIN), lip, top);
   }
+  // The stepping stones: their tops and the rims' ledges to stand on, their bodies to bump into.
+  for (const pad of info.stones?.pads ?? []) addPad(pad.centre[0], pad.centre[1], pad.outline, pad.top);
+  for (const p of info.stones?.pillars ?? []) addCircle(p.centre[0], p.centre[1], p.radius, p.bottom, p.top);
   return terrain;
 }
 
@@ -567,4 +630,65 @@ export function clampToWalkable(p: THREE.Vector3, from: THREE.Vector3): void {
     p.x = from.x;
     p.z = from.z;
   }
+}
+
+/** Whether someone in the air with their feet at `y` can be at (x, z): not in a rock, nor in a prop
+ * or a stepping stone's body at their height, nor in ground more than a step above their feet. */
+function clearInAir(x: number, z: number, y: number): boolean {
+  if (!terrain) return true;
+  if (terrain.nearRock(x, z, ROCK_MARGIN) || blocked(x, z, PROP_MARGIN, y)) return false;
+  return terrain.height(x, z) <= y + STEP_UP;
+}
+
+/**
+ * Keeps a character in the air (their feet at `y`) who moved from `from` to `p` from passing into
+ * anything standing higher than their feet: over a gap, a drop or water they carry on; against a
+ * rock, a prop, a stepping stone's side or a bank they slide along it, or stay where they were.
+ */
+export function clampInAir(p: THREE.Vector3, from: THREE.Vector3, y: number): void {
+  if (!terrain || clearInAir(p.x, p.z, y) || !clearInAir(from.x, from.z, y)) return;
+  if (clearInAir(p.x, from.z, y)) p.z = from.z;
+  else if (clearInAir(from.x, p.z, y)) p.x = from.x;
+  else {
+    p.x = from.x;
+    p.z = from.z;
+  }
+}
+
+/**
+ * Whether someone whose feet came down to `y` at p fell into water too deep to stand in (the river
+ * under the stepping stones, the sea off a rock): if so they climb out at the nearest shore, p
+ * moved there (see climbOut).
+ */
+export function splashDown(p: THREE.Vector3, y: number): boolean {
+  if (!terrain) return false;
+  const surface = terrain.waterLevel(p.x, p.z);
+  if (y > surface || groundHeight(p.x, p.z, y) >= surface - WADE) return false;
+  return climbOut(p);
+}
+
+/**
+ * Where someone who fell into water too deep to stand in at p climbs out: moves p to the nearest
+ * place round it they can stand on the ground, a bank half a metre or more over the water but low
+ * enough to climb onto from it (not a clifftop), looking outward ring by ring up to 30 m; false,
+ * and p as it was, if there is none. Out of the gorge's river, that is its riverside path.
+ */
+export function climbOut(p: THREE.Vector3): boolean {
+  if (!terrain) return false;
+  for (let r = 0.5; r <= 30; r += 0.5) {
+    const n = Math.ceil((2 * Math.PI * r) / 0.5);
+    for (let i = 0; i < n; i++) {
+      const a = (2 * Math.PI * i) / n;
+      const x = p.x + r * Math.cos(a);
+      const z = p.z + r * Math.sin(a);
+      const h = terrain.height(x, z);
+      const surface = terrain.waterLevel(x, z);
+      if (h > surface + 0.5 && h < surface + 1.5 && terrain.walkable(x, z, h)) {
+        p.x = x;
+        p.z = z;
+        return true;
+      }
+    }
+  }
+  return false;
 }

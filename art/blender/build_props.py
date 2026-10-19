@@ -38,6 +38,7 @@ C = {k: L.hex_color(v) for k, v in {
     "ink": "#66432F",  # the world's pen colour, for lines painted onto props
     "bark": "#9C6B43",
     "board": "#D9B483",
+    "rope": "#54473D",
     "logEnd": "#D9B98C",
     "logRing": "#C49A6C",
     "white": "#FFFFFF",
@@ -372,6 +373,52 @@ def build_sign(collection):
     return [sign, label], info
 
 
+def heart_leaf_bm(at, out, size):
+    """A small heart-shaped leaf on a vine, its face toward `out`, as the film's vines have them."""
+    side = UP.cross(out).normalized() if abs(out.dot(UP)) < 0.95 else Vector((1.0, 0.0, 0.0))
+    face = out.normalized()
+    rot = Matrix((side, face.cross(side), face)).transposed()
+    return L.ellipsoid_bm(at, (size, size * 0.85, size * 0.18), rot=rot, u=8, v=4)
+
+
+def build_sign_hanging(collection):
+    """島二郎's sign, as in the film's frame of the way to it: a weathered board hung by two ropes
+    from a rough crossbar over the path, on two posts wound with vines, strings of heart-shaped
+    leaves hanging from the bar. Faces -Y, with a face on the board's front for the game to paint
+    its words on."""
+    pieces = []
+    for x in (-0.95, 0.95):
+        pieces.append((segment_bm(Vector((x, 0.0, -0.3)), Vector((x, 0.0, 2.75)), 0.085, 0.07, segments=8), C["bark"]))
+        pieces.append((L.ellipsoid_bm(Vector((x, 0.0, 2.75)), (0.075, 0.075, 0.04), u=10, v=6), C["bark"]))
+    pieces.append((segment_bm(Vector((-1.2, 0.0, 2.6)), Vector((1.2, 0.0, 2.66)), 0.07, 0.062, segments=8), C["bark"]))
+    for x in (-0.45, 0.45):
+        pieces.append((segment_bm(Vector((x, 0.0, 2.6)), Vector((x, 0.0, 2.28)), 0.012, 0.012, segments=5), C["rope"]))
+    pieces.append((box_bm(Vector((0.0, 0.0, 2.05)), (1.3, 0.06, 0.48), bevel=0.012), C["board"]))
+    # Vines wound up the posts, leaves along them, and strings of leaves hanging from the bar.
+    leaves = []
+    for x, turn in ((-0.95, 0.0), (0.95, 2.1)):
+        for k in range(22):
+            a = turn + k * 0.95
+            z = 0.25 + k * 0.11
+            out = Vector((math.cos(a), math.sin(a), 0.15))
+            leaves.append((heart_leaf_bm(Vector((x, 0.0, z)) + Vector((math.cos(a), math.sin(a), 0.0)) * 0.1, out,
+                                         0.06 + 0.015 * (k % 3)), C["leafA"] if k % 2 else C["leafB"]))
+    for x, length in ((-0.75, 0.55), (-0.2, 0.3), (0.25, 0.45), (0.78, 0.7)):
+        pieces.append((segment_bm(Vector((x, 0.0, 2.62)), Vector((x, 0.0, 2.62 - length)), 0.008, 0.006, segments=4),
+                       C["leafA"]))
+        for k in range(int(length / 0.1) + 1):
+            a = k * 2.3 + x
+            out = Vector((math.cos(a) * 0.4, -1.0, 0.2 * math.sin(a)))
+            leaves.append((heart_leaf_bm(Vector((x, -0.03, 2.58 - 0.1 * k)), out, 0.055 + 0.01 * (k % 2)),
+                           C["leafB"] if k % 2 else C["leafA"]))
+    sign = L.assemble_colored("sign_hanging", pieces + leaves, collection)
+    face, uvs = label_bm(Vector((0.0, -0.03, 2.05)), 1.2, 0.4)
+    label = object_with_uv("sign_hanging_label", face, uvs, collection)
+    info = {"footprint": {"circles": [[-0.95, 0.0, 0.1], [0.95, 0.0, 0.1]]}, "height": 2.75,
+            "label": {"size": [1.2, 0.4], "colour": "#2B211B"}}
+    return [sign, label], info
+
+
 def wing_bm(outline, thickness):
     """A thin solid wing from an outline of (x, y) points round its edge, flat in the XY plane."""
     bm = bmesh.new()
@@ -438,6 +485,7 @@ BUILDERS = {
     "starfish": build_starfish,
     "onigiri": build_onigiri,
     "sign": build_sign,
+    "sign_hanging": build_sign_hanging,
     "butterfly": build_butterfly,
     "quay": build_quay,
 }

@@ -7,6 +7,7 @@ export type ZoneId =
   | 'cliffs'
   | 'gorge'
   | 'westBeach'
+  | 'shimajiro'
   | 'fields'
   | 'village'
   | 'festival'

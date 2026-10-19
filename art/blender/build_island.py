@@ -260,20 +260,41 @@ LOWLAND = {"height": 1.4, "rise": 12.0, "noise": 0.25}
 # In the west the land stands up as a high, flat tableland of white limestone, `top` metres up, ringed
 # with sheer cliffs: inside `outline` (x, z), and `coast` metres back from the sea, so a strip of
 # beach and jungle runs along its foot. The ground climbs from below to its top between `edge` metres
-# inside its outline, under the cliff faces built over it (see karst.cliff).
+# inside its outline (negative: outside it), from the foot of the cliff faces built over it (they
+# stand out from the outline; see karst.cliff), so no one walks into them.
 TABLELAND = {"outline": [(-260.0, -210.0), (-150.0, -193.0), (-142.0, -183.0), (-128.0, -170.0), (-95.0, -158.0),
                          (-75.0, -165.0), (-58.0, -178.0), (-52.0, -192.0), (-55.0, -215.0), (-62.0, -252.0),
                          (-75.0, -330.0), (-260.0, -330.0)],
-             "top": 11.0, "noise": 0.6, "coast": 8.0, "edge": (0.4, 2.6), "seed": 81}
+             "top": 11.0, "noise": 0.6, "coast": 8.0, "edge": (-1.2, 1.0), "seed": 81}
 # A gorge runs through the tableland from the waterfall's lowland to the west coast, after the
 # film's frames of the stepping-stone pillars: its walls `half` metres either side of `line` (x, z,
 # east to west). West of `from` the sea fills it, a wide river `water` metres either side of the line,
 # over a bed `bed` deep; a narrow ledge (height, width) runs along the foot of its south wall, the
-# path from the stones down to the restaurant. East of there its floor is a dry ravine climbing to
-# the lowland's level by `head`.
+# path from the stones down to the restaurant, its rounded pebbles and boulders as in the film's
+# frames of it. East of there its floor is a dry ravine climbing to the lowland's level by `head`.
 GORGE = {"line": [(-25.0, -200.0), (-52.0, -201.0), (-80.0, -199.0), (-110.0, -193.0), (-140.0, -186.0),
                   (-165.0, -181.0), (-240.0, -177.0)],
-         "half": 13.0, "water": 10.0, "from": -75.0, "head": -52.0, "ledge": (0.6, 3.0), "bed": -2.8}
+         "half": 13.5, "water": 10.0, "from": -75.0, "head": -52.0, "ledge": (0.6, 3.0), "bed": -2.8}
+# The stepping-stone pillars across the gorge's river, after the film's frames of them: tall thin
+# pillars of the gorge's white rock standing in the water, each topped with a flat round mat of grass
+# a short jump from the next, from a pillar standing against the north rim's cliff, its top level
+# with the rim, to a shelf of rock jutting from the south rim's cliff over the riverside path (its
+# underside `shelf` metres over the path). Where they cross (x on the gorge's line); each river
+# pillar's place across the river (metres south of the line) and along it, how far its top stands
+# above or below the line between the two rims, and its radii; the rim pillar's and the shelf's
+# places across and radii; and the ledges walked on from each rim onto its pillar's or shelf's top
+# (from, to: metres from the gorge's line; half width), level with the rim.
+STONES = {"x": -100.0, "across": [-8.9, -5.34, -1.78, 1.78, 5.34, 8.9], "along": [0.5, -0.45, 0.55, -0.5, 0.45, -0.3],
+          "rise": [-0.22, -0.05, -0.28, -0.06, -0.3, -0.1], "radii": (1.6, 1.45), "seed": 101,
+          "rim": (12.6, 13.1), "rim_radii": (2.0, 1.8), "shelf": 3.8, "ledge": (13.2, 15.4), "ledge_half": 1.3}
+# Plants at the foot of the gorge's south wall along the riverside path: from x, to x, every so
+# many metres (a range), this far in from the wall's line, of these kinds.
+GORGE_FOOT = {"from": -77.0, "to": -142.0, "gap": (1.4, 2.6), "in": 1.45, "kinds": ("fern", "fern", "monstera", "ti"),
+              "seed": 121}
+# Boulders along the river's edge below the riverside path, every so many metres (a range), their
+# radii and heights over the path (ranges), clear of the stones' crossing by `clear` metres.
+BOULDERS = {"from": -78.0, "to": -146.0, "gap": (4.5, 9.0), "radius": (0.55, 0.95), "height": (0.5, 1.2),
+            "across": 9.7, "clear": 7.0, "seed": 111}
 # From the tableland's south-west corner a spur of it runs out toward the west coast: inside `outline`
 # (x, z; its root reaches into the tableland), its top falling from `top` (at `root`) to `top`'s
 # second (at `tip`, its west end), where the cave's heap of rock stands against it.
@@ -372,7 +393,9 @@ PROP_ROOM = {"hut_green": 7.0, "hut_warm": 7.0, "hut_plank": 5.5, "beehive": 3.8
              "lanterns": 1.2, "palm": 2.0, "sign": 2.0, "bunting_row_short": 2.0,
              # Under the room the street's stalls keep, so the jungle was planted just as it was
              # before these poles stood along the street.
-             "bunting_side": 1.0}
+             "bunting_side": 1.0,
+             # 島二郎, the restaurant at the end of the riverside path, and its sign hung over the path.
+             "restaurant": 7.5, "sign_hanging": 1.6}
 # Plants crowd round the backs of the village's houses, this far from their middles.
 HUT_ROOM = {"hut_green": (5.6, 6.6), "hut_warm": (5.6, 6.6), "hut_plank": (4.4, 5.2), "beehive": (3.0, 3.6)}
 # Nothing is planted nearer a beehive hut's middle than this: its eave reaches 2.2 m, a bush 0.7 m
@@ -420,10 +443,10 @@ PATHS = [
                                                                                         # the village to the cave's beach
     ([(-13.9, -189.4), (-25.0, -199.0), (-52.0, -201.0), (-70.0, -195.0)]
      + offset_line(GORGE["line"], -(GORGE["water"] + GORGE["ledge"][1] / 2), -76.0, -142.0)
-     + [(-160.0, -168.0), (-168.0, -160.0)], 2.0),                                      # down the gorge to the restaurant
-    ([(-30.0, -238.0), (-68.0, -244.0), (-72.0, -226.0), (-84.0, -217.5), (-100.0, -213.5)], 2.2),
+     + [(-152.0, -170.5), (-163.0, -165.5), (-171.5, -159.0)], 2.0),                    # down the gorge to the restaurant
+    ([(-30.0, -238.0), (-68.0, -244.0), (-72.0, -226.0), (-84.0, -217.5), (-102.6, -210.0)], 2.2),
                                                                                         # up onto the tableland, to the stones
-    ([(-86.0, -128.0), (-88.0, -163.0), (-98.0, -176.0)], 2.2),                         # up onto the rim, to the stones
+    ([(-86.0, -128.0), (-88.0, -163.0), (-97.4, -180.6)], 2.2),                         # up onto the rim, to the stones
 ]
 
 COLOURS = {k: np.array(L.hex_color(v)[:3]) for k, v in {
@@ -445,6 +468,9 @@ COLOURS = {k: np.array(L.hex_color(v)[:3]) for k, v in {
     "rubbleDark": "#BABDB5",
     "bankEarth": "#86643F",
     "bankMoss": "#5F9B43",
+    "pebble": "#CBC8BE",
+    "pebbleCool": "#B6BCBC",
+    "pebbleWarm": "#D3C7B2",
 }.items()}
 
 
@@ -685,6 +711,96 @@ def gorge_floor(x, u):
     return ravine + (river - ravine) * wet
 
 
+def gorge_point(x):
+    """The gorge's line where it passes x: the point (x, z), the way along it (westward) and the way
+    across it to the south, as unit (x, z) vectors."""
+    for (ax, az), (bx, bz) in zip(GORGE["line"], GORGE["line"][1:]):
+        if bx <= x <= ax:
+            t = (x - ax) / (bx - ax)
+            length = math.hypot(bx - ax, bz - az)
+            d = ((bx - ax) / length, (bz - az) / length)
+            return (x, az + (bz - az) * t), d, (d[1], -d[0])
+    raise ValueError(f"x {x} is off the gorge's line")
+
+
+def rectangle_outline(along, across, half_along, half_across, count=32):
+    """A rectangle's outline from its middle (radii at `count` even angles from east toward south,
+    as the game's outlineAt reads them), its sides along the unit (x, z) vectors given."""
+    out = []
+    for k in range(count):
+        a = 2.0 * math.pi * k / count
+        ux, uz = math.cos(a), math.sin(a)
+        p = abs(ux * along[0] + uz * along[1])
+        q = abs(ux * across[0] + uz * across[1])
+        out.append(round(min(half_along / max(p, 1e-6), half_across / max(q, 1e-6)), 3))
+    return out
+
+
+def stepping_stones():
+    """The stepping-stone pillars as rock specs, from the north rim's to the south rim's, and the two
+    ledges walked on from the rims onto the rim pillars' tops (pads for the game: middle, outline,
+    top)."""
+    s = STONES
+    (px, pz), d, n = gorge_point(s["x"])
+    at = lambda u, v=0.0: (px + n[0] * u + d[0] * v, pz + n[1] * u + d[1] * v)  # noqa: E731
+    # The rims' heights a little back from their edges, and a line between them across the river.
+    reach = GORGE["half"] + 2.5
+    rims = ground(np.array([at(-reach)[0], at(reach)[0]]), np.array([at(-reach)[1], at(reach)[1]]))[0]
+    rim_n, rim_s = float(rims[0]), float(rims[1])
+    rng = np.random.default_rng(s["seed"])
+    specs = []
+    places = [(-s["rim"][0], 0.0, None), *zip(s["across"], s["along"], s["rise"]), (s["rim"][1], 0.0, None)]
+    for k, (u, v, rise) in enumerate(places):
+        if rise is None:
+            # Against the cliff, its top level with the rim's.
+            top, radii = (rim_n if u < 0.0 else rim_s), s["rim_radii"]
+        else:
+            top, radii = rim_n + (rim_s - rim_n) * (u + reach) / (2.0 * reach) + rise, s["radii"]
+        specs.append({
+            "centre": at(u, v), "radii": radii, "turn": rng.uniform(0.0, math.pi), "top": round(top, 3),
+            "seed": s["seed"] + k, "segments": 28, "step": 0.9, "facets": 6, "facet_w": 0.3, "flutes": 7,
+            "flute_depth": 0.06, "lumps": 0.07, "taper": -0.05, "bulge": 0.03, "ledges": 1, "lean": 0.025,
+            "shoulder": 0.03, "tip": 0.1, "crown": False, "drape": 0.35, "wet": WATER, "group": "stones",
+            "pillar": True,
+        })
+        if rise is None and u > 0.0:
+            # The south end juts from the cliff over the riverside path, its foot well over the path.
+            del specs[-1]["wet"]
+            specs[-1]["stand"] = GORGE["ledge"][0] + s["shelf"] + 1.5
+            specs[-1]["taper"] = -0.12
+    near, far = s["ledge"]
+    ledges = []
+    for side, top in ((-1.0, rim_n), (1.0, rim_s)):
+        cx, cz = at(side * (near + far) / 2.0)
+        ledges.append({"centre": [round(cx, 2), round(cz, 2)],
+                       "outline": rectangle_outline(d, n, s["ledge_half"], (far - near) / 2.0), "top": round(top, 3)})
+    return specs, ledges
+
+
+def boulder_specs():
+    """Rounded boulders along the river's edge below the riverside path, half in the water."""
+    b = BOULDERS
+    rng = np.random.default_rng(b["seed"])
+    specs = []
+    x = b["from"] - rng.uniform(0.0, b["gap"][1])
+    while x > b["to"]:
+        (px, pz), d, n = gorge_point(x)
+        r = rng.uniform(*b["radius"])
+        u = b["across"] - rng.uniform(0.0, 0.5)
+        # Only by the water, clear of the stones' crossing.
+        low = float(ground(np.array([px + n[0] * u]), np.array([pz + n[1] * u]))[0][0]) < GORGE["ledge"][0] + 0.3
+        if abs(x - STONES["x"]) > b["clear"] and low:
+            specs.append({
+                "centre": (px + n[0] * u, pz + n[1] * u), "radii": (r, r * rng.uniform(0.7, 0.9)),
+                "turn": rng.uniform(0.0, math.pi), "top": round(GORGE["ledge"][0] + rng.uniform(*b["height"]), 3),
+                "seed": b["seed"] + len(specs), "segments": 18, "step": 0.25, "facets": 0, "flutes": 3,
+                "flute_depth": 0.04, "lumps": 0.18, "taper": 0.2, "bulge": 0.06, "shoulder": 0.55, "tip": 0.92,
+                "crown": False, "drape": 0.5, "wet": WATER, "group": "gorge",
+            })
+        x -= rng.uniform(*b["gap"])
+    return specs
+
+
 def tableland_sdf(x, z, s):
     """How far inside the tableland (x, z) is, in metres (negative outside it): within its outline,
     back from the sea, outside the gorge."""
@@ -693,8 +809,9 @@ def tableland_sdf(x, z, s):
 
 
 def spur_sdf(x, z):
-    """How far inside the spur (x, z) is (negative outside it)."""
-    return poly_sdf(x, z, SPUR["outline"])
+    """How far inside the spur (x, z) is (negative outside it): within its outline, outside the
+    gorge, whose south wall its root forms for a stretch."""
+    return np.minimum(poly_sdf(x, z, SPUR["outline"]), gorge_across(x, z)[1])
 
 
 def cave_rocks():
@@ -911,7 +1028,7 @@ def paint(x, z, h, masks, normal_y, shade):
     edge = masks["beach_w"] + 1.5 + 2.0 * noise(x, z, 6.0, 12.0)
     m_grass = smoothstep(edge - 0.8, edge + 0.8, s)
     # The high ground's tops are grass however near the sea they come.
-    m_grass = np.maximum(m_grass, smoothstep(0.4, 2.6, masks["high"]))
+    m_grass = np.maximum(m_grass, smoothstep(*TABLELAND["edge"], masks["high"]))
     grass = mix(c("grass"), c("grassDark"), smoothstep(0.2, 0.9, noise(x, z, 14.0, 13.0)))
     grass = mix(grass, c("clover"), smoothstep(0.45, 0.95, noise(x, z, 11.0, 14.0)))
     col = mix(col, grass, m_grass)
@@ -931,9 +1048,18 @@ def paint(x, z, h, masks, normal_y, shade):
     t = smoothstep(0.3, 0.75, masks["village"])
     col = mix(col, earth, t)
     kind = mix(kind, mix(earth_k, grass_k, patches), t)
-    # The paths are trodden only off the sand: where one crosses the beach, the beach stays plain
-    # sand, as the film's beaches are, and the path begins where the grass does.
-    on = masks["path"] * m_grass
+    # The gorge's dry floor, the riverside path's and the ravine's, is a bank of rounded pebbles, as
+    # in the film's frames of it: pale grey stones, some cooler, some warmer, marked as bare ground
+    # for the film look to paint each pebble (see GROUND_PAINT in Island.ts, which tells them from
+    # sand by their grey).
+    pebbles = smoothstep(0.4, 0.9, masks["gorge"]) * smoothstep(WATER + 0.05, WATER + 0.3, h)
+    stones = mix(c("pebble"), c("pebbleCool"), smoothstep(0.3, 0.8, noise(x, z, 3.0, 47.0)))
+    stones = mix(stones, c("pebbleWarm"), smoothstep(0.45, 0.85, noise(x, z, 5.0, 48.0)) * 0.7)
+    col = mix(col, stones, pebbles)
+    kind = mix(kind, sand_k, pebbles)
+    # The paths are trodden only off the sand and the pebbles: where one crosses the beach, the beach
+    # stays plain sand, as the film's beaches are, and the path begins where the grass does.
+    on = masks["path"] * m_grass * (1.0 - pebbles)
     col = mix(col, c("path"), on)
     kind = mix(kind, earth_k, on)
     # The festival's back alleys behind its stalls: packed sand, as its street.
@@ -1161,6 +1287,10 @@ def rock_specs():
     })
     # The forbidden cave's heap of rock, from the sea to the spur's end, its mouth in the middle.
     specs.extend(cave_rocks())
+    # The stepping-stone pillars across the gorge's river, and the boulders along its edge below the
+    # riverside path.
+    specs.extend(stepping_stones()[0])
+    specs.extend(boulder_specs())
     for centre, r, top, seed in NEEDLES:
         specs.append({
             "centre": centre, "radii": (r, r * 0.85), "turn": 0.4, "top": top, "seed": seed, "segments": 14,
@@ -1383,11 +1513,15 @@ def high_edges(step=0.5, column=1.6):
 def build_landmarks(collection):
     """Every rock with its jungle crown, joined into one mesh for each group of rocks (so the game
     can leave out a group it is not looking at), the sea cliffs, the high ground's white cliffs, the
-    cave's skylight, and the waterfall with its spray. Returns the objects, each rock's foot outline
-    (not the tips standing on top of others), the skylight's edge, and where the waterfall lands in
-    its pool."""
+    cave's skylight, the stepping stones, and the waterfall with its spray. Returns the objects,
+    each rock's foot outline (not the tips standing on top of others, nor the stepping stones), the
+    skylight's edge, where the waterfall lands in its pool, and the stepping stones' pads and
+    bodies."""
     # The rocks' jungle crowns go in meshes of their own, so the game can paint their leaves.
     groups, crowns, outlines = {}, {}, []
+    # The stepping stones for the game: a pad to stand on on each one's top (and on the ledges on the
+    # rims), and its body to bump into below.
+    stones = {"pads": list(stepping_stones()[1]), "pillars": []}
     for spec in rock_specs():
         stand = spec.get("stand")
         ground = ground_height if stand is None else (lambda x, z, y=stand: np.full_like(np.asarray(x, dtype=float), y))
@@ -1395,6 +1529,18 @@ def build_landmarks(collection):
         bm, cols, rim = rock.build()
         pieces = groups.setdefault(spec["group"], [])
         pieces.append((bm, cols, not rock.s["flat"]))
+        if spec.get("pillar"):
+            # A stepping stone: a mat of grass on its flat top. Not a rock's foot for walkers to keep
+            # clear of at any height: its top is stood on.
+            bm, cols, top, outline = K.grass_cap(rock, rim, spec["seed"] + 500)
+            pieces.append((bm, cols, True))
+            mx, mz = (float(v) for v in rock.middle(rock.top))
+            stones["pads"].append({"centre": [round(mx, 2), round(mz, 2)], "outline": outline, "top": round(top, 3)})
+            body = rock.radius(np.linspace(0.0, 2.0 * math.pi, 16, endpoint=False), np.full(16, rock.foot + 2.0))[0]
+            stones["pillars"].append({"centre": [round(rock.cx, 2), round(rock.cz, 2)], "radius": round(float(body.mean()), 2),
+                                      "bottom": round(rock.base, 3) if stand is not None else -10.0,
+                                      "top": round(rock.top - 0.1, 3)})
+            continue
         if rock.s["crown"]:
             small = rock.rx < 4.0
             gap = rock.s["notch"][:2] if rock.s["notch"] else None
@@ -1437,7 +1583,7 @@ def build_landmarks(collection):
     fall = object_with_uv("waterfall", bm, uvs, collection)
     spray = join_painted("spray", [(*K.spray(POOL["level"]), True)], collection)
     spray.location = (foot[0], -foot[1], POOL["level"])
-    return [*rocks, fall, spray], outlines, edge, foot
+    return [*rocks, fall, spray], outlines, edge, foot, stones
 
 
 # ---------------------------------------------------------------------------- plants
@@ -1742,6 +1888,22 @@ def build_plants(collection, outlines):
         if kind == "bush" and grown:
             flowers.append((x, y, z))
 
+    # Ferns and dark leafy plants at the foot of the gorge's south wall, along the riverside path, as
+    # in the film's frames of it: in clumps with gaps, clear of the stones' crossing; from a generator
+    # of their own.
+    foot = np.random.default_rng(GORGE_FOOT["seed"])
+    fx = GORGE_FOOT["from"]
+    while fx > GORGE_FOOT["to"]:
+        fx -= foot.uniform(*GORGE_FOOT["gap"])
+        if abs(fx - STONES["x"]) < 4.0 or foot.random() < 0.3:
+            continue
+        (px, pz), _, n = gorge_point(fx)
+        u = GORGE["half"] - GORGE_FOOT["in"] + foot.uniform(-0.15, 0.15)
+        px, pz = px + n[0] * u, pz + n[1] * u
+        kind = GORGE_FOOT["kinds"][int(foot.integers(0, len(GORGE_FOOT["kinds"])))]
+        variants.plant("under", kinds[kind][int(foot.integers(0, len(kinds[kind])))], px, at(px, pz) - 0.04, pz,
+                       foot.uniform(0, 2 * math.pi), foot.uniform(0.75, 1.1))
+
     # The waterfall pool's own plants and the bromeliads on its stump (see POOL_PLANTS and POOL_ROCKS).
     for kind, index, across, toward, scale in POOL_PLANTS:
         x, z = pool_spot(across, toward)
@@ -1973,7 +2135,7 @@ def main():
         f.write(q.tobytes())
 
     # The rocks standing on it, and the waterfall.
-    landmarks, outlines, skylight_edge, foot = build_landmarks(collection)
+    landmarks, outlines, skylight_edge, foot, stones = build_landmarks(collection)
     export_objects(landmarks, os.path.join(OUT_DIR, "landmarks.glb"))
     rock_tris = sum(len(p.vertices) - 2 for o in landmarks if o.name.startswith(("rocks", "crowns", "vines")) for p in o.data.polygons)
 
@@ -2010,6 +2172,7 @@ def main():
         "skylight": {"centre": list(SKYLIGHT["centre"]), "edge": skylight_edge,
                      "lip": SKYLIGHT["radius"] + SKYLIGHT["width"], "top": round(skylight_rim() + K.SINKHOLE_LIP, 3)},
         "waterfall": {"foot": [round(foot[0], 2), round(foot[1], 2)], "splash": 3.6},
+        "stones": stones,
         "plants": {"url": "models/island/plants.glb", "trunks": trunks, "crowns": crowns, "butterflies": butterflies,
                    "patches": {"canopy": CANOPY_PATCHES, "understory": UNDERSTORY_PATCHES}, "placed": placed},
     }

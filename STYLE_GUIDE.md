@@ -332,6 +332,12 @@ food and cups on the ground, everyone toasting. This is the festival.
 - At the foot of a cliff, a narrow riverside path of rounded pebbles and
   boulders, ferns and dark leafy plants at the rock, vines hanging down it,
   leading along the water to a wooden restaurant.
+- 島二郎, the restaurant: a ramen shop, its name on a weathered board hung
+  by two ropes from a rough crossbar over the jungle path to it, vines
+  with heart-shaped leaves wound round its posts and hanging from the bar.
+  Built as the village builds (log posts, plank walls, thatch), open at the
+  front under a navy curtain between red paper lanterns, a counter with
+  stools, bowls of ramen heaped with bean sprouts.
 
 ### The forbidden cave's entrance (`cave entrance 1` to `4`, `cave signboard 1` to `3`)
 

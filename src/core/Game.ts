@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { Stage } from '../world/Stage';
-import { cameraClear, clampToWalkable, groundHeight } from '../world/Island';
+import { cameraClear, clampInAir, clampToWalkable, groundHeight, splashDown } from '../world/Island';
 import { Input } from './Input';
 import { CameraRig } from './CameraRig';
 import { FreeCamera } from './FreeCamera';
@@ -175,7 +175,15 @@ export class Game {
     this.panel.onToggle = (open) => (this.viewLiftTarget = open ? 1 : 0);
     this.input.onFirstMove = () => this.hud.hideHint();
 
-    this.ctx = { camera: this.camera, viewHeight: 1, pixelRatio: 1, groundHeight, clamp: clampToWalkable };
+    this.ctx = {
+      camera: this.camera,
+      viewHeight: 1,
+      pixelRatio: 1,
+      groundHeight,
+      clamp: clampToWalkable,
+      air: clampInAir,
+      splash: splashDown,
+    };
     // In the film look, characters walking under the trees go into their shade, and after dark the
     // firelight near them warms them.
     if (FILM) {

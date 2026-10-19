@@ -106,6 +106,31 @@ export const SHOTS: Record<string, StagedShot> = {
     camera: { position: [-190, 1.6, -70], target: [-183, 2.5, -108], fov: 50 },
     hour: 21,
   },
+  // The film's frame of the stepping stones from the rim (`parkour stone landmark 3`): the cast on
+  // the north rim's grass from behind, the grass-topped stones stepping across the gorge before them.
+  stones: {
+    characters: {
+      chiikawa: { x: -102.6, z: -211.4, yaw: 0.2 },
+      hachiware: { x: -101.4, z: -211.6, yaw: 0.2 },
+      usagi: { x: -103.8, z: -211.2, yaw: 0.2 },
+    },
+    camera: { position: [-103.8, 12.8, -214.8], target: [-97.4, 9.4, -183.6], fov: 55 },
+    hour: 11,
+  },
+  // The film's frame of the riverside path below the stones (`river below parkour stone landmark
+  // 1`): Chiikawa on its pebbles at night, the gorge's wall beside her.
+  riverside: {
+    characters: { chiikawa: { x: -125.0, z: -178.4, yaw: -1.2 } },
+    camera: { position: [-120.8, 1.6, -180.4], target: [-128, 1.1, -177.0], fov: 45 },
+    hour: 21.5,
+  },
+  // The film's frame of the way to 島二郎 (`river below parkour stone landmark 2`): its sign hung over
+  // the path at night, Chiikawa under it, the restaurant's lantern beyond.
+  shimajiro: {
+    characters: { chiikawa: { x: -157.3, z: -168.4, yaw: -2.0 } },
+    camera: { position: [-153.5, 1.35, -170.6], target: [-159.0, 2.0, -166.7], fov: 50 },
+    hour: 21.5,
+  },
   // Lineup of the main cast at eye level, for checking proportions side by side.
   cast: {
     characters: {

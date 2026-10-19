@@ -70,6 +70,32 @@ stage, and along every path. Not yet checked on a real phone.
   growing in front of it; the place is named 西の浜. The cave inside, its
   sea running in under the spur to the skylight on the spur's top, is to
   come.
+- The stepping stones across the gorge, after the film's frames of them:
+  six tall pillars of the gorge's white rock standing in its river, each
+  topped with a flat round mat of grass, 40 to 90 cm apart, from a pillar
+  standing against the north rim's cliff, level with its grass, to a shelf
+  of rock jutting from the south rim's cliff over the riverside path.
+  Characters walk out onto the first from the rim, jump from stone to
+  stone (from each edge at a walk, or easily at a run) and walk off the
+  last onto the far rim. Miss one and they fall into the river and climb
+  out on the riverside path, as Chiikawa does in the film.
+- The riverside path along the foot of the gorge's south wall is a bank of
+  rounded pebbles, pale greys, some cooler and some warmer, each lit along
+  one side, with boulders half in the water along its edge and ferns,
+  monstera and red ti plants at the wall's foot, as in the film's frames of
+  it. It passes under the stones' shelf on its way to the restaurant.
+- 島二郎, the restaurant at the end of the riverside path: a ramen shop
+  built as the village builds, a plank floor on short log stilts under a
+  big thatched hip roof on log posts, open at the front under a navy cloth
+  curtain between red paper lanterns that light up at night. Along a plank
+  counter, stools and bowls of ramen heaped with bean sprouts, cabbage and
+  pork; behind it the kitchen, walled in planks: a clay stove with two
+  steel stockpots, a prep table with a tray of noodles and stacked bowls,
+  and jars on a shelf by an open window with a bamboo blind rolled up.
+  Its sign hangs over the path on two posts wound with vines, as in the
+  film's frame of the way to it (a template to paint its 島二郎 on is
+  drawn); the place is named 島二郎. Built by `art/blender/houses.py` and
+  `art/blender/build_props.py`.
 - The bay is the festival, laid out as in the film's arrival: a short
   wooden pier (rough planks on log posts, over turquoise water) reaches out
   from the middle of the beach, and the white duck ferry lies at anchor out
@@ -160,8 +186,9 @@ stage, and along every path. Not yet checked on a real phone.
   through the camera it was first laid out with (in a window shaped like
   the frame, about 1.86 : 1), its lens widened since to take in the grown
   island. From high above, the sea reaches further and the haze thins, so
-  the island still reads. `waterfall`, `cliffs`, `bay` and `cave` stage the
-  film's frames of those places the same way.
+  the island still reads. `waterfall`, `cliffs`, `bay`, `cave`, `stones`,
+  `riverside` and `shimajiro` stage the film's frames of those places the
+  same way.
 - Day and night: a whole day passes in 24 minutes, starting at ten in the
   morning. The sky goes from dawn pinks to bright blue, to a golden
   afternoon, an orange and pink dusk and a deep navy night with twinkling
@@ -212,8 +239,8 @@ stage, and along every path. Not yet checked on a real phone.
   signs take the sun's shadows with their boards, so the two meet unseen
   in sun, shade and firelight. A sign without a painting keeps its typed
   words. How to paint them is in `art/signs/README.md`. All but the
-  cave's new No Entry sign (33 in all) are painted, among them the arch's
-  島へようこそ!! and its Welcome to Shima
+  cave's No Entry sign and 島二郎's (34 in all) are painted, among them
+  the arch's 島へようこそ!! and its Welcome to Shima
   banner, the street's いらっしゃいませ!! and たのしんでね, and 味じまん
   お好み焼き on a red board at the street's far end, as the film has it
   there, in place of トロピカルジュース.
@@ -272,6 +299,16 @@ outlined is drawn twice, once for its pen line. To get there:
 
 **Changed**
 
+- Jumps carry on through the air. A character jumping keeps going, over
+  gaps, drops and water, comes down on whatever is under them when they
+  land (the ground, a deck, a stone's top), and is stopped only by what
+  stands higher than their feet; walking off an edge more than 60 cm high
+  is a fall. Landing in water too deep to stand in, they climb out at the
+  nearest bank a little over the water. Before, someone jumping still kept
+  to ground they could walk on, so no jump crossed a gap or a drop.
+- Characters no longer walk a step into the foot of the tableland's
+  cliffs: its ground now rises from the foot of the cliff faces, where it
+  had risen from just inside their line.
 - The island has its third shape, after the film's later frames of it:
   bigger, grown most to the north and west (about 340 metres across and
   285 from north to south, on a map 520 metres square, where it was 290 by
@@ -287,11 +324,11 @@ outlined is drawn twice, once for its pen line. To get there:
   bedded, greenery spilling over their tops and shrubs along them, a strip
   of beach and palms at its foot by the sea. A gorge cuts through it from
   the waterfall's lowland to the west coast: a dry ravine at its head,
-  then a wide river the sea runs into, 20 metres across between walls 26
+  then a wide river the sea runs into, 20 metres across between walls 27
   apart, with a narrow ledge along the foot of its south wall a little over
-  the water, where a path runs down to where the restaurant will stand
-  (the stepping-stone pillars across the river and the restaurant are to
-  come); the place is named 渓谷. Ramps climb onto the tableland north of
+  the water, where a path runs down to the restaurant, 島二郎 (see the
+  stepping stones, the riverside path and the restaurant above); the place
+  is named 渓谷. Ramps climb onto the tableland north of
   the gorge, from beside the waterfall, and onto its rim south of it from
   the jungle. From the rim a spur runs out toward the west coast, the
   cave's skylight on its top, and ends against the heap of rock the

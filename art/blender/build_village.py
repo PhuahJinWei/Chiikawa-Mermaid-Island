@@ -1003,6 +1003,7 @@ BUILDERS = {
     "beehive": build_beehive,
     "stage": H.build_stage,
     "torch": H.build_torch,
+    "restaurant": H.build_restaurant,
     "arch": H.build_arch,
     "banner": H.build_banner,
     "lanterns": H.build_lantern_pole,

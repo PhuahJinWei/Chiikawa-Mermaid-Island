@@ -46,11 +46,12 @@ OUT = os.path.join(ROOT, "public", "signs")
 PAINT_PIXELS = 800
 GAME_PIXELS = 220
 # The board each prop's label faces are painted on, a colour a face, as its build script colours
-# it (build_village.py the stalls, houses.py the arch and the banners).
+# it (build_village.py the stalls, houses.py the arch and the banners, build_props.py the signs).
 BOARDS = {
     "stall_pink": ["#F4A3B5"], "stall_purple": ["#B68FD6"], "stall_orange": ["#F2A65A"],
     "stall_blue": ["#7EC3EA"], "stall_red": ["#E0674F"], "stall_white": ["#F7F4EC"],
     "arch": ["#E2BE86", "#FFFFFF"], "banner": ["#FFFFFF"],
+    "sign": ["#D9B483"], "sign_hanging": ["#D9B483"],
 }
 # The words on the templates: in the game's own font where there is one (--font-ja in
 # src/styles.css), this strong, laid out as the game lays them out (paintLabels in Props.ts).
