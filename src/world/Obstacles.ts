@@ -1,9 +1,9 @@
 /**
  * What stands on the island for characters to walk round, under or on, and for the camera to keep
  * out of: blocks (a prop's foot, a hut's walls, a roof, a stepping stone's body, each over a range
- * of heights), decks to walk on (porches, floors, stairs, the pier, the lip round a cave's
- * skylight, the stepping stones' tops), and tree crowns, which only the camera minds. Kept in a
- * coarse grid, so a test looks only at what is near.
+ * of heights), decks to walk on (porches, floors, stairs, the pier, the stepping stones' tops),
+ * and tree crowns, which only the camera minds. Kept in a coarse grid, so a test looks only at
+ * what is near.
  */
 
 const CELL = 8;
@@ -41,16 +41,6 @@ interface Deck extends Shape {
   /** Height at the deck's back edge, and at its front edge (the same, unless it is a ramp). */
   back: number;
   front: number;
-}
-
-/** A flat deck round a hole: from an inner edge out to a circle. */
-interface Ring {
-  x: number;
-  z: number;
-  /** The inner edge, as an outline (see `outlineAt`). */
-  inner: number[];
-  outer: number;
-  top: number;
 }
 
 /** A flat deck within an outline round its middle: a stepping stone's top, a ledge on a cliff's top. */
@@ -92,7 +82,6 @@ class Grid<T> {
 const EMPTY: never[] = [];
 const blocks = new Grid<Block>();
 const decks = new Grid<Deck>();
-const rings = new Grid<Ring>();
 const pads = new Grid<Pad>();
 const crowns = new Grid<Crown>();
 
@@ -153,11 +142,6 @@ export function addBox(
  * `front` at its front edge (its local +z side). */
 export function addDeck(x: number, z: number, hx: number, hz: number, angle: number, back: number, front = back): void {
   decks.add({ x, z, cos: Math.cos(angle), sin: Math.sin(angle), hx, hz, back, front }, x, z, Math.hypot(hx, hz));
-}
-
-/** A flat walkable ring at `top` round a hole at (x, z): from the hole's edge (an outline) out to `outer`. */
-export function addRing(x: number, z: number, inner: number[], outer: number, top: number): void {
-  rings.add({ x, z, inner, outer, top }, x, z, outer);
 }
 
 /** A flat walkable pad at `top` within an outline round (x, z). */
@@ -229,13 +213,6 @@ export function deckUnder(x: number, z: number, reach: number): number | null {
     if (Math.abs(lx) > d.hx || Math.abs(lz) > d.hz) continue;
     const h = d.back + (d.front - d.back) * ((lz + d.hz) / (2 * d.hz));
     if (h <= reach && (top === null || h > top)) top = h;
-  }
-  for (const g of rings.at(x, z)) {
-    const dx = x - g.x;
-    const dz = z - g.z;
-    const d = Math.hypot(dx, dz);
-    if (d > g.outer || d < outlineAt(g.inner, dx, dz)) continue;
-    if (g.top <= reach && (top === null || g.top > top)) top = g.top;
   }
   for (const p of pads.at(x, z)) {
     if (p.top > reach || (top !== null && p.top <= top)) continue;

@@ -9,7 +9,8 @@ layered. A rock can open an arched cave mouth at its foot, or a notch in its rim
 Colours are painted per vertex: pale stone, darker in the grooves, with streaks running down and
 moss hanging from the top.
 
-The cave's skylight is built here too: a round opening in the ground, ringed with the same stone.
+The cave's skylight is built here too: a round opening in the ground like a well's mouth, its
+sides dropping sheer before opening out into a dome over the cave's water.
 
 
 Rocks are described in game coordinates (x east, z south, y up) and turned into Blender's
@@ -871,98 +872,166 @@ def cliff_greens(rng, u, P, N, T, beds, face_offset, water, column):
     return out, cols
 
 
-# How far the skylight's lip stands above the ground round it.
-SINKHOLE_LIP = 0.16
+def skylight_edge(radius, lumps, theta):
+    """How far the cave skylight's edge lies from its middle toward the angles `theta` (from east
+    toward south): round, wandering out and in by a few waves (how many times round, how far as a
+    share of the radius, where each starts)."""
+    theta = np.asarray(theta, dtype=float)
+    return radius * (1.0 + sum(amp * np.sin(k * theta + phase) for k, amp, phase in lumps))
 
 
-def sinkhole(centre, radius, rim, water, floor, seed, bell=2.5, width=5.5, sheer=None, segments=72):
-    """The cave's skylight: a round opening in the ground over the cave's water, as in the film's
-    aerial shot. Its sides are sheer fluted limestone that flare out under the edge into the cave
-    below and drop past the water; a mossy lip runs round the edge out to `radius + width`, a step
-    above the ground at `rim`; vines hang down inside. Toward the angle `sheer` (where a rock stands
-    close) the side drops sheer instead, so the rock stays clear of the cave. A closed solid ring,
-    for the pen: the inner face, the lip on top, the outer face down into the ground. Returns
-    (bmesh, colours, edge): the edge is the opening's radius at `segments` even angles round it from
-    east toward south, for the game to keep walkers back from."""
+def skylight(centre, radius, lumps, ground, water, floor, seed, shaft=3.8, dome=10.5, segments=96):
+    """The cave's skylight, after the film's frames looking down into it and up out of it and the
+    user's sketch of it: a round opening in the jungle floor like a well's mouth, the ground running
+    right to its edge (build_island cuts the opening out of the ground at the same `segments`
+    angles), where a worn lip of stone rounds over a hand's breadth above it. Its sides drop sheer,
+    fluted and bedded and leaning in a little, so they show from above as a well's do, `shaft`
+    metres below the ground, then open out into the cave: a dome over the water reaching about
+    `dome` metres from the middle at the water, its floor at `floor` under it. Moss hangs over the
+    edge in tongues and vines down the well, some on past its foot into the cave. The lip follows
+    the ground round (`ground(x, z)`: its height). A closed solid: the cave's inside, the rest shut
+    away under the ground. Returns (the rock's bmesh, its colours, the vines' bmesh, their colours)."""
     rng = np.random.default_rng(seed)
     C = {**SHARED, **STONES["karst"]}
     cx, cz = centre
     theta = np.linspace(0.0, 2.0 * math.pi, segments, endpoint=False)
-    p = rng.uniform(0.0, 2.0 * math.pi, 8)
-    # Nearly round, as in the film: the edge wanders at most 5% either way.
-    lump = 0.025 * np.sin(2 * theta + p[0]) + 0.015 * np.sin(3 * theta + p[1]) + 0.01 * np.sin(5 * theta + p[2])
-    warp = theta + 0.25 * np.sin(3 * theta + p[3])
-    groove = (0.5 + 0.5 * np.cos(14.0 * warp + p[4])) ** 4
-    edge = radius * (1.0 + lump)
-    top = rim + SINKHOLE_LIP - 0.04
-    bottom = floor - 0.5
-    drape = 0.5 + 0.9 * (0.5 + 0.5 * np.sin(7.0 * theta + p[5])) ** 2
-    opening = np.ones(segments) if sheer is None else 1.0 - 0.9 * np.exp(-(angle_diff(theta, sheer) / 0.45) ** 2)
+    cos, sin = np.cos(theta), np.sin(theta)
+    p = rng.uniform(0.0, 2.0 * math.pi, 14)
 
-    def inner(y):
-        """The inner face's distance from the middle at height y: at the edge just under the lip,
-        flaring out by `bell` a few metres down (less toward `sheer`), fluted all the way."""
-        flare = smoothstep(rim - 0.3, rim - 3.5, y) * opening
-        return edge + bell * flare + 0.35 * groove * flare
+    def wave(k, phase):
+        return 0.5 + 0.5 * np.sin(k * theta + phase)
 
-    # The profile round each angle: up the inner face, across the lip, down the outer face.
-    profile = []   # (radii by angle, height, kind)
-    for y in [bottom, water - 1.0, water - 0.25, water + 0.35, water + 1.4, *np.linspace(water + 2.6, rim - 1.0, 4),
-              rim - 0.5, rim - 0.18]:
-        profile.append((inner(float(y)), float(y), "face"))
-    profile.append((edge + 0.16, top - 0.02, "edge"))
-    # The lip follows the edge's wobble across to its round outer rim.
-    for out in (0.45, 1.6, 3.0, 4.3):
-        profile.append((edge + out, top + 0.04, "lip"))
-    profile.append((np.full(segments, radius + width), top, "lip"))
-    profile.append((np.full(segments, radius + width), bottom, "outer"))
+    def ground_at(r):
+        return np.asarray(ground(cx + r * cos, cz + r * sin), dtype=float)
+
+    edge = skylight_edge(radius, lumps, theta)
+    # The lip: how high its stone stands above the ground, and how far out it runs on under it.
+    bump = 0.1 + 0.14 * wave(4, p[0]) * wave(7, p[1])
+    under = 0.45 + 0.6 * wave(3, p[2])
+    # The well's sides: rain flutes, broad unevenness and two beds where they step in and out, all
+    # coming in from under the lip; a lean in going down.
+    warp = theta + 0.25 * np.sin(3.0 * theta + p[3])
+    groove = (0.5 + 0.5 * np.cos(17.0 * warp + p[4])) ** 4
+    top = ground_at(edge) - 0.18
+    foot = float(np.mean(top + 0.18)) - shaft
+
+    def wall(t):
+        """The well's side `t` of the way down it (0 under the lip, 1 at its foot): how far from
+        the middle at each angle, and how high."""
+        rough = smoothstep(0.0, 0.25, t)
+        r = (edge - 0.06 - 0.3 * t
+             + rough * ((0.1 + 0.08 * t) * groove
+                        + 0.09 * np.sin(2.0 * theta + p[5] + 2.5 * t) * np.sin(5.0 * theta + p[6] - 1.5 * t))
+             - 0.08 * smoothstep(0.34, 0.37, t) + 0.12 * smoothstep(0.69, 0.72, t))
+        return r, top + (foot + 0.35 - top) * t
+
+    r_foot = wall(1.0)[0]
+    # The dome: an uneven vault from the well's foot down to the water, pocketed.
+    reach = dome * (1.0 + 0.05 * np.sin(2.0 * theta + p[7]) + 0.03 * np.sin(5.0 * theta + p[8]))
+    r0, y0 = r_foot + 0.75, foot - 0.2
+    phi0 = np.arcsin(r0 / reach)
+    rise = (y0 - water) / np.cos(phi0)
+
+    # Rings round the middle, one after another round the solid's cross-section: (radii, heights,
+    # kind, how far down: the well's t, or the vault's).
+    rows = []
+    # The cave's floor under the water, then its side up to the water.
+    for k, y in ((0.22, floor), (0.45, floor + 0.05), (0.7, floor + 0.35), (0.92, water - 1.8)):
+        rows.append((k * reach, np.full(segments, y), "cave", 1.0))
+    rows.append((reach + 0.05, np.full(segments, water - 0.8), "cave", 1.0))
+    # The vault, from the water up to the well's foot.
+    for v in (1.0, 0.86, 0.72, 0.58, 0.45, 0.33, 0.22, 0.11, 0.0):
+        phi = phi0 + (0.5 * math.pi - phi0) * v
+        pocket = 0.3 * np.sin(6.0 * theta + 5.0 * v + p[9]) * np.sin(4.0 * theta - 3.0 * v + p[10]) * math.sin(math.pi * v)
+        rows.append((reach * np.sin(phi) + pocket, water + rise * np.cos(phi), "cave", v))
+    # The well's foot, rounding over into the vault.
+    rows.append((r_foot + 0.35, np.full(segments, foot - 0.08), "foot", 1.0))
+    rows.append((r_foot + 0.1, np.full(segments, foot + 0.1), "foot", 1.0))
+    # Up the well.
+    for t in (1.0, 0.86, 0.72, 0.69, 0.52, 0.37, 0.34, 0.22, 0.1, 0.0):
+        rows.append((*wall(t), "well", t))
+    # The lip, rounding over from the well onto the ground and on under it.
+    rows.append((edge - 0.03, ground_at(edge) + bump - 0.07, "lip", 0.0))
+    rows.append((edge + 0.14, ground_at(edge + 0.14) + bump, "lip", 0.0))
+    rows.append((edge + 0.32, ground_at(edge + 0.32) + 0.45 * bump, "lip", 0.0))
+    rows.append((edge + under, ground_at(edge + under) - 0.12, "hidden", 0.0))
+    rows.append((edge + under + 0.4, ground_at(edge + under + 0.4) - 0.5, "hidden", 0.0))
+    # Shut away under the ground: out past the dome, down, and back in under its floor.
+    out = np.full(segments, float(reach.max()) + 0.7)
+    rows.append((out, np.full(segments, float(ground_at(out).min()) - 2.5), "hidden", 0.0))
+    rows.append((out, np.full(segments, floor - 1.2), "hidden", 0.0))
+    rows.append((0.22 * reach, np.full(segments, floor - 1.2), "hidden", 0.0))
+
+    def colour(ys, kind, depth):
+        if kind == "hidden":
+            return np.broadcast_to(C["foot"], (segments, 3))
+        band = 0.5 + 0.5 * np.sin(3.0 * theta + p[11] + 0.6 * ys)
+        c = mix(np.broadcast_to(C["stone"], (segments, 3)), C["stoneMid"], smoothstep(0.3, 0.7, band))
+        moss = mix(np.broadcast_to(C["moss"], (segments, 3)), C["mossDark"], wave(11, p[12]))
+        if kind == "lip":
+            # Worn stone with moss on it in patches.
+            return mix(c, moss, 0.25 + 0.55 * smoothstep(0.3, 0.7, wave(5, p[13]) * wave(2, p[0]) * 1.6))
+        if kind == "well":
+            # Fluted, darker down the well out of the light; moss hanging from the lip in tongues.
+            c = mix(c, C["groove"], 0.8 * smoothstep(0.15, 0.7, groove)) * (1.0 - 0.42 * depth)
+            drape = 0.35 + 1.3 * wave(9, p[1]) ** 2
+            return mix(c, moss * (1.0 - 0.3 * depth), smoothstep(-drape - 0.1, -drape + 0.1, ys - top))
+        if kind == "foot":
+            return c * 0.5
+        # The cave: dark stone, darker deep under the vault, wet and dark where the water laps.
+        c = mix(np.broadcast_to(C["groove"] * 0.55, (segments, 3)), C["cave"], 0.25 + 0.5 * depth)
+        return mix(c, C["wet"] * 0.45, 1.0 - smoothstep(0.0, 0.9, np.abs(ys - water)))
 
     bm = bmesh.new()
-    rows, cols = [], []
-    for radii, y, kind in profile:
-        xs, zs = cx + radii * np.cos(theta), cz + radii * np.sin(theta)
-        rows.append([bm.verts.new((float(xs[j]), -float(zs[j]), y)) for j in range(segments)])
-        if kind in ("face", "edge"):
-            f = (y - water) / max(rim - water, 0.1)
-            band = 0.5 + 0.5 * np.sin(3.0 * theta + p[6] + 2.0 * f)
-            c = mix(np.broadcast_to(C["stone"], (segments, 3)), C["stoneMid"], smoothstep(0.3, 0.7, band))
-            c = mix(c, C["groove"], smoothstep(0.15, 0.7, groove))
-            # Darker down in the cave, under the overhang; wet where the water laps; moss hanging
-            # from the edge in tongues.
-            c = mix(c, C["groove"] * 0.72, smoothstep(0.85, 0.25, f))
-            c = mix(c, C["wet"], smoothstep(0.9, 0.2, abs(y - water)) if abs(y - water) < 0.9 else 0.0)
-            c = mix(c, mix(np.broadcast_to(C["moss"], (segments, 3)), C["mossDark"], 0.5 + 0.5 * np.sin(11.0 * theta)),
-                    smoothstep(rim - drape - 0.1, rim - drape + 0.1, y))
-        elif kind == "lip":
-            c = mix(np.broadcast_to(C["moss"], (segments, 3)), C["mossDark"],
-                    smoothstep(0.2, 0.8, 0.5 + 0.5 * np.sin(5.0 * theta + p[7]) * np.sin(radius + y)))
-        else:
-            c = np.broadcast_to(C["foot"], (segments, 3))
-        cols.extend(list(c))
-    for lo, hi in zip(rows, rows[1:] + rows[:1]):
+    rings, cols = [], []
+    for radii, ys, kind, depth in rows:
+        xs, zs = cx + radii * cos, cz + radii * sin
+        rings.append([bm.verts.new((float(xs[j]), -float(zs[j]), float(ys[j]))) for j in range(segments)])
+        cols.extend(list(colour(ys, kind, depth)))
+    for lo, hi in zip(rings, rings[1:]):
         for j in range(segments):
             k = (j + 1) % segments
             bm.faces.new((lo[j], lo[k], hi[k], hi[j]))
+    bm.faces.new(rings[0])
+    bm.faces.new(rings[-1])
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
 
-    # Vines hanging from the edge down into the cave, with leaves along them.
-    vine_cols = []
-    for _ in range(40):
-        a = rng.uniform(0.0, 2.0 * math.pi)
-        j = int(round(a / (2.0 * math.pi) * segments)) % segments
-        r = float(edge[j]) + 0.12
-        x0, z0 = cx + r * math.cos(a), cz + r * math.sin(a)
-        length = rng.uniform(1.5, 6.0)
-        sway = rng.uniform(-0.25, 0.25)
-        a3 = Vector((x0, -z0, top - 0.05))
-        b3 = Vector((x0 - math.cos(a) * 0.3 + sway, -(z0 - math.sin(a) * 0.3), top - 0.05 - length))
-        vine = P.segment_bm(a3, b3, 0.04, 0.03, segments=4)
-        L.append_bm(bm, vine)
-        vine_cols.extend([C["mossDark"]] * len(vine.verts))
-        vine.free()
-        for t in np.arange(0.25, 1.0, 0.3):
-            leaf = L.ellipsoid_bm(a3.lerp(b3, float(t)) + Vector((0.08, 0.0, 0.0)), (0.13, 0.05, 0.09), u=5, v=3)
-            L.append_bm(bm, leaf)
-            vine_cols.extend([C["moss"]] * len(leaf.verts))
+    # Vines hanging from the lip down the well a hand's breadth off its side, some on past its foot
+    # into the cave, leaves along them in bunches.
+    vb, vine_cols = bmesh.new(), []
+    for _ in range(20):
+        j = int(rng.integers(0, segments))
+        a = float(theta[j])
+        length = rng.uniform(1.2, 5.8)
+        y_top = float(top[j]) + 0.18 + float(bump[j]) - 0.1
+        ys = np.linspace(y_top, y_top - length, max(4, int(length / 0.5) + 1))
+        sway = rng.uniform(-0.3, 0.3)
+        pts = []
+        for i, y in enumerate(ys):
+            if y > foot + 0.35:
+                t = float(np.clip((top[j] - y) / (top[j] - foot - 0.35), 0.0, 1.0))
+                r = float(wall(t)[0][j]) - 0.08 - 0.06 * t
+            else:
+                r = float(r_foot[j]) - 0.15
+            b = a + sway * (i / (len(ys) - 1)) ** 2 / r
+            pts.append(Vector((cx + r * math.cos(b), -(cz + r * math.sin(b)), float(y))))
+        thick = rng.uniform(0.03, 0.045)
+        for q0, q1 in zip(pts, pts[1:]):
+            seg = P.segment_bm(q0, q1, thick, thick * 0.9, segments=4)
+            L.append_bm(vb, seg)
+            vine_cols.extend([VINE["stem"]] * len(seg.verts))
+            seg.free()
+        inward = Vector((-math.cos(a), math.sin(a), 0.0))
+        side = Vector((math.sin(a), math.cos(a), 0.0))
+        for t in np.arange(rng.uniform(0.0, 0.06), 1.0, rng.uniform(0.05, 0.08)):
+            if rng.random() < t * 0.5:
+                continue
+            k = t * (len(pts) - 1)
+            i = min(int(k), len(pts) - 2)
+            c = pts[i].lerp(pts[i + 1], k - i) + inward * 0.05 + side * rng.uniform(-0.14, 0.14)
+            size = rng.uniform(0.12, 0.2)
+            leaf = L.ellipsoid_bm(c, (size, size * 0.35, size * 0.65), u=4, v=3)
+            L.append_bm(vb, leaf)
+            vine_cols.extend([VINE[("leaf", "leafMid", "leafDark")[int(rng.integers(0, 3))]]] * len(leaf.verts))
             leaf.free()
-    return bm, cols + vine_cols, [round(float(r), 2) for r in edge]
+    return bm, cols, vb, vine_cols

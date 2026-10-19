@@ -325,13 +325,35 @@ outlined is drawn twice, once for its pen line. To get there:
 
 **Changed**
 
+- The forbidden cave is a hidden place, as in the film. Its skylight, the
+  round opening in the spur's top over the cave's sea, is smaller (13
+  metres across where it was 21) and lies deep in the spur's jungle, about
+  60 metres from where the stepping stones land, where it had lain on open
+  grass beside their path. The high ground south of the gorge, the spur
+  with the skylight among it, has no ramp up onto it any more: only the
+  stepping stones reach it. No path leads to the cave's beach either; it is
+  found by going through the jungle or along the shore.
+- The skylight is a well opening into a dome, after the film's frames
+  looking down into it and up out of it and the user's sketch, where it
+  had been a hole ringed by a wide, raised lip of moss. The jungle floor
+  runs right to its edge, cut out of the ground, where a worn lip of stone
+  rounds over a hand's breadth above it, mossy in patches. Its sides drop
+  sheer for nearly four metres, fluted and bedded and leaning in a little,
+  so from above they show as a well's do, darker going down, moss hanging
+  over the edge in tongues and vines down them, some on past the well's
+  foot. Below, it opens out into a dome over the cave's water, about 21
+  metres across at the water, still and deep blue (the cave's inside is to
+  come). Trees crowd round the edge, their crowns over it, and ferns and
+  bushes grow along it, so it shows neither from the ground nor from the
+  air but straight down. Walkers stop a step short of the edge and cannot
+  jump in.
 - The village is relaid after the film's frames of it, its houses in
   groups of their own where they had stood in a ring round the stage:
   the stage at the plaza's corner, the stilt huts facing each other across
   the lane to the fields, the plank and round huts in a yard to the
   north-west, and the new guest houses in their own glade (see the village
-  above). Its sand is the plaza, the lane and the yard; the paths to the
-  cave's beach and to the waterfall start from the plaza, a path winds
+  above). Its sand is the plaza, the lane and the yard; the path to the
+  waterfall starts from the plaza, a path winds
   through the guest houses' glade, and the lane is the way to the fields.
   The jungle is replanted round it; the waterfall's frame is as before.
   Measured on the dev PC at 1488 x 800, a few hours into the day (warm):
@@ -366,18 +388,19 @@ outlined is drawn twice, once for its pen line. To get there:
   apart, with a narrow ledge along the foot of its south wall a little over
   the water, where a path runs down to the restaurant, 島二郎 (see the
   stepping stones, the riverside path and the restaurant above); the place
-  is named 渓谷. Ramps climb onto the tableland north of
-  the gorge, from beside the waterfall, and onto its rim south of it from
-  the jungle. From the rim a spur runs out toward the west coast, the
-  cave's skylight on its top, and ends against the terraced outcrop the
-  forbidden cave opens in (see the cave above). The dark mound in the
+  is named 渓谷. A ramp climbs onto the tableland north of the gorge from
+  beside the waterfall; the high ground south of it is reached only by the
+  stepping stones. From there a spur runs out toward the west coast, the
+  cave's skylight hidden in the jungle on its top, and ends against the
+  terraced outcrop the forbidden cave opens in (see the cave above). The dark mound in the
   north-west stands on the tableland's north side, a little smaller. The
   jungle is replanted over the new ground, its trees standing back from
   the high ground's cliff tops and feet so the white stone shows. Every
-  path, the riverside ledge, the ramps' tops, the skylight's lip, the
-  cave's mouth and the sea cliffs' headland can be walked to from the
-  festival. The staged sea-cliffs view stands on the headland at the
-  cove's mouth looking across it at the cliffs, the stack on the left.
+  path, the riverside ledge, the ramp's top, the cave's mouth and the sea
+  cliffs' headland can be walked to from the festival, and the skylight's
+  edge over the stepping stones. The staged sea-cliffs view stands on the
+  headland at the cove's mouth looking across it at the cliffs, the stack
+  on the left.
   Measured on the dev PC at 1488 x 800: the waterfall frame takes 21 ms,
   the cave's beach 18 and the riverside ledge 16, of which the tableland's
   cliffs and the cave's rock (92,000 triangles) take about 1 to 3 ms where

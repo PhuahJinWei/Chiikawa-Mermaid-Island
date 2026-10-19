@@ -54,6 +54,10 @@ const COLORS = {
   poolEdge: '#5DA88B',
   pool: '#2C6658',
   poolDeep: '#22554A',
+  // The forbidden cave's water under its skylight: deep blue in the cave's shade.
+  caveEdge: '#3B8DB5',
+  cave: '#1F6CA0',
+  caveDeep: '#18507F',
   cloud: '#FFFFFF',
   cloudShade: '#DCE4EC',
   moon: '#F5F1C9',
@@ -212,6 +216,26 @@ export class Stage {
     u.uFloor.value = terrain.texture;
     u.uMap.value.set(origin[0], origin[1], size, terrain.info.height.grid);
     u.uLevel.value = terrain.info.water;
+    // The forbidden cave's water, the sea come in under the spur: still, under the dome below its
+    // skylight, where the height grid holds the ground over it, so it is a surface of its own with a
+    // depth of its own.
+    const sky = terrain.info.skylight;
+    if (sky) {
+      const cave = this.water.clone();
+      for (const name of ['uTime', 'uFloor', 'uMap'] as const) cave.uniforms[name] = u[name];
+      Object.assign(cave.uniforms, this.waterLight, {
+        uLevel: { value: terrain.info.water },
+        uDepth: { value: terrain.info.water - sky.floor },
+        uSurf: { value: 0 },
+        uEdge: { value: new THREE.Color(COLORS.caveEdge) },
+        uShallow: { value: new THREE.Color(COLORS.cave) },
+        uMid: { value: new THREE.Color(COLORS.caveDeep) },
+        uDeep: { value: new THREE.Color(COLORS.caveDeep) },
+      });
+      const surface = new THREE.Mesh(new THREE.CircleGeometry(sky.dome * 1.15, 64).rotateX(-Math.PI / 2), cave);
+      surface.position.set(sky.centre[0], terrain.info.water, sky.centre[1]);
+      this.world.add(surface);
+    }
     if (!pool) return;
     const water = this.water.clone();
     for (const name of ['uTime', 'uFloor', 'uMap'] as const) water.uniforms[name] = u[name];
@@ -451,6 +475,7 @@ export class Stage {
         uFloor: { value: deep },
         uMap: { value: new THREE.Vector4(-1, -1, 2, 2) },
         uLevel: { value: WATER_LEVEL },
+        uDepth: { value: 0 },
         uSurf: { value: 1 },
         uSplash: { value: new THREE.Vector4(0, 0, 0, 0) },
         uEdge: { value: new THREE.Color(COLORS.edge) },
@@ -478,6 +503,7 @@ export class Stage {
         uniform vec3 uSeaHaze;
         ${FLOOR_GLSL}
         uniform float uLevel;
+        uniform float uDepth;
         uniform float uSurf;
         uniform vec4 uSplash;
         uniform vec3 uEdge;
@@ -490,10 +516,11 @@ export class Stage {
         varying vec3 vWorld;
         float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
         void main() {
-          // Beyond the island's map the sea floor falls away into the deep.
+          // Beyond the island's map the sea floor falls away into the deep. Water with a depth of its
+          // own (the cave's, under ground the height grid holds over it) is that deep all over.
           vec2 outside = max(uMap.xy - vWorld.xz, vWorld.xz - (uMap.xy + uMap.z));
           float beyond = smoothstep(0.0, 40.0, max(outside.x, outside.y));
-          float depth = mix(uLevel - floorAt(vWorld.xz), 30.0, beyond);
+          float depth = uDepth > 0.0 ? uDepth : mix(uLevel - floorAt(vWorld.xz), 30.0, beyond);
           if (depth < 0.01) discard;
           // Distance to the shore, from the depth and how steeply the floor rises toward it, so
           // the surf keeps its width on gentle beaches and steep rocks alike.

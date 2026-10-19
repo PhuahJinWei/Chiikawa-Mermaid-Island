@@ -340,14 +340,24 @@ CAVE_STONE = {"stone": "headland", "segments": 48, "step": 0.7, "facets": 7, "fa
               "flute_depth": 0.05, "lumps": 0.14, "taper": 0.08, "bulge": 0.05, "ledges": 2, "shoulder": 0.1,
               "tip": 0.45, "rim": 0.06, "strata": 0.5, "crown": False, "moss": False, "group": "cave"}
 CAVE_GREENS = {"crown": True, "crown_size": 3.0, "crown_target": 1100, "mound": 0.8, "hang": 0.4}
-# The cave's skylight: a round opening on top of the spur's root over the cave's sea, as in the
-# film's frames looking up from its pool and down into it, its sides flaring out by `bell` under the
-# edge, a mossy lip `width` wide round it (see karst.sinkhole), its floor under the water at `floor`.
-SKYLIGHT = {"centre": (-123.9, -145.6), "radius": 10.5, "floor": -3.0, "bell": 2.5, "width": 4.5, "seed": 31}
+# The cave's skylight, as in the film's frames looking down into it and up out of it and the user's
+# sketch of it: a round opening in the spur's top like a well's mouth, `radius` metres from its middle
+# to its edge, wandering a little from round (`lumps`: waves of how many times round, how far as a
+# share of the radius, where each starts), the ground running right to its edge, cut out of the ground
+# at `segments` points round it; its sides drop sheer `shaft` metres, then open out into the cave, a
+# dome over its sea reaching about `dome` metres from the middle at the water, its floor at `floor`
+# (see karst.skylight). The cave is a hidden place: the opening lies deep in the spur's jungle, far
+# from the stepping stones, no path to it, trees crowding round its edge (`trees`: how many clumps,
+# from how far out of the edge, and their seed), their crowns over it, and ferns and bushes along the
+# edge (`plants`: how many, and their seed); so it shows neither from the ground nor, but straight
+# down, from the air.
+SKYLIGHT = {"centre": (-143.0, -142.0), "radius": 6.5, "lumps": ((2, 0.025, 4.1), (3, 0.015, 0.9), (5, 0.01, 2.6)),
+            "segments": 96, "shaft": 3.8, "dome": 10.5, "floor": -3.0, "seed": 31, "trees": (9, (1.0, 2.5), 141),
+            "plants": (28, 151)}
 # Ramps up onto the high ground, each from its foot to its top (x, z) and how wide: onto the
-# tableland's north side from the waterfall's lowland, and onto the rim south of the gorge (and the
-# spur's top, round the skylight) from the jungle.
-RAMPS = [((-30.0, -238.0), (-68.0, -244.0), 6.0), ((-86.0, -128.0), (-88.0, -163.0), 6.0)]
+# tableland's north side from the waterfall's lowland. The high ground south of the gorge, the spur
+# with the cave's skylight, has none: only the stepping stones reach it.
+RAMPS = [((-30.0, -238.0), (-68.0, -244.0), 6.0)]
 # The bay is a quay, as in the film's frames of it: between `x` the festival's sand runs level at
 # `top` out to `out` metres past the coast, where a wall of timber (the `quay` props) drops it into
 # water `foot` deep, the sea floor shelving back to its own over `reach`; easing in over `feather`
@@ -465,15 +475,11 @@ PATHS = [
     ([(15.0, -74.0), (22.0, -56.0), (34.0, -34.0), (40.0, -14.0)], 2.4),                # the village down to the beach
     ([(-2.2, -175.0), (8.0, -180.0), (17.0, -185.5), (24.7, -190.7), (30.5, -198.0), (27.5, -208.0), (21.0, -219.0),
       (22.0, -232.0), (25.0, -250.0), (27.0, -266.4)], 2.2),                            # past the waterfall to the sea cliffs
-    ([(-14.0, -82.0), (-32.0, -86.0), (-52.0, -91.0), (-90.0, -100.0), (-130.0, -98.0), (-165.0, -100.0), (-186.0, -95.0)],
-     2.4),
-                                                                                        # the village to the cave's beach
     ([(-13.9, -189.4), (-25.0, -199.0), (-52.0, -201.0), (-70.0, -195.0)]
      + offset_line(GORGE["line"], -(GORGE["water"] + GORGE["ledge"][1] / 2), -76.0, -142.0)
      + [(-152.0, -170.5), (-163.0, -165.5), (-171.5, -159.0)], 2.0),                    # down the gorge to the restaurant
     ([(-30.0, -238.0), (-68.0, -244.0), (-72.0, -226.0), (-84.0, -217.5), (-102.6, -210.0)], 2.2),
                                                                                         # up onto the tableland, to the stones
-    ([(-86.0, -128.0), (-88.0, -163.0), (-97.4, -180.6)], 2.2),                         # up onto the rim, to the stones
 ]
 
 COLOURS = {k: np.array(L.hex_color(v)[:3]) for k, v in {
@@ -990,14 +996,11 @@ def ground(x, z, natural=False, ramps=True):
     if not natural and ramps:
         h = ramp_height(x, z, h)
 
-    # The cave's skylight on the spur: a lip round it level with the spur's top, and inside the ring
-    # of rock round the opening (which karst.sinkhole builds) the ground falls away under its water.
+    # The cave's skylight on the spur: the ground runs right to the edge of its opening, which
+    # build_mesh cuts out of it. How far outside that edge each point is, for the planting.
     sky = SKYLIGHT
-    r_sky = np.hypot(x - sky["centre"][0], z - sky["centre"][1])
-    lip = sky["radius"] + sky["width"]
-    rim = skylight_rim()
-    h = h + (rim - h) * (1.0 - smoothstep(lip, lip + 3.0, r_sky))
-    h = h + (sky["floor"] - h) * (1.0 - smoothstep(sky["radius"] + sky["bell"] + 0.8, lip - 1.0, r_sky))
+    sky_x, sky_z = x - sky["centre"][0], z - sky["centre"][1]
+    out_sky = np.hypot(sky_x, sky_z) - K.skylight_edge(sky["radius"], sky["lumps"], np.arctan2(sky_z, sky_x))
 
     # Paths are worn a little into the ground.
     d_path = np.full_like(x, 1e9)
@@ -1023,20 +1026,8 @@ def ground(x, z, natural=False, ramps=True):
     masks = {"s": s, "beach_w": beach_w, "village": m_village, "plaza": m_plaza, "street": m_street,
              "festival": np.maximum(m_plaza, m_street), "fields": m_fields, "path": m_path, "pool": m_pool,
              "bank": m_bank, "cliff": m_cliff, "s_cliff": s_cliff, "phi": phi, "backs": stall_backs(x, z) * inland,
-             "high": np.maximum(d_table, d_spur), "gorge": in_gorge, "quay": m_quay, "skylight": r_sky - lip}
+             "high": np.maximum(d_table, d_spur), "gorge": in_gorge, "quay": m_quay, "skylight": out_sky}
     return h, masks
-
-
-_SKYLIGHT_RIM = []
-
-
-def skylight_rim():
-    """The height of the lip round the cave's skylight: the spur's top where it opens."""
-    if not _SKYLIGHT_RIM:
-        cx, cz = SKYLIGHT["centre"]
-        x, z = np.array([cx]), np.array([cz])
-        _SKYLIGHT_RIM.append(float(spur_top(x, z)[0]))
-    return _SKYLIGHT_RIM[0]
 
 
 # ---------------------------------------------------------------------------- painting
@@ -1059,7 +1050,7 @@ def paint(x, z, h, masks, normal_y, shade):
     low = smoothstep(WATER + 1.2, WATER + 0.4, h)
     col = mix(col, c("wetSand"), smoothstep(1.8, 0.4, s) * (s > -0.5) * low)
     col = mix(col, c("seaFloor"), smoothstep(-0.2, -2.0, s) * low)
-    # Inland water (the river down the gorge, the cave's skylight) over the same sandy floor.
+    # Inland water (the river down the gorge) over the same sandy floor.
     inland_water = smoothstep(WATER + 0.05, WATER - 0.6, h) * (s > 0.0)
 
     # Grass beyond the beach, with a hand-painted wavy edge.
@@ -1105,7 +1096,7 @@ def paint(x, z, h, masks, normal_y, shade):
     col = mix(col, c("plaza"), backs)
     kind = mix(kind, earth_k, backs)
 
-    # The river's floor and the wet sand at its edges, along the gorge and in the cave's skylight.
+    # The river's floor and the wet sand at its edges, along the gorge.
     wet_edge = smoothstep(WATER + 0.55, WATER + 0.12, h) * (s > 0.0) * (1.0 - inland_water)
     col = mix(col, c("wetSand"), wet_edge)
     col = mix(col, c("seaFloor"), inland_water)
@@ -1188,26 +1179,52 @@ def write_png(path, rgb):
 
 
 def build_mesh(collection):
-    """The ground as one mesh: a 1 m grid, simplified to the triangle budget, mapped from above."""
+    """The ground as one mesh: a 1 m grid, simplified to the triangle budget, mapped from above; the
+    cave's skylight a hole in it."""
     n = int(SIZE / STEP) + 1
     gx, gz = grid(n, SIZE)
     h, masks = ground(gx, gz)
     bm = bmesh.new()
+    index = bm.verts.layers.int.new("grid")
     verts = [bm.verts.new((float(gx[j, i]), float(-gz[j, i]), float(h[j, i]))) for j in range(n) for i in range(n)]
+    for k, v in enumerate(verts):
+        v[index] = k
     for j in range(n - 1):
         for i in range(n - 1):
             a, b = j * n + i, j * n + i + 1
             c, d = (j + 1) * n + i + 1, (j + 1) * n + i
             bm.faces.new((verts[a], verts[d], verts[c], verts[b]))
-    tris = 2 * (n - 1) ** 2
+    # The cave's skylight: the grid's squares near it give way to a band of ground filled in from
+    # their ragged edge to the opening's, a smooth curve at the points round it where the lip of
+    # stone round it is built (see karst.skylight), which covers the cut.
+    sky = SKYLIGHT
+    doomed = {f for k in np.nonzero(masks["skylight"].ravel() < 0.6)[0] for f in verts[k].link_faces}
+    near = {v for f in doomed for v in f.verts}
+    bmesh.ops.delete(bm, geom=list(doomed), context="FACES")
+    ragged = list({e for v in near if v.is_valid for e in v.link_edges if e.is_boundary})
+    sx, sz = sky["centre"]
+    a = np.linspace(0.0, 2.0 * math.pi, sky["segments"], endpoint=False)
+    r = K.skylight_edge(sky["radius"], sky["lumps"], a)
+    ex, ez = sx + r * np.cos(a), sz + r * np.sin(a)
+    eh = ground(ex, ez)[0]
+    ring = [bm.verts.new((float(ex[k]), float(-ez[k]), float(eh[k]))) for k in range(len(a))]
+    for v in ring:
+        v[index] = -1
+    edges = [bm.edges.new((ring[k], ring[(k + 1) % len(ring)])) for k in range(len(ring))]
+    bmesh.ops.triangle_fill(bm, use_beauty=True, use_dissolve=False, edges=ragged + edges, normal=Vector((0.0, 0.0, 1.0)))
+    tris = sum(len(f.verts) - 2 for f in bm.faces)
     # Ground right at the water's edge, the sea's or the pool's, keeps its detail, so the pen's
     # waterline runs smooth.
     near_sea = 1.0 - smoothstep(0.1, 0.35, np.abs(h - WATER))
     pool_r = np.hypot(gx - POOL["centre"][0], gz - POOL["centre"][1])
     near_pool = (1.0 - smoothstep(0.1, 0.35, np.abs(h - POOL["level"]))) * (pool_r < POOL["radius"] + 4.0)
-    # And at the high ground's edge, where it climbs under its cliffs.
+    # And at the high ground's edge, where it climbs under its cliffs, and round the cave's skylight,
+    # where the lip of stone follows the ground.
     near_high = 1.0 - smoothstep(3.0, 4.5, np.abs(masks["high"]))
-    keep = np.maximum(np.maximum(near_sea, near_pool), near_high).ravel().tolist()
+    near_sky = 1.0 - smoothstep(2.5, 3.5, masks["skylight"])
+    weights = np.maximum(np.maximum(np.maximum(near_sea, near_pool), near_high), near_sky).ravel()
+    keep = [float(weights[v[index]]) if v[index] >= 0 else 1.0 for v in bm.verts]
+    bm.verts.layers.int.remove(index)
     simplified = L.decimate_bm(bm, TRIANGLES / tris, symmetric=False, keep=keep)
     bm.free()
     bmesh.ops.triangulate(simplified, faces=simplified.faces[:])
@@ -1236,7 +1253,9 @@ def build_mesh(collection):
 
 
 def sample_heights(obj, n):
-    """The finished ground's height under each point of an n x n grid, by casting rays down."""
+    """The finished ground's height under each point of an n x n grid, by casting rays down; in the
+    cave's skylight, where the ground is cut away, the height it would have there (the game keeps
+    walkers out of the opening, and the sea out from under it)."""
     bm = bmesh.new()
     bm.from_mesh(obj.data)
     bvh = BVHTree.FromBMesh(bm)
@@ -1245,8 +1264,11 @@ def sample_heights(obj, n):
     for j in range(n):
         for i in range(n):
             hit, _, _, _ = bvh.ray_cast(Vector((float(gx[j, i]), float(-gz[j, i]), 500.0)), Vector((0, 0, -1)))
-            out[j, i] = hit.z if hit is not None else WATER - 20.0
+            out[j, i] = hit.z if hit is not None else np.nan
     bm.free()
+    miss = np.isnan(out)
+    if miss.any():
+        out[miss] = ground(gx[miss], gz[miss])[0]
     return out
 
 
@@ -1552,9 +1574,8 @@ def build_landmarks(collection):
     """Every rock with its jungle crown, joined into one mesh for each group of rocks (so the game
     can leave out a group it is not looking at), the sea cliffs, the high ground's white cliffs, the
     cave's skylight, the stepping stones, and the waterfall with its spray. Returns the objects,
-    each rock's foot outline (not the tips standing on top of others, nor the stepping stones), the
-    skylight's edge, where the waterfall lands in its pool, and the stepping stones' pads and
-    bodies."""
+    each rock's foot outline (not the tips standing on top of others, nor the stepping stones), where
+    the waterfall lands in its pool, and the stepping stones' pads and bodies."""
     # The rocks' jungle crowns go in meshes of their own, so the game can paint their leaves.
     groups, crowns, outlines = {}, {}, []
     # The stepping stones for the game: a pad to stand on on each one's top (and on the ledges on the
@@ -1620,11 +1641,13 @@ def build_landmarks(collection):
     face = float(mouth_rock.radius(np.array([ac]), np.array([mouth_rock.top - 1.0]))[0][0])
     bm, cols = K.vines(mouth_rock, (ac + 1.6 / face, 1.1), 3, CAVE["seed"] + 7)
     hanging.setdefault("cave", []).append((bm, cols, True))
-    # The cave's skylight on top of the spur, over its sea.
+    # The cave's skylight in the spur's top, over its sea: the well and the dome it opens into, and
+    # the vines hanging down it.
     sky = SKYLIGHT
-    bm, cols, edge = K.sinkhole(sky["centre"], sky["radius"], skylight_rim(), WATER, sky["floor"], sky["seed"],
-                                sky["bell"], sky["width"])
+    bm, cols, vine_bm, vine_cols = K.skylight(sky["centre"], sky["radius"], sky["lumps"], ground_height, WATER,
+                                              sky["floor"], sky["seed"], sky["shaft"], sky["dome"], sky["segments"])
     groups.setdefault("west", []).append((bm, cols, True))
+    hanging.setdefault("west", []).append((vine_bm, vine_cols, True))
     rocks = [join_painted(f"rocks_{name}", pieces, collection) for name, pieces in groups.items()]
     rocks += [join_painted(f"crowns_{name}", pieces, collection) for name, pieces in crowns.items()]
     rocks += [join_painted(f"vines_{name}", pieces, collection) for name, pieces in hanging.items()]
@@ -1632,7 +1655,7 @@ def build_landmarks(collection):
     fall = object_with_uv("waterfall", bm, uvs, collection)
     spray = join_painted("spray", [(*K.spray(POOL["level"]), True)], collection)
     spray.location = (foot[0], -foot[1], POOL["level"])
-    return [*rocks, fall, spray], outlines, edge, foot, stones
+    return [*rocks, fall, spray], outlines, foot, stones
 
 
 # ---------------------------------------------------------------------------- plants
@@ -1787,7 +1810,7 @@ def build_plants(collection, outlines):
     G["tree_room"] = ((G["high"] < -5.0) | (G["high"] > 7.0)).astype(float)
     open_ground = ((G["village"] < 0.02) & (G["festival"] < 0.02) & (G["fields"] < 0.02)
                    & (G["pool"] > pool_room) & (G["bank_room"] < 0.5) & ~treeless & (G["tree_room"] > 0.5)
-                   & (G["wet"] < 0.5) & (G["skylight"] > 10.0) & (G["cave"] > CAVE["clear"][0]))
+                   & (G["wet"] < 0.5) & (G["skylight"] > 1.0) & (G["cave"] > CAVE["clear"][0]))
     jungle = ((G["inland"] > 3.0) & open_ground & (G["path"] > 2.2) & (G["rock"] > 2.0) & (G["prop"] > 0.0)
               & (G["slope"] < 0.7))
 
@@ -1833,6 +1856,36 @@ def build_plants(collection, outlines):
         for lx, ly, lz, r in tops:
             crowns.append([round(cx + lx, 2), round(base + lz, 2), round(cz - ly, 2), round(r, 2)])
 
+    # Clumps of trees crowding round the cave's skylight, their crowns over its edge, so it lies
+    # hidden under the jungle; from a generator of their own.
+    count, (near, far), seed = SKYLIGHT["trees"]
+    ring = np.random.default_rng(seed)
+    sx, sz = SKYLIGHT["centre"]
+    for k in range(count):
+        a = 2.0 * math.pi * (k + ring.uniform(-0.25, 0.25)) / count
+        trees = []
+        for t in range(3):
+            ta = a + ring.uniform(-0.18, 0.18)
+            d = float(K.skylight_edge(SKYLIGHT["radius"], SKYLIGHT["lumps"], ta)) + ring.uniform(near, far) + 2.2 * t
+            tx, tz = sx + d * math.cos(ta), sz + d * math.sin(ta)
+            # Nearer the spur's edge than the jungle's trees stand, so they close round it on every side.
+            if grid_at(G, "high", tx, tz) < 4.0 or not stems.free(tx, tz, 3.0):
+                continue
+            stems.take(tx, tz)
+            trees.append((tx, tz, ring.uniform(10.0, 14.0)))
+        if not trees:
+            continue
+        cx, cz = sum(t[0] for t in trees) / len(trees), sum(t[1] for t in trees) / len(trees)
+        base = at(cx, cz)
+        built, tops, far_shape = PL.clump(np.random.default_rng(int(ring.integers(1 << 31))),
+                                          [(tx - cx, -(tz - cz), height, at(tx, tz) - base) for tx, tz, height in trees])
+        canopy.add(PL.to_arrays(built), cx, cz, base)
+        canopy_far.add(PL.to_arrays(far_shape), cx, cz, base)
+        for tx, tz, height in trees:
+            trunks.append([round(tx, 2), round(tz, 2), round(0.32 * height / 8.0 + 0.2, 2)])
+        for lx, ly, lz, r in tops:
+            crowns.append([round(cx + lx, 2), round(base + lz, 2), round(cz - ly, 2), round(r, 2)])
+
     # The canopy: clumps of trees whose crowns run together, opening into a few clearings.
     for cx, cz in scatter(rng, G, jungle & ~clearing, JUNGLE["clump_spacing"]):
         trees = []
@@ -1846,7 +1899,7 @@ def build_plants(collection, outlines):
                     or grid_at(G, "festival", tx, tz) > 0.05 or grid_at(G, "bank_room", tx, tz) > 0.5 \
                     or grid_at(G, "pool", tx, tz) < pool_room or grid_at(G, "treeless", tx, tz) > 0.5 \
                     or grid_at(G, "tree_room", tx, tz) < 0.5 or grid_at(G, "wet", tx, tz) > 0.5 \
-                    or grid_at(G, "skylight", tx, tz) < 10.0 or grid_at(G, "cave", tx, tz) < CAVE["clear"][0] \
+                    or grid_at(G, "skylight", tx, tz) < 1.5 or grid_at(G, "cave", tx, tz) < CAVE["clear"][0] \
                     or not stems.free(tx, tz, 3.0):
                 continue
             stems.take(tx, tz)
@@ -1936,6 +1989,19 @@ def build_plants(collection, outlines):
         count[kind] += 1
         if kind == "bush" and grown:
             flowers.append((x, y, z))
+
+    # Ferns and bushes crowding the cave skylight's edge, their leaves over it, as round the opening in
+    # the film's frame looking up out of the cave; from a generator of their own.
+    count, seed = SKYLIGHT["plants"]
+    rim = np.random.default_rng(seed)
+    sx, sz = SKYLIGHT["centre"]
+    for k in range(count):
+        a = 2.0 * math.pi * (k + rim.uniform(-0.3, 0.3)) / count
+        d = float(K.skylight_edge(SKYLIGHT["radius"], SKYLIGHT["lumps"], a)) + rim.uniform(0.35, 0.9)
+        x, z = sx + d * math.cos(a), sz + d * math.sin(a)
+        kind = ("fern", "fern", "bush", "monstera", "ti")[int(rim.integers(0, 5))]
+        variants.plant("under", kinds[kind][int(rim.integers(0, len(kinds[kind])))], x, at(x, z) - 0.04, z,
+                       rim.uniform(0, 2 * math.pi), rim.uniform(1.0, 1.5))
 
     # Ferns and dark leafy plants at the foot of the gorge's south wall, along the riverside path, as
     # in the film's frames of it: in clumps with gaps, clear of the stones' crossing; from a generator
@@ -2223,7 +2289,7 @@ def main():
         f.write(q.tobytes())
 
     # The rocks standing on it, and the waterfall.
-    landmarks, outlines, skylight_edge, foot, stones = build_landmarks(collection)
+    landmarks, outlines, foot, stones = build_landmarks(collection)
     export_objects(landmarks, os.path.join(OUT_DIR, "landmarks.glb"))
     rock_tris = sum(len(p.vertices) - 2 for o in landmarks if o.name.startswith(("rocks", "crowns", "vines")) for p in o.data.polygons)
 
@@ -2257,8 +2323,8 @@ def main():
         "landmarks": "models/island/landmarks.glb",
         "rocks": [{"centre": [round(r.cx, 2), round(r.cz, 2)], "outline": reach} for r, reach in outlines],
         "pool": {"centre": list(POOL["centre"]), "radius": POOL["radius"], "level": POOL["level"]},
-        "skylight": {"centre": list(SKYLIGHT["centre"]), "edge": skylight_edge,
-                     "lip": SKYLIGHT["radius"] + SKYLIGHT["width"], "top": round(skylight_rim() + K.SINKHOLE_LIP, 3)},
+        "skylight": {"centre": list(SKYLIGHT["centre"]), "radius": SKYLIGHT["radius"],
+                     "lumps": [list(w) for w in SKYLIGHT["lumps"]], "dome": SKYLIGHT["dome"], "floor": SKYLIGHT["floor"]},
         "waterfall": {"foot": [round(foot[0], 2), round(foot[1], 2)], "splash": 3.6},
         "stones": stones,
         "plants": {"url": "models/island/plants.glb", "trunks": trunks, "crowns": crowns, "butterflies": butterflies,

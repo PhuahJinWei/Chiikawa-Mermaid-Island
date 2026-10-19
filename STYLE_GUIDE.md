@@ -389,8 +389,12 @@ food and cups on the ground, everyone toasting. This is the festival.
 - **The heart of the cave:** a round opening in the ceiling, ringed by
   hanging vines, with the full moon directly above. A wide shaft of
   moonlight falls onto still, glowing water. Sparkling particles drift in
-  the beam and low mist hugs the water. Seen from above, this opening is
-  a round hole ringed with moss on the spur over the cave.
+  the beam and low mist hugs the water. From above, this opening is a
+  round hole like a well's mouth, hidden deep in the jungle on the spur
+  over the cave, trees crowding its edge and ferns along it: the jungle
+  floor runs right to a worn lip of stone, the sides drop sheer as a
+  well's do, then open out below into the dome over the water. The cave is
+  a secret place, no path leading to it or to its mouth.
 - A flat stone ledge beside the water, lit by a small fire, where the Siren
   and the mermaids sit.
 

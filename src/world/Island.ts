@@ -3,7 +3,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { sharedUniforms } from '../characters/CharacterMaterial';
 import { PEN_GLSL, inkUniforms } from './Ink';
 import { FILM, coverTrees, hazeClearing, paintedRamp, shadeUnderTrees } from './Look';
-import { addCircle, addPad, addRing, blocked, cameraBlocked, deckUnder, outlineAt } from './Obstacles';
+import { addCircle, addPad, blocked, cameraBlocked, deckUnder, outlineAt } from './Obstacles';
 
 /** What art/blender/build_island.py writes into the ground's glTF extras. */
 export interface TerrainInfo {
@@ -21,10 +21,12 @@ export interface TerrainInfo {
    * and sand (blue) lie, mapped as the colours are; the rest is fields, the waterfall pool's bank,
    * rubble and rock. The film look paints its grass and earth from it. */
   kinds?: string;
-  /** A cave's skylight, a round opening in the ground over the sea come in under the island, if the
-   * island has one (the cave is still to be placed): its middle (x, z), its edge (an outline, as
-   * `outlineAt` reads it), and the mossy lip round it, out to `lip` from the middle, at `top`. */
-  skylight?: { centre: [number, number]; edge: number[]; lip: number; top: number };
+  /** A cave's skylight, if the island has one: a round opening in the ground like a well's mouth,
+   * cut out of the ground's mesh, over a dome with the sea come in under the island at its foot. Its
+   * middle (x, z) and radius, its edge wandering from round by a few waves (how many times round, how
+   * far as a share of the radius, where each starts; see skylightEdge); about how far the dome
+   * reaches from the middle at the water, and its floor under the water. */
+  skylight?: { centre: [number, number]; radius: number; lumps: [number, number, number][]; dome: number; floor: number };
   /** The rock landmarks, the sea cliffs and the waterfall, built with the ground. */
   landmarks: string;
   /** Each rock's foot: its middle (x, z), and how far it reaches at even angles round it from east toward south. */
@@ -85,6 +87,14 @@ float floorAtExact(vec2 xz) {
   return mix(mix(a, b, f.x), mix(d, e, f.x), f.y);
 }
 `;
+
+/** How far a cave skylight's edge lies from its middle toward (dx, dz). */
+export function skylightEdge(sky: NonNullable<TerrainInfo['skylight']>, dx: number, dz: number): number {
+  const a = Math.atan2(dz, dx);
+  let k = 1;
+  for (const [n, amp, phase] of sky.lumps) k += amp * Math.sin(n * a + phase);
+  return sky.radius * k;
+}
 
 /** Deepest water a character wades into, and the steepest ground they walk up (rise per metre). */
 const WADE = 0.25;
@@ -155,13 +165,23 @@ export class Terrain {
     return false;
   }
 
+  /** Whether (x, z) is in the cave skylight's opening, or within `margin` metres of its edge. */
+  nearSkylight(x: number, z: number, margin: number): boolean {
+    const sky = this.info.skylight;
+    if (!sky) return false;
+    const dx = x - sky.centre[0];
+    const dz = z - sky.centre[1];
+    const d = Math.hypot(dx, dz);
+    return d < sky.radius * 1.2 + margin && d < skylightEdge(sky, dx, dz) + margin;
+  }
+
   /**
    * Whether a character whose feet were at `feet` can stand at (x, z): not bumping into a rock or
-   * a prop, and either on a deck they can step onto, or on ground that is not under water deeper
-   * than a wade nor up a cliff.
+   * a prop, nor at the cave skylight's edge, and either on a deck they can step onto, or on ground
+   * that is not under water deeper than a wade nor up a cliff.
    */
   walkable(x: number, z: number, feet: number): boolean {
-    if (this.nearRock(x, z, ROCK_MARGIN)) return false;
+    if (this.nearRock(x, z, ROCK_MARGIN) || this.nearSkylight(x, z, EDGE_MARGIN)) return false;
     const ground = this.height(x, z);
     const deck = deckUnder(x, z, feet + STEP_UP);
     const stand = deck !== null && deck > ground ? deck : ground;
@@ -575,11 +595,6 @@ export async function loadTerrain(): Promise<Terrain> {
   terrain = new Terrain(info, heights, found);
   found.material = FILM ? filmGroundMaterial(colours, info, terrain.texture, kinds) : groundMaterial(colours, info, terrain.texture);
   found.receiveShadow = FILM;
-  // The mossy lip round a cave's skylight is a ledge to walk on, up to a step back from its edge.
-  if (info.skylight) {
-    const { centre, edge, lip, top } = info.skylight;
-    addRing(centre[0], centre[1], edge.map((r) => r + EDGE_MARGIN), lip, top);
-  }
   // The stepping stones: their tops and the rims' ledges to stand on, their bodies to bump into.
   for (const pad of info.stones?.pads ?? []) addPad(pad.centre[0], pad.centre[1], pad.outline, pad.top);
   for (const p of info.stones?.pillars ?? []) addCircle(p.centre[0], p.centre[1], p.radius, p.bottom, p.top);
@@ -633,10 +648,11 @@ export function clampToWalkable(p: THREE.Vector3, from: THREE.Vector3): void {
 }
 
 /** Whether someone in the air with their feet at `y` can be at (x, z): not in a rock, nor in a prop
- * or a stepping stone's body at their height, nor in ground more than a step above their feet. */
+ * or a stepping stone's body at their height, nor over the cave skylight's opening, nor in ground
+ * more than a step above their feet. */
 function clearInAir(x: number, z: number, y: number): boolean {
   if (!terrain) return true;
-  if (terrain.nearRock(x, z, ROCK_MARGIN) || blocked(x, z, PROP_MARGIN, y)) return false;
+  if (terrain.nearRock(x, z, ROCK_MARGIN) || terrain.nearSkylight(x, z, EDGE_MARGIN) || blocked(x, z, PROP_MARGIN, y)) return false;
   return terrain.height(x, z) <= y + STEP_UP;
 }
 
