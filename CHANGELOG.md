@@ -269,6 +269,11 @@ outlined is drawn twice, once for its pen line. To get there:
   as they are: beyond 140 m the far canopy costs about 1 ms and the
   island's vistas need it, and nothing cheaper draws the leaves the same,
   so they are the graphics setting's to trim.
+- The log benches' cut ends can no longer flicker. Their inked rim, pale
+  wood and inked growth ring had been discs stacked 2 mm apart, close
+  enough that from afar the nearer could flicker with the one behind; now
+  they are bands side by side in the end's one flat face, looking just as
+  before.
 - The duck ferry is round all over, as the film's is. Where the bow met
   the deck its side had stood up a metre wider within a stride, which left
   a ridge and a dent round the front of the hull; the bow now swells into

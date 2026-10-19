@@ -130,6 +130,27 @@ def disc_bm(center, normal, radius, segments=16):
     return L.transformed(bm, Matrix.Translation(center) @ rot)
 
 
+def band_bm(outer, inner, normal):
+    """A flat band between a ring of points and a matching ring inside it, or, when `inner` is
+    one point, the disc out to the ring; its faces turned to `normal`."""
+    bm = bmesh.new()
+    rim = [bm.verts.new(p) for p in outer]
+    count = len(rim)
+    if isinstance(inner, Vector):
+        hub = bm.verts.new(inner)
+        for i in range(count):
+            bm.faces.new((hub, rim[i], rim[(i + 1) % count]))
+    else:
+        hole = [bm.verts.new(p) for p in inner]
+        for i in range(count):
+            j = (i + 1) % count
+            bm.faces.new((rim[i], rim[j], hole[j], hole[i]))
+    bm.normal_update()
+    if bm.faces[:][0].normal.dot(normal) < 0:
+        bmesh.ops.reverse_faces(bm, faces=bm.faces[:])
+    return bm
+
+
 # ---------------------------------------------------------------------------- props
 def build_palm(collection):
     """Leaning coconut palm, about 5.8 m tall, with solid jagged fronds that take an outline."""
@@ -177,26 +198,24 @@ def build_log(collection):
     side = L.transformed(side, lift @ rot)
     pieces = [(side, C["bark"])]
     # Each cut end: an inked rim (the outline cannot draw an edge inside a face), the pale
-    # wood, and one inked growth ring, all with the world's pen. The rim disc is built on the
-    # side's own end ring, so the game can join their outlines without a crack at the corner.
+    # wood, and one inked growth ring, all with the world's pen: bands side by side in the one
+    # flat face of the end, none over another, so no two lie in one plane to flicker. The rim is
+    # built on the side's own end ring, so the game can join their outlines without a crack at
+    # the corner; the bands inside it are that ring drawn smaller.
     for sign in (-1.0, 1.0):
         n = Vector((sign, 0.0, 0.0))
         c = Vector((sign * length / 2, 0.0, radius))
         ring = sorted((v.co.copy() for v in side.verts if v.co.x * sign > 0),
                       key=lambda p: math.atan2(p.z - radius, p.y))
-        rim = bmesh.new()
-        hub = rim.verts.new(c)
-        verts = [rim.verts.new(p) for p in ring]
-        for i in range(len(verts)):
-            rim.faces.new((hub, verts[i], verts[(i + 1) % len(verts)]))
-        rim.normal_update()
-        if rim.faces[:][0].normal.dot(n) < 0:
-            bmesh.ops.reverse_faces(rim, faces=rim.faces[:])
-        pieces.append((rim, C["ink"]))
-        layers = [(radius - PEN, "logEnd"), (radius * 0.5, "ink"),
-                  (radius * 0.5 - PEN, "logRing"), (radius * 0.18, "logEnd")]
-        for depth, (r, colour) in enumerate(layers, start=1):
-            pieces.append((disc_bm(c + n * (0.002 * depth), n, r, 24), C[colour]))
+        # From the rim in: each band's colour and how far in its inner edge lies (metres from
+        # the middle); the last band is the middle itself.
+        bands = [("ink", radius - PEN), ("logEnd", radius * 0.5), ("ink", radius * 0.5 - PEN),
+                 ("logRing", radius * 0.18), ("logEnd", 0.0)]
+        outer = ring
+        for colour, r in bands:
+            inner = [c + (p - c) * (r / radius) for p in ring] if r > 0.0 else c
+            pieces.append((band_bm(outer, inner, n), C[colour]))
+            outer = inner
     log = L.assemble_colored("log", pieces, collection)
     return [log], {"footprint": {"box": [0.95, 0.26]}, "height": 0.5}
 
