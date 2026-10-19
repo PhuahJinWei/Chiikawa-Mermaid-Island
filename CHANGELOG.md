@@ -155,8 +155,8 @@ stage, and along every path. Not yet checked on a real phone.
   thick log edge, with no railing and potted plants on it, a double plank
   door wide enough for three, walls shingled all over in round scales
   between thick log posts and rails, tall windows in heavy frames with a
-  double white zigzag, a roomy log-cabin room inside furnished as an
-  islander's home, and a big mushroom-shaped thatched roof over the porch.
+  double white zigzag, a room inside as the film's villager's hut, and a
+  beehive of straw over it all, tied in a knot at its top.
   Two plank huts stand side by side on the ground under wide thatched
   roofs, with two round thatched huts beside them, in a yard to the
   north-west. Built by `art/blender/houses.py`.
@@ -381,6 +381,50 @@ outlined is drawn twice, once for its pen line. To get there:
   download, and it fades out before it is small enough to shimmer.
   Measured on the dev PC at 1488 x 800 inside a guest house, wood filling
   the picture: 14.5 ms a frame against 14.3 without it.
+- The four stilt huts are closer to the film's frames of a villager's hut,
+  outside and in. Outside, the mushroom roof is gone: a beehive of golden
+  straw rises from the eaves, centred over the walls and oval to hang out
+  about as far over each, about twice as high over the eaves as the walls
+  are tall, as in the film's frame of one (`villager hut exterior 1`). It
+  rounds over to a neck where a rope is wound three times round it, its
+  end hanging down the shoulder, and a knot of straw gathered in soft
+  bunches stands above the tie. It is straw, not turned wood: its outline
+  swells and dips a little, short dark strokes of straw are scattered over
+  it as the film draws them, and the straw's ends hang ragged below its
+  rim. Flat underneath from the walls to the rim, it reaches out over most
+  of the porch. The walls, porch and stairs are as they were, but for the
+  left wall's window, moved toward the back so the bookshelf stands in the
+  middle of that wall as in the film's room, and the door: one door of
+  pale planks with dark marks of their grain, no window in it, as the
+  film's, hung on the right-hand post as one looks in and swung out onto
+  the porch, where two leaves had folded back inside. Inside, after the
+  film's frames of the room (`villager hut interior 1` to `10`, laid out
+  as its top view has it): teal walls patterned in big round scales,
+  framed by grey-brown logs along their feet, at the windows' sills and
+  along their tops, posts in the corners braced by curved branches; the
+  back and side windows' plank shutters swung back flat against the wall
+  either side; light planks underfoot; overhead the straw rises to a peak
+  on rafters with battens across them, the paper lantern hanging from
+  their hub. Along the back wall from the left: a cream kitchen counter,
+  its front as the film's, two drawers at its end beside a pale post, then
+  a pair of wide doors with dark knobs where they meet, a white wavy line
+  strung with dots across them near their tops and white clouds along
+  their feet; a round iron stove on it at its end, a grey sink with a
+  curved tap, a cutting board standing behind an apple, a peach and a
+  pear, and a rail of black pans, a cloth and wooden spoons over it; then
+  a tree-stump stool by the head of a single bed of dark wood that runs
+  along the right wall to the room's middle, a thick pale blue mattress
+  and a long white pillow on it. In the front right corner a little table
+  set askew holds a melon and a peach. On the left wall, in its middle, a
+  tall orange bookshelf tapering as it rises, white pegs down its sides,
+  full of books; toward the door a potted monstera on a little table and
+  two brown woven vases in the corner. Before the door lies a round cream
+  rug patterned in blue round a white flower, two domed straw cushions on
+  it. A hut is 12,200 triangles outside where it was 8,800, its room,
+  drawn only near, 12,400 where it was 5,600; no faces that would flicker.
+  Their models are now compressed and their night maps WebP, as the other
+  props' have been since the download was halved: 0.47 MB a hut where it
+  was 1.1.
 - The village is relaid after the film's frames of it, its houses in
   groups of their own where they had stood in a ring round the stage:
   the stage at the plaza's corner, the stilt huts facing each other across
@@ -1094,6 +1138,15 @@ outlined is drawn twice, once for its pen line. To get there:
 
 **Fixed**
 
+- Small things in a house's room, an apple, a knob, a peg on a shelf, are
+  lit by its lantern at night, where they had been left in the night's
+  blue: the bake (houses.py bake_night) keeps every face that sees the
+  lantern, however few texels its first, rough pass gave it, and lays
+  small pieces out bigger in the night map, so the bake reaches them.
+  What is painted on another face, a rug's pattern, a cupboard's wavy
+  line, a floor's seams, takes that face's light: a thin line or a dot
+  had fallen between the texels of its own. The stilt huts are built with
+  it; the other houses take it when next built.
 - Discs of green or blue light no longer flash up here and there among
   the plants (behind the festival's stalls, at the jungle's edge). A thin
   leaf seen edge on is shaded a little beyond its own shape at the

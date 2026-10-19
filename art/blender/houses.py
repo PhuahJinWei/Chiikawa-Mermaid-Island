@@ -27,7 +27,7 @@ import os
 import bmesh
 import bpy
 import numpy as np
-from mathutils import Matrix, Vector
+from mathutils import Matrix, Vector, geometry
 from mathutils.bvhtree import BVHTree
 
 import build_props as P
@@ -134,6 +134,76 @@ C = {k: L.hex_color(v) for k, v in {
     "rosette": "#7FB069",
     "thistle": "#B04BA8",
     "handle": "#4A3426",
+    # The stilt huts, after the film's frames of a villager's hut: the rope tying the roof's straw at
+    # its top, the straw's pale gold and its dark strokes; inside, teal walls patterned in scales over a
+    # darker skin, framed by grey-brown logs with pale cut ends, dark plank shutters, light planks
+    # underfoot and a straw ceiling on rafters.
+    "tie": "#9A6838",
+    "hutThatch": "#D9B676",
+    "hutThatchLight": "#E6C68A",
+    "hutThatchDark": "#B38C55",
+    "hutStraw": "#9A6A3A",
+    "hutLog": "#8C7556",
+    "hutLogEnd": "#D2BE98",
+    "hutSkin": "#5E8573",
+    "hutScale1": "#6F9A86",
+    "hutScale2": "#7AA591",
+    "hutScale3": "#678F7D",
+    "hutScale4": "#82AC98",
+    "shutter": "#86603F",
+    "hutDoor": "#E3D4A2",
+    "hutDoorLine": "#7E6142",
+    "shutterLine": "#5C3F28",
+    "hutFloor": "#C48A55",
+    "hutFloorLine": "#8C5E37",
+    "hutCeiling": "#685739",
+    "hutRafter": "#7A6448",
+    # Their furnishing: the bed's dark frame, pale blue mattress and white pillow; the stump stool; the
+    # cream kitchen counter, its doors' panels and pale post, wooden top, black pans, cloth and wooden
+    # spoons; the orange bookshelf and its books; the little tables; the brown woven vases; the rug's
+    # cream and blues; the straw cushions; the fruit and the potted monstera.
+    "bedFrame": "#5E4330",
+    "mattress": "#D3E2EA",
+    "pillow": "#F4F2EC",
+    "stump": "#8A5E3E",
+    "stumpEnd": "#D8B98E",
+    "stumpRing": "#B48A5E",
+    "cabinet": "#E9DCB9",
+    "cabinetPanel": "#E2D1AA",
+    "cabinetLight": "#F2E9D3",
+    "cabinetLine": "#B49E78",
+    "lace": "#FBF6EA",
+    "counterTop": "#B98352",
+    "cuttingBoard": "#D3A56E",
+    "pan": "#2F2B2A",
+    "towel": "#EDE6D3",
+    "spoon": "#A87148",
+    "shelf": "#C8743E",
+    "shelfDark": "#8F4E28",
+    "hutBook1": "#9E3F31",
+    "hutBook2": "#7B3B2E",
+    "hutBook3": "#C9B48F",
+    "hutBook4": "#C76A48",
+    "hutBook5": "#4E5C4A",
+    "hutBook6": "#D9C7A2",
+    "chest": "#9B6B44",
+    "chestTop": "#B07D50",
+    "basketLine": "#8F6A3F",
+    "basketIn": "#5A4128",
+    "soil": "#4A3A2C",
+    "rugCream": "#F1E8D2",
+    "rugBlue": "#4E6B8C",
+    "rugGrey": "#6E8297",
+    "strawCushion": "#E2C27F",
+    "strawStripe": "#BF9B5B",
+    "apple": "#D2483A",
+    "peach": "#F0A27A",
+    "pear": "#B9BE4E",
+    "orange": "#EE9A3A",
+    "melon": "#9CC26B",
+    "vase": "#9C6B42",
+    "vaseLine": "#7A5130",
+    "vaseIn": "#4A3020",
 }.items()}
 
 UP = Vector((0.0, 0.0, 1.0))
@@ -409,9 +479,11 @@ class Wall:
 
 
 # ---------------------------------------------------------------------------- roofs
-def lathe_roof(ctrl, centre, samples=14, segments=20, seed=0.0):
+def lathe_roof(ctrl, centre, samples=14, segments=20, seed=0.0,
+               straw=("thatch", "thatchLight", "thatchDark")):
     """A thatched roof turned round its middle from (radius, height) points: dark underneath,
-    straw above in soft radial streaks, lighter toward its crown."""
+    straw above in soft radial streaks, lighter toward its crown; `straw` names its straw's colours
+    (its own, lighter and darker)."""
     prof = L.Profile(ctrl, samples=samples)
     bm = L.lathe_bm(prof.samples, segments=segments)
     L.transformed(bm, Matrix.Translation(centre))
@@ -424,8 +496,8 @@ def lathe_roof(ctrl, centre, samples=14, segments=20, seed=0.0):
             continue
         a = math.atan2(v.co.x - centre.x, v.co.y - centre.y)
         streak = 0.5 + 0.5 * math.sin(a * 14.0 + seed) * math.sin(a * 5.0 + 1.3 + seed)
-        c = C["thatch"] if streak < 0.62 else C["thatchDark"]
-        cols.append(C["thatchLight"] if v.co.z > top - 0.6 and streak < 0.45 else c)
+        c = C[straw[0]] if streak < 0.62 else C[straw[2]]
+        cols.append(C[straw[1]] if v.co.z > top - 0.6 and streak < 0.45 else c)
     return bm, cols
 
 
@@ -755,6 +827,10 @@ NIGHT_GAP = 2             # texels between the map's patches, each keeping a rin
 NIGHT_CORNER = 6          # texels across the black corner every face left black points at
 NIGHT_MASK = 32           # texels across a doorway's or window's mask of where the light passes
 NIGHT_MASK_RAYS = 12      # points on the lantern's globe each texel of a mask looks at, and its middle
+NIGHT_SMALL = 0.01        # square metres: a smaller patch of faces (a knob, a peg) is laid out as if this big
+NIGHT_DECAL = 0.01        # a flat piece lying this close over a face looking its way is painted on it
+NIGHT_HIDE = 0.015        # how far behind what it is painted on a decal waits while the light is baked
+NIGHT_GROW = 4.0          # but at most this many times its size across
 LANTERN_POWER = 100.0     # the lantern's power in the bake, in watts; the game sets its own
 LANTERN_RADIUS = 0.17     # its paper globe, which softens the shadows' edges
 
@@ -818,10 +894,49 @@ def opening_masks(openings, targets, lantern):
     return out
 
 
+def grow_small_islands(mesh):
+    """Makes each small island of the edit-mode `mesh`'s UV map `night` (faces joined edge to edge in
+    it) as big in the map as NIGHT_SMALL square metres would be, up to NIGHT_GROW times across: a
+    knob, a peg or an apple, left as small as it is, would fall between the bake's texels and stay
+    dark however the lantern lit it."""
+    bm = bmesh.from_edit_mesh(mesh)
+    uv = bm.loops.layers.uv["night"]
+    done = set()
+    for seed in bm.faces:
+        if seed.hide or seed in done:
+            continue
+        island, todo = [], [seed]
+        done.add(seed)
+        while todo:
+            face = todo.pop()
+            island.append(face)
+            for loop in face.loops:
+                a0, a1 = loop[uv].uv, loop.link_loop_next[uv].uv
+                for other in loop.edge.link_loops:
+                    near = other.face
+                    if near in done or near.hide:
+                        continue
+                    b0, b1 = other[uv].uv, other.link_loop_next[uv].uv
+                    if ((a0 - b1).length < 1e-5 and (a1 - b0).length < 1e-5) or \
+                            ((a0 - b0).length < 1e-5 and (a1 - b1).length < 1e-5):
+                        done.add(near)
+                        todo.append(near)
+        area = sum(face.calc_area() for face in island)
+        if area >= NIGHT_SMALL:
+            continue
+        grow = min(NIGHT_GROW, math.sqrt(NIGHT_SMALL / max(area, 1e-8)))
+        loops = [loop for face in island for loop in face.loops]
+        mid = sum((loop[uv].uv for loop in loops), Vector((0.0, 0.0))) / len(loops)
+        for loop in loops:
+            loop[uv].uv = mid + (loop[uv].uv - mid) * grow
+    bmesh.update_edit_mesh(mesh)
+
+
 def night_layout(unwrap, keep):
     """Lays out the UV map `night` of the mesh object `unwrap`: the faces flagged in `keep`
-    unwrapped and packed tight into the map, short of its far corner, and every other face at one
-    texel in that corner, which the map keeps black."""
+    unwrapped and packed tight into the map, short of its far corner (the small ones a little bigger,
+    see grow_small_islands), and every other face at one texel in that corner, which the map keeps
+    black."""
     mesh = unwrap.data
     faces = len(mesh.polygons)
     mesh.polygons.foreach_set("hide", ~keep)
@@ -833,6 +948,7 @@ def night_layout(unwrap, keep):
     bpy.ops.mesh.select_all(action="SELECT")
     margin = NIGHT_GAP / NIGHT_SIZE
     bpy.ops.uv.smart_project(angle_limit=math.radians(66), island_margin=margin)
+    grow_small_islands(mesh)
     bpy.ops.uv.select_all(action="SELECT")
     bpy.ops.uv.pack_islands(rotate=True, margin_method="FRACTION", margin=margin, shape_method="CONCAVE")
     bpy.ops.object.mode_set(mode="OBJECT")
@@ -874,6 +990,95 @@ def night_lit(mesh, light):
     return brightest > NIGHT_DARK * top
 
 
+def night_seen(mesh, lantern):
+    """Which faces of `mesh` see the lantern at `lantern` with nothing between: lit by it however
+    small they are, an apple or a knob, whose few texels the rough bake (see night_lit) may miss
+    when a house has many faces."""
+    bm = bmesh.new()
+    bm.from_mesh(mesh)
+    bm.normal_update()
+    bvh = BVHTree.FromBMesh(bm)
+    seen = np.zeros(len(bm.faces), dtype=bool)
+    for i, f in enumerate(bm.faces):
+        c = f.calc_center_median()
+        way = lantern - c
+        if way.length < 1e-6 or f.normal.dot(way) <= 0.0:
+            continue
+        seen[i] = bvh.ray_cast(c + f.normal * 0.002, way.normalized(), way.length - LANTERN_RADIUS)[0] is None
+    bm.free()
+    return seen
+
+
+def night_decals(mesh):
+    """Which of `mesh`'s faces are painted on others (a rug's pattern, a cupboard's wavy line, a floor's
+    seams): runs of faces joined at their corners, each lying flat within NIGHT_DECAL in front of a
+    face of the house that looks the same way. A box lying on a floor is no decal, though its top
+    lies just over the floor: its sides lie over nothing. Decals take the light of the face under them
+    (see decal_layout), where texels of their own, a thin line's or a small dot's, would miss them."""
+    bm = bmesh.new()
+    bm.from_mesh(mesh)
+    bm.normal_update()
+    bm.faces.ensure_lookup_table()
+    bvh = BVHTree.FromBMesh(bm)
+    over = np.zeros(len(bm.faces), dtype=bool)
+    for f in bm.faces:
+        hit = bvh.ray_cast(f.calc_center_median() - f.normal * 1e-4, -f.normal, NIGHT_DECAL)
+        over[f.index] = hit[0] is not None and hit[2] != f.index and bm.faces[hit[2]].normal.dot(f.normal) > 0.95
+    decal = np.zeros(len(bm.faces), dtype=bool)
+    done = set()
+    for seed in bm.faces:
+        if seed.index in done:
+            continue
+        run, todo = [], [seed]
+        done.add(seed.index)
+        while todo:
+            face = todo.pop()
+            run.append(face.index)
+            for vert in face.verts:
+                for near in vert.link_faces:
+                    if near.index not in done:
+                        done.add(near.index)
+                        todo.append(near)
+        if over[run].all():
+            decal[run] = True
+    bm.free()
+    return decal
+
+
+def decal_layout(mesh, decal):
+    """Points the corners of `mesh`'s decal faces (see night_decals) in its UV map `night` at the light
+    of what they are painted on: straight back through each onto the house's other faces, or the
+    nearest point of them where a decal runs over an edge."""
+    bm = bmesh.new()
+    bm.from_mesh(mesh)
+    bm.normal_update()
+    uv = bm.loops.layers.uv["night"]
+    corners, tris = [], []
+    for face in bm.faces:
+        if not decal[face.index]:
+            loops = list(face.loops)
+            for i in range(1, len(loops) - 1):
+                corners.append((loops[0], loops[i], loops[i + 1]))
+                tris.append((loops[0].vert.index, loops[i].vert.index, loops[i + 1].vert.index))
+    bvh = BVHTree.FromPolygons([v.co.copy() for v in bm.verts], tris)
+    for face in bm.faces:
+        if not decal[face.index]:
+            continue
+        for loop in face.loops:
+            at = loop.vert.co
+            hit = bvh.ray_cast(at - face.normal * 1e-4, -face.normal, 0.05)
+            if hit[0] is None:
+                hit = bvh.find_nearest(at)
+            if hit[0] is None:
+                continue
+            a, b, c = corners[hit[2]]
+            w = geometry.barycentric_transform(hit[0], a.vert.co, b.vert.co, c.vert.co, a[uv].uv.to_3d(),
+                                               b[uv].uv.to_3d(), c[uv].uv.to_3d())
+            loop[uv].uv = (w.x, w.y)
+    bm.to_mesh(mesh)
+    bm.free()
+
+
 def bake_night(name, targets, lamp, openings):
     """The room's lantern's light on the house, baked with Cycles: lit by the lantern alone, the
     sky and every other prop left out, its light falling on the walls, the floor and the furniture,
@@ -882,9 +1087,12 @@ def bake_night(name, targets, lamp, openings):
     map `night` into one shared map, saved to <id>_night.webp with each texel's light as the square
     root of its share of `scale` (the light at the brightest texels, less a few hottest ones),
     so the darks keep their steps. A first, rough bake of every face finds those the light reaches,
-    and only those are laid out in the map, so its texels go to the light, not to the outside's
-    shingles, which point at its one black corner. Returns what the game needs to read it, and the
-    house's `openings` with where the light passes through each (see opening_masks)."""
+    and those and every face that sees the lantern (see night_seen) are laid out in the map, so its
+    texels go to the light, not to the outside's shingles, which point at its one black corner. What
+    is painted on other faces (see night_decals) has no texels of its own: it waits out of the light,
+    behind what it is painted on, while the light is baked, then takes that face's light. Returns what
+    the game needs to read it, and the house's `openings` with where the light passes through each
+    (see opening_masks)."""
     scene = bpy.context.scene
     view_layer = bpy.context.view_layer
     hidden = {o: o.hide_render for o in scene.objects}
@@ -968,16 +1176,39 @@ def bake_night(name, targets, lamp, openings):
         return px.reshape(-1, 4)[:, :3].copy()
 
     faces = len(joined.polygons)
+    decal = night_decals(joined)
+    # Each decal's corners, moved back behind what it is painted on while the light is baked, so it
+    # neither shadows that face nor takes texels of its own (the parts' vertices are the joined
+    # mesh's, in order).
+    away = np.zeros((len(joined.vertices), 3), dtype=np.float32)
+    for poly in joined.polygons:
+        if decal[poly.index]:
+            away[list(poly.vertices)] = -np.array(poly.normal, dtype=np.float32) * NIGHT_HIDE
+
+    def hide_decals(sign):
+        start = 0
+        for o in targets:
+            n = len(o.data.vertices)
+            co = np.empty(n * 3, dtype=np.float32)
+            o.data.vertices.foreach_get("co", co)
+            o.data.vertices.foreach_set("co", co + sign * away[start:start + n].ravel())
+            o.data.update()
+            start += n
+
     night_layout(unwrap, np.ones(faces, dtype=bool))
     hand_out()
-    keep = night_lit(joined, bake(NIGHT_PROBE_SAMPLES).max(axis=1))
+    keep = (night_lit(joined, bake(NIGHT_PROBE_SAMPLES).max(axis=1)) | night_seen(joined, light.location)) & ~decal
     night_layout(unwrap, keep)
     hand_out()
+    hide_decals(1.0)
     rgb = bake(NIGHT_SAMPLES)
+    hide_decals(-1.0)
+    decal_layout(joined, decal)
+    hand_out()
     scene.render.engine = engine
     corner = NIGHT_SIZE - NIGHT_CORNER
     rgb.reshape(NIGHT_SIZE, NIGHT_SIZE, 3)[corner:, corner:] = 0.0
-    print(f"NIGHT {name}: {int(keep.sum())} of {faces} faces lit")
+    print(f"NIGHT {name}: {int(keep.sum())} of {faces} faces lit, {int(decal.sum())} painted on others")
 
     lit = rgb.max(axis=1)
     scale = float(np.percentile(lit[lit > 1e-6], 99.5)) if (lit > 1e-6).any() else 1.0
@@ -1012,30 +1243,800 @@ def bake_night(name, targets, lamp, openings):
 
 
 # ---------------------------------------------------------------------------- the stilt hut
+# The roof of the film's villager's hut (reference image `villager hut exterior 1`), as (radius across
+# the hut, height over the eaves) from the edge of its flat underside: round its thick rim, up its
+# sides, which bulge a little and round over to a neck where the straw is tied (3.95 to 4.2 up), and
+# over the knot of straw above the tie. As the film's, it stands about twice as high over the eaves as
+# the walls are tall. Front to back it is HUT_ROOF_DEPTH as deep as it is wide, so it hangs out about
+# as far over every wall.
+HUT_ROOF = ((4.05, 0.03), (4.15, -0.08), (4.25, 0.0), (4.27, 0.3), (4.2, 0.9), (4.0, 1.5), (3.65, 2.1), (3.1, 2.65),
+            (2.45, 3.1), (1.8, 3.45), (1.3, 3.7), (1.02, 3.86), (0.95, 3.95), (0.94, 4.08), (0.97, 4.2), (1.06, 4.32),
+            (1.16, 4.55), (1.14, 4.8), (0.98, 4.98), (0.66, 5.1), (0.3, 5.16), (0.0, 5.18))
+HUT_ROOF_DEPTH = 0.88
+HUT_TIES = (3.99, 4.08, 4.17)   # the rope's turns round the neck, over the eaves
+HUT_SCALES = ("hutScale1", "hutScale2", "hutScale3", "hutScale4")
+HUT_RUG = (-0.1, -0.92, 1.12)   # the round rug's middle (x, y in the room) and its radius
+
+
+def curve_points(ctrl, step):
+    """Points on a smooth curve through the (radius, height) points `ctrl` (Catmull-Rom, as charlib's
+    Profile draws one), through each of them and about `step` apart between them, so a sharp rim or a
+    tie keeps its shape on a long outline."""
+    ext = [ctrl[0]] + list(ctrl) + [ctrl[-1]]
+    out = []
+    for i in range(1, len(ext) - 2):
+        n = max(1, math.ceil(math.dist(ext[i], ext[i + 1]) / step))
+        out += [L._catmull_rom(ext[i - 1], ext[i], ext[i + 1], ext[i + 2], s / n) for s in range(n)]
+    return [(max(0.0, r), z) for r, z in out + [tuple(ctrl[-1])]]
+
+
+def radius_at(points, z):
+    """How far out a turned outline (points from curve_points) is at height z, on its way up."""
+    for (r0, z0), (r1, z1) in zip(points, points[1:]):
+        if z0 <= z <= z1 and z1 > z0:
+            return r0 + (r1 - r0) * (z - z0) / (z1 - z0)
+    return 0.0
+
+
+def hashed(*keys):
+    """A fixed hash of `keys`, 0 to 1: the same straw lies the same way every build."""
+    k = math.sin(sum(key * f for key, f in zip(keys, (12.9898, 78.233, 37.719, 4.581)))) * 43758.5453
+    return k - math.floor(k)
+
+
+def straw_bump(a, h):
+    """How far a hut roof's straw stands out of its turned shape at angle a (round its axis) and h (over
+    its eaves), as a share of its radius: broad soft lumps, as straw laid by hand lies, gentle (the user
+    found stronger ones too irregular), none at its rim or its neck, so the underside and the tie still
+    meet it."""
+    weight = L.smoothstep(0.2, 0.6, h) * (1.0 - L.smoothstep(3.45, 3.85, h))
+    return weight * (0.026 * math.sin(3.0 * a + 1.1 + 0.9 * h) + 0.018 * math.sin(5.0 * a - 0.7 * h + 2.3)
+                     + 0.012 * math.sin(8.0 * a + 1.9 * h + 0.4))
+
+
+def squash(bm, centre, depth):
+    """`bm` squashed front to back about `centre` to `depth` of its depth: a hut roof's oval."""
+    return L.transformed(bm, Matrix.Translation(centre) @ L.scale4(1.0, depth, 1.0) @ Matrix.Translation(-centre))
+
+
+def bell_roof(ctrl, centre, eave, hole, depth, knot, step=0.35, segments=36):
+    """A thatched roof as the film's villager's hut has (see HUT_ROOF), turned round `centre` from
+    (radius, height over `eave`) points and squashed front to back to `depth`, coloured as lathe_roof
+    colours its roofs in the film's paler straw, dark underneath. It is straw, not turned wood: its
+    sides lumpy (see straw_bump), its hem hanging uneven, and over the height `knot` (the knot above
+    the tie) its straw gathered into bunches and its top ragged. Its underside is flat, from its first
+    point's ring in to `hole` ((x0, x1), (y0, y1)), the rectangle over the walls' middles, and open
+    over the room, which has its own ceiling. Returns the roof and its colours, and its outline's
+    points (as turned, before its straw's roughness and its squashing)."""
+    points = curve_points([(r, eave + h) for r, h in ctrl], step)
+    bm = L.transformed(L.lathe_bm(points, segments=segments), Matrix.Translation(centre))
+    bm.normal_update()
+    if max(bm.faces, key=lambda f: f.calc_center_median().z).normal.z < 0:
+        bmesh.ops.reverse_faces(bm, faces=bm.faces[:])
+    bm.verts.ensure_lookup_table()
+    rim = [bm.verts[j] for j in range(segments)]
+    z = rim[0].co.z
+    for v in bm.verts:
+        dx, dy = v.co.x - centre.x, v.co.y - centre.y
+        if math.hypot(dx, dy) < 1e-6:
+            continue
+        a = math.atan2(dx, -dy)
+        k = hashed(a, v.co.z)
+        if v.co.z < z - 0.05:
+            v.co.z -= 0.1 * k                   # the hem's straw ends hanging unevenly
+            continue
+        if v.co.z > knot:
+            # The knot: straw gathered into bunches round it, its ends ragged at the top.
+            bunch = L.smoothstep(knot, knot + 0.2, v.co.z)
+            grow = 1.0 + bunch * (0.08 * math.sin(11.0 * a + 0.5) + 0.05 * (2.0 * k - 1.0))
+            v.co.z += 0.07 * (2.0 * k - 1.0) * L.smoothstep(knot + 0.4, knot + 0.8, v.co.z)
+        else:
+            grow = 1.0 + straw_bump(a, v.co.z - eave)
+        v.co.x, v.co.y = centre.x + dx * grow, centre.y + dy * grow
+    squash(bm, centre, depth)
+    bm.normal_update()
+    (x0, x1), (y0, y1) = hole
+
+    def to_hole(dx, dy):
+        ts = [(x1 - centre.x) / dx if dx > 1e-9 else None, (x0 - centre.x) / dx if dx < -1e-9 else None,
+              (y1 - centre.y) / dy if dy > 1e-9 else None, (y0 - centre.y) / dy if dy < -1e-9 else None]
+        t = min(t for t in ts if t is not None)
+        return bm.verts.new((centre.x + dx * t, centre.y + dy * t, z))
+
+    def angle(x, y):
+        return math.atan2(x - centre.x, centre.y - y) % (2 * math.pi)
+
+    # The underside: from the rim's ring in to the rectangle, along the rim's own spokes, the
+    # rectangle's corners where they fall between two spokes.
+    spokes = [angle(v.co.x, v.co.y) for v in rim]
+    inner = [to_hole(math.sin(a), -math.cos(a)) for a in spokes]
+    corners = [(angle(x, y), bm.verts.new((x, y, z))) for x in (x0, x1) for y in (y0, y1)]
+    for j in range(segments):
+        k = (j + 1) % segments
+        a0, a1 = spokes[j], spokes[k] if k else 2 * math.pi
+        corner = next((v for a, v in corners if a0 < a < a1), None)
+        if corner is None:
+            faces = [(rim[j], rim[k], inner[k], inner[j])]
+        else:
+            faces = [(rim[j], rim[k], corner), (rim[k], inner[k], corner), (rim[j], corner, inner[j])]
+        for verts in faces:
+            face = bm.faces.new(verts)
+            face.normal_update()
+            if face.normal.z > 0:
+                face.normal_flip()
+    bm.normal_update()
+    top = max(h for _, h in ctrl) + eave
+    cols = []
+    for v in bm.verts:
+        if (v.normal.z < -0.3 and v.co.z < z + 1.0) or v.co.z < z + 1e-4:
+            cols.append(C["thatchUnder"])
+            continue
+        a = math.atan2(v.co.x - centre.x, v.co.y - centre.y)
+        streak = 0.5 + 0.5 * math.sin(a * 14.0) * math.sin(a * 5.0 + 1.3)
+        c = C["hutThatch"] if streak < 0.62 else C["hutThatchDark"]
+        cols.append(C["hutThatchLight"] if v.co.z > top - 0.6 and streak < 0.45 else c)
+    return (bm, cols), points
+
+
+def straw_strokes(points, centre, eave, depth, pieces, count, low, high, length, width, seed=0.0):
+    """Short dark strokes of straw scattered over a hut roof (see bell_roof; `points` its outline) from
+    `low` to `high` over its eaves, as the film draws its thatch: each a sliver lying just off the
+    straw down its slope, a little askew, broad at its foot and pointed at its tip, `length` and
+    `width` (each a range) long and wide, more of them where the roof is wider."""
+    widest = max(r for r, _ in points)
+    made = 0
+    for i in range(count * 6):
+        if made >= count:
+            break
+        a = 2 * math.pi * hashed(i, seed, 1.0)
+        h = low + (high - low) * hashed(i, seed, 2.0)
+        r = radius_at(points, eave + h)
+        if r <= 0.0 or hashed(i, seed, 3.0) > r / widest:
+            continue
+        made += 1
+        slope = (radius_at(points, eave + h + 0.05) - radius_at(points, eave + h - 0.05)) / 0.1
+        out = V(math.sin(a), -math.cos(a), 0.0)
+        up = (out * slope + UP).normalized()          # up the slope, in the plane through the axis
+        normal = (out - UP * slope).normalized()
+        side = normal.cross(up)
+        turn = 0.35 * (2.0 * hashed(i, seed, 4.0) - 1.0)
+        along, across = up * math.cos(turn) + side * math.sin(turn), side * math.cos(turn) - up * math.sin(turn)
+        at = centre + out * (r * (1.0 + straw_bump(a, h))) + UP * (eave + h) + normal * 0.02
+        size = length[0] + (length[1] - length[0]) * hashed(i, seed, 5.0)
+        wide = width[0] + (width[1] - width[0]) * hashed(i, seed, 6.0)
+        bm = bmesh.new()
+        corners = [at - along * (size / 2) - across * (wide / 2), at - along * (size / 2) + across * (wide / 2),
+                   at + along * (size / 2) + across * (wide * 0.12)]
+        f = bm.faces.new([bm.verts.new(p) for p in corners])
+        f.normal_update()
+        if f.normal.dot(normal) < 0:
+            f.normal_flip()
+        pieces.append((squash(bm, centre, depth), C["hutStraw"]))
+
+
+def straw_fringe(points, centre, eave, depth, pieces, teeth=64, seed=0.0):
+    """The straw's ends hanging ragged below a hut roof's rim (see bell_roof; `points` its outline), as
+    the film draws its eaves: a ring of thin pointed bunches round its outer face, each its own
+    length."""
+    r_top = max(r for r, z in points if z < eave + 0.35)
+    for k in range(teeth):
+        a0, a1 = 2 * math.pi * k / teeth, 2 * math.pi * (k + 1.15) / teeth
+        am = (a0 + a1) / 2 + 0.3 * (hashed(k, seed, 7.0) - 0.5) * (a1 - a0)
+        drop = 0.1 + 0.14 * hashed(k, seed, 8.0)
+        hang = eave + 0.05 + 0.006 * (k % 2)  # by turns a little higher, so no two tops lie in one plane
+        bm = bmesh.new()
+        layers = []
+        for inset in (0.0, 0.014):
+            r = r_top - 0.02 - inset - 0.004 * (k % 2)
+            layers.append([bm.verts.new(centre + V(math.sin(a) * rr, -math.cos(a) * rr, zz))
+                           for a, rr, zz in ((a0, r, hang), (a1, r, hang), (am, r + 0.03, hang - drop))])
+        front, back = layers
+        bm.faces.new(front)
+        bm.faces.new(list(reversed(back)))
+        for i in range(3):
+            j = (i + 1) % 3
+            bm.faces.new((front[i], back[i], back[j], front[j]))
+        bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+        pieces.append((squash(bm, centre, depth), tone(C["hutThatch"], k * 3.7 + seed, 0.1)))
+
+
+def rope_ring(centre, radius, thick, colour, pieces, segments=24, sides=6):
+    """A turn of rope `thick` thick round a roof's neck, `radius` out from `centre`."""
+    ring = [(radius + thick * math.cos(2 * math.pi * k / sides), thick * math.sin(2 * math.pi * k / sides))
+            for k in range(sides)]
+    pieces.append((L.transformed(L.lathe_bm(ring, segments=segments, closed_loop=True), Matrix.Translation(centre)), colour))
+
+
+def hull_bm(points):
+    """The convex solid round `points`: a tapering board."""
+    bm = bmesh.new()
+    bmesh.ops.convex_hull(bm, input=[bm.verts.new(p) for p in points])
+    loose = [v for v in bm.verts if not v.link_faces]
+    if loose:
+        bmesh.ops.delete(bm, geom=loose, context="VERTS")
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    return bm
+
+
+def bent_log(points, r, colour, end_colour, pieces, normal=None, sides=8, ends=(False, False), grain=0.0):
+    """A log bent along `points`, as a branch grows: a ring round each point square to the way the log
+    runs there (`normal`, that of the plane it bends in, keeps the rings from twisting), its ends
+    closed, pale where they are cut (`ends`); with `grain`, its wood painted with grain along it that
+    strongly."""
+    bm, cols, grains, rings = bmesh.new(), [], [], []
+    for i, p in enumerate(points):
+        d = (points[min(i + 1, len(points) - 1)] - points[max(i - 1, 0)]).normalized()
+        side = (normal.cross(d) if normal is not None else d.orthogonal()).normalized()
+        up = d.cross(side)
+        rings.append([bm.verts.new(p + (side * math.cos(2 * math.pi * k / sides) + up * math.sin(2 * math.pi * k / sides)) * r)
+                      for k in range(sides)])
+        cols.extend([colour] * sides)
+        grains.extend([d * grain] * sides)
+
+    def face(verts, towards):
+        f = bm.faces.new(verts)
+        f.normal_update()
+        if f.normal.dot(towards) < 0:
+            f.normal_flip()
+
+    for i in range(len(rings) - 1):
+        lo, hi = rings[i], rings[i + 1]
+        axis = (points[i] + points[i + 1]) / 2
+        for k in range(sides):
+            j = (k + 1) % sides
+            face((lo[k], lo[j], hi[j], hi[k]), (lo[k].co + lo[j].co + hi[j].co + hi[k].co) / 4 - axis)
+    # The ends' faces have vertices of their own, so their colours stop sharp at the rim.
+    for ring, out, cut in ((rings[0], points[0] - points[1], ends[0]), (rings[-1], points[-1] - points[-2], ends[1])):
+        face([bm.verts.new(v.co) for v in ring], out)
+        cols.extend([end_colour if cut else colour] * sides)
+        grains.extend([None] * sides)
+    pieces.append((bm, cols, grains) if grain > 0.0 else (bm, cols))
+
+
+def flat_poly(points, z, colour, pieces, centre=None):
+    """A flat shape lying face up at height `z`, as a pattern woven into a rug: a fan round `centre`
+    (the points' middle if none) out to `points` ((x, y), in turn round it)."""
+    if centre is None:
+        centre = (sum(x for x, _ in points) / len(points), sum(y for _, y in points) / len(points))
+    bm = bmesh.new()
+    hub = bm.verts.new((centre[0], centre[1], z))
+    ring = [bm.verts.new((x, y, z)) for x, y in points]
+    for i in range(len(ring)):
+        f = bm.faces.new((hub, ring[i], ring[(i + 1) % len(ring)]))
+        f.normal_update()
+        if f.normal.z < 0:
+            f.normal_flip()
+    pieces.append((bm, colour))
+
+
+def front_poly(points, y, colour, pieces, centre=None, closed=True):
+    """A flat shape painted on a face looking toward -y at `y`, as on a cupboard's front: a fan round
+    `centre` (the points' middle if none) out to `points` ((x, z), in turn round it); not `closed`, the
+    fan stops at the last point (a half disc, its centre on its straight edge)."""
+    if centre is None:
+        centre = (sum(x for x, _ in points) / len(points), sum(z for _, z in points) / len(points))
+    bm = bmesh.new()
+    hub = bm.verts.new((centre[0], y, centre[1]))
+    ring = [bm.verts.new((x, y, z)) for x, z in points]
+    for i in range(len(ring) if closed else len(ring) - 1):
+        f = bm.faces.new((hub, ring[i], ring[(i + 1) % len(ring)]))
+        f.normal_update()
+        if f.normal.y > 0:
+            f.normal_flip()
+    pieces.append((bm, colour))
+
+
+def front_wave(x0, x1, z, amp, wave, width, y, colour, pieces):
+    """A wavy line painted on a face looking toward -y at `y`, from x0 to x1 about the height z: rising
+    `amp` above it and falling as far below, each wave `wave` long, the line `width` thick."""
+    n = max(8, round((x1 - x0) / wave * 10))
+    line = [(x0 + (x1 - x0) * k / n, z + amp * math.sin(2 * math.pi * (x1 - x0) * k / n / wave)) for k in range(n + 1)]
+    bm = bmesh.new()
+    edges = []
+    for k, (x, zz) in enumerate(line):
+        (xa, za), (xb, zb) = line[max(k - 1, 0)], line[min(k + 1, n)]
+        run = math.hypot(xb - xa, zb - za)
+        nx, nz = -(zb - za) / run * width / 2, (xb - xa) / run * width / 2
+        edges.append((bm.verts.new((x + nx, y, zz + nz)), bm.verts.new((x - nx, y, zz - nz))))
+    for (a, b), (c, d) in zip(edges, edges[1:]):
+        f = bm.faces.new((a, b, d, c))
+        f.normal_update()
+        if f.normal.y > 0:
+            f.normal_flip()
+    pieces.append((bm, colour))
+
+
+def woven(ctrl, at, pieces, inner, top, segments=14, samples=16, band=0.055,
+          colours=("basket", "basketLine", "basketIn")):
+    """A woven basket or vase turned from (radius, height) points, bottom to top, standing at `at`: its
+    weave in bands round it, light and dark by turns, and dark inside its mouth (its top within `inner`
+    of its middle, `top` its height there); `colours` names the weave's two and the inside's."""
+    bm = L.transformed(L.lathe_bm(L.Profile(ctrl, samples=samples).samples, segments=segments), Matrix.Translation(at))
+    cols = []
+    for v in bm.verts:
+        h = v.co.z - at.z
+        if math.hypot(v.co.x - at.x, v.co.y - at.y) < inner and h > top - 0.06:
+            cols.append(C[colours[2]])
+        else:
+            cols.append(C[colours[0]] if int(h / band) % 2 == 0 else C[colours[1]])
+    pieces.append((bm, cols))
+
+
+def lobed_leaf(base, direction, normal, length, width, pieces, thick=0.01):
+    """A monstera's leaf from `base` out along `direction`, its face to `normal`, drooping toward its
+    tip: an oval split into fingers by deep notches down both sides, heart-shaped at its stalk, a thin
+    solid so the pen draws its edge."""
+    d = direction.normalized()
+    n = (normal - d * normal.dot(d)).normalized()
+    s = n.cross(d)
+    steps, notches = 22, {3, 6, 9, 13, 16, 19}
+    rim = []
+    for i in range(steps):
+        a = 2 * math.pi * i / steps
+        u = 0.1 if i == steps // 2 else 0.5 + 0.5 * math.cos(a)  # 1 at the tip, 0 at the stalk
+        w = math.sin(a) * (0.45 if i in notches else 1.0)
+        rim.append(base + d * (u * length) + s * (w * width / 2) - n * (0.35 * length * u * u))
+    mid = base + d * (0.5 * length) - n * (0.35 * length * 0.25)
+    bm = bmesh.new()
+    top = [bm.verts.new(p + n * (thick / 2)) for p in rim]
+    bottom = [bm.verts.new(p - n * (thick / 2)) for p in rim]
+    hub_top, hub_bottom = bm.verts.new(mid + n * (thick / 2)), bm.verts.new(mid - n * (thick / 2))
+    for i in range(steps):
+        j = (i + 1) % steps
+        for verts, towards in (((hub_top, top[i], top[j]), n), ((hub_bottom, bottom[j], bottom[i]), -n),
+                               ((top[i], bottom[i], bottom[j], top[j]), (rim[i] + rim[j]) / 2 - mid)):
+            f = bm.faces.new(verts)
+            f.normal_update()
+            if f.normal.dot(towards) < 0:
+                f.normal_flip()
+    pieces.append((bm, C["leaf"]))
+
+
+def straw_cushion(at, r, h, pieces, segments=24):
+    """A domed cushion of woven straw, as the film's, sitting at `at`: striped from its top down its
+    sides."""
+    ctrl = [(0.0, 0.0), (r * 0.92, 0.0), (r, h * 0.3), (r * 0.9, h * 0.65), (r * 0.55, h * 0.92), (0.0, h)]
+    bm = L.transformed(L.lathe_bm(L.Profile(ctrl, samples=10).samples, segments=segments), Matrix.Translation(at))
+    cols = []
+    for v in bm.verts:
+        k = round(math.atan2(v.co.y - at.y, v.co.x - at.x) / (2 * math.pi / segments))
+        cols.append(C["strawStripe"] if k % 2 else C["strawCushion"])
+    pieces.append((bm, cols))
+
+
+def fruit(kind, at, pieces):
+    """A piece of fruit sitting at `at`: an apple, a peach, a pear or an orange."""
+    if kind == "pear":
+        pieces.append((turned([(0.0, 0.0), (0.04, 0.005), (0.055, 0.04), (0.045, 0.08), (0.028, 0.115), (0.02, 0.14),
+                               (0.0, 0.145)], at, segments=10), C["pear"]))
+        pieces.append((log(at + V(0.0, 0.0, 0.14), at + V(0.012, 0.0, 0.175), 0.007, segments=4), C["logDark"]))
+        return
+    radii = {"apple": (0.058, 0.058, 0.052), "peach": (0.052, 0.052, 0.05), "orange": (0.05, 0.05, 0.046)}[kind]
+    pieces.append((L.ellipsoid_bm(at + V(0.0, 0.0, radii[2] - 0.003), radii, u=10, v=6), C[kind]))
+    if kind == "apple":
+        pieces.append((log(at + V(0.0, 0.0, 0.095), at + V(0.01, 0.0, 0.125), 0.006, segments=4), C["logDark"]))
+
+
+def inner_face(wall, keep_clear):
+    """The wall as seen from its room, for patterning its inner face: the same wall turned about, so its
+    inner face is outermost and the scales Wall.shingles hangs on an outer face hang there; clear of
+    its openings and of `keep_clear` ((u0, u1, v0, v1) along the wall as it was)."""
+    flip = [(wall.length - o[1], wall.length - o[0], o[2], o[3]) for o in list(wall.openings) + list(keep_clear)]
+    return Wall((wall.b.x, wall.b.y), (wall.a.x, wall.a.y), wall.z0, wall.height, wall.t, flip)
+
+
+def inner_rail(wall, v, r, reach, skip, pieces, seed=0.0):
+    """A log along a wall's inner face at height v, standing clear of its scales: broken at the wall's
+    doorways (it passes under its windows, their sill inside) and at `skip` (stretches along the wall
+    where furniture or a door leaf stands against it), its cut ends pale; it runs from `reach`'s first
+    to its second (u along the wall), into the posts in the corners."""
+    around = [(a - r, b + r, c, d) for a, b, c, d in wall.openings] + [(a, b, -1.0, wall.height + 1.0) for a, b in skip]
+    depth = wall.t + 0.025 + r
+    for u0, u1 in solid_spans(wall.length, v, around):
+        first, last = u0 < 1e-6, u1 > wall.length - 1e-6
+        u0, u1 = max(u0, reach[0]), min(u1, reach[1])
+        if u1 - u0 < 0.15:
+            continue
+        cut_log(wall.point(u0, v, depth), wall.point(u1, v, depth), r, tone(C["hutLog"], seed + v * 7.1 + u0, 0.06),
+                C["hutLogEnd"], pieces, ends=(not first, not last), segments=10, grain=1.0)
+
+
+def shutters(wall, opening, pieces):
+    """A window's inside as the film's frames show one: a casing of boards round it, and its two plank
+    shutters swung right back flat against the wall either side, battened across, so the window stays
+    clear (and its light at night gets out). They lie where the wall's scales are kept clear (see
+    shutter_clear)."""
+    u0, u1, v0, v1 = opening
+    w = u1 - u0
+    face = wall.t + 0.015
+    # The casing: the jambs up to just over the window's head, the head board across them a little
+    # deeper and wider, so no two of their faces lie in one plane; the log under it is its sill.
+    for u in (u0 - 0.045, u1 + 0.045):
+        pieces.append((oriented_box(wall.point(u, (v0 + v1 + 0.01) / 2, face), wall.d, wall.inward,
+                                    (0.08, 0.03, v1 - v0 + 0.01)), C["hutLog"], UP * 0.7))
+    pieces.append((oriented_box(wall.point((u0 + u1) / 2, v1 + 0.045, face + 0.006), wall.d, wall.inward,
+                                (w + 0.17, 0.036, 0.08)), C["hutLog"], wall.d * 0.7))
+    leaf = w / 2 + 0.03
+    low, high = v0 + 0.012, v1 + 0.05
+    for a in (u0 - 0.09 - leaf, u1 + 0.09):
+        uc, vc = a + leaf / 2, (low + high) / 2
+        pieces.append((oriented_box(wall.point(uc, vc, wall.t + 0.025), wall.d, wall.inward, (leaf, 0.04, high - low)),
+                       tone(C["shutter"], uc * 3.1, 0.05), UP * 0.7))
+        for f in (1 / 3, 2 / 3):
+            pieces.append((oriented_box(wall.point(a + leaf * f, vc, wall.t + 0.047), wall.d, wall.inward,
+                                        (PEN, 0.006, high - low - 0.04)), C["shutterLine"]))
+        for vb in (low + 0.16, high - 0.16):
+            pieces.append((oriented_box(wall.point(uc, vb, wall.t + 0.055), wall.d, wall.inward, (leaf - 0.06, 0.03, 0.09)),
+                           tone(C["shutter"], uc + vb, 0.08), wall.d * 0.7))
+
+
+def shutter_clear(opening):
+    """Where a window's casing and swung-back shutters lie on the wall's inner face (see shutters)."""
+    u0, u1, v0, v1 = opening
+    leaf = (u1 - u0) / 2 + 0.03
+    return (u0 - 0.11 - leaf, u1 + 0.11 + leaf, v0 - 0.02, v1 + 0.1)
+
+
+def hut_ceiling(xi, yi, eave, peak, inside):
+    """A stilt hut's ceiling, as the film's frames show one inside a villager's hut: the straw roof's
+    dark underside rising from the walls' tops to a peak over the middle of the room, on rafters
+    running up to it from the walls (four along its hips), two rings of battens across under the
+    straw, and a hub where the rafters meet. Returns where its lantern hangs from."""
+    corners = [V(-xi, -yi, eave), V(xi, -yi, eave), V(xi, yi, eave), V(-xi, yi, eave)]
+    apex = V(0.0, 0.0, peak)
+    # The straw underside: a thin closed shell over the room, so the pen works from inside it.
+    bm = bmesh.new()
+    under = [bm.verts.new(c) for c in corners]
+    over = [bm.verts.new(c + V(math.copysign(0.04, c.x), math.copysign(0.04, c.y), 0.03)) for c in corners]
+    tip, tip_over = bm.verts.new(apex), bm.verts.new(apex + V(0.0, 0.0, 0.05))
+    for i in range(4):
+        j = (i + 1) % 4
+        bm.faces.new((under[i], under[j], tip))
+        bm.faces.new((over[j], over[i], tip_over))
+        bm.faces.new((under[j], under[i], over[i], over[j]))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    inside.append((bm, C["hutCeiling"]))
+    # Each slope's way down into the room.
+    normals = []
+    for i in range(4):
+        n = (corners[(i + 1) % 4] - corners[i]).cross(apex - corners[i]).normalized()
+        normals.append(-n if n.z > 0 else n)
+    # The battens, just under the straw, each slope's own, meeting at the hips.
+    for s in (0.42, 0.74):
+        ring = [apex + (c - apex) * s for c in corners]
+        for i in range(4):
+            a, b = ring[i], ring[(i + 1) % 4]
+            d = (b - a).normalized()
+            cut_log(a + d * 0.02 + normals[i] * 0.03, b - d * 0.02 + normals[i] * 0.03, 0.025, C["hutRafter"],
+                    C["hutLogEnd"], inside, ends=(False, False), segments=6, grain=0.6)
+    # The rafters under the battens, from the hub down to the wall plates (the logs along the walls'
+    # tops), their lower ends cut.
+    rafters = []
+    for i in range(4):
+        rafters.append((corners[i], (normals[i - 1] + normals[i]).normalized()))
+        rafters += [(corners[i].lerp(corners[(i + 1) % 4], f), normals[i]) for f in (0.25, 0.5, 0.75)]
+    for k, (end, n) in enumerate(rafters):
+        cut_log(apex + (end - apex) * 0.06 + n * 0.1, apex + (end - apex) * 0.975 + n * 0.1, 0.045,
+                tone(C["hutRafter"], k * 1.7, 0.08), C["hutLogEnd"], inside, ends=(False, True), segments=8, grain=0.8)
+    cut_log(apex - V(0.0, 0.0, 0.32), apex - V(0.0, 0.0, 0.12), 0.14, C["hutRafter"], C["hutLogEnd"], inside,
+            ends=(True, False), segments=12, grain=0.6)
+    return apex - V(0.0, 0.0, 0.32)
+
+
+def furnish_hut(floor):
+    """A stilt hut's room furnished as the film's villager's hut (reference images `villager hut
+    interior 1` to `10`), laid out as its top view (`6`) has it, the door at the front: along the back
+    wall from the left a cream kitchen counter, two drawers at its end and a pair of doors painted with
+    a white wavy line and dots and white clouds, a round iron stove on it at its left end and a grey
+    sink with a curved tap beside it, a cutting board standing behind the fruit, and a rail of black
+    pans, a cloth and wooden spoons over it; then a tree-stump stool, then the head of the bed. The
+    bed, for one, runs from the back wall along the right wall to the room's middle: dark wood on short
+    legs under a thick pale blue mattress and a long white pillow, no quilt. In the front right corner
+    a small table set askew with fruit on it. On the left wall, in its middle, a tall orange bookshelf
+    tapering as it rises, white pegs down its sides, on round feet and full of books; toward the door a
+    potted monstera on a little table, and two brown woven vases in the front left corner. In the
+    room's front half, before the door, a round cream rug patterned in blue round a white flower, two
+    domed straw cushions on it. Returns its pieces, the blocks that keep walkers out of it (not the
+    camera, which may look over it), and where it stands against each wall (x or y from, to, and
+    whether it reaches the window sill's height), for the logs along the walls' feet (see
+    inner_rail)."""
+    f = floor
+    out, blocks = [], []
+    against = {"front": [], "back": [], "left": [], "right": []}
+
+    def box(c, size, colour, bevel=0.0, grain=None):
+        bm = P.box_bm(c, size, bevel=bevel)
+        out.append((bm, colour) if grain is None else (bm, colour, grain))
+
+    def keep_out(x0, x1, y0, y1, high):
+        blocks.append(block_box(x0, x1, y0, y1, f - 0.1, f + high, camera=False))
+
+    def keep_out_round(x, y, r, high):
+        blocks.append({"circle": [*g(x, y), r], "y": [f - 0.1, f + high], "walk": True, "camera": False})
+
+    # The bed, for one: dark wood on short legs, a thick puffy mattress, pale blue as the film's, and a
+    # long pillow across its head. It stands clear of the corner post.
+    bx0, bx1, by0, by1 = 1.52, 2.62, 0.0, 2.16
+    bx, by = (bx0 + bx1) / 2, (by0 + by1) / 2
+    for lx in (bx0 + 0.09, bx1 - 0.09):
+        for ly in (by0 + 0.09, by1 - 0.09):
+            box(V(lx, ly, f + 0.045), (0.11, 0.11, 0.09), C["bedFrame"])
+    box(V(bx, by, f + 0.185), (bx1 - bx0, by1 - by0, 0.2), C["bedFrame"], bevel=0.015, grain=V(0.0, 0.7, 0.0))
+    box(V(bx, by, f + 0.4), (bx1 - bx0 + 0.03, by1 - by0 - 0.01, 0.26), C["mattress"], bevel=0.11)
+    box(V(bx, by1 - 0.3, f + 0.56), (bx1 - bx0 - 0.24, 0.4, 0.13), C["pillow"], bevel=0.06)
+    keep_out(bx0, bx1, by0, by1, 0.6)
+    against["back"].append((bx0 - 0.02, bx1 + 0.02, False))
+    # A stool by the bed's head, between it and the counter: a stump, its top cut to show its rings, on
+    # three stubby legs.
+    sx, sy = 1.2, 1.85
+    cut_log(V(sx, sy, f + 0.14), V(sx, sy, f + 0.42), 0.18, C["stump"], C["stumpEnd"], out, ends=(False, True),
+            segments=12, ring=C["stumpRing"], rings=(False, True), grain=1.0)
+    for k in range(3):
+        a = 2 * math.pi * k / 3 + 0.5
+        out.append((log(V(sx + math.cos(a) * 0.08, sy + math.sin(a) * 0.08, f + 0.17),
+                        V(sx + math.cos(a) * 0.13, sy + math.sin(a) * 0.13, f + 0.005), 0.05, segments=7), C["stump"]))
+    keep_out_round(sx, sy, 0.22, 0.42)
+
+    # The kitchen counter, from the corner post along the back wall: a cream cabinet, its front as the
+    # film's (reference images `villager hut interior 2` and `4`): at its left end two drawers one over
+    # the other beside a pale post, then a pair of wide doors, each panel standing a little proud, dark
+    # knobs where the doors meet, a white wavy line across each door near its top with white dots in
+    # its dips, and white clouds along its foot; a wooden top round a grey sink, a round iron stove at
+    # its left end.
+    kx0, kx1, ky0, ky1 = -2.62, -0.47, 1.6, 2.17
+    kx, ky, span = (kx0 + kx1) / 2, (ky0 + ky1) / 2, kx1 - kx0
+    top = f + 0.72
+    # (its back a little short of the top's, so no two of their faces lie in one plane)
+    box(V(kx, ky - 0.003, f + 0.34), (span, ky1 - ky0 - 0.006, 0.68), C["cabinet"])
+    lift = 0.006                                    # how far the panels stand out of the cabinet's face
+    paint = ky0 - lift - 0.004                      # where their white patterns lie, just off them
+    low, high = f + 0.07, f + 0.64                  # the panels' foot and top
+    xa, xb, xc, xd = kx0 + 0.02, kx0 + 0.44, kx0 + 0.5, kx1 - 0.02  # the drawers, the post, the doors
+    mid = (xc + xd) / 2
+
+    def panel(x0, x1, z0, z1):
+        box(V((x0 + x1) / 2, ky0 - lift / 2 + 0.001, (z0 + z1) / 2), (x1 - x0, lift + 0.002, z1 - z0), C["cabinetPanel"])
+
+    def clouds(x0, x1, count, base, r):
+        """White clouds along a panel's foot, each three round lobes, the middle one `r` high."""
+        for k in range(count):
+            cx = x0 + (x1 - x0) * (k + 0.5) / count
+            for dx, rr in ((-0.95 * r, 0.75 * r), (0.0, r), (0.95 * r, 0.75 * r)):
+                arc = [(cx + dx + rr * math.cos(math.pi * i / 6), base + rr * math.sin(math.pi * i / 6)) for i in range(7)]
+                front_poly(arc, paint, C["lace"], out, centre=(cx + dx, base), closed=False)
+
+    # The drawers, a short wavy line on the upper, two little clouds on the lower, a knob on each; the
+    # pale post beside them, up to the cabinet's top.
+    panel(xa, xb, f + 0.365, high)
+    panel(xa, xb, low, f + 0.355)
+    for z in ((f + 0.365 + high) / 2, (low + f + 0.355) / 2):
+        out.append((L.ellipsoid_bm(V((xa + xb) / 2, ky0 - lift - 0.01, z), (0.02, 0.014, 0.02), u=6, v=4), C["handle"]))
+    front_wave(xa + 0.05, xb - 0.05, high - 0.055, 0.012, 0.106, 0.012, paint, C["lace"], out)
+    clouds(xa + 0.03, xb - 0.03, 1, low + 0.02, 0.06)
+    post_low, post_high = low - 0.02, f + 0.675
+    box(V((xb + xc) / 2, ky0 - 0.005, (post_low + post_high) / 2), (xc - xb, 0.012, post_high - post_low),
+        C["cabinetLight"])
+    # The doors: the wavy line and its dots near the top, the clouds along the foot, the knobs where
+    # they meet.
+    for x0, x1, knob in ((xc, mid - 0.005, mid - 0.06), (mid + 0.005, xd, mid + 0.06)):
+        panel(x0, x1, low, high)
+        out.append((L.ellipsoid_bm(V(knob, ky0 - lift - 0.012, (low + high) / 2 - 0.03), (0.026, 0.018, 0.026), u=8, v=5),
+                    C["handle"]))
+        waves, zw, amp = 6, high - 0.12, 0.02
+        wave = (x1 - x0 - 0.08) / waves
+        front_wave(x0 + 0.04, x1 - 0.04, zw, amp, wave, 0.016, paint, C["lace"], out)
+        for k in range(waves):
+            dx, dz = x0 + 0.04 + wave * (k + 0.75), zw - amp + 0.04
+            front_poly([(dx + 0.014 * math.cos(2 * math.pi * i / 8), dz + 0.014 * math.sin(2 * math.pi * i / 8))
+                        for i in range(8)], paint, C["lace"], out)
+        clouds(x0 + 0.05, x1 - 0.05, 2, low + 0.02, 0.07)
+    s0, s1, t0, t1 = -1.8, -1.3, 1.72, 2.0  # the sink's hole in the top
+    for x0, x1, y0, y1 in ((kx0 - 0.03, s0, ky0 - 0.03, ky1), (s1, kx1 + 0.03, ky0 - 0.03, ky1), (s0, s1, ky0 - 0.03, t0),
+                           (s0, s1, t1, ky1)):
+        box(V((x0 + x1) / 2, (y0 + y1) / 2, top - 0.025), (x1 - x0, y1 - y0, 0.05), C["counterTop"], grain=V(0.7, 0.0, 0.0))
+    # The sink: a shallow grey basin, its rim standing a little proud of the top, set a few millimetres
+    # in from the hole's sides.
+    e = 0.003
+    for c, size in ((V(s0 + e + 0.0125, (t0 + t1) / 2, top - 0.013), (0.025, t1 - t0 - 2 * e, 0.05)),
+                    (V(s1 - e - 0.0125, (t0 + t1) / 2, top - 0.013), (0.025, t1 - t0 - 2 * e, 0.05)),
+                    (V((s0 + s1) / 2, t0 + e + 0.0125, top - 0.013), (s1 - s0 - 2 * e - 0.05, 0.025, 0.05)),
+                    (V((s0 + s1) / 2, t1 - e - 0.0125, top - 0.013), (s1 - s0 - 2 * e - 0.05, 0.025, 0.05))):
+        box(c, size, C["steel"])
+    box(V((s0 + s1) / 2, (t0 + t1) / 2, top - 0.03), (s1 - s0 - 0.04, t1 - t0 - 0.04, 0.008), C["steelDark"])
+    # The tap behind it, curving over it, clear of the sill's log on the wall.
+    tx, stem, arc, bend = (s0 + s1) / 2, 2.04, 1.98, 0.06
+    tap = [V(tx, stem, top - 0.005), V(tx, stem, top + 0.12), V(tx, stem, top + 0.24)]
+    tap += [V(tx, arc + bend * math.cos(a), top + 0.24 + bend * math.sin(a)) for a in (math.pi * k / 6 for k in range(1, 7))]
+    tap.append(V(tx, arc - bend, top + 0.19))
+    bent_log(tap, 0.02, C["steel"], C["steelDark"], out, normal=V(1.0, 0.0, 0.0), ends=(False, True))
+    out.append((P.segment_bm(V(tx, stem, top), V(tx, stem, top + 0.03), 0.034, 0.03, 10), C["steel"]))
+    # The stove: a round iron plate standing on the top, a darker ring inside it, and a cross of bars
+    # over it for a pot to stand on.
+    ox, oy = -2.25, (ky0 + ky1) / 2
+    out.append((P.segment_bm(V(ox, oy, top - 0.005), V(ox, oy, top + 0.03), 0.17, 0.17, 16), C["iron"]))
+    out.append((P.segment_bm(V(ox, oy, top + 0.02), V(ox, oy, top + 0.036), 0.12, 0.12, 16), C["pan"]))
+    for k in range(4):
+        a = math.pi / 4 + k * math.pi / 2
+        d = V(math.cos(a), math.sin(a), 0.0)
+        out.append((oriented_box(V(ox, oy, top + 0.046) + d * 0.095, d, UP.cross(d), (0.11, 0.026, 0.022)), C["iron"]))
+    # A cutting board standing at the back, an apple, a peach and a pear before it.
+    box(V(-1.13, 2.03, top + 0.215), (0.3, 0.028, 0.43), C["cuttingBoard"], bevel=0.012, grain=UP * 0.7)
+    for kind, x, y in (("apple", -0.98, 1.82), ("peach", -0.8, 1.76), ("pear", -0.86, 1.93)):
+        fruit(kind, V(x, y, top), out)
+    # Over the counter, a rail on the wall: two black pans over the stove, a cloth, a wooden spoon and a
+    # fork.
+    rail_z = f + 1.78
+    out.append((log(V(-2.55, 2.14, rail_z), V(-1.12, 2.14, rail_z), 0.022, segments=8), C["spoon"], V(0.6, 0.0, 0.0)))
+    for x in (-2.5, -1.17):
+        box(V(x, 2.168, rail_z), (0.035, 0.045, 0.055), C["spoon"])
+    for x, r, z in ((-2.33, 0.125, f + 1.44), (-2.04, 0.105, f + 1.47)):
+        out.append((P.segment_bm(V(x, 2.115, z), V(x, 2.085, z), r, r - 0.012, 16), C["pan"]))
+        out.append((log(V(x, 2.105, z + r - 0.01), V(x, 2.13, rail_z - 0.01), 0.016, segments=6), C["pan"]))
+    box(V(-1.78, 2.13, rail_z - 0.17), (0.15, 0.022, 0.32), C["towel"], bevel=0.008)
+    box(V(-1.78, 2.118, rail_z - 0.06), (0.152, 0.006, PEN), C["cabinetLine"])
+    out.append((log(V(-1.56, 2.125, rail_z), V(-1.56, 2.115, f + 1.43), 0.012, segments=6), C["spoon"], UP * 0.5))
+    out.append((L.ellipsoid_bm(V(-1.56, 2.105, f + 1.37), (0.048, 0.02, 0.065), u=8, v=5), C["spoon"]))
+    out.append((log(V(-1.36, 2.125, rail_z), V(-1.36, 2.118, f + 1.46), 0.011, segments=6), C["spoon"], UP * 0.5))
+    box(V(-1.36, 2.118, f + 1.44), (0.075, 0.012, 0.05), C["spoon"])
+    for dx in (-0.025, 0.0, 0.025):
+        box(V(-1.36 + dx, 2.118, f + 1.385), (0.014, 0.01, 0.065), C["spoon"])
+    keep_out(kx0 - 0.03, kx1 + 0.03, ky0 - 0.03, 2.2, 0.75)
+    against["back"].append((-2.8, kx1 + 0.03, False))
+
+    # The bookshelf, in the middle of the left wall: orange wood, its sides tapering from deep at its
+    # foot to shallow at its top, white pegs down them, a dark back, on four round feet; three shelves
+    # and its foot full of books.
+    ex, ey0, ey1 = -2.77, -0.96, -0.06        # its back, against the wall, and its ends
+    z0, z1 = f + 0.07, f + 1.78
+    deep0, deep1 = 0.44, 0.22
+
+    def depth_at(z):
+        return deep0 + (deep1 - deep0) * (z - z0) / (z1 - z0)
+
+    for ya, yb in ((ey0, ey0 + 0.04), (ey1 - 0.04, ey1)):
+        side = [(ex, z0), (ex + deep0, z0), (ex + deep1, z1), (ex, z1)]
+        out.append((hull_bm([V(x, y, z) for y in (ya, yb) for x, z in side]), C["shelf"], UP * 0.7))
+    box(V(ex + 0.016, (ey0 + ey1) / 2, (z0 + 0.05 + z1 - 0.005) / 2), (0.024, ey1 - ey0 - 0.07, z1 - z0 - 0.055),
+        C["shelfDark"])
+    box(V(ex + (deep0 - 0.01) / 2, (ey0 + ey1) / 2, z0 + 0.025), (deep0 - 0.01, ey1 - ey0 - 0.07, 0.05), C["shelf"],
+        grain=V(0.0, 0.6, 0.0))
+    shelves = [z0 + 0.43, z0 + 0.84, z0 + 1.25]
+    for z in shelves:
+        d = depth_at(z) - 0.015
+        box(V(ex + d / 2, (ey0 + ey1) / 2, z), (d, ey1 - ey0 - 0.07, 0.035), C["shelf"], grain=V(0.0, 0.6, 0.0))
+    box(V(ex + 0.005 + (deep1 + 0.03) / 2, (ey0 + ey1) / 2, z1 + 0.018), (deep1 + 0.03, ey1 - ey0 + 0.04, 0.036), C["shelf"],
+        grain=V(0.0, 0.6, 0.0))
+    for x in (ex + 0.06, ex + deep0 - 0.06):
+        for y in (ey0 + 0.04, ey1 - 0.04):
+            out.append((L.ellipsoid_bm(V(x, y, f + 0.042), (0.048, 0.048, 0.045), u=10, v=6), C["bedFrame"]))
+    for y, way in ((ey0, -1.0), (ey1, 1.0)):
+        for k in range(4):
+            z = z0 + 0.2 + (z1 - z0 - 0.4) * k / 3
+            for x in (ex + 0.05, ex + depth_at(z) - 0.05):
+                out.append((P.segment_bm(V(x, y, z), V(x, y + way * 0.008, z), 0.022, 0.022, 8), C["lace"]))
+    books = [C[f"hutBook{k}"] for k in range(1, 7)]
+    k = 0
+    for floor_z in [z0 + 0.05] + [z + 0.0175 for z in shelves]:
+        y = ey0 + 0.06
+        while y < ey1 - 0.095:
+            w = 0.038 + 0.022 * ((k * 7) % 4) / 3
+            h = 0.22 + 0.09 * ((k * 5) % 4) / 3
+            d = min(0.2, depth_at(floor_z + h) - 0.05)
+            box(V(ex + 0.032 + d / 2, y + w / 2, floor_z + 0.002 + h / 2), (d, w, h), books[(k * 5) % len(books)])
+            y += w + (0.006 if k % 6 else 0.04)
+            k += 1
+    keep_out(-2.8, ex + deep0 + 0.02, ey0 - 0.02, ey1 + 0.02, 1.8)
+    against["left"].append((ey0 - 0.02, ey1 + 0.02, True))
+
+    # Toward the door, a potted monstera on a little table, its split leaves held out over the room,
+    # clear of the bookshelf and the wall.
+    mx, my, table = -2.4, -1.32, f + 0.45
+    for x in (mx - 0.21, mx + 0.21):
+        for y in (my - 0.21, my + 0.21):
+            box(V(x, y, f + 0.215), (0.045, 0.045, 0.43), C["chest"], grain=UP * 0.6)
+    box(V(mx, my, table - 0.02), (0.5, 0.5, 0.04), C["chestTop"], grain=V(0.0, 0.7, 0.0))
+    out.append((turned([(0.0, 0.0), (0.1, 0.0), (0.125, 0.15), (0.135, 0.19), (0.115, 0.195), (0.0, 0.175)],
+                       V(mx, my, table)), C["pot"]))
+    out.append((P.segment_bm(V(mx, my, table + 0.18), V(mx, my, table + 0.189), 0.112, 0.112, 12), C["soil"]))
+    for ang, reach, h, size, tilt in ((-0.9, 0.18, 0.5, 0.22, 0.5), (-0.3, 0.24, 0.62, 0.26, 0.45),
+                                      (0.25, 0.26, 0.56, 0.25, 0.45), (0.85, 0.16, 0.66, 0.2, 0.4),
+                                      (-1.6, 0.14, 0.44, 0.2, 0.55), (-2.3, 0.1, 0.58, 0.18, 0.5)):
+        d = V(math.cos(ang), math.sin(ang), 0.0)
+        tip = V(mx, my, table + h) + d * reach
+        out.append((P.segment_bm(V(mx, my, table + 0.18), tip, 0.011, 0.008, 5), C["leafDark"]))
+        lobed_leaf(tip, d + UP * 0.25, UP + d * tilt, size, size * 0.85, out)
+    keep_out(mx - 0.27, mx + 0.27, my - 0.27, my + 0.27, 1.1)
+    # Two brown woven vases in the front left corner, a big one and a small one.
+    for (vx, vy), ctrl, inner, high in (((-2.42, -1.84), [(0.0, 0.0), (0.15, 0.0), (0.21, 0.12), (0.22, 0.3), (0.17, 0.48),
+                                                          (0.12, 0.6), (0.12, 0.66), (0.165, 0.75), (0.17, 0.77),
+                                                          (0.13, 0.765), (0.0, 0.71)], 0.135, 0.71),
+                                        ((-1.97, -1.88), [(0.0, 0.0), (0.12, 0.0), (0.16, 0.09), (0.17, 0.22), (0.14, 0.34),
+                                                          (0.1, 0.4), (0.12, 0.45), (0.1, 0.45), (0.0, 0.41)], 0.09, 0.41)):
+        woven(ctrl, V(vx, vy, f), out, inner=inner, top=high, colours=("vase", "vaseLine", "vaseIn"))
+        keep_out_round(vx, vy, max(r for r, _ in ctrl) + 0.02, high + 0.05)
+
+    # In the front right corner, a small table set askew, a melon and a peach on it.
+    tx, ty, tt = 2.28, -1.68, f + 0.5
+    d = V(1.0, 1.0, 0.0).normalized()
+    across = UP.cross(d)
+    for sa in (-1.0, 1.0):
+        for sb in (-1.0, 1.0):
+            box_at = V(tx, ty, f + 0.24) + d * (sa * 0.19) + across * (sb * 0.19)
+            out.append((oriented_box(box_at, d, across, (0.045, 0.045, 0.48)), C["chest"], UP * 0.6))
+    out.append((oriented_box(V(tx, ty, tt - 0.02), d, across, (0.5, 0.5, 0.04)), C["chestTop"], d * 0.7))
+    out.append((L.ellipsoid_bm(V(tx - 0.06, ty + 0.05, tt + 0.085), (0.095, 0.095, 0.088), u=12, v=8), C["melon"]))
+    fruit("peach", V(tx + 0.1, ty - 0.08, tt), out)
+    keep_out_round(tx, ty, 0.36, 0.55)
+
+    # The rug, before the door: cream, ringed by a zigzag, a ring of diamonds and one of little
+    # triangles, a circle, and in the middle a blue medallion with a white flower and a blue star at
+    # its heart; each pattern a few millimetres over the one under it.
+    rx, ry, rr = HUT_RUG
+    out.append((P.segment_bm(V(rx, ry, f + 0.002), V(rx, ry, f + 0.016), rr, rr, 40), C["rugCream"]))
+    z1, z2, z3 = f + 0.0195, f + 0.0225, f + 0.0255
+    scale = rr / 1.15
+
+    def at_r(r, a):
+        return (rx + r * scale * math.cos(a), ry + r * scale * math.sin(a))
+
+    def circle(r_out, r_in, z, colour, n=40):
+        out.append((P.band_bm([V(*at_r(r_out, 2 * math.pi * k / n), z) for k in range(n)],
+                              [V(*at_r(r_in, 2 * math.pi * k / n), z) for k in range(n)], UP), colour))
+
+    teeth = 22
+    zig = [V(*at_r(1.07 if k % 2 else 0.98, math.pi * k / teeth), z1) for k in range(2 * teeth + 1)]
+    for p, q in zip(zig, zig[1:]):
+        out.append((quad((p + q) / 2, q - p, UP, (q - p).length + 0.02, 0.026), C["rugGrey"]))
+    circle(1.115, 1.1, z1, C["rugGrey"])
+    for k in range(14):
+        a = 2 * math.pi * (k + 0.5) / 14
+        cx, cy = at_r(0.86, a)
+        flat_poly([(cx + 0.06 * math.cos(a + m * math.pi / 2), cy + 0.06 * math.sin(a + m * math.pi / 2)) for m in range(4)],
+                  z1, C["rugBlue"], out)
+    for k in range(18):
+        a = 2 * math.pi * k / 18
+        flat_poly([at_r(0.62, a - 0.09), at_r(0.62, a + 0.09), at_r(0.72, a)], z1, C["rugGrey"], out)
+    circle(0.575, 0.555, z1, C["rugGrey"])
+    flat_poly([at_r(0.45, 2 * math.pi * k / 32) for k in range(32)], z1, C["rugBlue"], out, centre=(rx, ry))
+    flat_poly([at_r(0.17 + 0.17 * abs(math.cos(4 * (2 * math.pi * k / 48))) ** 0.7, 2 * math.pi * k / 48) for k in range(48)],
+              z2, C["lace"], out, centre=(rx, ry))
+    flat_poly([at_r(0.09 if k % 2 == 0 else 0.035, math.pi * k / 4) for k in range(8)], z3, C["rugBlue"], out, centre=(rx, ry))
+    # Two domed straw cushions on it, one toward the bed, one toward the door.
+    for x, y in ((rx + 0.39, ry + 0.6), (rx - 0.4, ry - 0.6)):
+        straw_cushion(V(x, y, f + 0.017), 0.32, 0.17, out)
+        keep_out_round(x, y, 0.28, 0.17)
+    return out, blocks, against
+
 
 def build_stilt_hut(name, pattern, collection):
     """A hut on log stilts you can walk into, as in the film's village: log stairs up to a plank
-    porch, a doorway wide enough for three, lattice windows over a band of coloured scales, a
-    roomy log-cabin room inside furnished as an islander's home (see furnish), and a big
-    mushroom-shaped thatched roof sheltering the porch. Returns the parts and the info for the
-    game."""
+    porch, a doorway wide enough for three, its one plank door swung out onto the porch, lattice
+    windows over a band of coloured scales, and over it all a beehive of straw, tied in a knot at its
+    top, as the film's villager's hut (reference image `villager hut exterior 1`). Inside, a room as
+    the film's frames of one (`villager hut interior 1` to `10`): teal walls patterned in scales,
+    framed by logs, the windows' plank shutters swung back, light planks underfoot, overhead the
+    straw rising to a peak on rafters, furnished as a villager's home (see furnish_hut). Returns the
+    parts and the info for the game."""
     floor, wall_h, t = 0.6, 2.6, 0.16
     xi, yi = 2.8, 2.2                     # the room inside
     xo, yo = xi + t, yi + t               # the walls' outer faces
     porch = -yo - 1.2
     stairs_end = porch - 1.3
     door = 0.68                           # half the doorway's width
+    eave = floor + wall_h
     pieces, glow, panes, inside = [], [], [], []
 
     sill, head = 0.92, 2.3                # the windows' bottom and top, above the floor, up to the top rail
     front = Wall((-xo, -yo + t / 2), (xo, -yo + t / 2), floor, wall_h, t,
                  [(xo - door, xo + door, 0.0, 2.05), (xo - 2.3, xo - 1.3, sill, head), (xo + 1.3, xo + 2.3, sill, head)])
     back = Wall((xo, yo - t / 2), (-xo, yo - t / 2), floor, wall_h, t, [(xo - 0.45, xo + 0.45, sill, head)])
-    left = Wall((-xo + t / 2, yi), (-xo + t / 2, -yi), floor, wall_h, t, [(yi - 0.45, yi + 0.45, sill, head)])
+    # The left wall's window toward the back, where it leaves the middle of the wall to the bookshelf,
+    # as in the film's room.
+    left = Wall((-xo + t / 2, yi), (-xo + t / 2, -yi), floor, wall_h, t, [(1.2 - 0.45, 1.2 + 0.45, sill, head)])
     right = Wall((xo - t / 2, -yi), (xo - t / 2, yi), floor, wall_h, t, [(yi - 0.45, yi + 0.45, sill, head)])
-    for wall in (front, back, left, right):
-        pieces.extend(wall.skins(C["plank"], C["inside"]))
-        inside.extend(wall.courses(C["insideLine"], 1))
+    walls = (front, back, left, right)
+    for wall in walls:
+        pieces.extend(wall.skins(C["plank"], C["hutSkin"]))
         # Outside, as the film's: shingled all over in round scales, framed by log rails along the
         # wall's foot, under its windows and along its top.
         pieces.extend(wall.shingles(pattern, 0.17, wall_h - 0.17, size=0.34))
@@ -1052,17 +2053,27 @@ def build_stilt_hut(name, pattern, collection):
         pieces.append((log(V(x, -yo - 0.03, floor), V(x, -yo - 0.03, floor + wall_h), 0.16, segments=10), C["log"]))
     pieces.append((oriented_box(V(0.0, -yo - 0.04, floor + 2.13), V(1, 0, 0), V(0, 1, 0), (2 * door + 0.4, 0.16, 0.17)),
                    C["logDark"]))
-    # The double plank door, both leaves swung right back against the inside of the front wall, one
-    # either side of the doorway, each with a dark handle: open so, they leave the lantern's light
-    # the whole doorway. Each is just narrow enough to end short of the window beside it.
-    leaf_w, leaf_y = 0.58, -yi + 0.05
-    for s in (-1.0, 1.0):
-        x = s * (door + 0.01 + leaf_w / 2)
-        pieces.append((oriented_box(V(x, leaf_y, floor + 1.0), V(1, 0, 0), V(0, 1, 0), (leaf_w, 0.05, 1.96)), C["plank"]))
-        for k in (-1, 1):
-            pieces.append((oriented_box(V(x + leaf_w / 4 * k, leaf_y + 0.027, floor + 1.0), V(1, 0, 0), V(0, 1, 0),
-                                        (PEN, 0.006, 1.9)), C["plankLine"]))
-        door_handle(V(x + s * (leaf_w / 2 - 0.09), leaf_y + 0.027, floor + 1.0), V(0, 1, 0), pieces)
+    # The door: one door of pale planks, no window in it, as the film's (reference images `villager hut
+    # exterior 2` and `interior 1`), hung on the right-hand post as one looks in and swung out onto the
+    # porch (to the left, as one looks out from inside), standing open clear of the post, the stairs
+    # and the window beside it: the lantern's light has the whole doorway. Its planks' joins and a
+    # few dark marks of their grain are painted on both its faces, and each has a dark handle.
+    hinge = V(door - 0.08, -yo - 0.05, 0.0)
+    door_w, door_h, door_t = 2 * door - 0.1, 1.98, 0.05
+    swing = math.radians(120.0)
+    along = V(-math.cos(swing), -math.sin(swing), 0.0)      # from the hinge to the door's free edge
+    shut_out = V(math.sin(swing), -math.cos(swing), 0.0)    # the face that looks out when it is shut
+    middle = hinge + along * (door_w / 2) + UP * (floor + 0.02 + door_h / 2)
+    pieces.append((oriented_box(middle, along, shut_out, (door_w, door_t, door_h)), C["hutDoor"], UP * 0.7))
+    for face in (shut_out, -shut_out):
+        lift = face * (door_t / 2 + 0.003)
+        for k in range(1, 5):
+            pieces.append((quad(middle + along * (door_w * (k / 5 - 0.5)) + lift, UP, face, door_h - 0.04, PEN),
+                           C["hutDoorLine"]))
+        for k in range(9):
+            mark = middle + along * ((hashed(k, 21.0) - 0.5) * (door_w - 0.14))                 + UP * ((hashed(k, 22.0) - 0.5) * (door_h - 0.3))
+            pieces.append((quad(mark + lift, UP, face, 0.05 + 0.08 * hashed(k, 23.0), 0.012), C["hutDoorLine"]))
+        door_handle(middle + along * (door_w / 2 - 0.13) + face * (door_t / 2), face, pieces)
 
     # The floor, the porch and its railing, the stilts under them, and the log stairs.
     pieces.append((P.box_bm(V(0.0, (porch + yo) / 2, floor - 0.07), (2 * xo, yo - porch, 0.14)), C["floor"]))
@@ -1085,24 +2096,112 @@ def build_stilt_hut(name, pattern, collection):
     for at, make in pots:
         make(at, pieces)
 
-    furniture, kept_out = furnish(((-xi, xi), (-yi, yi)), floor, floor + wall_h, glow)
+    # The room's floor: light planks running from the door to the back wall, their joins staggered,
+    # a few millimetres over the floor's frame.
+    pieces.append((P.box_bm(V(0.0, 0.0, floor - 0.003), (2 * xi, 2 * yi, 0.014)), C["hutFloor"], V(0.0, 0.8, 0.0)))
+    # The seams are lines painted on the planks, a few millimetres over them; they stop at the rug's
+    # edge.
+    planks = 20
+    rx, ry, rr = HUT_RUG
+    seam = floor + 0.007
+    for k in range(1, planks):
+        x = -xi + 2 * xi * k / planks
+        spans = [(-yi + 0.01, yi - 0.01)]
+        if abs(x - rx) < rr + 0.02:
+            half = math.sqrt((rr + 0.02) ** 2 - (x - rx) ** 2)
+            spans = [(-yi + 0.01, ry - half), (ry + half, yi - 0.01)]
+        for y0, y1 in spans:
+            if y1 - y0 > 0.05:
+                inside.append((quad(V(x, (y0 + y1) / 2, seam), V(0, 1, 0), UP, y1 - y0, PEN), C["hutFloorLine"]))
+    for k in range(planks):
+        x = -xi + 2 * xi * (k + 0.5) / planks
+        y = -yi + 0.4 + (2 * yi - 0.8) * ((0.23 + 0.41 * k) % 1.0)
+        if math.hypot(x - rx, y - ry) < rr + 0.2:
+            continue
+        inside.append((quad(V(x, y, seam), V(1, 0, 0), UP, 2 * xi / planks - 0.02, PEN), C["hutFloorLine"]))
+
+    furniture, kept_out, against = furnish_hut(floor)
     inside.extend(furniture)
 
-    # The mushroom roof, sheltering the porch too.
-    roof_y = -0.85
-    eave = floor + wall_h
-    roof = [(0.0, eave), (3.65, eave), (4.25, eave - 0.1), (4.55, eave - 0.16), (4.6, eave), (4.38, eave + 0.48),
-            (3.75, eave + 1.3), (2.75, eave + 2.05), (1.5, eave + 2.55), (0.0, eave + 2.72)]
-    pieces.append(lathe_roof(roof, V(0.0, roof_y, 0.0)))
-    # From afar: the roof, the walls as boxes, the porch and the stilts' shadow under them.
-    far = [lathe_roof(roof, V(0.0, roof_y, 0.0), samples=8, segments=12)]
-    far += [w.far(pattern[0]) for w in (front, back, left, right)]
+    # Inside, the walls as the film's frames show them: teal, patterned in big round scales over a
+    # darker skin; logs along their feet, at the windows' sills (where they are the sills) and along
+    # their tops (the plates the rafters rest on), each broken where furniture stands against it;
+    # posts in the corners, curved branches bracing them to the plates; and at the back and side
+    # windows a casing and plank shutters swung back flat against the wall either side. (The front
+    # windows stand too near the corners for shutters to swing back beside them.)
+    side = {front: ("front", lambda p: xo + p), back: ("back", lambda p: xo - p),
+            left: ("left", lambda p: yi - p), right: ("right", lambda p: yi + p)}
+    scales = tuple(C[k] for k in HUT_SCALES)
+    for w_index, wall in enumerate(walls):
+        key, u_of = side[wall]
+        stands = [tuple(sorted((u_of(a), u_of(b)))) + (tall,) for a, b, tall in against[key]]
+        ends_out = wall in (front, back)
+        reach = (t + 0.08, wall.length - t - 0.08) if ends_out else (0.08, wall.length - 0.08)
+        corner = reach[0] + 0.09
+        clear = [(0.0, corner, -1.0, wall_h + 1.0), (wall.length - corner, wall.length, -1.0, wall_h + 1.0)]
+        if wall is not front:
+            for o in wall.openings:
+                clear.append(shutter_clear(o))
+                shutters(wall, o, inside)
+        inside.extend(inner_face(wall, clear).shingles(scales, 0.03, wall_h - 0.03, size=0.4))
+        feet = [(a, b) for a, b, _ in stands]
+        sills = [(a, b) for a, b, tall in stands if tall]
+        for v, skip in ((0.06, feet), (sill - 0.05, sills), (wall_h - 0.08, [])):
+            inner_rail(wall, v, 0.055, reach, skip, inside, seed=10.0 * w_index)
+    for sx in (-1.0, 1.0):
+        for sy in (-1.0, 1.0):
+            x, y = sx * (xi - 0.08), sy * (yi - 0.08)
+            cut_log(V(x, y, floor - 0.01), V(x, y, eave + 0.01), 0.08, tone(C["hutLog"], 3 * sx + sy, 0.06), C["hutLogEnd"],
+                    inside, ends=(False, False), segments=10, grain=1.0)
+    # The braces: from each back corner along both walls, from each front corner along the side walls,
+    # each a quarter circle from its post to the plate, bowing out of the corner.
+    bend = 0.72
+    for (px, py), (ux, uy) in (((xi - 0.08, yi - 0.08), (-1.0, 0.0)), ((xi - 0.08, yi - 0.08), (0.0, -1.0)),
+                               ((-xi + 0.08, yi - 0.08), (1.0, 0.0)), ((-xi + 0.08, yi - 0.08), (0.0, -1.0)),
+                               ((xi - 0.08, -yi + 0.08), (0.0, 1.0)), ((-xi + 0.08, -yi + 0.08), (0.0, 1.0))):
+        plate = eave - 0.08
+        arc = [V(px + ux * bend * math.sin(a), py + uy * bend * math.sin(a), plate - bend * math.cos(a))
+               for a in (-0.06 + (math.pi / 2 + 0.12) * k / 6 for k in range(7))]
+        bent_log(arc, 0.045, tone(C["hutLog"], px + 2 * ux + 3 * uy, 0.06), C["hutLogEnd"], inside,
+                 normal=V(ux, uy, 0.0).cross(UP), grain=1.0)
+    # Overhead, the straw's underside on rafters up to a peak, and the paper lantern hanging from their
+    # hub over the middle of the room, lit at night.
+    hub = hut_ceiling(xi, yi, eave, eave + 1.45, inside)
+    paper_lantern(hub.x, hub.y, hub.z, floor + 2.3, inside, glow)
+
+    # The roof: the film's beehive of straw, centred over the walls, oval to hang out about as far over
+    # each, its underside flat from the walls' middles out to its rim; rough as straw is (see
+    # bell_roof), dark strokes of straw scattered over it and its ends hanging ragged from its rim, as
+    # the film draws them; the rope tying its knot wound three times round the neck, its end hanging
+    # down the shoulder.
+    centre = V(0.0, 0.0, 0.0)
+    hole = ((-xo + t / 2, xo - t / 2), (-yo + t / 2, yo - t / 2))
+    bell, outline = bell_roof(HUT_ROOF, centre, eave, hole, HUT_ROOF_DEPTH, eave + HUT_TIES[-1] + 0.1)
+    pieces.append(bell)
+    straw_strokes(outline, centre, eave, HUT_ROOF_DEPTH, pieces, 190, 0.35, 3.6, (0.22, 0.5), (0.035, 0.06))
+    straw_strokes(outline, centre, eave, HUT_ROOF_DEPTH, pieces, 36, HUT_TIES[-1] + 0.15, HUT_ROOF[-1][1] - 0.25,
+                  (0.1, 0.2), (0.022, 0.035), seed=5.0)
+    straw_fringe(outline, centre, eave, HUT_ROOF_DEPTH, pieces)
+    for k, h in enumerate(HUT_TIES):
+        ring = []
+        rope_ring(V(0.0, 0.0, eave + h), radius_at(outline, eave + h) + 0.035, 0.09, tone(C["tie"], k, 0.08), ring)
+        pieces.extend((squash(bm, centre, HUT_ROOF_DEPTH), colour) for bm, colour in ring)
+    a = 0.35
+    rope_end = [(radius_at(outline, eave + h) * (1.0 + straw_bump(a, h)) + 0.06, eave + h) for h in (4.12, 3.98, 3.84, 3.68)]
+    rope_end = [V(math.sin(a) * r, -math.cos(a) * r * HUT_ROOF_DEPTH, z) for r, z in rope_end]
+    bent_log(rope_end, 0.05, C["tie"], C["tie"], pieces, normal=V(math.cos(a), math.sin(a) / HUT_ROOF_DEPTH, 0.0).normalized())
+    # From afar: the roof (its underside flat across), the walls as boxes, the porch and the stilts'
+    # shadow under them.
+    roof_far = lathe_roof([(0.0, eave + 0.03)] + [(r, eave + h) for r, h in HUT_ROOF], centre, samples=20, segments=12,
+                          straw=("hutThatch", "hutThatchLight", "hutThatchDark"))
+    far = [(squash(roof_far[0], centre, HUT_ROOF_DEPTH), roof_far[1])]
+    far += [w.far(pattern[0]) for w in walls]
     far.append((P.box_bm(V(0.0, (porch + yo) / 2, floor / 2 - 0.1), (2 * xo, yo - porch, floor + 0.2)), C["logDark"]))
 
-    body = P.join(name, pieces, collection, sharp=P.SHARP)
+    body = join_grained(name, pieces, collection, sharp=P.SHARP)
     lights = P.join(f"{name}_lamp", glow, collection)
     glass = P.join(f"{name}_pane", panes, collection)
-    room = P.join(f"{name}_inside", inside, collection, sharp=P.SHARP)
+    room = join_grained(f"{name}_inside", inside, collection, sharp=P.SHARP)
     distant = P.join(f"{name}_far", far, collection, sharp=P.SHARP)
     under = floor - 0.25
     blocks = [
@@ -1114,15 +2213,18 @@ def build_stilt_hut(name, pattern, collection):
         block_box(xo - 0.12, xo, porch, -yo, floor - 0.3, floor + 0.7, camera=False),
         block_box(-xo, -0.62, porch, porch + 0.1, floor - 0.3, floor + 0.7, camera=False),
         block_box(0.62, xo, porch, porch + 0.1, floor - 0.3, floor + 0.7, camera=False),
-        {"circle": [*g(0.0, roof_y), 4.6], "y": [eave - 0.05, eave + 2.8], "walk": False, "camera": True},
     ] + kept_out
-    # The door's open leaves against the wall, and the porch's pots.
-    blocks += [block_box(min(s * (door + 0.01), s * (door + 0.01 + leaf_w)), max(s * (door + 0.01), s * (door + 0.01 + leaf_w)),
-                         -yi, leaf_y + 0.03, floor - 0.1, floor + 2.0, camera=False) for s in (-1.0, 1.0)]
+    # The roof, for the camera, in bands up its sides, each as wide across as the roof at its foot.
+    for low, high, r in ((-0.2, 1.5, 4.5), (1.5, 2.65, 4.25), (2.65, 3.45, 3.3), (3.45, 5.3, 1.95)):
+        blocks.append({"circle": [0.0, 0.0, r], "y": [round(eave + low, 3), round(eave + high, 3)], "walk": False,
+                       "camera": True})
+    # The open door, as a row of posts along it, and the porch's pots.
+    blocks += [{"circle": [*g(*(hinge + along * u).xy), 0.07], "y": [floor - 0.1, floor + 2.0], "walk": True,
+                "camera": False} for u in (0.08 + 0.15 * k for k in range(int((door_w - 0.08) / 0.15) + 1))]
     blocks += [{"circle": [*g(at.x, at.y), 0.2], "y": [floor - 0.1, floor + 0.6], "walk": True, "camera": False}
                for at, _ in pots]
     decks = [deck_box(-xo + 0.1, xo - 0.1, porch, yi, floor), deck_box(-0.62, 0.62, stairs_end, porch, floor, 0.02)]
-    info = {"blocks": blocks, "decks": decks, "height": eave + 2.8, "openings": openings_of((front, back, left, right))}
+    info = {"blocks": blocks, "decks": decks, "height": round(eave + 5.3, 3), "openings": openings_of(walls)}
     info.update(bake_night(name, [body, room], lights, info["openings"]))
     return [body, lights, glass, room, distant], info
 

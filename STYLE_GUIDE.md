@@ -178,28 +178,56 @@ Scale unit: **1 = Chiikawa's height.**
   Small rock spires stick out of the water around the edges, especially to
   the east and west.
 
-### Village (`islanders 1`, `siren 2`, `chiikawa 3`, `chiikawa 7`)
+### Village (`islanders 1`, `siren 2`, `chiikawa 3`, `chiikawa 7`, `villager hut exterior 1`, `2`)
 
-- Huts raised on short wooden posts, **large mushroom-shaped thatched
-  roofs** in straw brown. Their walls are timber frames of thick round
-  log posts and round log rails (along the foot, under the windows, along
-  the top), every panel shingled with overlapping round scales: greens
-  (light green, sage, olive, yellow-green) with now and then an orange
-  one, or warm colours, teal, orange and red. Tall windows in heavy board
-  frames with deep sills, green panes with two thin bars and a double
-  white zigzag. Porches of wide planks on a thick log edge with no
-  railing, chunky log steps, plank doors with dark C-shaped handles, and
-  potted plants on the porch: a gnarled succulent in a terracotta pot,
-  purple thistles in a round clay pot.
+- Huts raised on short wooden posts under **beehives of golden straw**,
+  centred over the walls and about twice as high over the eaves as the
+  walls are tall, rounding over to a neck tied round with a few turns of
+  rope, a knot of straw gathered in bunches above the tie. Straw, not a
+  turned shape: the outline swells and dips a little, short dark strokes
+  of straw are scattered over it, the straw's ends hang ragged below the
+  rim. Their walls are timber frames of thick round log posts and round
+  log rails (along the foot, under the windows, along the top), every
+  panel shingled with overlapping round scales: greens (light green, sage,
+  olive, yellow-green) with now and then an orange one, or warm colours,
+  teal, orange and red. Tall windows in heavy board frames with deep
+  sills, green panes with two thin bars and a double white zigzag. Porches
+  of wide planks on a thick log edge with no railing, chunky log steps,
+  and potted plants on the porch: a gnarled succulent in a terracotta pot,
+  purple thistles in a round clay pot. A villager's hut has one door of
+  pale planks with dark marks of their grain and a dark C-shaped handle,
+  no window in it, opening outward (to the left, as one looks out).
 - Round beehive thatched huts with a topknot also appear.
-- Inside the huts (the film shows none; the game's own): a roomy log-cabin
-  room furnished in the village's own materials, wood, woven straw and
-  rattan, clay, stone and bamboo, nothing modern. A log bed with knobbed
-  posts, a woven rattan headboard and a spindled footboard, a thick futon
-  under a patchwork quilt; a plank bookshelf of
-  books and scrolls; a kitchen of a clay stove and pot, a counter with a
-  stone basin fed by a bamboo pipe, bowls on a shelf and a clay water jar;
-  a low round table with cushions on a woven rug; a paper lantern.
+- Inside a villager's hut (`villager hut interior 1` to `10`, the top view
+  `6` for where things stand, the door at the front): teal walls patterned
+  in big round scales, framed by grey-brown logs along their feet, at the
+  windows' sills and along their tops, posts in the corners braced by
+  curved branches; plank shutters at the windows (swung back flat against
+  the wall in the game, so the windows stay clear); light planks
+  underfoot; overhead the straw's dark underside rising to a peak on
+  rafters radiating from a hub, battens across them, a lantern hanging
+  from the hub. Furnished as the film's: along the back wall from the left
+  a cream kitchen counter (two drawers at its end beside a pale post, then
+  a pair of wide doors, dark knobs where they meet, a white wavy line
+  strung with dots near their tops and white clouds along their feet), a
+  round iron stove at its end, a grey sink with a curved tap, a cutting
+  board and fruit, and a rail of black pans, a cloth and wooden spoons
+  over it, then a tree-stump stool by the head of a low dark-wood single
+  bed running along the right wall to the room's middle (a thick pale blue
+  mattress and a long white pillow, no quilt); a little table of fruit in
+  the front right corner; in the middle of the left wall a tall orange
+  bookshelf tapering as it rises, white pegs down its sides, on round
+  feet, and toward the door a potted monstera on a little table and two
+  brown woven vases; before the door a round cream rug patterned in blue
+  round a white flower, two domed straw cushions on it.
+- The plank huts' rooms (the film shows none; the game's own): a roomy
+  log-cabin room furnished in the village's own materials, wood, woven
+  straw and rattan, clay, stone and bamboo, nothing modern. A log bed with
+  knobbed posts, a woven rattan headboard and a spindled footboard, a
+  thick futon under a patchwork quilt; a plank bookshelf of books and
+  scrolls; a kitchen of a clay stove and pot, a counter with a stone basin
+  fed by a bamboo pipe, bowls on a shelf and a clay water jar; a low round
+  table with cushions on a woven rug; a paper lantern.
 - The watchtower stage in the middle: squared timber legs splaying out to
   the ground, each side braced with two tiers of big crossed planks over
   cross beams, an open platform with no railing on a thick rim of two
