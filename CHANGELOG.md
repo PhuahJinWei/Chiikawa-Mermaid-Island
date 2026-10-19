@@ -152,14 +152,15 @@ stage, and along every path. Not yet checked on a real phone.
   huts face each other in pairs across a sandy lane running from the
   plaza to the fields, each one you can walk into, after the film's
   village frames: chunky log stairs up to a porch of wide planks on a
-  thick log edge, with no railing and potted plants on it, a double plank
-  door wide enough for three, walls shingled all over in round scales
-  between thick log posts and rails, tall windows in heavy frames with a
-  double white zigzag, a room inside as the film's villager's hut, and a
-  beehive of straw over it all, tied in a knot at its top.
-  Two plank huts stand side by side on the ground under wide thatched
-  roofs, with two round thatched huts beside them, in a yard to the
-  north-west. Built by `art/blender/houses.py`.
+  thick log edge, with no railing and potted plants on it, a doorway wide
+  enough for three, its one plank door swung out onto the porch, walls
+  shingled all over in round scales between thick log posts and rails,
+  tall windows in heavy frames with a double white zigzag, a room inside
+  as the film's villager's hut, and a beehive of straw over it all, tied
+  in a knot at its top. Two plank huts stand side by side on the ground
+  under wide thatched roofs, the same room and door in them, with two
+  round thatched huts beside them, in a yard to the north-west. Built by
+  `art/blender/houses.py`.
 - The guest houses, where the visitors sleep, after the film's frames of
   them: four small log cabins of pale round logs, their cut ends stacked
   at the corners, on short stilts under steep gable roofs of wooden
@@ -425,6 +426,25 @@ outlined is drawn twice, once for its pen line. To get there:
   Their models are now compressed and their night maps WebP, as the other
   props' have been since the download was halved: 0.47 MB a hut where it
   was 1.1.
+- The two plank huts have the stilt huts' room and door, so every
+  villager's hut is the film's inside, where theirs had been a log-cabin
+  room of the game's own. Inside, the same teal walls of scales framed by
+  logs, braced corners, shuttered windows and raftered ceiling with the
+  paper lantern hanging from its hub, furnished as the film's room and
+  laid out the same way, fitted to their smaller room (5.2 by 4.2 metres):
+  the bookshelf a little narrower, the pans' rail a little lower under the
+  lower walls. Outside, one door of pale planks swings out on the
+  right-hand post onto a landing of planks twice as deep as it was, where
+  a tall plank door had stood folded back inside, and the left wall's
+  window is moved toward the back, as the stilt huts'; their plank walls
+  and wide thatched hip roofs are as they were, the roof now open
+  underneath over the room, whose own ceiling rises inside it. A plank hut
+  is 3,500 triangles outside where it was 3,400, its room, drawn only
+  near, 12,100 where it was 5,600; no faces that would flicker. Its model
+  is compressed and its night map WebP, as the stilt huts': 0.42 MB where
+  it was 0.81. In the stilt huts the rail of pans stops short of the
+  corner's brace, and the braces stand a little out from the walls, clear
+  of the shutter they pass.
 - The village is relaid after the film's frames of it, its houses in
   groups of their own where they had stood in a ring round the stage:
   the stage at the plaza's corner, the stilt huts facing each other across

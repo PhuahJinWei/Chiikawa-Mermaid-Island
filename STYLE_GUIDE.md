@@ -220,14 +220,10 @@ Scale unit: **1 = Chiikawa's height.**
   feet, and toward the door a potted monstera on a little table and two
   brown woven vases; before the door a round cream rug patterned in blue
   round a white flower, two domed straw cushions on it.
-- The plank huts' rooms (the film shows none; the game's own): a roomy
-  log-cabin room furnished in the village's own materials, wood, woven
-  straw and rattan, clay, stone and bamboo, nothing modern. A log bed with
-  knobbed posts, a woven rattan headboard and a spindled footboard, a
-  thick futon under a patchwork quilt; a plank bookshelf of books and
-  scrolls; a kitchen of a clay stove and pot, a counter with a stone basin
-  fed by a bamboo pipe, bowls on a shelf and a clay water jar; a low round
-  table with cushions on a woven rug; a paper lantern.
+- The plank huts, on the ground under wide thatched hip roofs, are
+  villagers' huts too: inside, the same room as the stilt huts', laid out
+  the same way, and the same one plank door, opening outward onto a
+  landing of planks.
 - The watchtower stage in the middle: squared timber legs splaying out to
   the ground, each side braced with two tiers of big crossed planks over
   cross beams, an open platform with no railing on a thick rim of two

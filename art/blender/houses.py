@@ -51,10 +51,6 @@ C = {k: L.hex_color(v) for k, v in {
     "thatchDark": "#8E6A3E",
     "thatchUnder": "#5E4632",
     "straw": "#D8B577",
-    "mat": "#D9BE84",
-    "matLine": "#B7965E",
-    "cloth": "#E07B6E",
-    "clothDark": "#C2615A",
     "pot": "#C7714E",
     "leaf": "#4DB35A",
     "leafDark": "#3F8F45",
@@ -109,26 +105,14 @@ C = {k: L.hex_color(v) for k, v in {
     "doorGlass": "#9FD3E6",
     "hammock": "#D9566B",
     "hammockDark": "#B4425A",
-    # The rooms' furnishing: stone and clay, bamboo, rattan, cloth and the books' bindings.
+    # The rooms' furnishing: stone and clay, bamboo, iron, water, rattan and the paper lanterns.
     "stone": "#A8A196",
-    "stoneDark": "#6F6A63",
     "clayDark": "#8C4A33",
     "bamboo": "#A9BE62",
-    "bambooDark": "#7E9445",
     "iron": "#3E3733",
     "water": "#86BFD8",
     "rattan": "#CDA36B",
-    "rattanLine": "#9C7A47",
-    "blanket": "#4F86B0",
-    "blanketStripe": "#F3E7CF",
-    "cushion": "#E5A13B",
     "paperLantern": "#FFD9A0",
-    "book1": "#C8553D",
-    "book2": "#4E7FB5",
-    "book3": "#6FA35A",
-    "book4": "#D9A441",
-    "book5": "#E9E1CF",
-    "book6": "#8E5A9E",
     # The porches' potted plants, and the doors' handles.
     "succulent": "#B7A88E",
     "rosette": "#7FB069",
@@ -501,15 +485,24 @@ def lathe_roof(ctrl, centre, samples=14, segments=20, seed=0.0,
     return bm, cols
 
 
-def hip_roof(x0, x1, y0, y1, eave, edge, ridge_z, ridge_half, subdivide=True):
+def hip_roof(x0, x1, y0, y1, eave, edge, ridge_z, ridge_half, subdivide=True, hole=None):
     """A thatched hip roof over Blender x0..x1, y0..y1: a flat underside at `eave`, a thick eave
-    edge up to `edge`, sloping up to a ridge along x at `ridge_z`. A closed solid, for the pen."""
+    edge up to `edge`, sloping up to a ridge along x at `ridge_z`. A closed solid, for the pen; or,
+    given `hole` ((x0, x1), (y0, y1)), the rectangle over the walls' middles, its underside a ring
+    round it, open over a room that has its own ceiling."""
     bm = bmesh.new()
     cy = (y0 + y1) / 2
     low = [bm.verts.new((x, y, eave)) for x, y in ((x0, y0), (x1, y0), (x1, y1), (x0, y1))]
     high = [bm.verts.new((x, y, edge)) for x, y in ((x0, y0), (x1, y0), (x1, y1), (x0, y1))]
     r0, r1 = bm.verts.new((-ridge_half, cy, ridge_z)), bm.verts.new((ridge_half, cy, ridge_z))
-    bm.faces.new(list(reversed(low)))
+    if hole is None:
+        bm.faces.new(list(reversed(low)))
+    else:
+        (hx0, hx1), (hy0, hy1) = hole
+        inner = [bm.verts.new((x, y, eave)) for x, y in ((hx0, hy0), (hx1, hy0), (hx1, hy1), (hx0, hy1))]
+        for i in range(4):
+            j = (i + 1) % 4
+            bm.faces.new((low[j], low[i], inner[i], inner[j]))
     for i in range(4):
         j = (i + 1) % 4
         bm.faces.new((low[i], low[j], high[j], high[i]))
@@ -595,227 +588,6 @@ def turned(ctrl, centre, segments=12, samples=10):
     `centre`."""
     bm = L.lathe_bm(L.Profile(ctrl, samples=samples).samples, segments=segments)
     return L.transformed(bm, Matrix.Translation(centre))
-
-
-def furnish(room, floor, ceiling, glow):
-    """A room furnished as an islander's home, in the village's own style: wood, woven straw and
-    rattan, clay, stone and bamboo, nothing modern. Along the left wall a wooden bed on legs with a
-    woven base, a straw mattress, a pillow, a striped blanket and a headboard, and a chest at its
-    foot; on the back wall, beside the window, a plank bookshelf of books, scrolls and a jar; along
-    the right wall the kitchen: a clay stove with a pot in the back corner, a plank counter with a
-    stone basin for a sink, fed by a bamboo spout from the wall, a shelf of bowls above it and a
-    clay water jar at its end; in the front a low round table with a teapot and cups and cushions
-    round it on a woven rug, a paper lantern hanging over it that lights up at night, and a potted
-    plant by the door. Returns its pieces and the blocks that keep walkers out of it (not the
-    camera, which may look over it)."""
-    (x0, x1), (y0, y1) = room
-    out, blocks = [], []
-
-    def box(c, size, colour, bevel=0.0):
-        out.append((P.box_bm(c, size, bevel=bevel), colour))
-
-    def keep_out(bx0, bx1, by0, by1, high):
-        blocks.append(block_box(bx0, bx1, by0, by1, floor - 0.1, floor + high, camera=False))
-
-    def keep_out_round(x, y, r, high):
-        blocks.append({"circle": [*g(x, y), r], "y": [floor - 0.1, floor + high], "walk": True, "camera": False})
-
-    # The bed, its head to the back wall: a log frame as the island's builders make one, corner
-    # posts with round knobs (the head posts tall), rails all round, a headboard of woven rattan
-    # framed in logs and a footboard of spindles; on it a thick futon under a patchwork quilt with a
-    # sheet turned down over its top edge, two plump pillows and a folded blanket at its foot.
-    bx0, bx1, by1 = x0 + 0.06, x0 + 1.06, y1 - 0.06
-    by0 = by1 - 1.72
-    bx, by = (bx0 + bx1) / 2, (by0 + by1) / 2
-    r_post, rail_z = 0.055, floor + 0.24
-    head = [(bx0 + r_post, by1 - r_post), (bx1 - r_post, by1 - r_post)]
-    foot = [(bx0 + r_post, by0 + r_post), (bx1 - r_post, by0 + r_post)]
-    for (px, py), top_z in [(c, floor + 0.88) for c in head] + [(c, floor + 0.6) for c in foot]:
-        out.append((log(V(px, py, floor), V(px, py, top_z), r_post, segments=8), C["log"]))
-        out.append((L.ellipsoid_bm(V(px, py, top_z + 0.035), (0.072, 0.072, 0.06), u=8, v=5), C["logDark"]))
-    for (ax, ay), (cx_, cy_) in ((head[0], head[1]), (foot[0], foot[1]), (head[0], foot[0]), (head[1], foot[1])):
-        out.append((log(V(ax, ay, rail_z), V(cx_, cy_, rail_z), 0.045, segments=6), C["log"]))
-    box(V(bx, by, rail_z + 0.03), (bx1 - bx0 - 0.1, by1 - by0 - 0.1, 0.03), C["rattan"])
-    # The headboard: two log rails with a woven rattan panel between them, its weave crossing.
-    hy = by1 - r_post
-    for z in (floor + 0.46, floor + 0.82):
-        out.append((log(V(bx0 + r_post, hy, z), V(bx1 - r_post, hy, z), 0.042, segments=6), C["log"]))
-    box(V(bx, hy, floor + 0.64), (bx1 - bx0 - 0.12, 0.024, 0.34), C["rattan"])
-    for k in range(4):
-        u0 = bx0 + 0.1 + k * 0.2
-        for (ua, za), (ub, zb) in (((u0, floor + 0.48), (u0 + 0.2, floor + 0.8)), ((u0 + 0.2, floor + 0.48), (u0, floor + 0.8))):
-            if ub > bx1 - 0.08 or ua > bx1 - 0.08:
-                continue
-            p, q = V(ua, hy - 0.015, za), V(ub, hy - 0.015, zb)
-            out.append((oriented_box((p + q) / 2, q - p, V(0, 1, 0), ((q - p).length, 0.008, 0.022)), C["rattanLine"]))
-    # The footboard: a log rail over spindles.
-    fy = by0 + r_post
-    out.append((log(V(bx0 + r_post, fy, floor + 0.55), V(bx1 - r_post, fy, floor + 0.55), 0.042, segments=6), C["log"]))
-    for k in range(1, 6):
-        sxk = bx0 + r_post + (bx1 - bx0 - 2 * r_post) * k / 6
-        out.append((log(V(sxk, fy, rail_z), V(sxk, fy, floor + 0.55), 0.02, segments=5), C["logDark"]))
-    # The futon, the sheet at its head, the quilt, the turned-down sheet, the pillows, the blanket.
-    width = bx1 - bx0
-    futon = rail_z + 0.22
-    box(V(bx, by, rail_z + 0.13), (width - 0.14, by1 - by0 - 0.2, 0.18), C["mat"], bevel=0.07)
-    box(V(bx, by1 - 0.45, futon - 0.001), (width - 0.2, 0.62, 0.012), C["cream"])
-    qy0, qy1 = by0 + 0.12, by1 - 0.66
-    quilt = futon + 0.03
-    box(V(bx, (qy0 + qy1) / 2, futon - 0.02), (width - 0.06, qy1 - qy0, 0.1), C["blanket"], bevel=0.035)
-    cols, rows = 3, 4
-    pw, ph = (width - 0.14) / cols, (qy1 - qy0 - 0.08) / rows
-    for r in range(rows):
-        for c in range(cols):
-            if (r + c) % 2:
-                continue
-            colour = C["blanketStripe"] if (r // 2 + c) % 2 else C["cushion"]
-            box(V(bx0 + 0.07 + pw * (c + 0.5), qy0 + 0.04 + ph * (r + 0.5), quilt + 0.003), (pw - 0.025, ph - 0.025, 0.008),
-                colour)
-    box(V(bx, qy1 - 0.05, quilt + 0.01), (width - 0.05, 0.13, 0.025), C["cream"], bevel=0.01)
-    for sxp, colour in ((-0.22, C["cream"]), (0.22, C["blanketStripe"])):
-        out.append((L.ellipsoid_bm(V(bx + sxp, by1 - 0.32, futon + 0.07), (0.2, 0.14, 0.085), u=12, v=7), colour))
-    box(V(bx, by0 + 0.34, quilt + 0.045), (width - 0.18, 0.32, 0.08), C["cloth"], bevel=0.03)
-    for dy in (-0.08, 0.08):
-        box(V(bx, by0 + 0.34 + dy, quilt + 0.087), (width - 0.17, 0.04, 0.006), C["cream"])
-    keep_out(bx0, bx1, by0, by1, 0.6)
-
-    # A chest at the bed's foot, its lid's planks drawn on its front.
-    cx0, cx1, cy0, cy1 = x0 + 0.14, x0 + 0.94, by0 - 0.52, by0 - 0.07
-    cx, cy = (cx0 + cx1) / 2, (cy0 + cy1) / 2
-    box(V(cx, cy, floor + 0.2), (cx1 - cx0, cy1 - cy0, 0.4), C["plank"], bevel=0.02)
-    box(V(cx, cy, floor + 0.42), (cx1 - cx0 + 0.04, cy1 - cy0 + 0.04, 0.05), C["log"], bevel=0.015)
-    for z in (floor + 0.14, floor + 0.28):
-        box(V(cx, cy0 - 0.003, z), (cx1 - cx0 - 0.06, 0.006, PEN), C["plankLine"])
-    for sx in (cx0 + 0.02, cx1 - 0.02):
-        out.append((log(V(sx, cy - 0.08, floor + 0.32), V(sx, cy + 0.08, floor + 0.32), 0.022, segments=5), C["rope"]))
-    keep_out(cx0, cx1, cy0, cy1, 0.5)
-
-    # The bookshelf on the back wall, beside the window: three shelves of books, scrolls and a jar.
-    sx0, sx1, sy0, sy1 = 0.6, 1.7, y1 - 0.36, y1 - 0.02
-    sh = min(1.45, ceiling - floor - 0.35)
-    sx, sy = (sx0 + sx1) / 2, (sy0 + sy1) / 2
-    for side in (sx0 + 0.03, sx1 - 0.03):
-        box(V(side, sy, floor + sh / 2), (0.06, sy1 - sy0, sh), C["plank"])
-    box(V(sx, sy1 - 0.015, floor + sh / 2 - 0.005), (sx1 - sx0 - 0.01, 0.03, sh - 0.01), C["logDark"])
-    shelves = [floor + 0.04 + (sh - 0.08) * k / 3 for k in range(4)]
-    for z in shelves:
-        box(V(sx, sy - 0.005, z), (sx1 - sx0 - 0.12, sy1 - sy0 - 0.01, 0.04), C["plank"])
-    books = [C[f"book{k}"] for k in range(1, 7)]
-    for level, z in enumerate(shelves[:3]):
-        x, k = sx0 + 0.1, level * 2
-        room_up = shelves[level + 1] - z - 0.06
-        end = sx1 - 0.1 if level != 1 else sx - 0.05
-        while x < end - 0.06:
-            w = 0.045 + 0.02 * ((k * 7) % 3) / 2
-            h = min(room_up, 0.2 + 0.08 * ((k * 5) % 4) / 3)
-            box(V(x + w / 2, sy - 0.02, z + 0.02 + h / 2), (w, 0.22, h), books[k % len(books)])
-            x += w + (0.012 if k % 5 else 0.05)
-            k += 1
-        if level == 1:
-            # Rolled scrolls lying on the middle shelf's other half, and a little clay jar.
-            for j in range(3):
-                zz = z + 0.06 + 0.075 * (j % 2) + (0.075 if j == 2 else 0.0)
-                yy = sy - 0.06 + 0.1 * (j % 2)
-                out.append((log(V(sx + 0.05, yy, zz), V(sx1 - 0.2, yy, zz), 0.035, segments=6), C["book5"]))
-            out.append((turned([(0.0, 0.0), (0.06, 0.01), (0.075, 0.07), (0.05, 0.13), (0.055, 0.15), (0.0, 0.15)],
-                               V(sx1 - 0.11, sy, z + 0.02)), C["pot"]))
-    keep_out(sx0, sx1, sy0, y1, sh)
-
-    # The kitchen along the right wall. A clay stove in the back corner with a pot on it.
-    kx0 = x1 - 0.7
-    box(V((kx0 + x1 - 0.06) / 2, y1 - 0.38, floor + 0.25), (x1 - 0.06 - kx0, 0.64, 0.5), C["pot"], bevel=0.08)
-    box(V(kx0 - 0.002, y1 - 0.38, floor + 0.2), (0.01, 0.24, 0.2), C["iron"])
-    out.append((P.segment_bm(V(kx0 + 0.32, y1 - 0.38, floor + 0.5), V(kx0 + 0.32, y1 - 0.38, floor + 0.68), 0.17, 0.15, 12),
-                C["iron"]))
-    out.append((L.ellipsoid_bm(V(kx0 + 0.32, y1 - 0.38, floor + 0.68), (0.15, 0.15, 0.04), u=12, v=4), C["log"]))
-    keep_out(kx0, x1, y1 - 0.7, y1, 0.75)
-    # The counter: a plank cabinet with a board on top, a stone basin set in it for a sink, and a
-    # bamboo spout from the wall over the basin.
-    ky0, ky1 = y1 - 2.45, y1 - 0.78
-    kx = x1 - 0.32
-    box(V(kx, (ky0 + ky1) / 2, floor + 0.25), (0.6, ky1 - ky0, 0.5), C["plank"])
-    for y in (ky0 + (ky1 - ky0) * f for f in (0.33, 0.66)):
-        box(V(x1 - 0.623, y, floor + 0.25), (0.006, PEN, 0.44), C["plankLine"])
-    for y in (ky0 + (ky1 - ky0) * f for f in (0.16, 0.5, 0.84)):
-        box(V(x1 - 0.625, y, floor + 0.34), (0.012, 0.05, 0.03), C["logDark"])
-    top = floor + 0.55
-    box(V(kx, (ky0 + ky1) / 2, top - 0.025), (0.64, ky1 - ky0 + 0.04, 0.05), C["log"])
-    basin = (ky0 + ky1) / 2 + 0.28
-    box(V(kx, basin, top + 0.02), (0.44, 0.54, 0.1), C["stone"], bevel=0.03)
-    box(V(kx, basin, top + 0.055), (0.32, 0.42, 0.04), C["stoneDark"])
-    box(V(kx, basin, top + 0.076), (0.3, 0.4, 0.012), C["water"])
-    # The water comes down a bamboo pipe on the wall from under the roof and out of a spout over it.
-    pipe_x = x1 - 0.06
-    pipe = [V(pipe_x, basin + 0.1, ceiling - 0.05), V(pipe_x, basin + 0.1, top + 0.44)]
-    spout = [V(pipe_x, basin + 0.1, top + 0.44), V(kx + 0.02, basin + 0.1, top + 0.32)]
-    out.append((log(pipe[0], pipe[1], 0.042, segments=6), C["bamboo"]))
-    out.append((log(spout[0], spout[1], 0.04, segments=6), C["bamboo"]))
-    for z in (top + 0.75, top + 1.15, top + 1.55):
-        if z < ceiling - 0.2:
-            out.append((P.segment_bm(V(pipe_x, basin + 0.1, z - 0.012), V(pipe_x, basin + 0.1, z + 0.012), 0.048, 0.048, 6),
-                        C["bambooDark"]))
-    out.append((P.segment_bm(V(pipe_x, basin + 0.1, top + 0.4), V(pipe_x, basin + 0.1, top + 0.48), 0.05, 0.05, 6),
-                C["bambooDark"]))
-    out.append((log(V(x1 - 0.005, basin + 0.1, top + 0.95), V(pipe_x, basin + 0.1, top + 0.95), 0.012, segments=4),
-                C["rope"]))
-    # A cutting board and a bowl by the basin.
-    box(V(kx, basin - 0.55, top + 0.012), (0.36, 0.26, 0.025), C["logEnd"])
-    out.append((turned([(0.0, 0.0), (0.05, 0.0), (0.09, 0.04), (0.1, 0.07), (0.0, 0.07)], V(kx + 0.05, basin - 0.95, top)),
-                C["cream"]))
-    keep_out(x1 - 0.62, x1, ky0, ky1, 0.62)
-    # A shelf of bowls and plates on the wall above the counter, beside the window.
-    wy0, wy1 = 0.55, ky1
-    box(V(x1 - 0.15, (wy0 + wy1) / 2, floor + 1.32), (0.3, wy1 - wy0, 0.04), C["plank"])
-    for y in (wy0 + 0.05, wy1 - 0.05):
-        box(V(x1 - 0.14, y, floor + 1.2), (0.26, 0.04, 0.2), C["logDark"])
-    n = max(2, int((wy1 - wy0 - 0.1) / 0.22))
-    for k in range(n):
-        y = wy0 + 0.12 + (wy1 - wy0 - 0.24) * k / max(n - 1, 1)
-        if k % 2:
-            out.append((P.segment_bm(V(x1 - 0.17, y, floor + 1.34), V(x1 - 0.17, y, floor + 1.36), 0.1, 0.1, 10),
-                        C["cream"]))
-            out.append((P.segment_bm(V(x1 - 0.17, y, floor + 1.36), V(x1 - 0.17, y, floor + 1.38), 0.1, 0.1, 10),
-                        C["blanket"]))
-        else:
-            out.append((turned([(0.0, 0.0), (0.04, 0.0), (0.08, 0.04), (0.09, 0.07), (0.0, 0.07)],
-                               V(x1 - 0.17, y, floor + 1.34)), C["pot"]))
-    # A clay water jar with a wooden lid at the counter's end, a ladle on it.
-    jy = ky0 - 0.32
-    out.append((turned([(0.0, 0.0), (0.15, 0.02), (0.22, 0.18), (0.21, 0.34), (0.13, 0.46), (0.14, 0.5), (0.0, 0.5)],
-                       V(x1 - 0.3, jy, floor)), C["pot"]))
-    out.append((P.segment_bm(V(x1 - 0.3, jy, floor + 0.5), V(x1 - 0.3, jy, floor + 0.53), 0.16, 0.16, 12), C["log"]))
-    out.append((log(V(x1 - 0.42, jy - 0.05, floor + 0.54), V(x1 - 0.14, jy + 0.08, floor + 0.6), 0.015, segments=4),
-                C["logDark"]))
-    keep_out_round(x1 - 0.3, jy, 0.24, 0.55)
-
-    # In the front: a woven rug, a low round table with a teapot and cups, cushions round it.
-    tx, ty = x0 + 1.45, y0 + 1.15
-    box(V(tx, ty, floor + 0.008), (1.9, 1.5, 0.016), C["mat"])
-    for k in range(-3, 4):
-        box(V(tx, ty + 0.2 * k, floor + 0.017), (1.88, 0.04 if k % 3 else 0.08, 0.003),
-            C["clothDark"] if k % 3 == 0 else C["matLine"])
-    out.append((P.segment_bm(V(tx, ty, floor + 0.3), V(tx, ty, floor + 0.35), 0.44, 0.44, 16), C["log"]))
-    for a in range(4):
-        ang = math.pi / 4 + a * math.pi / 2
-        lx, ly = tx + math.cos(ang) * 0.28, ty + math.sin(ang) * 0.28
-        box(V(lx, ly, floor + 0.15), (0.07, 0.07, 0.3), C["logDark"])
-    out.append((turned([(0.0, 0.0), (0.08, 0.01), (0.11, 0.07), (0.09, 0.13), (0.03, 0.16), (0.04, 0.19), (0.0, 0.19)],
-                       V(tx - 0.1, ty + 0.05, floor + 0.35)), C["pot"]))
-    out.append((log(V(tx - 0.02, ty + 0.05, floor + 0.43), V(tx + 0.06, ty + 0.05, floor + 0.49), 0.018, segments=5),
-                C["pot"]))
-    for cxp, cyp in ((tx + 0.18, ty - 0.12), (tx + 0.2, ty + 0.16)):
-        out.append((turned([(0.0, 0.0), (0.03, 0.0), (0.04, 0.06), (0.0, 0.06)], V(cxp, cyp, floor + 0.35)), C["cream"]))
-    for (ox, oy), colour in (((0.0, -0.66), C["cushion"]), ((0.66, 0.05), C["cloth"]), ((-0.6, 0.1), C["blanket"])):
-        out.append((L.ellipsoid_bm(V(tx + ox, ty + oy, floor + 0.05), (0.24, 0.24, 0.05), u=12, v=5), colour))
-    keep_out_round(tx, ty, 0.46, 0.4)
-    # A paper lantern hanging over the table, lit at night: the room's light.
-    paper_lantern(tx, ty, ceiling, ceiling - 0.62, out, glow)
-    # A potted plant by the door.
-    px, py = x1 - 0.35, y0 + 0.38
-    out.append((P.segment_bm(V(px, py, floor), V(px, py, floor + 0.3), 0.14, 0.18, 10), C["pot"]))
-    out.append((L.ellipsoid_bm(V(px, py, floor + 0.48), (0.22, 0.22, 0.25), u=10, v=6), C["leaf"]))
-    keep_out_round(px, py, 0.2, 0.7)
-    return out, blocks
 
 
 # ---------------------------------------------------------------------------- the night
@@ -1255,7 +1027,6 @@ HUT_ROOF = ((4.05, 0.03), (4.15, -0.08), (4.25, 0.0), (4.27, 0.3), (4.2, 0.9), (
 HUT_ROOF_DEPTH = 0.88
 HUT_TIES = (3.99, 4.08, 4.17)   # the rope's turns round the neck, over the eaves
 HUT_SCALES = ("hutScale1", "hutScale2", "hutScale3", "hutScale4")
-HUT_RUG = (-0.1, -0.92, 1.12)   # the round rug's middle (x, y in the room) and its radius
 
 
 def curve_points(ctrl, step):
@@ -1678,7 +1449,7 @@ def shutter_clear(opening):
 
 
 def hut_ceiling(xi, yi, eave, peak, inside):
-    """A stilt hut's ceiling, as the film's frames show one inside a villager's hut: the straw roof's
+    """The ceiling of a villager's hut, as the film's frames show one inside: the straw roof's
     dark underside rising from the walls' tops to a peak over the middle of the room, on rafters
     running up to it from the walls (four along its hips), two rings of battens across under the
     straw, and a hub where the rafters meet. Returns where its lantern hangs from."""
@@ -1723,23 +1494,31 @@ def hut_ceiling(xi, yi, eave, peak, inside):
     return apex - V(0.0, 0.0, 0.32)
 
 
-def furnish_hut(floor):
-    """A stilt hut's room furnished as the film's villager's hut (reference images `villager hut
-    interior 1` to `10`), laid out as its top view (`6`) has it, the door at the front: along the back
-    wall from the left a cream kitchen counter, two drawers at its end and a pair of doors painted with
-    a white wavy line and dots and white clouds, a round iron stove on it at its left end and a grey
-    sink with a curved tap beside it, a cutting board standing behind the fruit, and a rail of black
-    pans, a cloth and wooden spoons over it; then a tree-stump stool, then the head of the bed. The
-    bed, for one, runs from the back wall along the right wall to the room's middle: dark wood on short
-    legs under a thick pale blue mattress and a long white pillow, no quilt. In the front right corner
-    a small table set askew with fruit on it. On the left wall, in its middle, a tall orange bookshelf
-    tapering as it rises, white pegs down its sides, on round feet and full of books; toward the door a
-    potted monstera on a little table, and two brown woven vases in the front left corner. In the
-    room's front half, before the door, a round cream rug patterned in blue round a white flower, two
-    domed straw cushions on it. Returns its pieces, the blocks that keep walkers out of it (not the
-    camera, which may look over it), and where it stands against each wall (x or y from, to, and
-    whether it reaches the window sill's height), for the logs along the walls' feet (see
-    inner_rail)."""
+def hut_rug(yi):
+    """Where a villager's room's round rug lies, its middle (x, y) and its radius: before the door, as
+    in the film's top view, its front edge a hand's breadth inside the front wall (`yi` from the room's
+    middle to its back and front walls)."""
+    return -0.1, -yi + 1.28, 1.12
+
+
+def furnish_hut(floor, xi, yi, wall_h, window):
+    """A villager's room furnished as the film's villager's hut (reference images `villager hut
+    interior 1` to `10`), laid out as its top view (`6`) has it, the door at the front of a room `xi`
+    and `yi` across from its middle, `wall_h` high, its left wall's window's middle `window` (y): along
+    the back wall from the left a cream kitchen counter, two drawers at its end and a pair of doors
+    painted with a white wavy line and dots and white clouds, a round iron stove on it at its left end
+    and a grey sink with a curved tap beside it, a cutting board standing behind the fruit, and a rail
+    of black pans, a cloth and wooden spoons over it; then a tree-stump stool, then the head of the
+    bed. The bed, for one, runs from the back wall along the right wall to the room's middle: dark
+    wood on short legs under a thick pale blue mattress and a long white pillow, no quilt. In the
+    front right corner a small table set askew with fruit on it. On the left wall, before its window,
+    a tall orange bookshelf tapering as it rises, white pegs down its sides, on round feet and full of
+    books; toward the door a potted monstera on a little table, and two brown woven vases in the front
+    left corner. In the room's front half, before the door, a round cream rug patterned in blue round
+    a white flower, two domed straw cushions on it. Returns its pieces, the blocks that keep walkers
+    out of it (not the camera, which may look over it), and where it stands against each wall (x or y
+    from, to, and whether it reaches the window sill's height), for the logs along the walls' feet
+    (see inner_rail)."""
     f = floor
     out, blocks = [], []
     against = {"front": [], "back": [], "left": [], "right": []}
@@ -1756,7 +1535,8 @@ def furnish_hut(floor):
 
     # The bed, for one: dark wood on short legs, a thick puffy mattress, pale blue as the film's, and a
     # long pillow across its head. It stands clear of the corner post.
-    bx0, bx1, by0, by1 = 1.52, 2.62, 0.0, 2.16
+    bx1, by1 = xi - 0.18, yi - 0.04
+    bx0, by0 = bx1 - 1.1, by1 - 2.16
     bx, by = (bx0 + bx1) / 2, (by0 + by1) / 2
     for lx in (bx0 + 0.09, bx1 - 0.09):
         for ly in (by0 + 0.09, by1 - 0.09):
@@ -1768,7 +1548,7 @@ def furnish_hut(floor):
     against["back"].append((bx0 - 0.02, bx1 + 0.02, False))
     # A stool by the bed's head, between it and the counter: a stump, its top cut to show its rings, on
     # three stubby legs.
-    sx, sy = 1.2, 1.85
+    sx, sy = bx0 - 0.32, yi - 0.35
     cut_log(V(sx, sy, f + 0.14), V(sx, sy, f + 0.42), 0.18, C["stump"], C["stumpEnd"], out, ends=(False, True),
             segments=12, ring=C["stumpRing"], rings=(False, True), grain=1.0)
     for k in range(3):
@@ -1777,13 +1557,13 @@ def furnish_hut(floor):
                         V(sx + math.cos(a) * 0.13, sy + math.sin(a) * 0.13, f + 0.005), 0.05, segments=7), C["stump"]))
     keep_out_round(sx, sy, 0.22, 0.42)
 
-    # The kitchen counter, from the corner post along the back wall: a cream cabinet, its front as the
-    # film's (reference images `villager hut interior 2` and `4`): at its left end two drawers one over
-    # the other beside a pale post, then a pair of wide doors, each panel standing a little proud, dark
-    # knobs where the doors meet, a white wavy line across each door near its top with white dots in
-    # its dips, and white clouds along its foot; a wooden top round a grey sink, a round iron stove at
-    # its left end.
-    kx0, kx1, ky0, ky1 = -2.62, -0.47, 1.6, 2.17
+    # The kitchen counter, from the corner post along the back wall to short of its window: a cream
+    # cabinet, its front as the film's (reference images `villager hut interior 2` and `4`): at its left
+    # end two drawers one over the other beside a pale post, then a pair of wide doors, each panel
+    # standing a little proud, dark knobs where the doors meet, a white wavy line across each door near
+    # its top with white dots in its dips, and white clouds along its foot; a wooden top round a grey
+    # sink, a round iron stove at its left end.
+    kx0, kx1, ky0, ky1 = -xi + 0.18, -0.47, yi - 0.6, yi - 0.03
     kx, ky, span = (kx0 + kx1) / 2, (ky0 + ky1) / 2, kx1 - kx0
     top = f + 0.72
     # (its back a little short of the top's, so no two of their faces lie in one plane)
@@ -1805,7 +1585,7 @@ def furnish_hut(floor):
                 arc = [(cx + dx + rr * math.cos(math.pi * i / 6), base + rr * math.sin(math.pi * i / 6)) for i in range(7)]
                 front_poly(arc, paint, C["lace"], out, centre=(cx + dx, base), closed=False)
 
-    # The drawers, a short wavy line on the upper, two little clouds on the lower, a knob on each; the
+    # The drawers, a short wavy line on the upper, a little cloud on the lower, a knob on each; the
     # pale post beside them, up to the cabinet's top.
     panel(xa, xb, f + 0.365, high)
     panel(xa, xb, low, f + 0.355)
@@ -1830,7 +1610,8 @@ def furnish_hut(floor):
             front_poly([(dx + 0.014 * math.cos(2 * math.pi * i / 8), dz + 0.014 * math.sin(2 * math.pi * i / 8))
                         for i in range(8)], paint, C["lace"], out)
         clouds(x0 + 0.05, x1 - 0.05, 2, low + 0.02, 0.07)
-    s0, s1, t0, t1 = -1.8, -1.3, 1.72, 2.0  # the sink's hole in the top
+    s0, t0, t1 = kx0 + 0.82, yi - 0.48, yi - 0.2   # the sink's hole in the top
+    s1 = s0 + 0.5
     for x0, x1, y0, y1 in ((kx0 - 0.03, s0, ky0 - 0.03, ky1), (s1, kx1 + 0.03, ky0 - 0.03, ky1), (s0, s1, ky0 - 0.03, t0),
                            (s0, s1, t1, ky1)):
         box(V((x0 + x1) / 2, (y0 + y1) / 2, top - 0.025), (x1 - x0, y1 - y0, 0.05), C["counterTop"], grain=V(0.7, 0.0, 0.0))
@@ -1844,7 +1625,7 @@ def furnish_hut(floor):
         box(c, size, C["steel"])
     box(V((s0 + s1) / 2, (t0 + t1) / 2, top - 0.03), (s1 - s0 - 0.04, t1 - t0 - 0.04, 0.008), C["steelDark"])
     # The tap behind it, curving over it, clear of the sill's log on the wall.
-    tx, stem, arc, bend = (s0 + s1) / 2, 2.04, 1.98, 0.06
+    tx, stem, arc, bend = (s0 + s1) / 2, yi - 0.16, yi - 0.22, 0.06
     tap = [V(tx, stem, top - 0.005), V(tx, stem, top + 0.12), V(tx, stem, top + 0.24)]
     tap += [V(tx, arc + bend * math.cos(a), top + 0.24 + bend * math.sin(a)) for a in (math.pi * k / 6 for k in range(1, 7))]
     tap.append(V(tx, arc - bend, top + 0.19))
@@ -1852,41 +1633,49 @@ def furnish_hut(floor):
     out.append((P.segment_bm(V(tx, stem, top), V(tx, stem, top + 0.03), 0.034, 0.03, 10), C["steel"]))
     # The stove: a round iron plate standing on the top, a darker ring inside it, and a cross of bars
     # over it for a pot to stand on.
-    ox, oy = -2.25, (ky0 + ky1) / 2
+    ox, oy = kx0 + 0.37, (ky0 + ky1) / 2
     out.append((P.segment_bm(V(ox, oy, top - 0.005), V(ox, oy, top + 0.03), 0.17, 0.17, 16), C["iron"]))
     out.append((P.segment_bm(V(ox, oy, top + 0.02), V(ox, oy, top + 0.036), 0.12, 0.12, 16), C["pan"]))
     for k in range(4):
         a = math.pi / 4 + k * math.pi / 2
         d = V(math.cos(a), math.sin(a), 0.0)
         out.append((oriented_box(V(ox, oy, top + 0.046) + d * 0.095, d, UP.cross(d), (0.11, 0.026, 0.022)), C["iron"]))
-    # A cutting board standing at the back, an apple, a peach and a pear before it.
-    box(V(-1.13, 2.03, top + 0.215), (0.3, 0.028, 0.43), C["cuttingBoard"], bevel=0.012, grain=UP * 0.7)
-    for kind, x, y in (("apple", -0.98, 1.82), ("peach", -0.8, 1.76), ("pear", -0.86, 1.93)):
+    # A cutting board standing at the back beside the sink, an apple, a peach and a pear before it.
+    box(V(s1 + 0.17, yi - 0.17, top + 0.215), (0.3, 0.028, 0.43), C["cuttingBoard"], bevel=0.012, grain=UP * 0.7)
+    for kind, x, y in (("apple", kx1 - 0.51, yi - 0.38), ("peach", kx1 - 0.33, yi - 0.44), ("pear", kx1 - 0.39, yi - 0.27)):
         fruit(kind, V(x, y, top), out)
-    # Over the counter, a rail on the wall: two black pans over the stove, a cloth, a wooden spoon and a
-    # fork.
-    rail_z = f + 1.78
-    out.append((log(V(-2.55, 2.14, rail_z), V(-1.12, 2.14, rail_z), 0.022, segments=8), C["spoon"], V(0.6, 0.0, 0.0)))
-    for x in (-2.5, -1.17):
-        box(V(x, 2.168, rail_z), (0.035, 0.045, 0.055), C["spoon"])
-    for x, r, z in ((-2.33, 0.125, f + 1.44), (-2.04, 0.105, f + 1.47)):
-        out.append((P.segment_bm(V(x, 2.115, z), V(x, 2.085, z), r, r - 0.012, 16), C["pan"]))
-        out.append((log(V(x, 2.105, z + r - 0.01), V(x, 2.13, rail_z - 0.01), 0.016, segments=6), C["pan"]))
-    box(V(-1.78, 2.13, rail_z - 0.17), (0.15, 0.022, 0.32), C["towel"], bevel=0.008)
-    box(V(-1.78, 2.118, rail_z - 0.06), (0.152, 0.006, PEN), C["cabinetLine"])
-    out.append((log(V(-1.56, 2.125, rail_z), V(-1.56, 2.115, f + 1.43), 0.012, segments=6), C["spoon"], UP * 0.5))
-    out.append((L.ellipsoid_bm(V(-1.56, 2.105, f + 1.37), (0.048, 0.02, 0.065), u=8, v=5), C["spoon"]))
-    out.append((log(V(-1.36, 2.125, rail_z), V(-1.36, 2.118, f + 1.46), 0.011, segments=6), C["spoon"], UP * 0.5))
-    box(V(-1.36, 2.118, f + 1.44), (0.075, 0.012, 0.05), C["spoon"])
+    # Over the counter, a rail on the wall, below the corner's brace: two black pans over the stove, a
+    # cloth, a wooden spoon and a fork.
+    rail_z = f + min(1.78, wall_h - 0.82)
+    rail_y = yi - 0.06
+    out.append((log(V(kx0 + 0.2, rail_y, rail_z), V(kx1 - 0.65, rail_y, rail_z), 0.022, segments=8), C["spoon"],
+                V(0.6, 0.0, 0.0)))
+    for x in (kx0 + 0.25, kx1 - 0.7):
+        box(V(x, yi - 0.032, rail_z), (0.035, 0.045, 0.055), C["spoon"])
+    for x, r, z in ((kx0 + 0.29, 0.125, rail_z - 0.34), (kx0 + 0.58, 0.105, rail_z - 0.31)):
+        out.append((P.segment_bm(V(x, yi - 0.085, z), V(x, yi - 0.115, z), r, r - 0.012, 16), C["pan"]))
+        out.append((log(V(x, yi - 0.095, z + r - 0.01), V(x, yi - 0.07, rail_z - 0.01), 0.016, segments=6), C["pan"]))
+    cloth, spoon, fork = kx0 + 0.84, kx0 + 1.06, kx0 + 1.26
+    box(V(cloth, yi - 0.07, rail_z - 0.17), (0.15, 0.022, 0.32), C["towel"], bevel=0.008)
+    box(V(cloth, yi - 0.082, rail_z - 0.06), (0.152, 0.006, PEN), C["cabinetLine"])
+    out.append((log(V(spoon, yi - 0.075, rail_z), V(spoon, yi - 0.085, rail_z - 0.35), 0.012, segments=6), C["spoon"],
+                UP * 0.5))
+    out.append((L.ellipsoid_bm(V(spoon, yi - 0.095, rail_z - 0.41), (0.048, 0.02, 0.065), u=8, v=5), C["spoon"]))
+    out.append((log(V(fork, yi - 0.075, rail_z), V(fork, yi - 0.082, rail_z - 0.32), 0.011, segments=6), C["spoon"],
+                UP * 0.5))
+    box(V(fork, yi - 0.082, rail_z - 0.34), (0.075, 0.012, 0.05), C["spoon"])
     for dx in (-0.025, 0.0, 0.025):
-        box(V(-1.36 + dx, 2.118, f + 1.385), (0.014, 0.01, 0.065), C["spoon"])
-    keep_out(kx0 - 0.03, kx1 + 0.03, ky0 - 0.03, 2.2, 0.75)
-    against["back"].append((-2.8, kx1 + 0.03, False))
+        box(V(fork + dx, yi - 0.082, rail_z - 0.395), (0.014, 0.01, 0.065), C["spoon"])
+    keep_out(kx0 - 0.03, kx1 + 0.03, ky0 - 0.03, yi, 0.75)
+    against["back"].append((-xi, kx1 + 0.03, False))
 
-    # The bookshelf, in the middle of the left wall: orange wood, its sides tapering from deep at its
-    # foot to shallow at its top, white pegs down them, a dark back, on four round feet; three shelves
-    # and its foot full of books.
-    ex, ey0, ey1 = -2.77, -0.96, -0.06        # its back, against the wall, and its ends
+    # The bookshelf, on the left wall before its window: orange wood, its sides tapering from deep at
+    # its foot to shallow at its top, white pegs down them, a dark back, on four round feet; three
+    # shelves and its foot full of books. In a shallower room it is narrower, leaving the monstera's
+    # table its room before it.
+    mx, my = -xi + 0.4, -yi + 0.88                   # the monstera's table
+    ex, ey1 = -xi + 0.03, window - 1.06              # the shelf's back, against the wall, and its far end
+    ey0 = ey1 - min(0.9, ey1 - (my + 0.32))
     z0, z1 = f + 0.07, f + 1.78
     deep0, deep1 = 0.44, 0.22
 
@@ -1925,12 +1714,12 @@ def furnish_hut(floor):
             box(V(ex + 0.032 + d / 2, y + w / 2, floor_z + 0.002 + h / 2), (d, w, h), books[(k * 5) % len(books)])
             y += w + (0.006 if k % 6 else 0.04)
             k += 1
-    keep_out(-2.8, ex + deep0 + 0.02, ey0 - 0.02, ey1 + 0.02, 1.8)
+    keep_out(-xi, ex + deep0 + 0.02, ey0 - 0.02, ey1 + 0.02, 1.8)
     against["left"].append((ey0 - 0.02, ey1 + 0.02, True))
 
     # Toward the door, a potted monstera on a little table, its split leaves held out over the room,
     # clear of the bookshelf and the wall.
-    mx, my, table = -2.4, -1.32, f + 0.45
+    table = f + 0.45
     for x in (mx - 0.21, mx + 0.21):
         for y in (my - 0.21, my + 0.21):
             box(V(x, y, f + 0.215), (0.045, 0.045, 0.43), C["chest"], grain=UP * 0.6)
@@ -1947,16 +1736,17 @@ def furnish_hut(floor):
         lobed_leaf(tip, d + UP * 0.25, UP + d * tilt, size, size * 0.85, out)
     keep_out(mx - 0.27, mx + 0.27, my - 0.27, my + 0.27, 1.1)
     # Two brown woven vases in the front left corner, a big one and a small one.
-    for (vx, vy), ctrl, inner, high in (((-2.42, -1.84), [(0.0, 0.0), (0.15, 0.0), (0.21, 0.12), (0.22, 0.3), (0.17, 0.48),
-                                                          (0.12, 0.6), (0.12, 0.66), (0.165, 0.75), (0.17, 0.77),
-                                                          (0.13, 0.765), (0.0, 0.71)], 0.135, 0.71),
-                                        ((-1.97, -1.88), [(0.0, 0.0), (0.12, 0.0), (0.16, 0.09), (0.17, 0.22), (0.14, 0.34),
-                                                          (0.1, 0.4), (0.12, 0.45), (0.1, 0.45), (0.0, 0.41)], 0.09, 0.41)):
+    for (vx, vy), ctrl, inner, high in (((-xi + 0.38, -yi + 0.36), [(0.0, 0.0), (0.15, 0.0), (0.21, 0.12), (0.22, 0.3),
+                                                                   (0.17, 0.48), (0.12, 0.6), (0.12, 0.66), (0.165, 0.75),
+                                                                   (0.17, 0.77), (0.13, 0.765), (0.0, 0.71)], 0.135, 0.71),
+                                        ((-xi + 0.83, -yi + 0.32), [(0.0, 0.0), (0.12, 0.0), (0.16, 0.09), (0.17, 0.22),
+                                                                   (0.14, 0.34), (0.1, 0.4), (0.12, 0.45), (0.1, 0.45),
+                                                                   (0.0, 0.41)], 0.09, 0.41)):
         woven(ctrl, V(vx, vy, f), out, inner=inner, top=high, colours=("vase", "vaseLine", "vaseIn"))
         keep_out_round(vx, vy, max(r for r, _ in ctrl) + 0.02, high + 0.05)
 
     # In the front right corner, a small table set askew, a melon and a peach on it.
-    tx, ty, tt = 2.28, -1.68, f + 0.5
+    tx, ty, tt = xi - 0.52, -yi + 0.52, f + 0.5
     d = V(1.0, 1.0, 0.0).normalized()
     across = UP.cross(d)
     for sa in (-1.0, 1.0):
@@ -1971,7 +1761,7 @@ def furnish_hut(floor):
     # The rug, before the door: cream, ringed by a zigzag, a ring of diamonds and one of little
     # triangles, a circle, and in the middle a blue medallion with a white flower and a blue star at
     # its heart; each pattern a few millimetres over the one under it.
-    rx, ry, rr = HUT_RUG
+    rx, ry, rr = hut_rug(yi)
     out.append((P.segment_bm(V(rx, ry, f + 0.002), V(rx, ry, f + 0.016), rr, rr, 40), C["rugCream"]))
     z1, z2, z3 = f + 0.0195, f + 0.0225, f + 0.0255
     scale = rr / 1.15
@@ -2008,15 +1798,127 @@ def furnish_hut(floor):
     return out, blocks, against
 
 
+def villager_door(door, yo, floor, tall, pieces):
+    """A villager's hut's one door of pale planks, no window in it, as the film's (reference images
+    `villager hut exterior 2` and `interior 1`): hung on the right-hand post as one looks in (the
+    doorway `door` either side of the middle, in the front wall's outer face at -`yo`) and swung out
+    (to the left, as one looks out from inside), standing open clear of the post, `tall` high: the
+    lantern's light has the whole doorway. Its planks' joins and a few dark marks of their grain are
+    painted on both its faces, and each has a dark handle. Returns the blocks that keep walkers out of
+    it, as a row of posts along it."""
+    hinge = V(door - 0.08, -yo - 0.05, 0.0)
+    door_w, door_t = 2 * door - 0.1, 0.05
+    swing = math.radians(120.0)
+    along = V(-math.cos(swing), -math.sin(swing), 0.0)      # from the hinge to the door's free edge
+    shut_out = V(math.sin(swing), -math.cos(swing), 0.0)    # the face that looks out when it is shut
+    middle = hinge + along * (door_w / 2) + UP * (floor + 0.02 + tall / 2)
+    pieces.append((oriented_box(middle, along, shut_out, (door_w, door_t, tall)), C["hutDoor"], UP * 0.7))
+    for face in (shut_out, -shut_out):
+        lift = face * (door_t / 2 + 0.003)
+        for k in range(1, 5):
+            pieces.append((quad(middle + along * (door_w * (k / 5 - 0.5)) + lift, UP, face, tall - 0.04, PEN),
+                           C["hutDoorLine"]))
+        for k in range(9):
+            mark = middle + along * ((hashed(k, 21.0) - 0.5) * (door_w - 0.14)) + UP * ((hashed(k, 22.0) - 0.5) * (tall - 0.3))
+            pieces.append((quad(mark + lift, UP, face, 0.05 + 0.08 * hashed(k, 23.0), 0.012), C["hutDoorLine"]))
+        door_handle(middle + along * (door_w / 2 - 0.13) + face * (door_t / 2), face, pieces)
+    return [{"circle": [*g(*(hinge + along * u).xy), 0.07], "y": [floor - 0.1, floor + tall], "walk": True,
+             "camera": False} for u in (0.08 + 0.15 * k for k in range(int((door_w - 0.08) / 0.15) + 1))]
+
+
+def villager_room(walls, xi, yi, t, floor, wall_h, sill, pieces, inside, glow):
+    """The room of a villager's hut, as the film's frames show one inside (reference images `villager hut
+    interior 1` to `10`), `xi` and `yi` across from its middle, inside `walls` (its front, back, left
+    and right, `t` thick, `wall_h` high, their windows' sills `sill` up): light planks underfoot, their
+    seams painted on them; teal walls patterned in big round scales over a darker skin, logs along
+    their feet, at the windows' sills (where they are the sills) and along their tops (the plates the
+    rafters rest on), each broken where furniture stands against it; posts in the corners, curved
+    branches bracing them to the plates; at the back and side windows a casing and plank shutters
+    swung back flat against the wall either side (the front windows stand too near the corners for
+    them); overhead the straw's underside rising to a peak on rafters, the paper lantern hanging from
+    their hub over the middle of the room, lit at night; and furnished as a villager's home (see
+    furnish_hut). The floor's planks go into `pieces`, the rest into `inside` and the lantern's glow
+    into `glow`. Returns the blocks that keep walkers out of the furniture."""
+    front, back, left, right = walls
+    xo = xi + t
+    eave = floor + wall_h
+    # The floor: light planks running from the door to the back wall, a few millimetres over the floor's
+    # frame, their seams lines painted on them, stopping at the rug's edge.
+    pieces.append((P.box_bm(V(0.0, 0.0, floor - 0.003), (2 * xi, 2 * yi, 0.014)), C["hutFloor"], V(0.0, 0.8, 0.0)))
+    planks = 20
+    rx, ry, rr = hut_rug(yi)
+    seam = floor + 0.007
+    for k in range(1, planks):
+        x = -xi + 2 * xi * k / planks
+        spans = [(-yi + 0.01, yi - 0.01)]
+        if abs(x - rx) < rr + 0.02:
+            half = math.sqrt((rr + 0.02) ** 2 - (x - rx) ** 2)
+            spans = [(-yi + 0.01, ry - half), (ry + half, yi - 0.01)]
+        for y0, y1 in spans:
+            if y1 - y0 > 0.05:
+                inside.append((quad(V(x, (y0 + y1) / 2, seam), V(0, 1, 0), UP, y1 - y0, PEN), C["hutFloorLine"]))
+    for k in range(planks):
+        x = -xi + 2 * xi * (k + 0.5) / planks
+        y = -yi + 0.4 + (2 * yi - 0.8) * ((0.23 + 0.41 * k) % 1.0)
+        if math.hypot(x - rx, y - ry) < rr + 0.2:
+            continue
+        inside.append((quad(V(x, y, seam), V(1, 0, 0), UP, 2 * xi / planks - 0.02, PEN), C["hutFloorLine"]))
+
+    window = left.openings[0]
+    furniture, kept_out, against = furnish_hut(floor, xi, yi, wall_h, yi - (window[0] + window[1]) / 2)
+    inside.extend(furniture)
+
+    side = {front: ("front", lambda p: xo + p), back: ("back", lambda p: xo - p),
+            left: ("left", lambda p: yi - p), right: ("right", lambda p: yi + p)}
+    scales = tuple(C[k] for k in HUT_SCALES)
+    for w_index, wall in enumerate(walls):
+        key, u_of = side[wall]
+        stands = [tuple(sorted((u_of(a), u_of(b)))) + (tall,) for a, b, tall in against[key]]
+        ends_out = wall in (front, back)
+        reach = (t + 0.08, wall.length - t - 0.08) if ends_out else (0.08, wall.length - 0.08)
+        corner = reach[0] + 0.09
+        clear = [(0.0, corner, -1.0, wall_h + 1.0), (wall.length - corner, wall.length, -1.0, wall_h + 1.0)]
+        if wall is not front:
+            for o in wall.openings:
+                clear.append(shutter_clear(o))
+                shutters(wall, o, inside)
+        inside.extend(inner_face(wall, clear).shingles(scales, 0.03, wall_h - 0.03, size=0.4))
+        feet = [(a, b) for a, b, _ in stands]
+        sills = [(a, b) for a, b, tall in stands if tall]
+        for v, skip in ((0.06, feet), (sill - 0.05, sills), (wall_h - 0.08, [])):
+            inner_rail(wall, v, 0.055, reach, skip, inside, seed=10.0 * w_index)
+    for sx in (-1.0, 1.0):
+        for sy in (-1.0, 1.0):
+            x, y = sx * (xi - 0.08), sy * (yi - 0.08)
+            cut_log(V(x, y, floor - 0.01), V(x, y, eave + 0.01), 0.08, tone(C["hutLog"], 3 * sx + sy, 0.06), C["hutLogEnd"],
+                    inside, ends=(False, False), segments=10, grain=1.0)
+    # The braces: from each back corner along both walls, from each front corner along the side walls,
+    # each a quarter circle from its post to the plate, bowing out of the corner, a little further out
+    # from the wall than the logs, clear of a shutter swung back under it.
+    bend = 0.72
+    for (px, py), (ux, uy) in (((xi - 0.08, yi - 0.08), (-1.0, 0.0)), ((xi - 0.08, yi - 0.08), (0.0, -1.0)),
+                               ((-xi + 0.08, yi - 0.08), (1.0, 0.0)), ((-xi + 0.08, yi - 0.08), (0.0, -1.0)),
+                               ((xi - 0.08, -yi + 0.08), (0.0, 1.0)), ((-xi + 0.08, -yi + 0.08), (0.0, 1.0))):
+        plate = eave - 0.08
+        out = V(-math.copysign(0.02, px), 0.0, 0.0) if ux == 0.0 else V(0.0, -math.copysign(0.02, py), 0.0)
+        arc = [V(px + ux * bend * math.sin(a), py + uy * bend * math.sin(a), plate - bend * math.cos(a)) + out
+               for a in (-0.06 + (math.pi / 2 + 0.12) * k / 6 for k in range(7))]
+        bent_log(arc, 0.045, tone(C["hutLog"], px + 2 * ux + 3 * uy, 0.06), C["hutLogEnd"], inside,
+                 normal=V(ux, uy, 0.0).cross(UP), grain=1.0)
+    # Overhead, the straw's underside on rafters up to a peak, and the paper lantern hanging from their
+    # hub over the middle of the room, lit at night.
+    hub = hut_ceiling(xi, yi, eave, eave + 1.45, inside)
+    paper_lantern(hub.x, hub.y, hub.z, floor + wall_h - 0.3, inside, glow)
+    return kept_out
+
+
 def build_stilt_hut(name, pattern, collection):
     """A hut on log stilts you can walk into, as in the film's village: log stairs up to a plank
-    porch, a doorway wide enough for three, its one plank door swung out onto the porch, lattice
-    windows over a band of coloured scales, and over it all a beehive of straw, tied in a knot at its
-    top, as the film's villager's hut (reference image `villager hut exterior 1`). Inside, a room as
-    the film's frames of one (`villager hut interior 1` to `10`): teal walls patterned in scales,
-    framed by logs, the windows' plank shutters swung back, light planks underfoot, overhead the
-    straw rising to a peak on rafters, furnished as a villager's home (see furnish_hut). Returns the
-    parts and the info for the game."""
+    porch, a doorway wide enough for three, its one plank door swung out onto the porch (see
+    villager_door), lattice windows over a band of coloured scales, and over it all a beehive of
+    straw, tied in a knot at its top, as the film's villager's hut (reference image `villager hut
+    exterior 1`). Inside, a villager's room (see villager_room). Returns the parts and the info for the
+    game."""
     floor, wall_h, t = 0.6, 2.6, 0.16
     xi, yi = 2.8, 2.2                     # the room inside
     xo, yo = xi + t, yi + t               # the walls' outer faces
@@ -2053,27 +1955,7 @@ def build_stilt_hut(name, pattern, collection):
         pieces.append((log(V(x, -yo - 0.03, floor), V(x, -yo - 0.03, floor + wall_h), 0.16, segments=10), C["log"]))
     pieces.append((oriented_box(V(0.0, -yo - 0.04, floor + 2.13), V(1, 0, 0), V(0, 1, 0), (2 * door + 0.4, 0.16, 0.17)),
                    C["logDark"]))
-    # The door: one door of pale planks, no window in it, as the film's (reference images `villager hut
-    # exterior 2` and `interior 1`), hung on the right-hand post as one looks in and swung out onto the
-    # porch (to the left, as one looks out from inside), standing open clear of the post, the stairs
-    # and the window beside it: the lantern's light has the whole doorway. Its planks' joins and a
-    # few dark marks of their grain are painted on both its faces, and each has a dark handle.
-    hinge = V(door - 0.08, -yo - 0.05, 0.0)
-    door_w, door_h, door_t = 2 * door - 0.1, 1.98, 0.05
-    swing = math.radians(120.0)
-    along = V(-math.cos(swing), -math.sin(swing), 0.0)      # from the hinge to the door's free edge
-    shut_out = V(math.sin(swing), -math.cos(swing), 0.0)    # the face that looks out when it is shut
-    middle = hinge + along * (door_w / 2) + UP * (floor + 0.02 + door_h / 2)
-    pieces.append((oriented_box(middle, along, shut_out, (door_w, door_t, door_h)), C["hutDoor"], UP * 0.7))
-    for face in (shut_out, -shut_out):
-        lift = face * (door_t / 2 + 0.003)
-        for k in range(1, 5):
-            pieces.append((quad(middle + along * (door_w * (k / 5 - 0.5)) + lift, UP, face, door_h - 0.04, PEN),
-                           C["hutDoorLine"]))
-        for k in range(9):
-            mark = middle + along * ((hashed(k, 21.0) - 0.5) * (door_w - 0.14))                 + UP * ((hashed(k, 22.0) - 0.5) * (door_h - 0.3))
-            pieces.append((quad(mark + lift, UP, face, 0.05 + 0.08 * hashed(k, 23.0), 0.012), C["hutDoorLine"]))
-        door_handle(middle + along * (door_w / 2 - 0.13) + face * (door_t / 2), face, pieces)
+    door_blocks = villager_door(door, yo, floor, 1.98, pieces)
 
     # The floor, the porch and its railing, the stilts under them, and the log stairs.
     pieces.append((P.box_bm(V(0.0, (porch + yo) / 2, floor - 0.07), (2 * xo, yo - porch, 0.14)), C["floor"]))
@@ -2096,78 +1978,7 @@ def build_stilt_hut(name, pattern, collection):
     for at, make in pots:
         make(at, pieces)
 
-    # The room's floor: light planks running from the door to the back wall, their joins staggered,
-    # a few millimetres over the floor's frame.
-    pieces.append((P.box_bm(V(0.0, 0.0, floor - 0.003), (2 * xi, 2 * yi, 0.014)), C["hutFloor"], V(0.0, 0.8, 0.0)))
-    # The seams are lines painted on the planks, a few millimetres over them; they stop at the rug's
-    # edge.
-    planks = 20
-    rx, ry, rr = HUT_RUG
-    seam = floor + 0.007
-    for k in range(1, planks):
-        x = -xi + 2 * xi * k / planks
-        spans = [(-yi + 0.01, yi - 0.01)]
-        if abs(x - rx) < rr + 0.02:
-            half = math.sqrt((rr + 0.02) ** 2 - (x - rx) ** 2)
-            spans = [(-yi + 0.01, ry - half), (ry + half, yi - 0.01)]
-        for y0, y1 in spans:
-            if y1 - y0 > 0.05:
-                inside.append((quad(V(x, (y0 + y1) / 2, seam), V(0, 1, 0), UP, y1 - y0, PEN), C["hutFloorLine"]))
-    for k in range(planks):
-        x = -xi + 2 * xi * (k + 0.5) / planks
-        y = -yi + 0.4 + (2 * yi - 0.8) * ((0.23 + 0.41 * k) % 1.0)
-        if math.hypot(x - rx, y - ry) < rr + 0.2:
-            continue
-        inside.append((quad(V(x, y, seam), V(1, 0, 0), UP, 2 * xi / planks - 0.02, PEN), C["hutFloorLine"]))
-
-    furniture, kept_out, against = furnish_hut(floor)
-    inside.extend(furniture)
-
-    # Inside, the walls as the film's frames show them: teal, patterned in big round scales over a
-    # darker skin; logs along their feet, at the windows' sills (where they are the sills) and along
-    # their tops (the plates the rafters rest on), each broken where furniture stands against it;
-    # posts in the corners, curved branches bracing them to the plates; and at the back and side
-    # windows a casing and plank shutters swung back flat against the wall either side. (The front
-    # windows stand too near the corners for shutters to swing back beside them.)
-    side = {front: ("front", lambda p: xo + p), back: ("back", lambda p: xo - p),
-            left: ("left", lambda p: yi - p), right: ("right", lambda p: yi + p)}
-    scales = tuple(C[k] for k in HUT_SCALES)
-    for w_index, wall in enumerate(walls):
-        key, u_of = side[wall]
-        stands = [tuple(sorted((u_of(a), u_of(b)))) + (tall,) for a, b, tall in against[key]]
-        ends_out = wall in (front, back)
-        reach = (t + 0.08, wall.length - t - 0.08) if ends_out else (0.08, wall.length - 0.08)
-        corner = reach[0] + 0.09
-        clear = [(0.0, corner, -1.0, wall_h + 1.0), (wall.length - corner, wall.length, -1.0, wall_h + 1.0)]
-        if wall is not front:
-            for o in wall.openings:
-                clear.append(shutter_clear(o))
-                shutters(wall, o, inside)
-        inside.extend(inner_face(wall, clear).shingles(scales, 0.03, wall_h - 0.03, size=0.4))
-        feet = [(a, b) for a, b, _ in stands]
-        sills = [(a, b) for a, b, tall in stands if tall]
-        for v, skip in ((0.06, feet), (sill - 0.05, sills), (wall_h - 0.08, [])):
-            inner_rail(wall, v, 0.055, reach, skip, inside, seed=10.0 * w_index)
-    for sx in (-1.0, 1.0):
-        for sy in (-1.0, 1.0):
-            x, y = sx * (xi - 0.08), sy * (yi - 0.08)
-            cut_log(V(x, y, floor - 0.01), V(x, y, eave + 0.01), 0.08, tone(C["hutLog"], 3 * sx + sy, 0.06), C["hutLogEnd"],
-                    inside, ends=(False, False), segments=10, grain=1.0)
-    # The braces: from each back corner along both walls, from each front corner along the side walls,
-    # each a quarter circle from its post to the plate, bowing out of the corner.
-    bend = 0.72
-    for (px, py), (ux, uy) in (((xi - 0.08, yi - 0.08), (-1.0, 0.0)), ((xi - 0.08, yi - 0.08), (0.0, -1.0)),
-                               ((-xi + 0.08, yi - 0.08), (1.0, 0.0)), ((-xi + 0.08, yi - 0.08), (0.0, -1.0)),
-                               ((xi - 0.08, -yi + 0.08), (0.0, 1.0)), ((-xi + 0.08, -yi + 0.08), (0.0, 1.0))):
-        plate = eave - 0.08
-        arc = [V(px + ux * bend * math.sin(a), py + uy * bend * math.sin(a), plate - bend * math.cos(a))
-               for a in (-0.06 + (math.pi / 2 + 0.12) * k / 6 for k in range(7))]
-        bent_log(arc, 0.045, tone(C["hutLog"], px + 2 * ux + 3 * uy, 0.06), C["hutLogEnd"], inside,
-                 normal=V(ux, uy, 0.0).cross(UP), grain=1.0)
-    # Overhead, the straw's underside on rafters up to a peak, and the paper lantern hanging from their
-    # hub over the middle of the room, lit at night.
-    hub = hut_ceiling(xi, yi, eave, eave + 1.45, inside)
-    paper_lantern(hub.x, hub.y, hub.z, floor + 2.3, inside, glow)
+    kept_out = villager_room(walls, xi, yi, t, floor, wall_h, sill, pieces, inside, glow)
 
     # The roof: the film's beehive of straw, centred over the walls, oval to hang out about as far over
     # each, its underside flat from the walls' middles out to its rim; rough as straw is (see
@@ -2213,14 +2024,12 @@ def build_stilt_hut(name, pattern, collection):
         block_box(xo - 0.12, xo, porch, -yo, floor - 0.3, floor + 0.7, camera=False),
         block_box(-xo, -0.62, porch, porch + 0.1, floor - 0.3, floor + 0.7, camera=False),
         block_box(0.62, xo, porch, porch + 0.1, floor - 0.3, floor + 0.7, camera=False),
-    ] + kept_out
+    ] + kept_out + door_blocks
     # The roof, for the camera, in bands up its sides, each as wide across as the roof at its foot.
     for low, high, r in ((-0.2, 1.5, 4.5), (1.5, 2.65, 4.25), (2.65, 3.45, 3.3), (3.45, 5.3, 1.95)):
         blocks.append({"circle": [0.0, 0.0, r], "y": [round(eave + low, 3), round(eave + high, 3)], "walk": False,
                        "camera": True})
-    # The open door, as a row of posts along it, and the porch's pots.
-    blocks += [{"circle": [*g(*(hinge + along * u).xy), 0.07], "y": [floor - 0.1, floor + 2.0], "walk": True,
-                "camera": False} for u in (0.08 + 0.15 * k for k in range(int((door_w - 0.08) / 0.15) + 1))]
+    # The porch's pots.
     blocks += [{"circle": [*g(at.x, at.y), 0.2], "y": [floor - 0.1, floor + 0.6], "walk": True, "camera": False}
                for at, _ in pots]
     decks = [deck_box(-xo + 0.1, xo - 0.1, porch, yi, floor), deck_box(-0.62, 0.62, stairs_end, porch, floor, 0.02)]
@@ -2231,25 +2040,27 @@ def build_stilt_hut(name, pattern, collection):
 
 # ---------------------------------------------------------------------------- the plank hut
 def build_plank_hut(name, collection):
-    """A plank hut on the ground with a wide thatched hip roof, as in the film's clearing: a tall
-    plank door, a window each side and at the back, a roomy log-cabin room inside furnished as an
-    islander's home (see furnish). Returns the parts and the info for the game."""
+    """A plank hut on the ground with a wide thatched hip roof, as in the film's clearing: a window each
+    side and at the back, its one plank door swung out onto a landing of planks before it (see
+    villager_door), and inside a villager's room as the stilt huts' (see villager_room), the roof open
+    over it for its ceiling. Returns the parts and the info for the game."""
     floor, wall_h, t = 0.22, 2.45, 0.16
     xi, yi = 2.6, 2.1
     xo, yo = xi + t, yi + t
-    step = -yo - 0.6
+    step = -yo - 1.2                      # the landing's front edge: room for the door to stand open on it
     ramp_end = step - 0.6
     door = 0.65
     pieces, glow, panes, inside = [], [], [], []
     sill, head = 0.85, 1.85
     front = Wall((-xo, -yo + t / 2), (xo, -yo + t / 2), floor, wall_h, t, [(xo - door, xo + door, 0.0, 1.95)])
     back = Wall((xo, yo - t / 2), (-xo, yo - t / 2), floor, wall_h, t, [(xo - 0.45, xo + 0.45, sill, head)])
-    left = Wall((-xo + t / 2, yi), (-xo + t / 2, -yi), floor, wall_h, t, [(yi - 0.45, yi + 0.45, sill, head)])
+    # The left wall's window toward the back, where it leaves the middle of the wall to the bookshelf.
+    left = Wall((-xo + t / 2, yi), (-xo + t / 2, -yi), floor, wall_h, t, [(1.2 - 0.45, 1.2 + 0.45, sill, head)])
     right = Wall((xo - t / 2, -yi), (xo - t / 2, yi), floor, wall_h, t, [(yi - 0.45, yi + 0.45, sill, head)])
-    for wall in (front, back, left, right):
-        pieces.extend(wall.skins(C["plank"], C["inside"]))
+    walls = (front, back, left, right)
+    for wall in walls:
+        pieces.extend(wall.skins(C["plank"], C["hutSkin"]))
         pieces.extend(wall.courses(C["plankLine"], -1, start=0.3, step=0.3))
-        inside.extend(wall.courses(C["insideLine"], 1))
         # Log rails along the wall's foot, under its windows and along its top.
         for v, r in ((0.07, 0.08), (sill - 0.09, 0.07), (wall_h - 0.07, 0.085)):
             pieces.extend(wall.rail(v, r, C["log"]))
@@ -2260,41 +2071,34 @@ def build_plank_hut(name, collection):
         pieces.append((log(V(x, y, -0.2), V(x, y, floor + wall_h), 0.18, segments=10), C["log"]))
     for x in (-door - 0.12, door + 0.12):
         pieces.append((log(V(x, -yo - 0.03, floor), V(x, -yo - 0.03, floor + 2.0), 0.13, segments=10), C["log"]))
-    # The tall plank door, open against the inside of the front wall.
-    pieces.append((oriented_box(V(door + 0.62, -yi + 0.06, floor + 0.98), V(1, 0, 0), V(0, 1, 0), (1.25, 0.06, 1.9)),
-                   C["plank"]))
-    for k in (-1, 0, 1):
-        pieces.append((oriented_box(V(door + 0.62 + 0.38 * k, -yi + 0.025, floor + 0.98), V(1, 0, 0), V(0, 1, 0),
-                                    (PEN, 0.012, 1.86)), C["plankLine"]))
-    door_handle(V(door + 1.12, -yi + 0.02, floor + 0.98), V(0, 1, 0), pieces)
-    # Potted plants either side of the step, as by the film's doors.
+    door_blocks = villager_door(door, yo, floor, 1.9, pieces)
+    # Potted plants either side of the door, as by the film's doors.
     pots = [(V(1.25, -yo - 0.32, floor), potted_succulent), (V(-1.25, -yo - 0.3, floor), potted_thistles)]
     for at, make in pots:
         make(at, pieces)
     pieces.append((P.box_bm(V(0.0, (step + yo) / 2, floor - 0.06), (2 * xo, yo - step, 0.12)), C["floor"]))
     pieces.append((P.box_bm(V(0.0, (step + ramp_end) / 2, 0.06), (1.6, step - ramp_end, 0.14)), C["log"]))
-    furniture, kept_out = furnish(((-xi, xi), (-yi, yi)), floor, floor + wall_h, glow)
-    inside.extend(furniture)
+    kept_out = villager_room(walls, xi, yi, t, floor, wall_h, sill, pieces, inside, glow)
     eave = floor + wall_h
     roof = (-xo - 0.84, xo + 0.84, -yo - 1.14, yo + 0.84, eave, eave + 0.28, eave + 2.73, 1.1)
-    pieces.append(hip_roof(*roof))
+    pieces.append(hip_roof(*roof, hole=((-xo + t / 2, xo - t / 2), (-yo + t / 2, yo - t / 2))))
     far = [hip_roof(*roof, subdivide=False)]
-    far += [w.far(C["plank"]) for w in (front, back, left, right)]
-    body = P.join(name, pieces, collection, sharp=P.SHARP)
+    far += [w.far(C["plank"]) for w in walls]
+    body = join_grained(name, pieces, collection, sharp=P.SHARP)
     lights = P.join(f"{name}_lamp", glow, collection)
     glass = P.join(f"{name}_pane", panes, collection)
-    room = P.join(f"{name}_inside", inside, collection, sharp=P.SHARP)
+    room = join_grained(f"{name}_inside", inside, collection, sharp=P.SHARP)
     distant = P.join(f"{name}_far", far, collection, sharp=P.SHARP)
     blocks = [
         block_box(-xo, xo, yi, yo, -10, eave), block_box(-xo, -door, -yo, -yi, -10, eave),
         block_box(door, xo, -yo, -yi, -10, eave), block_box(-xo, -xi, -yo, yo, -10, eave),
         block_box(xi, xo, -yo, yo, -10, eave),
         block_box(roof[0], roof[1], roof[2], roof[3], eave - 0.05, roof[6], walk=False),
-    ] + kept_out
+    ] + kept_out + door_blocks
     blocks += [{"circle": [*g(at.x, at.y), 0.2], "y": [floor - 0.1, floor + 0.6], "walk": True, "camera": False}
                for at, _ in pots]
     decks = [deck_box(-xo + 0.1, xo - 0.1, step, yi, floor), deck_box(-0.8, 0.8, ramp_end, step, floor, 0.02)]
-    info = {"blocks": blocks, "decks": decks, "height": roof[6], "openings": openings_of((front, back, left, right))}
+    info = {"blocks": blocks, "decks": decks, "height": roof[6], "openings": openings_of(walls)}
     info.update(bake_night(name, [body, room], lights, info["openings"]))
     return [body, lights, glass, room, distant], info
 
