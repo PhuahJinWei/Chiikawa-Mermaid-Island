@@ -418,11 +418,14 @@ def build_pier(collection):
 # each a bell from `bottom` to `top`, sliced flat at `deck` where the open-air deck is. From above
 # it is an egg, widest at the cabin's front wall, its narrow end round the head at the bow. The
 # bow rises under the neck; the deck runs from the neck to the cabin's front wall; behind it the
-# cabin's round roof curves down to the stern.
+# cabin's round roof curves down to the stern. The bow's sections rise into the deck's by degrees,
+# so its shoulders swell evenly into the deck's sides with no ridge or dent between them, and the
+# deck's front edge curves round from above.
 FERRY_BODY = [
     (-6.75, 0.4, 1.9, 3.0, 99.0), (-6.55, 1.4, 1.3, 3.5, 99.0), (-6.2, 2.2, 0.75, 3.9, 99.0),
-    (-5.6, 2.8, 0.25, 4.1, 99.0), (-4.8, 3.34, -0.3, 4.2, 99.0), (-4.0, 3.7, -0.55, 4.25, 99.0),
-    (-3.4, 3.9, -0.6, 8.25, 4.28), (-2.0, 4.23, -0.6, 8.25, 4.28), (-0.5, 4.58, -0.6, 8.25, 4.28),
+    (-5.6, 2.8, 0.25, 4.1, 99.0), (-4.8, 3.34, -0.3, 4.4, 99.0), (-4.4, 3.53, -0.45, 4.9, 4.28),
+    (-4.0, 3.7, -0.55, 5.6, 4.28), (-3.7, 3.81, -0.58, 6.6, 4.28), (-3.4, 3.9, -0.6, 7.6, 4.28),
+    (-2.7, 4.07, -0.6, 8.25, 4.28), (-2.0, 4.23, -0.6, 8.25, 4.28), (-0.5, 4.58, -0.6, 8.25, 4.28),
     (0.8, 4.73, -0.6, 8.25, 4.28), (1.5, 4.78, -0.6, 8.25, 4.28),
     (1.62, 4.79, -0.6, 8.25, 99.0), (2.5, 4.79, -0.6, 8.2, 99.0), (3.4, 4.74, -0.6, 8.14, 99.0),
     (4.5, 4.57, -0.6, 7.99, 99.0), (5.6, 4.18, -0.6, 7.6, 99.0), (6.6, 3.62, -0.55, 7.07, 99.0),
@@ -545,6 +548,61 @@ def loop_tube_bm(points, radius, normal, segments=6):
     return bm
 
 
+FERRY_SKIRT = {"from": 5.4, "reach": 1.25, "rings": 14}   # where on the neck the skirt starts, how far out it reaches
+
+
+def neck_skirt_bm(body):
+    """The neck's foot, flared out like a vase's onto the deck and the bow: from FERRY_SKIRT's
+    height on the neck, where it leaves the neck straight down, it curves out `reach` metres to meet
+    the body's top lying along it, so the neck rises from the body with no crease round its foot."""
+    tree = BVHTree.FromBMesh(body)
+    z1 = FERRY_SKIRT["from"]
+    # The neck's own outline at the skirt's top, from FERRY_NECK.
+    z_a, y_a, rx_a, ry_a = max((r for r in FERRY_NECK if r[0] <= z1), key=lambda r: r[0])
+    z_b, y_b, rx_b, ry_b = min((r for r in FERRY_NECK if r[0] > z1), key=lambda r: r[0])
+    t = (z1 - z_a) / (z_b - z_a)
+    yc, rx, ry = y_a + (y_b - y_a) * t, rx_a + (rx_b - rx_a) * t, ry_a + (ry_b - ry_a) * t
+    down = Vector((0.0, 0.0, -1.0))
+
+    def top_at(p):
+        """The body's top straight under p, and how much it faces up; None off the body."""
+        hit, normal, _, _ = tree.ray_cast(Vector((p.x, p.y, 20.0)), down)
+        return (hit.z, normal.z) if hit else None
+
+    # Each way round the neck, the skirt reaches out only as far as the body's top lies under it
+    # (in front, where the bow falls away, it is short), and its rim is sunk into the body.
+    angles = np.linspace(0.0, 2.0 * math.pi, 40, endpoint=False)
+    edges, ways, reaches, feet = [], [], [], []
+    for a in angles:
+        edge = Vector((rx * math.cos(a), yc + ry * math.sin(a), 0.0))
+        way = Vector((math.cos(a) / rx, math.sin(a) / ry, 0.0)).normalized()   # out from the neck's outline
+        reach = FERRY_SKIRT["reach"]
+        while reach > 0.15:
+            top = top_at(edge + way * reach)
+            if top and top[1] > 0.5:
+                break
+            reach *= 0.85
+        top = top_at(edge + way * reach)
+        edges.append(edge)
+        ways.append(way)
+        reaches.append(reach)
+        feet.append((top[0] if top else z1 - 1.0) - 0.12)
+    # Each way's reach eased against its neighbours', so the skirt's rim runs round smoothly.
+    reaches = [sum(reaches[(i + d) % 40] * w for d, w in ((-2, 1), (-1, 2), (0, 3), (1, 2), (2, 1))) / 9.0
+               for i in range(40)]
+    rings = []
+    count = FERRY_SKIRT["rings"]
+    for k in range(count + 1):
+        s = k / count
+        ring = []
+        for edge, way, reach, foot in zip(edges, ways, reaches, feet):
+            p = edge + way * reach * (1.0 - math.cos(s * math.pi / 2))
+            ring.append((p.x, p.y, z1 - (z1 - foot) * math.sin(s * math.pi / 2)))
+        rings.append(ring)
+    # Closed below, inside the body.
+    return loft_bm(rings + [[(x, y, z - 0.6) for x, y, z in rings[-1]]])
+
+
 def build_ferry(collection):
     """The white duck ferry the guests arrive on, after the film's and the sketches of it: one round
     body, a bell in section and an egg from above, with a tall bendy neck and round head at its
@@ -564,17 +622,22 @@ def build_ferry(collection):
     neck = loft_bm(neck_rings + [[(0.0, -4.6, FERRY_TOP)] * 40])
     deck = FERRY_DECK
     floor = deck["floor"]
-    shapes = [body, neck,
-              L.ellipsoid_bm(V(0.0, -2.9, floor), (1.3, 1.0, 0.95), u=18, v=10),   # the neck flaring into the deck
+    shapes = [body, neck, neck_skirt_bm(body),
               L.ellipsoid_bm(V(0.0, 8.4, 1.6), (0.9, 0.6, 0.32), u=14, v=8)]       # the flat little tail
-    duck = L.fuse(shapes, voxel=0.12, smooth_iterations=8, smooth_lambda=0.8, target_tris=5000)
+    # Fused fine, smoothed, and kept fine enough that it shades as one round surface, with no
+    # facets showing.
+    duck = L.fuse(shapes, voxel=0.07, smooth_iterations=24, smooth_lambda=0.8, target_tris=26000)
     duck.normal_update()
 
     def colour(v):
-        if v.normal.z > 0.9 and abs(v.co.z - floor) < 0.08 and deck["front"] < v.co.y < deck["wall"]:
-            return C["plankLight"]     # the deck
         # White, with the sea's blue in it toward the water, as in the film.
-        return blend(C["duck"], C["duckShade"], L.smoothstep(2.0, -0.3, v.co.z))
+        white = blend(C["duck"], C["duckShade"], L.smoothstep(2.0, -0.3, v.co.z))
+        if not deck["front"] - 0.6 < v.co.y < deck["wall"]:
+            return white
+        # The deck, the planks giving way to white softly where the hull rises from it (round the
+        # neck's foot), so the edge between them runs smooth, not in steps.
+        on = L.smoothstep(0.16, 0.05, v.co.z - floor) * L.smoothstep(0.88, 0.97, v.normal.z)
+        return blend(white, C["plankLight"], on)
 
     pieces = [(duck, [colour(v) for v in duck.verts])]
     tree = BVHTree.FromBMesh(duck)

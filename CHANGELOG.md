@@ -269,6 +269,16 @@ outlined is drawn twice, once for its pen line. To get there:
   as they are: beyond 140 m the far canopy costs about 1 ms and the
   island's vistas need it, and nothing cheaper draws the leaves the same,
   so they are the graphics setting's to trim.
+- The duck ferry is round all over, as the film's is. Where the bow met
+  the deck its side had stood up a metre wider within a stride, which left
+  a ridge and a dent round the front of the hull; the bow now swells into
+  the deck's sides by degrees, and the deck's front edge curves round from
+  above. The neck rises from the deck like a vase: its foot flares out in
+  a curve onto the deck and the bow, as far as the hull's top lies under
+  it, where it had stood in the hull with a crease round it and a lump
+  behind. The deck's planks give way to the white softly round it. The
+  hull is fused finer and kept so (about 32,000 triangles where it was
+  11,000), so it shades as one surface, with no facets showing.
 - The island has the film's look. The land is painted without lines, as
   the film's backgrounds are, while the characters, their outfits and held
   props, the duck ferry and everything made keep the pen. Sunlight is
