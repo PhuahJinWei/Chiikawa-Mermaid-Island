@@ -28,3 +28,33 @@ export function glowMaterial(): THREE.MeshToonMaterial {
   };
   return material;
 }
+
+/**
+ * A house's window pane: within PANE_CLEAR of the camera it is clear, so the room behind shows, lit
+ * by its own lantern; beyond PANE_LIT it is a pane lit as the windows are, standing in for the lit
+ * room, as only the few lanterns nearest the camera light their rooms (see Firelight). Between, it
+ * fades through an ordered dither, each point drawn or not, so the picture's alpha (the characters'
+ * mark in the film look) stays whole.
+ */
+const PANE_CLEAR = 8;
+const PANE_LIT = 14;
+
+export function paneMaterial(): THREE.MeshToonMaterial {
+  const material = glowMaterial();
+  const glow = material.onBeforeCompile;
+  material.onBeforeCompile = (shader, renderer) => {
+    glow(shader, renderer);
+    shader.fragmentShader = shader.fragmentShader.replace(
+      'void main() {',
+      `float paneDither(vec2 a) {
+        a = floor(a);
+        return fract(dot(a, vec2(0.5, a.y * 0.75)));
+      }
+      void main() {
+        vec2 cell = gl_FragCoord.xy;
+        float threshold = paneDither(0.5 * cell) * 0.25 + paneDither(cell);
+        if (smoothstep(${PANE_CLEAR.toFixed(1)}, ${PANE_LIT.toFixed(1)}, length(vViewPosition)) <= threshold) discard;`,
+    );
+  };
+  return material;
+}

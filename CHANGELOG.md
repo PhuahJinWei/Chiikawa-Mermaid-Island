@@ -823,6 +823,21 @@ outlined is drawn twice, once for its pen line. To get there:
   a terracotta pot and purple thistles in a round clay pot. The plank huts
   have the same heavier posts, rails, windows, handle and pots. About
   0.2 to 0.3 ms more a frame in the village on the dev PC.
+- The houses are lit at night by their lanterns, not their windows. A
+  window had been a glowing block of glass, lit the same from inside and
+  out, and the house's light hung in the middle of its windows. Now each
+  room's paper lantern is its light, warm on the walls and furniture from
+  where it hangs (a lamp of its own, brighter than the festival's lanterns
+  and reaching little past the room), and the guest houses hang one from
+  the ridge. Close up the windows are clear, inside and out: from inside
+  you look out at the night through the bars and zigzags, and from the
+  porch into the lit room. Within 8 to 14 metres of the camera a pane
+  fades in to its warm glow, which stands in for the lit room from
+  further off, where the room's lantern has no light of its own (only
+  the six sources nearest the camera do). The guest houses' gable and
+  roof windows are cut through, so they too show the lit roof inside or
+  the sky beyond. No measurable cost a frame (the night village, inside
+  and out, about 11 to 13 ms before and after on the dev PC).
 - The village's watchtower stage after the film's (its night frame of the
   stage): its legs splay out to the ground where they stood straight, each
   side braced in two tiers of crossed planks; the platform stands higher,

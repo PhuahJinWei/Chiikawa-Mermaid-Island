@@ -26,7 +26,7 @@ PLANE = 0.002      # faces this close to one plane count as in it (m)
 SHRINK = 0.003     # each triangle shrunk this much before testing, so faces only touching do not count
 COLOUR = 0.03      # a difference in any colour channel above this shows
 AHEAD, COVERED = 0.003, 0.02
-ROLES = ("_glow", "_flame", "_inside", "_far", "_board", "_label")
+ROLES = ("_glow", "_lamp", "_pane", "_flame", "_inside", "_far", "_board", "_label")
 
 
 def load(path):

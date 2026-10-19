@@ -3,7 +3,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { sceneryRamp } from '../core/toon';
 import { t, type StringKey } from '../i18n/I18n';
 import type { FireKind } from './Firelight';
-import { glowMaterial, glowUniforms } from './Glow';
+import { glowMaterial, glowUniforms, paneMaterial } from './Glow';
 import { INK, addOutline, windUniforms } from './Ink';
 import { terrainHeight } from './Island';
 import { FILM, paintThatch } from './Look';
@@ -66,7 +66,7 @@ const LIGHT_GAP = 0.6;
 
 /** Which pieces of a group are drawn when: always, near, inside (closer still), far, or at night. */
 type Level = 'always' | 'near' | 'small' | 'inside' | 'far' | 'night';
-type Kind = 'body' | 'glow' | 'flame';
+type Kind = 'body' | 'glow' | 'pane' | 'flame';
 
 interface Group {
   geometries: Map<string, THREE.BufferGeometry[]>;
@@ -444,13 +444,14 @@ export class Props {
         }
         const level = levelOf(part.role, hasFar, small);
         if (!level) continue;
-        const kind: Kind = part.role === 'glow' ? 'glow' : part.role === 'flame' ? 'flame' : 'body';
+        const kind: Kind =
+          part.role === 'glow' || part.role === 'lamp' ? 'glow' : part.role === 'pane' || part.role === 'flame' ? part.role : 'body';
         // A board under a hand-lettered sign painted solid takes the painting's colour.
         const board = part.role === 'board' && words[0] ? (painted.boards.get(words[0]) ?? null) : null;
         props.collect(key, level, kind, !UNLINED.has(p.kind), placedGeometry(part.geometry, matrix, tint, false, board));
-        if (kind !== 'body') {
+        if (kind === 'glow' || kind === 'flame') {
           for (const spot of lightSpots(part.geometry)) {
-            props.fires.push({ position: spot.clone().applyMatrix4(matrix), kind });
+            props.fires.push({ position: spot.clone().applyMatrix4(matrix), kind: part.role === 'lamp' ? 'lamp' : kind });
           }
         }
       }
@@ -493,7 +494,12 @@ export class Props {
 
   /** Joins each group's pieces into a mesh per level and kind, outlined, and finds its bounds. */
   private build(): void {
-    const materials: Record<Kind, THREE.Material> = { body: toon(), glow: glowMaterial(), flame: flameMaterial() };
+    const materials: Record<Kind, THREE.Material> = {
+      body: toon(),
+      glow: glowMaterial(),
+      pane: paneMaterial(),
+      flame: flameMaterial(),
+    };
     const box = new THREE.Box3();
     const sphere = new THREE.Sphere();
     for (const group of this.groups.values()) {
@@ -510,7 +516,9 @@ export class Props {
         // land's own things (UNLINED) are painted without a line; all cast and take the sun's shadows.
         mesh.castShadow = mesh.receiveShadow = FILM && kind === 'body';
         if (kind === 'flame') this.flames.push(mesh);
-        else if (!FILM || lining === 'lined') objects.push(addOutline(mesh, 'still', true));
+        // A pane is one sheet, turned away from inside its room: the pen's hull of it would show
+        // there as a sheet of ink.
+        else if ((!FILM || lining === 'lined') && kind !== 'pane') objects.push(addOutline(mesh, 'still', true));
         group.objects.set(level, objects);
       }
       box.getBoundingSphere(sphere);

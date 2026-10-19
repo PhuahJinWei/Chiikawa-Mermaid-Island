@@ -8,6 +8,8 @@ const REACH = 70;
 const KINDS = {
   flame: { colour: new THREE.Color('#FF8A30'), intensity: 24, reach: 15, warmth: 1 },
   glow: { colour: new THREE.Color('#FFBE72'), intensity: 5, reach: 8, warmth: 0.45 },
+  // A room's lantern: bright enough to light the room from where it hangs, reaching little past it.
+  lamp: { colour: new THREE.Color('#FFBE72'), intensity: 10, reach: 6.5, warmth: 0.45 },
 } as const;
 export type FireKind = keyof typeof KINDS;
 /** How the firelight tints a character's colours at full strength: against the night's blue, a
@@ -59,14 +61,14 @@ export class Firelight {
     }
   }
 
-  /** A flame or a glowing window or lantern at `position`. */
+  /** A flame, a glowing window or lantern, or a room's lantern at `position`. */
   add(position: THREE.Vector3, kind: FireKind): void {
     this.sources.push({ position: position.clone(), kind, phase: this.sources.length * 1.7 });
   }
 
   /** How bright a source burns this moment: a flame wavers, a lantern barely. */
   private flicker(s: Source): number {
-    if (s.kind === 'glow') return 0.95 + 0.05 * Math.sin(this.time * 2.5 + s.phase);
+    if (s.kind !== 'flame') return 0.95 + 0.05 * Math.sin(this.time * 2.5 + s.phase);
     const t = this.time * 9 + s.phase;
     return 0.82 + 0.1 * Math.sin(t) + 0.08 * Math.sin(t * 2.7 + 1.3);
   }

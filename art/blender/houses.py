@@ -6,10 +6,11 @@ Walls are solid slabs round their openings (doorways and windows), each with an 
 planks and an inner skin of logs, so the pen's outline (an inverted hull) works from inside a room
 as from outside it: a closed box would turn to ink all round anyone standing in it.
 
-Each house comes in parts: its body, the windows that light up at night (`_glow`), its room's
-inside (`_inside`, drawn only near), and a light version of its roof and walls for seeing from
-afar (`_far`). Coordinates are Blender's: Z up, each building faces -Y and stands on its origin.
-What each tells the game is in the game's frame (x across, z toward the front, y up), which is
+Each house comes in parts: its body, its room's lantern that lights up at night and lights the room
+(`_lamp`), the window panes that glow at night seen from outside and are clear from inside
+(`_pane`), its room's inside (`_inside`, drawn only near), and a light version of its roof and walls
+for seeing from afar (`_far`). Coordinates are Blender's: Z up, each building faces -Y and stands on
+its origin. What each tells the game is in the game's frame (x across, z toward the front, y up), which is
 Blender's (x, -y, z): `blocks` (what stops walkers and the camera, each over a range of heights),
 `decks` (floors, porches and stairs to walk on; a deck with `front` rises or falls to that height at
 its front edge, like a ramp) and `labels` (faces for painted words).
@@ -174,6 +175,26 @@ def quad(centre, along, normal, length, width):
     return bm
 
 
+# How far out of the wall's middle a window pane stands: clear of where the wall's two skins meet,
+# which its edges reach into.
+PANE_OUT = 0.005
+
+
+def pane(centre, along, out, length, height):
+    """A window pane: one sheet near the wall's middle facing `out`, so it glows seen from outside
+    while from inside, where it is turned away and not drawn, the window shows what is beyond."""
+    return quad(centre, along, out, length, height)
+
+
+def paper_lantern(x, y, top, lz, pieces, glow):
+    """A paper lantern hanging on a rope from `top` with its middle at `lz`, banded top and bottom,
+    lit at night."""
+    pieces.append((log(V(x, y, top), V(x, y, lz + 0.2), 0.01, segments=4), C["rope"]))
+    for dz in (0.19, -0.19):
+        pieces.append((P.segment_bm(V(x, y, lz + dz - 0.02), V(x, y, lz + dz + 0.02), 0.08, 0.08, 10), C["frame"]))
+    glow.append((L.ellipsoid_bm(V(x, y, lz), (0.17, 0.17, 0.2), u=10, v=6), C["paperLantern"]))
+
+
 # ---------------------------------------------------------------------------- walls
 def solid_rects(length, height, openings):
     """The solid parts of a wall `length` long and `height` high with rectangular openings
@@ -332,10 +353,10 @@ class Wall:
                             colour))
         return out
 
-    def window(self, opening, glow):
+    def window(self, opening, panes):
         """A window in one of the wall's openings, as the film's: a heavy board frame with a deep
         sill outside, green panes that light up at night with two thin bars down them, a double
-        white zigzag over them outside and a cross frame inside."""
+        white zigzag over them outside and a cross frame inside. The panes go into `panes`."""
         u0, u1, v0, v1 = opening
         w, h = u1 - u0, v1 - v0
         uc, vc = (u0 + u1) / 2, (v0 + v1) / 2
@@ -349,8 +370,7 @@ class Wall:
                         (self.point(u0 - (bar - e) / 2, vc, -0.035), (bar + e, 0.09, h)),
                         (self.point(u1 + (bar - e) / 2, vc, -0.035), (bar + e, 0.09, h))):
             out.append((oriented_box(c, self.d, self.inward, size), C["frame"]))
-        glow.append((oriented_box(self.point(uc, vc, self.t / 2), self.d, self.inward, (w + 2 * e, 0.02, h + 2 * e)),
-                     C["glass"]))
+        panes.append((pane(self.point(uc, vc, self.t / 2 - PANE_OUT), self.d, -self.inward, w + 2 * e, h + 2 * e), C["glass"]))
         for f in (1 / 3, 2 / 3):
             out.append((oriented_box(self.point(u0 + w * f, vc, self.t / 2 - 0.014), self.d, self.inward,
                                      (0.025, 0.012, h + e)), C["frame"]))
@@ -695,12 +715,8 @@ def furnish(room, floor, ceiling, glow):
     for (ox, oy), colour in (((0.0, -0.66), C["cushion"]), ((0.66, 0.05), C["cloth"]), ((-0.6, 0.1), C["blanket"])):
         out.append((L.ellipsoid_bm(V(tx + ox, ty + oy, floor + 0.05), (0.24, 0.24, 0.05), u=12, v=5), colour))
     keep_out_round(tx, ty, 0.46, 0.4)
-    # A paper lantern hanging over the table, lit at night.
-    lz = ceiling - 0.62
-    out.append((log(V(tx, ty, ceiling), V(tx, ty, lz + 0.2), 0.01, segments=4), C["rope"]))
-    for dz in (0.19, -0.19):
-        out.append((P.segment_bm(V(tx, ty, lz + dz - 0.02), V(tx, ty, lz + dz + 0.02), 0.08, 0.08, 10), C["frame"]))
-    glow.append((L.ellipsoid_bm(V(tx, ty, lz), (0.17, 0.17, 0.2), u=10, v=6), C["paperLantern"]))
+    # A paper lantern hanging over the table, lit at night: the room's light.
+    paper_lantern(tx, ty, ceiling, ceiling - 0.62, out, glow)
     # A potted plant by the door.
     px, py = x1 - 0.35, y0 + 0.38
     out.append((P.segment_bm(V(px, py, floor), V(px, py, floor + 0.3), 0.14, 0.18, 10), C["pot"]))
@@ -722,7 +738,7 @@ def build_stilt_hut(name, pattern, collection):
     porch = -yo - 1.2
     stairs_end = porch - 1.3
     door = 0.68                           # half the doorway's width
-    pieces, glow, inside = [], [], []
+    pieces, glow, panes, inside = [], [], [], []
 
     sill, head = 0.92, 2.3                # the windows' bottom and top, above the floor, up to the top rail
     front = Wall((-xo, -yo + t / 2), (xo, -yo + t / 2), floor, wall_h, t,
@@ -740,7 +756,7 @@ def build_stilt_hut(name, pattern, collection):
             pieces.extend(wall.rail(v, r, C["log"]))
         for o in wall.openings:
             if o[2] > 0.1:
-                pieces.extend(wall.window(o, glow))
+                pieces.extend(wall.window(o, panes))
 
     # Thick log posts at the corners and either side of the door, from the ground to the roof.
     for x, y in ((-xo, -yo), (xo, -yo), (-xo, yo), (xo, yo)):
@@ -795,7 +811,8 @@ def build_stilt_hut(name, pattern, collection):
     far.append((P.box_bm(V(0.0, (porch + yo) / 2, floor / 2 - 0.1), (2 * xo, yo - porch, floor + 0.2)), C["logDark"]))
 
     body = P.join(name, pieces, collection, sharp=P.SHARP)
-    lights = P.join(f"{name}_glow", glow, collection)
+    lights = P.join(f"{name}_lamp", glow, collection)
+    glass = P.join(f"{name}_pane", panes, collection)
     room = P.join(f"{name}_inside", inside, collection, sharp=P.SHARP)
     distant = P.join(f"{name}_far", far, collection, sharp=P.SHARP)
     under = floor - 0.25
@@ -816,7 +833,7 @@ def build_stilt_hut(name, pattern, collection):
     blocks += [{"circle": [*g(at.x, at.y), 0.2], "y": [floor - 0.1, floor + 0.6], "walk": True, "camera": False}
                for at, _ in pots]
     decks = [deck_box(-xo + 0.1, xo - 0.1, porch, yi, floor), deck_box(-0.62, 0.62, stairs_end, porch, floor, 0.02)]
-    return [body, lights, room, distant], {"blocks": blocks, "decks": decks, "height": eave + 2.8}
+    return [body, lights, glass, room, distant], {"blocks": blocks, "decks": decks, "height": eave + 2.8}
 
 
 # ---------------------------------------------------------------------------- the plank hut
@@ -830,7 +847,7 @@ def build_plank_hut(name, collection):
     step = -yo - 0.6
     ramp_end = step - 0.6
     door = 0.65
-    pieces, glow, inside = [], [], []
+    pieces, glow, panes, inside = [], [], [], []
     sill, head = 0.85, 1.85
     front = Wall((-xo, -yo + t / 2), (xo, -yo + t / 2), floor, wall_h, t, [(xo - door, xo + door, 0.0, 1.95)])
     back = Wall((xo, yo - t / 2), (-xo, yo - t / 2), floor, wall_h, t, [(xo - 0.45, xo + 0.45, sill, head)])
@@ -845,7 +862,7 @@ def build_plank_hut(name, collection):
             pieces.extend(wall.rail(v, r, C["log"]))
         for o in wall.openings:
             if o[2] > 0.1:
-                pieces.extend(wall.window(o, glow))
+                pieces.extend(wall.window(o, panes))
     for x, y in ((-xo, -yo), (xo, -yo), (-xo, yo), (xo, yo)):
         pieces.append((log(V(x, y, -0.2), V(x, y, floor + wall_h), 0.18, segments=10), C["log"]))
     for x in (-door - 0.12, door + 0.12):
@@ -871,7 +888,8 @@ def build_plank_hut(name, collection):
     far = [hip_roof(*roof, subdivide=False)]
     far += [w.far(C["plank"]) for w in (front, back, left, right)]
     body = P.join(name, pieces, collection, sharp=P.SHARP)
-    lights = P.join(f"{name}_glow", glow, collection)
+    lights = P.join(f"{name}_lamp", glow, collection)
+    glass = P.join(f"{name}_pane", panes, collection)
     room = P.join(f"{name}_inside", inside, collection, sharp=P.SHARP)
     distant = P.join(f"{name}_far", far, collection, sharp=P.SHARP)
     blocks = [
@@ -883,7 +901,7 @@ def build_plank_hut(name, collection):
     blocks += [{"circle": [*g(at.x, at.y), 0.2], "y": [floor - 0.1, floor + 0.6], "walk": True, "camera": False}
                for at, _ in pots]
     decks = [deck_box(-xo + 0.1, xo - 0.1, step, yi, floor), deck_box(-0.8, 0.8, ramp_end, step, floor, 0.02)]
-    return [body, lights, room, distant], {"blocks": blocks, "decks": decks, "height": roof[6]}
+    return [body, lights, glass, room, distant], {"blocks": blocks, "decks": decks, "height": roof[6]}
 
 
 # ---------------------------------------------------------------------------- the guest houses
@@ -915,24 +933,45 @@ def cut_log(a, b, radius, colour, end_colour, pieces, ends=(True, True)):
         pieces.append((exact_log(b2, b, radius * 0.94), end_colour))
 
 
-def gable_bm(y, half, z0, z1, thickness):
+def gable_bm(y, half, z0, z1, thickness, hole=None):
     """A gable: a triangle over x -half..half from z0 up to z1 at its middle, `thickness` deep from y
-    toward +y."""
+    toward +y, with a square `hole` (its middle's height, half its width) through it for a window."""
     bm = bmesh.new()
-    front = [bm.verts.new((-half, y, z0)), bm.verts.new((half, y, z0)), bm.verts.new((0.0, y, z1))]
-    back = [bm.verts.new((v.co.x, y + thickness, v.co.z)) for v in front]
-    bm.faces.new(front)
-    bm.faces.new(list(reversed(back)))
-    for i in range(3):
-        j = (i + 1) % 3
-        bm.faces.new((front[i], back[i], back[j], front[j]))
+
+    def rim(points):
+        front = [bm.verts.new((x, y, z)) for x, z in points]
+        return front, [bm.verts.new((v.co.x, y + thickness, v.co.z)) for v in front]
+
+    if hole is None:
+        (front, back) = rim([(-half, z0), (half, z0), (0.0, z1)])
+        faces = [[0, 1, 2]]
+        holes = []
+    else:
+        hz, hw = hole
+        lo, hi = hz - hw, hz + hw
+        edge = lambda z: half * (z1 - z) / (z1 - z0)  # noqa: E731
+        # The outline, met by the hole's top and bottom, then the hole: shared corners, so no face
+        # lies between the pieces round the hole.
+        (front, back) = rim([(-half, z0), (half, z0), (edge(lo), lo), (edge(hi), hi), (0.0, z1), (-edge(hi), hi),
+                             (-edge(lo), lo), (-hw, lo), (hw, lo), (hw, hi), (-hw, hi)])
+        faces = [[0, 1, 2, 8, 7, 6], [2, 3, 9, 8], [3, 4, 5, 10, 9], [6, 7, 10, 5]]
+        holes = [7, 8, 9, 10]
+    outline = list(range(len(front) - len(holes)))
+    for face in faces:
+        bm.faces.new([front[i] for i in face])
+        bm.faces.new([back[i] for i in reversed(face)])
+    for ring in (outline, holes):
+        for i, a in enumerate(ring):
+            b = ring[(i + 1) % len(ring)]
+            bm.faces.new((front[a], back[a], back[b], front[b]))
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
     return bm
 
 
-def grid_window(wall, opening, glow, cols, rows, pieces, inside):
+def grid_window(wall, opening, panes, cols, rows, pieces, inside):
     """A window in one of a log wall's openings, as the guest houses' are: a dark board frame with a
-    deep sill outside, panes that light up at night, a grid of bars across them, a frame inside."""
+    deep sill outside, panes that light up at night (into `panes`), a grid of bars across them, a
+    frame inside."""
     u0, u1, v0, v1 = opening
     w, h = u1 - u0, v1 - v0
     uc, vc = (u0 + u1) / 2, (v0 + v1) / 2
@@ -942,7 +981,7 @@ def grid_window(wall, opening, glow, cols, rows, pieces, inside):
                     (wall.point(u0 - (bar - e) / 2, vc, -0.06), (bar + e, 0.12, h)),
                     (wall.point(u1 + (bar - e) / 2, vc, -0.06), (bar + e, 0.12, h))):
         pieces.append((oriented_box(c, wall.d, wall.inward, size), C["frame"]))
-    glow.append((oriented_box(wall.point(uc, vc, wall.t / 2), wall.d, wall.inward, (w + 2 * e, 0.02, h + 2 * e)), C["glass"]))
+    panes.append((pane(wall.point(uc, vc, wall.t / 2 - PANE_OUT), wall.d, -wall.inward, w + 2 * e, h + 2 * e), C["glass"]))
     for k in range(1, cols):
         pieces.append((oriented_box(wall.point(u0 + w * k / cols, vc, wall.t / 2 - 0.02), wall.d, wall.inward,
                                     (0.035, 0.016, h + e)), C["frame"]))
@@ -1013,7 +1052,7 @@ def build_guest_house(name, style, collection):
     ridge = eave + xo * math.tan(pitch)
     over, gable_over = 0.45, 0.4
     door = 0.45
-    pieces, glow, inside = [], [], []
+    pieces, glow, panes, inside = [], [], [], []
     sill, head = 0.85, 1.6
     front = Wall((-xo, -yo + t / 2), (xo, -yo + t / 2), floor, wall_h, t, [(xo - door, xo + door, 0.0, 1.85)])
     back = Wall((xo, yo - t / 2), (-xo, yo - t / 2), floor, wall_h, t, [(xo - 0.5, xo + 0.5, sill, head)])
@@ -1042,7 +1081,7 @@ def build_guest_house(name, style, collection):
                 cut_log(wall.point(start, v, -0.03), wall.point(end, v, -0.03), r, C["guestLog"], C["guestLogEnd"], pieces)
         for o in wall.openings:
             if o[2] > 0.1:
-                grid_window(wall, o, glow, 3, 3, pieces, inside)
+                grid_window(wall, o, panes, 3, 3, pieces, inside)
     # The door's frame, and the plank door open into the room against the wall beside it, a diamond
     # window and a long handle on it.
     e = 0.004
@@ -1088,7 +1127,11 @@ def build_guest_house(name, style, collection):
     for sign in (-1.0, 1.0):
         # Its face as far out as the logs' middles, reaching back into the wall.
         y_face = sign * (yo + 0.1)
-        pieces.append((gable_bm(y_face if sign < 0 else y_face - 0.18, xo, eave - 0.02, ridge - 0.04, 0.18), gable_colour))
+        wz = eave + rise * 0.42
+        # A real window through it, its frame lapping over the hole's edges, so from inside the room
+        # (open up to the roof) it shows the night as the walls' windows do.
+        pieces.append((gable_bm(y_face if sign < 0 else y_face - 0.18, xo, eave - 0.02, ridge - 0.04, 0.18,
+                                hole=(wz, 0.27)), gable_colour))
         out = V(0.0, sign, 0.0)
         face_y = y_face + sign * 0.012
         for k in range(3):
@@ -1100,13 +1143,12 @@ def build_guest_house(name, style, collection):
             for sx in (-1.0, 1.0):
                 p, q = V(0.0, face_y, top_z), V(sx * half, face_y, eave + 0.06)
                 pieces.append((oriented_box((p + q) / 2, q - p, out, ((q - p).length, 0.012, 0.07)), chevron))
-        wz = eave + rise * 0.42
         for c, size in ((V(0.0, y_face + sign * 0.03, wz + 0.29), (0.68, 0.05, 0.08)),
                         (V(0.0, y_face + sign * 0.03, wz - 0.29), (0.68, 0.05, 0.08)),
                         (V(-0.3, y_face + sign * 0.03, wz), (0.08, 0.05, 0.5)),
                         (V(0.3, y_face + sign * 0.03, wz), (0.08, 0.05, 0.5))):
             pieces.append((P.box_bm(c, size), C["frame"]))
-        glow.append((P.box_bm(V(0.0, y_face + sign * 0.022, wz), (0.52, 0.012, 0.52)), C["glass"]))
+        panes.append((pane(V(0.0, y_face + sign * 0.022, wz), V(1, 0, 0), out, 0.54, 0.54), C["glass"]))
         for c, size in ((V(0.0, y_face + sign * 0.03, wz), (0.03, 0.03, 0.5)), (V(0.0, y_face + sign * 0.03, wz), (0.5, 0.03, 0.03))):
             pieces.append((P.box_bm(c, size), C["frame"]))
     # The roof: two slabs of wooden shingles, their rows drawn along them, over a log at the ridge,
@@ -1120,17 +1162,39 @@ def build_guest_house(name, style, collection):
         normal = V(sx * math.sin(pitch), 0.0, math.cos(pitch))
         top_edge = V(0.0, 0.0, ridge) - down * 0.06
         centre = top_edge + down * (length / 2) + normal * (thick / 2)
-        slab = oriented_box(centre, down, V(0, 1, 0), (length, depth, thick))
-        pieces.append((slab, roof_colour))
         far.append((oriented_box(centre, down, V(0, 1, 0), (length, depth, thick)), roof_colour))
+        # The window in the right slope goes through it: a hole `hole_s` down the slope and `hole_y`
+        # along it (each from, to), under a frame round it.
+        hole_s = (length * 0.5 - 0.3, length * 0.5 + 0.3) if sx > 0 else None
+        hole_y = (0.45, 0.95)
+
+        def slab_piece(s0, s1, y0, y1):
+            mid = top_edge + down * ((s0 + s1) / 2) + V(0.0, (y0 + y1) / 2, 0.0) + normal * (thick / 2)
+            pieces.append((oriented_box(mid, down, V(0, 1, 0), (s1 - s0, y1 - y0, thick)), roof_colour))
+
+        if hole_s:
+            slab_piece(0.0, hole_s[0], -depth / 2, depth / 2)
+            slab_piece(hole_s[1], length, -depth / 2, depth / 2)
+            slab_piece(hole_s[0], hole_s[1], -depth / 2, hole_y[0])
+            slab_piece(hole_s[0], hole_s[1], hole_y[1], depth / 2)
+        else:
+            slab_piece(0.0, length, -depth / 2, depth / 2)
         rows = int(length / 0.24)
         for k in range(1, rows):
-            c = top_edge + down * (length * k / rows) + normal * (thick + 0.012)
-            pieces.append((oriented_box(c, V(0, 1, 0), normal, (depth - 0.02, 0.012, PEN)), roof_line))
-        if sx > 0:
+            at = length * k / rows
+            # A row across the hole stops under the frame either side of it.
+            spans = ([(-depth / 2 + 0.01, hole_y[0] - 0.02), (hole_y[1] + 0.02, depth / 2 - 0.01)]
+                     if hole_s and hole_s[0] - 0.05 < at < hole_s[1] + 0.05 else [(-depth / 2 + 0.01, depth / 2 - 0.01)])
+            for y0, y1 in spans:
+                c = top_edge + down * at + V(0.0, (y0 + y1) / 2, 0.0) + normal * (thick + 0.012)
+                pieces.append((oriented_box(c, V(0, 1, 0), normal, (y1 - y0, 0.012, PEN)), roof_line))
+        if hole_s:
             c = top_edge + down * (length * 0.5) + V(0.0, 0.7, 0.0) + normal * (thick + 0.045)
-            pieces.append((oriented_box(c, down, V(0, 1, 0), (0.82, 0.72, 0.1)), C["frame"]))
-            glow.append((oriented_box(c + normal * 0.04, down, V(0, 1, 0), (0.66, 0.56, 0.03)), C["glass"]))
+            # The frame laps 1 cm in over the hole, so its sides stand clear of the hole's.
+            for at, size in ((down * 0.35, (0.12, 0.72, 0.1)), (down * -0.35, (0.12, 0.72, 0.1)),
+                             (V(0.0, 0.3, 0.0), (0.58, 0.12, 0.1)), (V(0.0, -0.3, 0.0), (0.58, 0.12, 0.1))):
+                pieces.append((oriented_box(c + at, down, V(0, 1, 0), size), C["frame"]))
+            panes.append((pane(c + normal * 0.04, down, normal, 0.66, 0.56), C["glass"]))
             for k in (-1, 1):
                 pieces.append((oriented_box(c + normal * 0.06 + down * (0.11 * k), V(0, 1, 0), normal, (0.62, 0.03, 0.02)),
                                C["frame"]))
@@ -1138,15 +1202,18 @@ def build_guest_house(name, style, collection):
                                C["frame"]))
     pieces.append((log(V(0.0, -yo - gable_over - 0.05, ridge + 0.05), V(0.0, yo + gable_over + 0.05, ridge + 0.05), 0.09,
                        segments=10), C["logDark"]))
-    # Inside, nothing but a red hammock slung from wall to wall before the window opposite the door.
+    # Inside, nothing but a red hammock slung from wall to wall before the window opposite the door,
+    # and a paper lantern hanging from the ridge over the middle of the room, lit at night.
     hammock(-xi, xi, yi - 0.6, floor + 1.75, floor + 1.15, 0.75, inside)
+    paper_lantern(0.0, -0.4, ridge + 0.05, floor + 2.25, pieces, glow)
     far += [wall.far(C["guestLog"]) for wall in walls]
     for sign in (-1.0, 1.0):
         far.append((gable_bm(sign * (yo + 0.1) - (0.2 if sign > 0 else 0.0), xo, eave - 0.02, ridge - 0.04, 0.2), gable_colour))
     far.append((P.box_bm(V(0.0, 0.0, (floor - 0.3) / 2), (2 * xo, 2 * yo, floor + 0.3)), C["logDark"]))
 
     body = P.join(name, pieces, collection, sharp=P.SHARP)
-    lights = P.join(f"{name}_glow", glow, collection)
+    lights = P.join(f"{name}_lamp", glow, collection)
+    glass = P.join(f"{name}_pane", panes, collection)
     room = P.join(f"{name}_inside", inside, collection, sharp=P.SHARP)
     distant = P.join(f"{name}_far", far, collection, sharp=P.SHARP)
     blocks = [
@@ -1160,7 +1227,7 @@ def build_guest_house(name, style, collection):
         block_box(0.62, 0.75, steps_end, -yo, -0.2, floor, camera=False),
     ]
     decks = [deck_box(-xi, xi, -yo - 0.02, yi, floor), deck_box(-0.6, 0.6, steps_end, -yo - 0.02, floor, 0.02)]
-    return [body, lights, room, distant], {"blocks": blocks, "decks": decks, "height": ridge + 0.2}
+    return [body, lights, glass, room, distant], {"blocks": blocks, "decks": decks, "height": ridge + 0.2}
 
 
 # ---------------------------------------------------------------------------- 島二郎
