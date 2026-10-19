@@ -25,7 +25,10 @@ shows the painting, and the rest keep their typed words.
 
 A stall's canvas is its board's whole front, so a stall sign fills its board
 edge to edge with no board showing round it. A stall sign painted at the old
-size, 1440 × 496, has the same shape and fills it too.
+size, 1440 × 496, has the same shape and fills it too. The game shows a
+stall's sign on the board across its front and again on the boards down
+both its sides, as the film's stalls repeat theirs, so one painting serves
+all three.
 
 `_guides/` lists every stall with its words and board colour. In the game the
 arch's board and all three banners curve. Paint them flat, and the game bends
@@ -41,7 +44,7 @@ them.
    - **Leave it transparent:** the board's own colour shows through, lit
      and shaded with the rest of the stall.
    - **Paint the whole board:** use your own colour, solid right to the
-     canvas edges. On a stall, the board's top and ends take that colour
+     canvas edges. On a stall, the boards' tops and ends take that colour
      too, the middling colour of your painting's edge, so they match your
      sign. This works for stalls only; the arch and banners keep their own
      colour round a painting.

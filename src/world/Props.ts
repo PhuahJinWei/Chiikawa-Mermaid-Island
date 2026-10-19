@@ -28,6 +28,9 @@ export interface Placed {
   labels?: string[];
   /** A colour laid over its own (starfish come in several). */
   tint?: string;
+  /** What a stall sells, and the tools it is made with, on its counter and its work table: a prop
+   * of its own (goods_<this>) standing in it. */
+  goods?: string;
   /** Props in the same group are joined together and drawn near or far together; others are
    * grouped by patch of the island. */
   group?: string;
@@ -43,8 +46,8 @@ const UNLINED = new Set(['palm', 'starfish']);
  * rooms' insides only this close. */
 const NEAR_REACH = 75;
 const INSIDE_REACH = 32;
-/** Small props (within a metre and a half of their middle: baskets, pots, logs, starfish) are
- * drawn only this close. */
+/** Small props (within a metre and a half of their middle: baskets, pots, logs, starfish), and a
+ * stall's goods however far they spread over its counter and table, are drawn only this close. */
 const SMALL_SIZE = 1.5;
 const SMALL_REACH = 60;
 /** Painted words go into one atlas this size, as sharp as fits: at most LABEL_PIXELS pixels per
@@ -189,11 +192,21 @@ function placedGeometry(
 }
 
 /**
- * Paints every label's words into one texture, each in its own patch, and points its UVs there:
- * its hand-lettered sign where there is one, otherwise its words typed in the phone's own rounded
- * Japanese font, as the HUD uses, running across the face, or down a vertical one.
+ * Paints every label's words into one texture, each in its own patch (faces painted alike sharing
+ * one), and points its UVs there: its hand-lettered sign where there is one, otherwise its words
+ * typed in the phone's own rounded Japanese font, as the HUD uses, running across the face, or
+ * down a vertical one.
  */
-function paintLabels(labels: Label[], painted: Map<string, ImageBitmap>): THREE.CanvasTexture {
+function paintLabels(all: Label[], painted: Map<string, ImageBitmap>): THREE.CanvasTexture {
+  // Faces painted alike (a stall's sign on its front and on its two sides) share one patch.
+  const alike = new Map<string, Label[]>();
+  for (const label of all) {
+    const { size, vertical, colour } = label.info;
+    const look = `${label.key} ${size[0]} ${size[1]} ${vertical ?? false} ${colour ?? ''}`;
+    alike.set(look, [...(alike.get(look) ?? []), label]);
+  }
+  const faces = [...alike.values()];
+  const labels = faces.map((same) => same[0]);
   // Shelves, tallest labels first: left to right, then down. Lower the density until all fit.
   let sizes: number[][] = [];
   let places: [number, number][] = [];
@@ -266,10 +279,12 @@ function paintLabels(labels: Label[], painted: Map<string, ImageBitmap>): THREE.
       }
       g.restore();
     }
-    // Point the face's UVs (0..1 across and down it) at its patch.
-    const uv = label.geometry.getAttribute('uv');
-    for (let k = 0; k < uv.count; k++) {
-      uv.setXY(k, (px + uv.getX(k) * w) / ATLAS_WIDTH, (py + uv.getY(k) * h) / height);
+    // Point the faces' UVs (0..1 across and down each) at their patch.
+    for (const face of faces[i]) {
+      const uv = face.geometry.getAttribute('uv');
+      for (let k = 0; k < uv.count; k++) {
+        uv.setXY(k, (px + uv.getX(k) * w) / ATLAS_WIDTH, (py + uv.getY(k) * h) / height);
+      }
     }
   });
   const texture = new THREE.CanvasTexture(canvas);
@@ -312,7 +327,14 @@ export class Props {
   /** Where each flame, lit window and lantern is, for the firelight (see Firelight). */
   readonly fires: { position: THREE.Vector3; kind: FireKind }[] = [];
 
-  static async load(placed: Placed[], waterLevel: number): Promise<Props> {
+  static async load(layout: Placed[], waterLevel: number): Promise<Props> {
+    // A stall's goods stand in it, placed with it (after the layout's own, which keep their places
+    // in the list, and so the ferry its bobbing).
+    const goods = layout.filter((p) => p.goods);
+    const placed: Placed[] = [
+      ...layout,
+      ...goods.map((p) => ({ kind: `goods_${p.goods}`, x: p.x, z: p.z, turn: p.turn, scale: p.scale, y: p.y, group: p.group })),
+    ];
     const kinds = [...new Set(placed.map((p) => p.kind))];
     const signs = loadPaintedSigns();
     const models = new Map(await Promise.all(kinds.map(async (k) => [k, await loadPropModel(k)] as const)));
@@ -342,14 +364,14 @@ export class Props {
       const hasFar = model.parts.some((part) => part.role === 'far');
       const body = model.parts[0].geometry;
       if (!body.boundingSphere) body.computeBoundingSphere();
-      const small = (body.boundingSphere as THREE.Sphere).radius * scale < SMALL_SIZE;
+      const small = p.kind.startsWith('goods_') || (body.boundingSphere as THREE.Sphere).radius * scale < SMALL_SIZE;
       const key = p.group ?? `${Math.floor(p.x / PATCH)},${Math.floor(p.z / PATCH)}`;
       const words = p.labels ?? (p.label ? [p.label] : []);
       const labelInfos = model.info.labels ?? (model.info.label ? [model.info.label] : []);
       for (const part of model.parts) {
         if (part.role === 'label') {
-          const text = words[part.index];
           const info = labelInfos[part.index];
+          const text = words[info?.repeat ?? part.index];
           if (text && info) {
             labels.push({
               geometry: placedGeometry(part.geometry, matrix, null, true),

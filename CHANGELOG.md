@@ -85,9 +85,11 @@ stage, and along every path. Not yet checked on a real phone.
   across its far end facing back toward the arch, either side of the path
   on to the village; past them the street's ground runs on as open sand.
   The whole festival stands on level ground; the path climbs to the
-  jungle only past the street's end. Twenty-eight stalls in all under
-  signboards (じゃがバター, たこ焼き, いか焼き, りんごアメ, ケバブ, 冷しパイン,
-  わたあめ, クレープ, やきそば, かき氷 and more), bunting with
+  jungle only past the street's end. Twenty-eight stalls in all, square
+  booths under signboards across their fronts and down their sides
+  (じゃがバター, たこ焼き, いか焼き, りんごアメ, ケバブ, 冷しパイン,
+  わたあめ, クレープ, やきそば, かき氷 and more), each with what it sells
+  and its tools on its counter and work table, bunting with
   paper lanterns strung along the beach rows, from pole to pole down both
   sides of the street and across it, white banners reading いらっしゃいませ!!
   and たのしんでね tied by ropes to the street's poles, poles of pink
@@ -176,8 +178,9 @@ stage, and along every path. Not yet checked on a real phone.
   draw it too, where they stand in the water, the sea's or the pool's.
 - Hand-lettered signboards, as the film's are. Every sign the game types
   words on has a template to paint over in `art/signs/_guides/`: each
-  stall's header board, the arch's board and banner, and the street's
-  banners. A template is the sign's lettering area at 800 pixels a metre
+  stall's header board (painted once, it shows on the board across its
+  front and on those down both its sides), the arch's board and banner,
+  and the street's banners. A template is the sign's lettering area at 800 pixels a metre
   (a stall's is its board's whole face, so its sign fills it edge to edge),
   in its board's colour, with the typed words faint on it. A transparent
   PNG painted over a template and saved in `art/signs/` takes the place of
@@ -220,7 +223,8 @@ outlined is drawn twice, once for its pen line. To get there:
   leaves, the rocks' crowns and the canopy have fewer triangles than at
   first.
 - Every sign's words share one 2048 x 1024 texture, packed tallest first,
-  as sharp as fits.
+  as sharp as fits; faces painted alike (a stall's three boards) share one
+  patch of it.
 - Props that never move are joined into a few meshes per group (the
   festival, the village) or patch of the island, with one outline each.
 - Plants planted many times are kept once each in the plants file, with
@@ -269,11 +273,57 @@ outlined is drawn twice, once for its pen line. To get there:
   as they are: beyond 140 m the far canopy costs about 1 ms and the
   island's vistas need it, and nothing cheaper draws the leaves the same,
   so they are the graphics setting's to trim.
+- The festival's stalls are square and roomy, as the film's are: 2.4 m
+  deep where they had been 1.5, as deep as they are wide, their fronts
+  where they stood (each booth reaches further back), with a work table
+  along the back wall and about a metre and a half for its keeper between
+  it and the counter. Their header boards run down both sides as well as
+  across the front, the scalloped trim along all three, and each stall's
+  sign shows on all three boards, as the film repeats it on a stall's
+  sides. Each stall has what it sells and the tools it is made with on
+  its counter and its table, as its own prop (`goods_<kit>`, from
+  `art/blender/stall_goods.py`, placed with the stall by the layout's
+  `goods`): two doner spits glowing on the kebab stall's table, its pitas,
+  sauces and cutting board; the candy-floss machine's open tub and its
+  bags hung along the back; pancakes on the okonomiyaki griddle with
+  bottles of water, oil and soy sauce, a box of chopsticks, trays of
+  spring onion and red ginger and stacked foam boxes; takoyaki browning in
+  their plate; candied apples and chocolate bananas on sticks; jars of
+  juice; ramune cooling in a tub of water; a beer server and kegs; fryers;
+  charcoal grills of yakitori, squid, scallops and sausages; crêpe and
+  baby-castella griddles; rainbow ice cream; an ice shaver and its syrups;
+  and the rest, 25 kits in all. Tall things stand to the counter's sides
+  and at the back, so the keeper shows over its middle. The goods are
+  drawn near, as small props are, about 52,000 triangles over the 28
+  stalls: within the GPU timer's noise on the festival street, 0.3 ms on
+  the beach row. The street's stalls, banners, bunting, lantern poles and
+  baskets stand a metre further inland, so the deeper stalls of the beach
+  rows keep a metre from the street's first; the alleys behind the stalls
+  begin behind their new backs, and nothing grows within 0.6 m of a stall.
+  Only five plants are gone; the rest of the jungle is planted just as
+  before. Every keeper can still step up onto the floor behind their
+  counter and every customer stand at it.
 - The log benches' cut ends can no longer flicker. Their inked rim, pale
   wood and inked growth ring had been discs stacked 2 mm apart, close
   enough that from afar the nearer could flicker with the one behind; now
   they are bands side by side in the end's one flat face, looking just as
   before.
+- The village's two round beehive huts are dressed as its other huts are:
+  their straw domes hang in three tiers of thatch, each with a ragged,
+  wavy hem, under a topknot tied round with rope; thick log posts stand
+  round the pale mud wall, with log rails along its foot and top and flat
+  stones round its foot; a plank door in a log frame with a lintel and
+  a dark C-shaped handle, a step stone before it, small barred windows
+  either side, and a potted succulent by the door. No palm grows up
+  through them any longer, and no bush under their eaves: the palms and
+  bushes planted round the big huts nearby had reached them, and nothing
+  now grows within 3 metres of a beehive's middle. Only those four plants
+  are gone; the rest of the jungle is planted just as before.
+- The paths are trodden only off the sand. The path from the festival's
+  plaza to the night beach had been painted across the beach as packed
+  earth, which the film look's brushwork drew as a long dark smear; the
+  beach is plain sand now, as the film's beaches are, and each path begins
+  where the grass does. The jungle is planted just as before.
 - The duck ferry is round all over, as the film's is. Where the bow met
   the deck its side had stood up a metre wider within a stride, which left
   a ridge and a dent round the front of the hull; the bow now swells into

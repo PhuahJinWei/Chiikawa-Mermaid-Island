@@ -203,17 +203,28 @@ Scale unit: **1 = Chiikawa's height.**
   roof about twice as wide as the tower. Tiki torches stand in a row in
   front of it.
 - Sandy packed-earth paths with scattered confetti during the festival.
-- Festival stalls along the beach front: booths a step apart on thin
-  posts under a flat roof, a deep coloured header board for the name
-  (pink crêpe stall, purple, orange), about three times as long as it is
-  deep, its hand-lettered sign covering its whole face, with a scalloped
-  trim in white, yellow or blue and paper lanterns hanging under it, a
-  back wall of upright stripes in warm red-orange shades, and a counter as
-  tall as the cast, framed in pale grey with white menu tags hanging off
-  it. The booth is wide, so the tall counter reads long and low: about two
-  and a half times as wide as the counter is tall. The islander keeping a
-  stall stands on a raised floor behind its counter, their head showing
-  over it, the board above them. Triangle bunting strung between palms
+- Festival stalls along the beach front: square, roomy booths, as deep as
+  they are wide, a step apart on thin posts under a flat roof, with deep
+  coloured header boards for the name (pink crêpe stall, purple, orange)
+  across the front and down both sides, each about three times as long as
+  it is deep, the hand-lettered sign covering each board's whole face (the
+  sides repeat the front's), with a scalloped trim in white, yellow or
+  blue along their bottoms and paper lanterns hanging under the front; a
+  back wall of upright stripes in warm red-orange shades with a work table
+  along it, and a counter as tall as the cast, framed in pale grey with
+  white menu tags hanging off it. The booth is wide, so the tall counter
+  reads long and low: about two and a half times as wide as the counter is
+  tall. The islander keeping a stall stands on a raised floor behind its
+  counter, their head showing over it, the board above them.
+- Each stall has its own things on its counter and work table, after what
+  it sells: a kebab stall's two tall doner spits on the table behind its
+  counter with their heaters glowing behind them; a candy-floss stall's
+  steel spinning tub, and its bags of floss in bright colours hanging along
+  the back; a griddle stall's pancakes on the griddle, squeeze bottles of
+  sauce, bottles of water, oil and soy sauce, a box of chopsticks, trays of
+  spring onion and red ginger and stacked white foam takeaway boxes. The
+  tall things stand to the sides and at the back, so the keeper's face
+  shows over the counter. Triangle bunting strung between palms
   and, along the festival street, from tall poles standing between the
   stalls, two strings sagging from each pole to the next.
 - The signboards are hand-lettered: chunky, rounded letters filling the

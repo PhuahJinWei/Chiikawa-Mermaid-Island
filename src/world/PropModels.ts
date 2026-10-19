@@ -4,11 +4,13 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 /** Props the game's code asks for by name (the rest are placed by the layout file). */
 export type PropId = 'onigiri';
 
-/** A face for painted words: its size in metres, whether they run down rather than across, their colour. */
+/** A face for painted words: its size in metres, whether they run down rather than across, their
+ * colour, and the face whose words it repeats (a stall's side boards repeat its front's). */
 export interface LabelInfo {
   size: [number, number];
   vertical?: boolean;
   colour?: string;
+  repeat?: number;
 }
 
 /**

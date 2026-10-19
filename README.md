@@ -106,8 +106,9 @@ add layers, change the combinations, and rebuild. See
 [art/faces/README.md](art/faces/README.md). Rebuilding never changes those
 files.
 
-The signboards can be hand-lettered too: each stall's header board, the
-arch's board and banner, and the street's banners. Each has a template in
+The signboards can be hand-lettered too: each stall's header boards (one
+painting shows across its front and down both its sides), the arch's board
+and banner, and the street's banners. Each has a template in
 `art/signs/_guides/`. A transparent PNG painted over a template and saved in
 `art/signs/` takes the place of that sign's typed words. See
 [art/signs/README.md](art/signs/README.md). Rebuilding never changes those

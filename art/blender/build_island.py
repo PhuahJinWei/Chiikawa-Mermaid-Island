@@ -82,9 +82,10 @@ FESTIVAL = {"level": 0.5, "row": (-13.6, 0.0022), "rows_half": 30.0, "behind": 5
 # (centre, half sizes) behind the street's two rows and behind the row across its far end; and a
 # band behind the front rows, from `rows` (near, far) metres behind the line they follow, out to
 # `rows_half` either side; easing into the ground round them over `feather`. Plants keep `room`
-# metres further off.
-BACKS = {"boxes": [((-6.78, -29.6), (0.93, 15.5)), ((6.78, -29.6), (0.93, 15.5)), ((0.0, -45.95), (7.7, 0.95))],
-         "rows": (0.65, 2.5), "rows_half": 13.6, "feather": 0.6, "room": 0.8}
+# metres further off. The stalls are square now, as deep as they are wide, their fronts where they
+# were, so the alleys begin further back.
+BACKS = {"boxes": [((-7.45, -29.6), (0.6, 15.5)), ((7.45, -29.6), (0.6, 15.5)), ((0.0, -45.95), (7.7, 0.95))],
+         "rows": (0.65, 3.4), "rows_half": 13.6, "feather": 0.6, "room": 0.8}
 # The festival's stalls, banners, bunting, lantern poles and baskets as they stood when the jungle was
 # planted (kind, x, z, turn): its front rows of eight narrower stalls a side, a street of ten a side
 # with a row of four across its far end, and the banners, bunting, lantern poles and baskets among
@@ -316,6 +317,12 @@ PROP_ROOM = {"hut_green": 7.0, "hut_warm": 7.0, "hut_plank": 5.5, "beehive": 3.8
              "bunting_side": 1.0}
 # Plants crowd round the backs of the village's houses, this far from their middles.
 HUT_ROOM = {"hut_green": (5.6, 6.6), "hut_warm": (5.6, 6.6), "hut_plank": (4.4, 5.2), "beehive": (3.0, 3.6)}
+# Nothing is planted nearer a beehive hut's middle than this: its eave reaches 2.2 m, a bush 0.7 m
+# more, and a palm's trunk leans.
+BEEHIVE_CLEAR = 3.0
+# A stall's square, as its header boards run round it (half of it), and how far round that nothing
+# is planted: the stalls are deeper than when the jungle was planted round them.
+STALL_HALF, STALL_CLEAR = 1.25, 0.6
 
 
 def layout_props():
@@ -721,8 +728,11 @@ def paint(x, z, h, masks, normal_y, shade):
     t = smoothstep(0.3, 0.75, masks["village"])
     col = mix(col, earth, t)
     kind = mix(kind, mix(earth_k, grass_k, patches), t)
-    col = mix(col, c("path"), masks["path"])
-    kind = mix(kind, earth_k, masks["path"])
+    # The paths are trodden only off the sand: where one crosses the beach, the beach stays plain
+    # sand, as the film's beaches are, and the path begins where the grass does.
+    on = masks["path"] * m_grass
+    col = mix(col, c("path"), on)
+    kind = mix(kind, earth_k, on)
     # The festival's back alleys behind its stalls: packed sand, as its street.
     backs = smoothstep(0.3, 0.7, masks.get("backs", np.zeros_like(s)))
     col = mix(col, c("plaza"), backs)
@@ -1226,7 +1236,24 @@ def build_plants(collection, outlines):
     variants = PL.Variants()
     # Nothing grows on the festival's back alleys, or so near them its leaves reach over (see BACKS);
     # the jungle is planted just as before round them.
-    variants.keep_out = lambda x, z: float(stall_backs(np.array([x]), np.array([z]), BACKS["room"])[0]) > 0.02
+    # Nor under the round beehive huts' eaves: the palms and bushes planted round the big huts
+    # nearby had reached into them. Nor in or round the stalls as they stand now (see STALL_HALF).
+    # A plant is refused only after its place is drawn, so the jungle is planted just as before
+    # round them.
+    beehives = [(x, z) for kind, x, z, _ in props if kind == "beehive"]
+    stalls = [(x, z, math.radians(turn)) for kind, x, z, turn in layout_props() if kind.startswith("stall_")]
+
+    def keep_out(x, z):
+        if any(math.hypot(x - bx, z - bz) < BEEHIVE_CLEAR for bx, bz in beehives):
+            return True
+        reach = STALL_HALF + STALL_CLEAR
+        for sx, sz, turn in stalls:
+            dx, dz = x - sx, z - sz
+            if abs(dx * math.cos(turn) - dz * math.sin(turn)) < reach and abs(dx * math.sin(turn) + dz * math.cos(turn)) < reach:
+                return True
+        return float(stall_backs(np.array([x]), np.array([z]), BACKS["room"])[0]) > 0.02
+
+    variants.keep_out = keep_out
 
     def at(x, z):
         return float(ground_height(np.array([x]), np.array([z]))[0])
@@ -1522,9 +1549,9 @@ def build_plants(collection, outlines):
                 continue
             y = at(x, z) - 0.04
             shapes = kinds[pick]
-            variants.plant("under", shapes[int(rng.integers(0, len(shapes)))], x, y, z, rng.uniform(0, 2 * math.pi),
-                           rng.uniform(0.85, 1.25))
-            if pick == "bush":
+            grown = variants.plant("under", shapes[int(rng.integers(0, len(shapes)))], x, y, z,
+                                   rng.uniform(0, 2 * math.pi), rng.uniform(0.85, 1.25))
+            if pick == "bush" and grown:
                 flowers.append((x, y, z))
         if kind == "beehive":
             continue
@@ -1535,8 +1562,8 @@ def build_plants(collection, outlines):
             if grid_at(G, "path", x, z) < 1.5:
                 continue
             near, far = palms[int(rng.integers(0, len(palms)))]
-            variants.plant("palms", near, x, at(x, z) - 0.05, z, rng.uniform(0, 2 * math.pi), rng.uniform(0.85, 1.1), far)
-            trunks.append([round(x, 2), round(z, 2), 0.3])
+            if variants.plant("palms", near, x, at(x, z) - 0.05, z, rng.uniform(0, 2 * math.pi), rng.uniform(0.85, 1.1), far):
+                trunks.append([round(x, 2), round(z, 2), 0.3])
 
     # Blue butterflies flutter round flowering bushes, a few here and there; the nearer to the
     # festival and the village, the likelier.
@@ -1555,7 +1582,7 @@ def build_plants(collection, outlines):
                + variants.objects(collection))
     print(f"PLANTS: {len(trunks)} trunks, {len(crowns)} crowns, {rows} crop rows, understory {count}, "
           f"{len(homes)} butterflies, {len(variants.placed.get('palms', []))} palms, "
-          f"{variants.kept_out} kept off the festival's back alleys")
+          f"{variants.kept_out} kept off the festival's stalls and back alleys and the beehive huts")
     return objects, trunks, crowns, homes, variants.placed
 
 

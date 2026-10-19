@@ -1,7 +1,8 @@
 """Hand-lettered signboards: a template to paint each one over, and the paintings for the game.
 
-The game paints words on each signboard's label face (a festival stall's header board, the arch's
-board and its banner, the street's banners) in the phone's rounded font. Any of them can be
+The game paints words on each signboard's label face (a festival stall's header boards, the one
+across its front and the two down its sides showing the same sign, the arch's board and its
+banner, the street's banners) in the phone's rounded font. Any of them can be
 hand-lettered instead, as the film's are: a transparent PNG in art/signs/, painted over that
 sign's template in art/signs/_guides/. Both are named by the key of the sign's words in
 src/locales/ja.json, the template with the words after it ("stall.takoyaki たこやき.png"); a

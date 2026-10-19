@@ -32,6 +32,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import build_props as P  # noqa: E402
 import charlib as L  # noqa: E402
 import houses as H  # noqa: E402
+import stall_goods as SG  # noqa: E402
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 OUT_BLEND = os.path.join(ROOT, "art", "blender", "village.blend")
@@ -191,9 +192,25 @@ def scales_bm(centre, normal, width, rows, colours, size=0.26):
     return pieces
 
 
+# The round beehive hut: its mud wall's outline and its straw dome's, (radius, height) from the
+# ground, and the two tiers of thatch hung over the dome, each by the height of its hem and of
+# where it tucks under the tier above. Within its footprint (1.7 m round) and the jungle's room
+# round it (HUT_ROOM in build_island.py), so the planting never changes for it.
+BEEHIVE_WALL = [(0.0, 0.0), (1.62, 0.0), (1.61, 0.4), (1.59, 0.8), (1.57, 1.15), (0.0, 1.15)]
+BEEHIVE_ROOF = [(0.0, 1.0), (1.3, 1.0), (1.98, 0.98), (2.04, 1.1), (1.85, 1.6), (1.45, 2.25), (0.85, 2.75),
+                (0.3, 2.95), (0.0, 2.98)]
+BEEHIVE_TIERS = [(1.62, 2.3), (2.28, 2.8)]
+BEEHIVE_DOOR = 0.46   # half the doorway's width
+
+
 def build_beehive(collection):
-    """A round thatched hut: a low pale wall under a deep straw dome with an overhanging eave,
-    streaked with thatch, a straw topknot tied at the top, and a dark doorway."""
+    """A round thatched hut, as the village's others are dressed: a pale mud wall between thick log
+    posts, log rails round its foot and top and flat stones round its foot; a deep straw dome hung in
+    three tiers of thatch, each with a ragged, wavy hem, and a straw topknot tied round with rope; a
+    plank door in a log frame with a dark C-shaped handle and a step stone before it; small barred
+    windows either side; a potted succulent by the door. The door faces -Y."""
+    hc = H.C
+
     def thatch(angle, z, n):
         if n.z < -0.3:
             return C["thatchUnder"]
@@ -203,16 +220,89 @@ def build_beehive(collection):
     def mud(angle, z, n):
         return C["thatchDark"] if z < 0.06 else C["mud"]
 
-    wall = [(0.0, 0.0), (1.62, 0.0), (1.61, 0.4), (1.59, 0.8), (1.57, 1.15), (0.0, 1.15)]
-    roof = [(0.0, 1.0), (1.3, 1.0), (1.98, 0.98), (2.04, 1.1), (1.85, 1.6), (1.45, 2.25), (0.85, 2.75),
-            (0.3, 2.95), (0.0, 2.98)]
-    pieces = [profile_bm(wall, 8, 20, mud), profile_bm(roof, 18, 20, thatch)]
-    pieces.append((L.ellipsoid_bm(V(0.0, 0.0, 3.08), (0.24, 0.24, 0.3), u=10, v=7), C["straw"]))
-    pieces.append((P.segment_bm(V(0.0, 0.0, 2.98), V(0.0, 0.0, 3.06), 0.2, 0.2, segments=10), C["thatchDark"]))
-    # The doorway: a dark arch standing just proud of the wall's front.
-    pieces.append((arch_panel_bm(0.8, 0.95, 0.6, -1.67, 0.03), C["door"]))
-    body = join("beehive", pieces, collection)
-    return [body], {"footprint": {"circle": 1.7}, "height": 3.4}
+    def dome_radius(z):
+        """The dome's radius at height z, along its outline above the eave."""
+        upper = [(r, h) for r, h in BEEHIVE_ROOF if h >= 1.1]
+        for (ra, za), (rb, zb) in zip(upper, upper[1:]):
+            if za <= z <= zb:
+                return ra + (rb - ra) * (z - za) / (zb - za)
+        return upper[-1][0]
+
+    def ragged(bm, below, depth, seed):
+        """The hem of thatch below height `below` hanging unevenly: lower in tufts round it."""
+        for v in bm.verts:
+            if v.co.z < below:
+                a = math.atan2(v.co.x, -v.co.y)
+                tuft = 0.5 + 0.5 * math.sin(a * 13.0 + seed) * math.sin(a * 5.0 + 2.0 * seed)
+                v.co.z -= depth * tuft
+        bm.normal_update()
+
+    pieces = [profile_bm(BEEHIVE_WALL, 8, 28, mud)]
+    roof, roof_cols = profile_bm(BEEHIVE_ROOF, 18, 32, thatch)
+    ragged(roof, 1.14, 0.07, 0.0)
+    pieces.append((roof, roof_cols))
+    # The tiers: each hangs a little proud of the dome, thick at its hem, and tucks into the dome
+    # under the next.
+    for k, (hem, top) in enumerate(BEEHIVE_TIERS):
+        mid = (hem + top) / 2
+        outline = [(dome_radius(hem) - 0.06, hem + 0.05), (dome_radius(hem) + 0.13, hem - 0.02),
+                   (dome_radius(hem) + 0.15, hem + 0.08), (dome_radius(mid) + 0.07, mid), (dome_radius(top) + 0.0, top)]
+        tier, tier_cols = profile_bm(outline, 10, 32, thatch)
+        ragged(tier, hem + 0.06, 0.06, 1.7 + k)
+        pieces.append((tier, tier_cols))
+    # The topknot: a straw bundle tied round with rope where it meets the dome, a short stick up
+    # through it.
+    pieces.append((L.ellipsoid_bm(V(0.0, 0.0, 3.1), (0.24, 0.24, 0.3), u=12, v=8), C["straw"]))
+    pieces.append((P.segment_bm(V(0.0, 0.0, 2.95), V(0.0, 0.0, 3.04), 0.22, 0.2, segments=12), C["thatchDark"]))
+    rope = [V(0.205 * math.cos(a), 0.205 * math.sin(a), 3.0) for a in np.linspace(0.0, 2 * math.pi, 16, endpoint=False)]
+    pieces.append((loop_tube_bm(rope, 0.03, V(0.0, 0.0, 1.0), segments=6), hc["logDark"]))
+    pieces.append((H.log(V(0.0, 0.0, 3.3), V(0.02, 0.0, 3.46), 0.035, segments=6), hc["logDark"]))
+
+    # Round the wall: thick log posts, clear of the door, rails at its foot and its top between
+    # them, and flat stones at its foot.
+    door_half = math.atan2(BEEHIVE_DOOR + 0.12, 1.6)
+
+    def at(a, r, z):
+        return V(r * math.sin(a), -r * math.cos(a), z)
+
+    posts = [a for a in np.linspace(0.0, 2 * math.pi, 9, endpoint=False) if abs(math.remainder(a, 2 * math.pi)) > door_half]
+    for a in posts:
+        pieces.append((H.log(at(a, 1.64, -0.05), at(a, 1.6, 1.12), 0.075, segments=8), hc["log"]))
+    for z, r in ((0.12, 0.055), (1.03, 0.05)):
+        span = np.linspace(door_half + 0.04, 2 * math.pi - door_half - 0.04, 25)
+        for a, b in zip(span, span[1:]):
+            pieces.append((H.log(at(a, 1.655, z), at(b, 1.655, z), r, segments=6), hc["logDark"]))
+    stones = np.random.default_rng(31)
+    for a in np.linspace(door_half, 2 * math.pi - door_half, 15):
+        size = stones.uniform(0.85, 1.15)
+        pieces.append((L.ellipsoid_bm(at(a + stones.uniform(-0.05, 0.05), 1.74, 0.03), (0.15 * size, 0.1 * size, 0.07),
+                                      rot=Matrix.Rotation(-a, 3, "Z"), u=8, v=5), hc["stone"]))
+
+    # The door: planks in a log frame with a lintel, its handle, and a flat step stone before it.
+    y = -1.675
+    pieces.append((arch_panel_bm(2 * BEEHIVE_DOOR, 0.98, 0.62, y, 0.04), hc["plank"]))
+    for x in (-0.15, 0.15):
+        pieces.append((H.oriented_box(V(x, y - 0.022, 0.42), V(0, 0, 1), V(1, 0, 0), (0.8, P.PEN, 0.004)), hc["plankLine"]))
+    for s in (-1.0, 1.0):
+        pieces.append((H.log(V(s * (BEEHIVE_DOOR + 0.06), y - 0.01, -0.02), V(s * (BEEHIVE_DOOR + 0.06), y - 0.01, 1.04), 0.065,
+                             segments=8), hc["log"]))
+    pieces.append((H.log(V(-BEEHIVE_DOOR - 0.16, y - 0.03, 1.04), V(BEEHIVE_DOOR + 0.16, y - 0.03, 1.04), 0.07, segments=8),
+                   hc["logDark"]))
+    H.door_handle(V(0.25, y - 0.02, 0.5), V(0, -1, 0), pieces)
+    pieces.append((L.ellipsoid_bm(V(0.0, -2.0, 0.02), (0.5, 0.26, 0.06), u=10, v=5), hc["stone"]))
+    # Small barred windows either side, square on to the wall.
+    for a in (math.radians(68), math.radians(-68)):
+        n = V(math.sin(a), -math.cos(a), 0.0)
+        side = V(0, 0, 1).cross(n).normalized()
+        c = at(a, 1.6, 0.68)
+        pieces.append((H.oriented_box(c, n, side, (0.08, 0.42, 0.36)), hc["log"]))
+        pieces.append((H.oriented_box(c + n * 0.03, n, side, (0.04, 0.3, 0.24)), C["door"]))
+        for off in (-0.06, 0.06):
+            pieces.append((H.oriented_box(c + n * 0.05 + side * off, n, side, (0.03, 0.025, 0.26)), hc["logDark"]))
+    H.potted_succulent(V(0.82, -1.86, 0.0), pieces)
+
+    body = join("beehive", pieces, collection, sharp=P.SHARP)
+    return [body], {"footprint": {"circle": 1.7}, "height": 3.46}
 
 
 # ---------------------------------------------------------------------------- stalls
@@ -230,29 +320,37 @@ STALL_STYLES = {
 # A stall's size, after the film's: its counter as tall as a customer standing at it, and its keeper
 # on a raised floor behind it, two steps up from the ground (a step at each open side), so they show
 # over it from the shoulders up, the header board above their head. How wide and how deep the booth
-# is, wide enough that its tall counter is long and low, as the film's; the counter's top; the floor
-# behind it and the step up to it, each no higher than a walker steps up; and the header board's
-# bottom and top (the roof just under its top), its face in the proportions its hand-lettered
-# signs are painted in (1440 x 496), so a sign fills it edge to edge. About a metre clear between
-# the counter and the back wall for its keeper, and a metre between neighbouring booths (3.42 m
-# apart along their rows) for them to come in by.
-STALL = {"width": 2.4, "depth": 1.5, "counter": 0.9, "floor": 0.66, "step": 0.33, "board": (1.9, 2.76)}
-# The stall's name over the whole face of its header board, which is a little wider than the
+# is: square and roomy, as the film's, wide enough that its tall counter is long and low, and as
+# deep as it is wide, so its sign, repeated on its side boards, fits them as it fits the front; the
+# counter's top; the floor behind it and the step up to it, each no higher than a walker steps up;
+# the work table along its back wall, as high above the floor as the counter is; and the header
+# boards' bottom and top (the roof just under their top), their faces in the proportions the
+# hand-lettered signs are painted in (1440 x 496), so a sign fills each edge to edge. About a metre
+# and a half clear between the counter and the work table for its keeper, and a metre between
+# neighbouring booths (3.42 m apart along their rows) for them to come in by.
+STALL = {"width": 2.4, "depth": 2.4, "counter": 0.9, "floor": 0.66, "step": 0.33, "table": 0.32, "board": (1.9, 2.76)}
+# The stall's name over the whole face of each header board, which runs a little wider than the
 # booth: how wide and how high.
 STALL_LABEL = (STALL["width"] + 0.1, round(STALL["board"][1] - STALL["board"][0], 3))
+# Where a stall's goods stand, in its own frame (see stall_goods.py): the counter's top and the
+# work table's, each as the middle of its top across the booth, its half length and half depth.
+STALL_COUNTER = {"z": STALL["counter"] + 0.04, "y": -STALL["depth"] / 2 + 0.24, "half": (1.15, 0.19)}
+STALL_TABLE = {"z": STALL["floor"] + STALL["table"], "y": STALL["depth"] / 2 - 0.31, "half": (0.82, 0.25)}
 LANTERN_COLOURS = ("#F7D046", "#9CCB7A", "#F7A1C4", "#7EC3EA", "#F29E6B")
 
 
 def make_stall(colour):
     def build(collection):
-        """A festival stall as the film's: a booth on four thin posts under a flat roof, with a deep
-        header board across its front for the game to paint its name on, a scalloped trim along
-        the board's bottom and paper lanterns hanging under it; a wall of stripes at the back, and
-        a counter as tall as a customer across the front, white menu tags hanging off its front,
+        """A festival stall as the film's: a square booth on four thin posts under a flat roof, with
+        deep header boards across its front and down both its sides for the game to paint its name
+        on (the sides repeating the front), a scalloped trim along the boards' bottoms and paper
+        lanterns hanging under the front; a wall of stripes at the back with a work table along it,
+        and a counter as tall as a customer across the front, white menu tags hanging off its front,
         behind which the islander who keeps it stands on a raised floor. It is open at its sides
         behind the counter, where its keeper comes in from the alley behind the row and steps up.
-        Light, as twenty-eight of them stand along the festival; it faces -Y, its middle at the
-        origin."""
+        What it sells, and its tools, stand on its counter and its table as goods of their own (see
+        stall_goods.py). Light, as twenty-eight of them stand along the festival; it faces -Y, its
+        middle at the origin."""
         style = {k: (tuple(L.hex_color(c) for c in v) if isinstance(v, tuple) else L.hex_color(v))
                  for k, v in STALL_STYLES[colour].items() if k != "words"}
         s = STALL
@@ -273,7 +371,7 @@ def make_stall(colour):
         stripes, span = 8, s["width"] - 0.03
         for k in range(stripes):
             x = -span / 2 + span * (k + 0.5) / stripes
-            pieces.append((P.box_bm(V(x, d - 0.03 - 0.002 * (k % 2), b1 / 2), (span / stripes + 0.002, 0.04, b1 - 0.04)),
+            pieces.append((P.box_bm(V(x, d - 0.03 - 0.004 * (k % 2), b1 / 2), (span / stripes + 0.002, 0.04, b1 - 0.04)),
                            style["inside"][k % 2]))
         # The counter across the front: its painted face, a pale grey frame round it and across it,
         # and a board on top.
@@ -309,63 +407,83 @@ def make_stall(colour):
             pieces.append((P.box_bm(V(x, face - 0.03, top - 0.03 - h / 2), (0.11, 0.008, h)), C["white"]))
             for j in (-0.025, 0.02):
                 pieces.append((P.box_bm(V(x + j, face - 0.035, top - 0.05 - h * 0.45), (0.012, 0.004, h * 0.6)), ink))
-        # Things on the counter: cups and a jar.
-        for f, c in ((-0.57, C["yellow"]), (-0.4, C["pink"]), (0.52, C["blue"])):
-            x = f * w
-            pieces.append((P.segment_bm(V(x, cy + 0.06, top + 0.04), V(x, cy + 0.06, top + 0.17), 0.055, 0.07, segments=6), c))
-        pieces.append((L.ellipsoid_bm(V(0.14 * w, cy + 0.1, top + 0.15), (0.12, 0.12, 0.11), u=8, v=5), C["cream"]))
-        # The header board: a deep box across the top of the front, a little wider than the booth,
-        # a part of its own, so a hand-lettered sign painted solid can give it its own colour.
-        hy = -d + 0.15
-        header = [(P.box_bm(V(0.0, hy, (b0 + b1) / 2), (s["width"] + 0.1, 0.38, b1 - b0)), C[colour])]
-        # The scalloped trim along its bottom edge, at the front and down its sides.
-        def scallop(cx, cy_, cz, r, normal_x):
+        # The work table along the back wall, for the stall's tools and stock: a cabinet in the
+        # counter's colour standing on the floor, a little back from the front of its plank top (and
+        # from the floor's last plank line), the top as high above the floor as the counter is
+        # above the ground.
+        tb = STALL_TABLE
+        tz, ty = tb["z"], tb["y"]
+        thx, thy = tb["half"]
+        pieces.append((P.box_bm(V(0.0, ty + 0.02, (fl - 0.01 + tz - 0.03) / 2),
+                                (2 * thx - 0.06, 2 * thy - 0.04, tz - 0.03 - fl + 0.01)), style["counter"]))
+        pieces.append((P.box_bm(V(0.0, ty, tz - 0.02), (2 * thx, 2 * thy, 0.04)), C["plankLight"]))
+        # The header boards: a deep box down each side, as long as the booth is deep and a little
+        # longer, and one across the front between them, so no two of their faces lie in one plane;
+        # a part of their own, so a hand-lettered sign painted solid can give them its own colour.
+        W, T = s["width"] + 0.1, 0.38
+        bz = (b0 + b1) / 2
+        header = [(P.box_bm(V(0.0, -W / 2 + T / 2, bz), (W - 2 * T, T, b1 - b0)), C[colour])]
+        for side in (-1.0, 1.0):
+            header.append((P.box_bm(V(side * (W / 2 - T / 2), 0.0, bz), (T, W, b1 - b0)), C[colour]))
+
+        # The scalloped trim along the boards' bottom edges, across the front and down both sides,
+        # each scallop facing out.
+        def scallop(cx, cy_, cz, r, out):
             bm = bmesh.new()
-            hub = bm.verts.new((cx, cy_, cz))
-            arc = []
-            for i in range(5):
-                a = math.pi * i / 4
-                if normal_x:
-                    arc.append(bm.verts.new((cx, cy_ + r * math.cos(a), cz - r * math.sin(a))))
-                else:
-                    arc.append(bm.verts.new((cx + r * math.cos(a), cy_, cz - r * math.sin(a))))
+            centre = Vector((cx, cy_, cz))
+            hub = bm.verts.new(centre)
+            along = Vector((-out.y, out.x, 0.0))
+            arc = [bm.verts.new(centre + along * (r * math.cos(math.pi * i / 4)) - Vector((0.0, 0.0, r * math.sin(math.pi * i / 4))))
+                   for i in range(5)]
             for a, b in zip(arc, arc[1:]):
-                bm.faces.new((hub, b, a) if not normal_x else (hub, a, b))
+                bm.faces.new((hub, a, b))
+            bm.normal_update()
+            if bm.faces[:][0].normal.dot(out) < 0:
+                bmesh.ops.reverse_faces(bm, faces=bm.faces[:])
             return bm
         count = 14
-        r = (s["width"] + 0.1) / count / 2
+        r = W / count / 2
         for k in range(count):
-            x = -(s["width"] + 0.1) / 2 + r * (2 * k + 1)
-            pieces.append((scallop(x, hy - 0.195, b0, r, False), style["trim"]))
-        for side in (-1, 1):
-            for k in range(2):
-                y = hy - 0.19 + r * (2 * k + 1)
-                pieces.append((scallop(side * (w + 0.055), y, b0, r, True), style["trim"]))
+            u = -W / 2 + r * (2 * k + 1)
+            pieces.append((scallop(u, -W / 2 - 0.005, b0, r, Vector((0.0, -1.0, 0.0))), style["trim"]))
+            for side in (-1.0, 1.0):
+                pieces.append((scallop(side * (W / 2 + 0.005), u, b0, r, Vector((side, 0.0, 0.0))), style["trim"]))
         # Paper lanterns hanging under the board, inside the front of the booth.
         for k, x in enumerate(f * w for f in (-0.75, -0.45, -0.15, 0.15, 0.45, 0.75)):
             z = b0 - 0.16 - 0.03 * (k % 2)
             pieces.append((P.segment_bm(V(x, -d + 0.3, b0), V(x, -d + 0.3, z + 0.07), 0.006, 0.006, segments=4), C["post"]))
             pieces.append((L.ellipsoid_bm(V(x, -d + 0.3, z), (0.075, 0.075, 0.07), u=8, v=5),
                            L.hex_color(LANTERN_COLOURS[k % len(LANTERN_COLOURS)])))
-        # Its boxes lit as flat faces, its round posts, cups, jar and lanterns smooth.
+        # Its boxes lit as flat faces, its round posts and lanterns smooth.
         body = join(f"stall_{colour}", pieces, collection, sharp=P.SHARP)
         board = join(f"stall_{colour}_board", header, collection)
         # Its faces flat, as the sign laid on its front is, so the two are lit alike and a sign
         # painted solid meets the board round it unseen.
         board.data.shade_flat()
-        face_bm, uvs = P.label_bm(V(0.0, hy - 0.19, (b0 + b1) / 2), STALL_LABEL[0], STALL_LABEL[1])
-        label = P.object_with_uv(f"stall_{colour}_label", face_bm, uvs, collection)
-        # What blocks walkers: the counter and the back wall, so its keeper can walk in at either
-        # side and stand between them; the camera keeps out of the booth's top (in the game's frame,
-        # z = -y).
+        # The stall's name over each board's whole face: the front's, then the left side's and the
+        # right side's, each read square on from its own side, the sides repeating the front's.
+        faces = []
+        for k, turn in enumerate((0.0, math.pi / 2, -math.pi / 2)):
+            face_bm, uvs = P.label_bm(V(0.0, -W / 2, bz), STALL_LABEL[0], STALL_LABEL[1])
+            if turn:
+                L.transformed(face_bm, Matrix.Rotation(turn, 4, "Z"))
+            suffix = str(k) if k else ""
+            faces.append(P.object_with_uv(f"stall_{colour}_label{suffix}", face_bm, uvs, collection))
+        # What blocks walkers: the counter, the back wall and the work table, so its keeper can
+        # walk in at either side and stand between them; the camera keeps out of the booth's top (in
+        # the game's frame, z = -y).
         blocks = [{"box": [0.0, -cy, w, 0.22], "y": [0.0, top + 0.1]},
                   {"box": [0.0, -(d - 0.03), w, 0.05], "y": [0.0, b1]},
-                  {"box": [0.0, 0.0, w + 0.05, d + 0.05], "y": [b0 - 0.05, b1], "walk": False}]
+                  {"box": [0.0, -ty, thx + 0.03, thy + 0.03], "y": [0.0, tz + 0.05]},
+                  {"box": [0.0, 0.0, W / 2, W / 2], "y": [b0 - 0.05, b1], "walk": False}]
         decks = [{"box": [0.0, -fy, fx, fd / 2], "top": fl}] + [
             {"box": [side * (fx + tread / 2), -fy, tread / 2, fd / 2], "top": st} for side in (-1.0, 1.0)]
+        words = STALL_STYLES[colour]["words"]
         info = {"blocks": blocks, "decks": decks, "height": b1,
-                "label": {"size": list(STALL_LABEL), "colour": STALL_STYLES[colour]["words"]}}
-        return [body, board, label], info
+                "labels": [{"size": list(STALL_LABEL), "colour": words},
+                           {"size": list(STALL_LABEL), "colour": words, "repeat": 0},
+                           {"size": list(STALL_LABEL), "colour": words, "repeat": 0}]}
+        return [body, board] + faces, info
     return build
 
 
@@ -894,6 +1012,9 @@ BUILDERS = {
     "stall_blue": make_stall("blue"),
     "stall_red": make_stall("red"),
     "stall_white": make_stall("white"),
+    # What each stall sells, and the tools it is made with, on its counter and its work table, placed
+    # with the stall as the layout names them (see stall_goods.py).
+    **{f"goods_{name}": SG.make_goods(name, STALL_COUNTER, STALL_TABLE) for name in SG.KITS},
     "pier": build_pier,
     "ferry": build_ferry,
     # Along the front rows, pole to pole at the fronts of the gaps between the stalls: over the four
