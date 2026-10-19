@@ -201,9 +201,9 @@ export class Landmarks {
       if ((o as THREE.Mesh).isMesh) meshes.push(o as THREE.Mesh);
     });
     // In the film look the stone is painted as the film paints it, without a line (see paintStone),
-    // lit through the soft ramp, and casts and takes the sun's shadows: limestone in upright slabs
-    // (the forbidden cave's heap all but bare of moss), the sea cliffs and the rocks behind the night
-    // beach in beds.
+    // lit through the soft ramp, and casts and takes the sun's shadows: limestone in upright slabs,
+    // the sea cliffs, the rocks behind the night beach and the forbidden cave's terraced outcrop (all
+    // but bare of moss) in beds.
     const toonRocks = FILM ? null : rockMaterial(info);
     const painted = new Map<StoneKind, THREE.Material>();
     const rocksFor = (name: string): THREE.Material => {

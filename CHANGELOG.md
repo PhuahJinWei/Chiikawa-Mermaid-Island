@@ -63,13 +63,18 @@ stage, and along every path. Not yet checked on a real phone.
   Inland the land on top rises gently from the headland's height to the
   cliffs', so the path climbs it.
 - The forbidden cave's entrance, on the west coast, after the film's frames
-  of it: a heap of bare, rounded, layered rock rises out of the sea and
-  climbs inland past a beach to the end of a spur of the tableland, nowhere
-  on it to walk. At its foot over the beach a small arched mouth opens into
-  the dark, the No Entry sign (立入禁止) on the sand before it and nothing
-  growing in front of it; the place is named 西の浜. The cave inside, its
-  sea running in under the spur to the skylight on the spur's top, is to
-  come.
+  of it and the user's sketch: a terraced outcrop of bare rock rising out
+  of the sea in flat-topped tiers, each stepping up and a little back from
+  the last, along the back of a beach to the end of a spur of the
+  tableland, nowhere on it to walk. Its faces step in at a ledge or two and
+  lie in level beds split by joints; a fringe of bushes grows along the
+  high tiers' tops, some hanging over their edges. At its foot, close to
+  the sea and over the open beach, an arched mouth opens into the dark, a
+  few vines hanging beside and over it, the No Entry sign (立入禁止) on the
+  sand beside it, and nothing grows on the sand before it (no trees or
+  palms within 15 metres, no plants within 12); the place is named 西の浜.
+  The cave inside, its sea running in under the spur to the skylight on the
+  spur's top, is to come.
 - The stepping stones across the gorge, after the film's frames of them:
   six tall pillars of the gorge's white rock standing in its river, each
   topped with a flat round mat of grass, 40 to 90 cm apart, from a pillar
@@ -364,7 +369,7 @@ outlined is drawn twice, once for its pen line. To get there:
   is named 渓谷. Ramps climb onto the tableland north of
   the gorge, from beside the waterfall, and onto its rim south of it from
   the jungle. From the rim a spur runs out toward the west coast, the
-  cave's skylight on its top, and ends against the heap of rock the
+  cave's skylight on its top, and ends against the terraced outcrop the
   forbidden cave opens in (see the cave above). The dark mound in the
   north-west stands on the tableland's north side, a little smaller. The
   jungle is replanted over the new ground, its trees standing back from

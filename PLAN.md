@@ -316,7 +316,7 @@ down to the water in the west and north, widest on the night beach. It is
 flat, as the film draws it, a metre or two over the sea; the karst stands
 up out of it sheer, and in the north-west a tableland of white limestone
 stands 11 metres high, cut through by a gorge, a spur of it running out
-toward the west coast to the heap of rock the forbidden cave opens in.
+toward the west coast to the terraced outcrop the forbidden cave opens in.
 
 ```
                             N
@@ -327,7 +327,7 @@ toward the west coast to the heap of rock the forbidden cave opens in.
    ~        │ ▒▒▒◠ ▴▴  ■  ⌂⌂  ⊓stage ⌂⌂ ▲   ■  │       ~     █  the tableland and its spur
    ~   ▲    │west beach  ▲ ⌂⌂ ⌂⌂  guest houses▓  │  ▲    ~     ═  the gorge's river, ⌂ the restaurant
    ~        │    ░░░  ✦ ✦┃✦ ✦  ♣♣♣  ▓▓       │       ~     ◎  the cave's skylight
-   ~   ▲▲   │    ░░ ✦ ✦ ⌒arch⌒ ✦ ✦  ▓        │       ~     ▒◠ the cave's heap of rock, its mouth
+   ~   ▲▲   │    ░░ ✦ ✦ ⌒arch⌒ ✦ ✦  ▓        │       ~     ▒◠ the cave's terraced outcrop, its mouth
    ~        └── quay ═══════╤═══ night beach ┘       ~     ▴  little white spires
    ~      lagoon            ║ pier   rowboat     ▲  ~     ⌂  stilt huts; ░ fields; ✦ festival stalls
    ~            reef      🦆 ferry at anchor        ~     ⌒  welcome arch; ⊓ watchtower stage
@@ -347,7 +347,7 @@ toward the west coast to the heap of rock the forbidden cave opens in.
 | **Sea cliffs** | The north-east coast, hidden behind the pillars in the aerial shot, as in the film's frame of it: tall cliffs of bedded cream-and-tan sandstone with grass and shrubs on top, running round a cove and away along the coast, a sea stack standing off them in turquoise water. A lower grassy headland at their west end, reached by a path past the waterfall, looks across the cove at them. | Too high: look down from the top. |
 | **Karst pillars** | Seven tall pale limestone towers in a ring round the island's middle, jungle on their tops with white rock standing out of it, the island's silhouette from every angle. Many short, wide ones hide in the forest: mesas thick with trees on top, one under a great dome of them. Not climbable. They are landmarks for finding your way. | — |
 | **Tableland and gorge** | The north-west, after the film's frames of the stepping-stone pillars: a tableland of white limestone 11 metres high, ringed with sheer cliffs, greenery spilling over their tops, reached by ramps from beside the waterfall and from the jungle. A gorge cuts through it to the west coast, a wide river the sea runs into between its walls; tall stepping-stone pillars with grassy tops cross it from rim to rim, a short hop apart. Miss one and you fall into the river and climb out onto a narrow pebble path along the foot of the south wall, just over the water, which leads down to 島二郎, a wooden ramen shop at the jungle's edge, as Chiikawa falls in the film. | Too deep: you climb out onto the path. |
-| **West beach** | A small beach on the west coast below the spur, with the forbidden cave's mouth at the foot of a heap of bare, rounded rock rising from the sea, the No Entry sign (立入禁止) before it. Palms crowd the sand's inland edge. | Wade. |
+| **West beach** | A small beach on the west coast below the spur, with the forbidden cave's mouth near the water at the foot of a terraced outcrop of bare rock stepping up from the sea, the No Entry sign (立入禁止) before it. Palms crowd the sand's inland edge. | Wade. |
 | **Night beach** | East end of the main beach, the widest stretch of sand, below low layered rocks. Bonfire, the night feast with rows of islanders, Rakko's ukulele, moon on the water. | Wade. |
 | **Forbidden cave** | Under the spur in the west, entered only by its mouth on the west beach (the inside is to come): a passage on foot, then the cave's sea, crossed by boat, to a round chamber under an opening in its ceiling (the skylight on the spur's top), then landed ground beyond. The moon, or a sunbeam by day, shines down onto its glowing water with drifting sparkles and mist. A stone ledge with a small fire sits beside it. | Row across the moonlit water. |
 | **Lagoon** | Calm, clear, bright water inside the reef. Fish shoals. | Wade in the shallows; row across it. |
@@ -364,7 +364,7 @@ shore or ledge.
 The ground is built in Blender from a height grid over the map, with its
 colours painted into one texture seen from above. The rock landmarks (karst
 pillars and mesas, the rocks behind the night beach, sea spires, the sea
-cliffs, the tableland's cliffs, the cave's heap of rock and its skylight,
+cliffs, the tableland's cliffs, the cave's terraced outcrop and its skylight,
 the waterfall's wall) are built with it, so their feet fit the ground. The
 waterfall is in the middle of the island, its pool the round water the
 aerial shot shows through the trees. The ground is flat and low, the

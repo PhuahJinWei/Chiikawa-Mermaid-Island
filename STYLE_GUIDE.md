@@ -367,12 +367,17 @@ food and cups on the ground, everyone toasting. This is the festival.
 
 ### The forbidden cave's entrance (`cave entrance 1` to `4`, `cave signboard 1` to `3`)
 
-- On a beach on the west coast: a heap of bare rock, rounded and bulging
-  in layered masses like great boulders run together, rising out of the
-  sea at one end and climbing along the beach, a few tufts of plants on
-  it, palms and jungle beyond. Nothing to walk on over it.
-- At its foot over the sand, a small dark arched opening into the rock,
-  only a few times the cast's height.
+- On a beach on the west coast: a terraced coastal outcrop, a rocky
+  hillside of bare stone rising out of the sea at one end in rounded,
+  bulging tiers, each stepping up and back from the last, along the back of
+  the beach to the jungle's higher ground (the user's sketch of it: low
+  steps at the water, climbing to a flat top; level lines across its face
+  where it steps, short cracks running down it). Greenery fringes the high
+  tiers' tops and hangs over their edges here and there; palms and jungle
+  beyond its high end. Nothing to walk on over it.
+- At its foot over the sand, close to the sea, a dark arched opening into
+  the rock, a few times the cast's height, a vine or two hanging over its
+  side. Open sand before it: no trees or plants in the way.
 - Before it on the sand, a weathered grey board on one post, 立入禁止!!
   written on it top to bottom in dark brush strokes.
 

@@ -312,24 +312,34 @@ BOULDERS = {"from": -78.0, "to": -146.0, "gap": (4.5, 9.0), "radius": (0.55, 0.9
 SPUR = {"outline": [(-132.0, -180.0), (-92.0, -168.0), (-100.7, -134.9), (-141.8, -120.6), (-156.0, -116.2),
                     (-168.6, -144.7)],
         "root": (-112.0, -165.0), "tip": (-162.0, -130.0), "top": (11.0, 8.5), "noise": 0.4}
-# The forbidden cave, after the film's frames of its entrance: a heap of bare, rounded, layered rock
-# rising out of the sea at the west coast and climbing east past the cave's beach to the spur's end,
-# with nowhere to walk on it. The mouth opens at the foot of its south face over the beach, facing
-# `facing` (degrees from east toward south): a small arched opening (half width, height) into the
-# dark, `depth` metres back, at the beach's height `floor`, in the rock (radii, top) whose middle is
-# `back` metres behind it. The cave itself is to come; its sea runs in under the spur to the skylight.
-CAVE = {"mouth": (-181.0, -108.4), "facing": 72.7, "half": 1.4, "height": 2.4, "depth": 4.0, "floor": 0.4,
-        "knob": ((8.5, 7.0), 9.0), "back": 6.5, "seed": 85}
-# The rest of the heap, from the sea to the spur's end: centre (x, z), radii, turn, top, seed, and
-# whether its foot stands in the sea.
-CAVE_ROCKS = [((-210.0, -120.0), (8.0, 6.5), -0.2, 4.0, 86, True), ((-197.0, -117.0), (9.0, 7.5), -0.15, 6.5, 87, True),
-              ((-195.0, -130.0), (8.0, 7.0), -0.3, 5.0, 88, True), ((-178.0, -129.0), (9.5, 8.0), -0.2, 8.0, 89, False),
-              ((-168.0, -120.0), (9.5, 8.5), -0.25, 10.0, 90, False), ((-162.0, -133.0), (9.0, 10.0), 0.3, 11.5, 91, False)]
-# How the heap's rocks are built: domed and lumpy, stepped and bedded, bare stone all over, like the
-# film's rock there and the rocks behind the night beach.
-CAVE_STONE = {"stone": "headland", "segments": 48, "step": 0.8, "facets": 6, "facet_w": 0.5, "flutes": 10,
-              "flute_depth": 0.05, "lumps": 0.16, "taper": 0.22, "bulge": 0.06, "ledges": 2, "shoulder": 0.4,
-              "tip": 0.85, "rim": 0.15, "strata": 0.6, "crown": False, "moss": False, "group": "cave"}
+# The forbidden cave, after the film's frames of its entrance and the user's sketch of it: a terraced
+# outcrop of bare rock on the west coast, rising out of the sea in flat-topped tiers, each stepping up
+# and a little back from the last, to the spur's end, with nowhere to walk on it. The mouth opens at
+# the foot of its south face close to the sea, over the open beach, facing `facing` (degrees from east
+# toward south): an arched opening (half width, height) into the dark, `depth` metres back, at the
+# beach's height `floor`, in the tier (radii, top) whose middle is `back` metres behind it. Nothing
+# grows within `clear` metres before it (trees and palms, then the plants under them). The cave itself
+# is to come; its sea runs in under the spur to the skylight.
+CAVE = {"mouth": (-193.0, -111.0), "facing": 85.0, "half": 1.5, "height": 2.8, "depth": 4.0, "floor": 0.35,
+        "rock": ((9.5, 7.0), 6.2), "back": 6.5, "clear": (15.0, 12.0), "seed": 85}
+# The outcrop's other tiers, from the sea up to the spur's end, with two lower ones along its back:
+# centre (x, z), radii, turn, top, seed, whether its foot stands in the sea, and whether greenery
+# grows along its top (as along the high tiers' tops in the sketch; the mouth's tier has it too).
+CAVE_ROCKS = [((-211.0, -120.5), (7.0, 5.5), 0.35, 1.6, 86, True, False),
+              ((-206.5, -116.5), (6.5, 5.0), 0.2, 2.8, 87, True, False),
+              ((-201.0, -116.0), (6.5, 5.5), 0.1, 4.2, 88, True, False),
+              ((-182.5, -120.5), (9.0, 7.5), -0.1, 7.6, 89, False, True),
+              ((-171.5, -123.0), (9.5, 8.5), 0.15, 8.8, 90, False, True),
+              ((-162.0, -131.0), (9.0, 10.0), 0.3, 9.8, 91, False, True),
+              ((-199.0, -128.0), (8.0, 6.0), -0.25, 3.4, 92, True, False),
+              ((-185.0, -131.5), (9.0, 7.0), -0.2, 6.0, 93, False, False)]
+# How the outcrop's tiers are built: flat-topped, their faces nearly upright, stepping in at a ledge or
+# two, lumpy and split into slabs, bedded, bare stone (the game paints it in beds and joints); the
+# greenery along a tier's top in bush-sized clumps, some hanging over its edge.
+CAVE_STONE = {"stone": "headland", "segments": 48, "step": 0.7, "facets": 7, "facet_w": 0.45, "flutes": 12,
+              "flute_depth": 0.05, "lumps": 0.14, "taper": 0.08, "bulge": 0.05, "ledges": 2, "shoulder": 0.1,
+              "tip": 0.45, "rim": 0.06, "strata": 0.5, "crown": False, "moss": False, "group": "cave"}
+CAVE_GREENS = {"crown": True, "crown_size": 3.0, "crown_target": 1100, "mound": 0.8, "hang": 0.4}
 # The cave's skylight: a round opening on top of the spur's root over the cave's sea, as in the
 # film's frames looking up from its pool and down into it, its sides flaring out by `bell` under the
 # edge, a mossy lip `width` wide round it (see karst.sinkhole), its floor under the water at `floor`.
@@ -844,18 +854,18 @@ def spur_sdf(x, z):
 
 
 def cave_rocks():
-    """The cave's heap of rock, from the sea to the spur's end, as rock specs: the rock its mouth
-    opens in, its long side along the face, and the rest of the heap."""
+    """The cave's outcrop, from the sea to the spur's end, as rock specs: the tier its mouth opens in,
+    its long side along the face, and the other tiers."""
     mx, mz = CAVE["mouth"]
     a = math.radians(CAVE["facing"])
     back = CAVE["back"]
-    radii, top = CAVE["knob"]
-    rocks = [dict(CAVE_STONE, centre=(mx - math.cos(a) * back, mz - math.sin(a) * back), radii=radii,
+    radii, top = CAVE["rock"]
+    rocks = [dict(CAVE_STONE, **CAVE_GREENS, centre=(mx - math.cos(a) * back, mz - math.sin(a) * back), radii=radii,
                   turn=a + math.pi / 2, top=top, seed=CAVE["seed"],
                   cave=(a, CAVE["half"], CAVE["height"], CAVE["depth"]), wet=CAVE["floor"])]
-    for centre, radii, turn, top, seed, in_sea in CAVE_ROCKS:
-        rocks.append(dict(CAVE_STONE, centre=centre, radii=radii, turn=turn, top=top, seed=seed,
-                          wet=WATER if in_sea else None))
+    for centre, radii, turn, top, seed, in_sea, greens in CAVE_ROCKS:
+        rocks.append(dict(CAVE_STONE, **(CAVE_GREENS if greens else {}), centre=centre, radii=radii, turn=turn,
+                          top=top, seed=seed, wet=WATER if in_sea else None))
     return rocks
 
 
@@ -1573,9 +1583,14 @@ def build_landmarks(collection):
             small = rock.rx < 4.0
             gap = rock.s["notch"][:2] if rock.s["notch"] else None
             mound = spec.get("mound", 1.0)
+            # A crown of the given size is a fringe of bush-sized clumps along the top (the cave's
+            # outcrop), not a cap of trees.
+            size = spec.get("crown_size", 1.1 if small else None)
+            target = spec.get("crown_target", 110 if small else int(450 * mound))
             crowns.setdefault(spec["group"], []).append(
-                (*K.crown(rock, rim, gap=gap, size=1.1 if small else None, target=110 if small else int(450 * mound),
-                          mound=mound, hang=spec.get("hang", 0.35)), True))
+                (*K.crown(rock, rim, gap=gap, size=size, target=target, mound=mound, hang=spec.get("hang", 0.35)), True))
+        if spec.get("cave"):
+            mouth_rock = rock
         if stand is None:
             outlines.append((rock, rock.outline()))
     # The waterfall's wall: vines hanging down its face either side of the water, the water itself
@@ -1599,6 +1614,12 @@ def build_landmarks(collection):
                                    joints=(2.0, 5.0))
         groups.setdefault("west", []).append((bm, cols, True))
         hanging.setdefault("west", []).append((*greens, True))
+    # A few vines hanging down the outcrop's face over the cave's mouth, beside and over its west side,
+    # as in the sketch.
+    ac = mouth_rock.s["cave"][0]
+    face = float(mouth_rock.radius(np.array([ac]), np.array([mouth_rock.top - 1.0]))[0][0])
+    bm, cols = K.vines(mouth_rock, (ac + 1.6 / face, 1.1), 3, CAVE["seed"] + 7)
+    hanging.setdefault("cave", []).append((bm, cols, True))
     # The cave's skylight on top of the spur, over its sea.
     sky = SKYLIGHT
     bm, cols, edge = K.sinkhole(sky["centre"], sky["radius"], skylight_rim(), WATER, sky["floor"], sky["seed"],
@@ -1656,9 +1677,9 @@ def plant_ground(outlines, props):
         "high": masks["high"],
         "skylight": masks["skylight"],
         "wet": (h < WATER + 0.35).astype(float),
-        # How far from the sand before the cave's mouth, which is kept clear.
-        "cave": np.hypot(gx - (CAVE["mouth"][0] + 2.5 * math.cos(math.radians(CAVE["facing"]))),
-                         gz - (CAVE["mouth"][1] + 2.5 * math.sin(math.radians(CAVE["facing"])))),
+        # How far from the sand before the cave's mouth (6 m out), which is kept clear (see CAVE["clear"]).
+        "cave": np.hypot(gx - (CAVE["mouth"][0] + 6.0 * math.cos(math.radians(CAVE["facing"]))),
+                         gz - (CAVE["mouth"][1] + 6.0 * math.sin(math.radians(CAVE["facing"])))),
     }
 
 
@@ -1766,7 +1787,7 @@ def build_plants(collection, outlines):
     G["tree_room"] = ((G["high"] < -5.0) | (G["high"] > 7.0)).astype(float)
     open_ground = ((G["village"] < 0.02) & (G["festival"] < 0.02) & (G["fields"] < 0.02)
                    & (G["pool"] > pool_room) & (G["bank_room"] < 0.5) & ~treeless & (G["tree_room"] > 0.5)
-                   & (G["wet"] < 0.5) & (G["skylight"] > 10.0) & (G["cave"] > 6.0))
+                   & (G["wet"] < 0.5) & (G["skylight"] > 10.0) & (G["cave"] > CAVE["clear"][0]))
     jungle = ((G["inland"] > 3.0) & open_ground & (G["path"] > 2.2) & (G["rock"] > 2.0) & (G["prop"] > 0.0)
               & (G["slope"] < 0.7))
 
@@ -1825,7 +1846,7 @@ def build_plants(collection, outlines):
                     or grid_at(G, "festival", tx, tz) > 0.05 or grid_at(G, "bank_room", tx, tz) > 0.5 \
                     or grid_at(G, "pool", tx, tz) < pool_room or grid_at(G, "treeless", tx, tz) > 0.5 \
                     or grid_at(G, "tree_room", tx, tz) < 0.5 or grid_at(G, "wet", tx, tz) > 0.5 \
-                    or grid_at(G, "skylight", tx, tz) < 10.0 or grid_at(G, "cave", tx, tz) < 6.0 \
+                    or grid_at(G, "skylight", tx, tz) < 10.0 or grid_at(G, "cave", tx, tz) < CAVE["clear"][0] \
                     or not stems.free(tx, tz, 3.0):
                 continue
             stems.take(tx, tz)
@@ -1892,7 +1913,7 @@ def build_plants(collection, outlines):
     under_ok = ((G["inland"] > 1.0) & (G["village"] < 0.12) & (G["festival"] < 0.12) & (G["fields"] < 0.1)
                 & (G["path"] > 0.9) & (G["rock"] > 1.0) & (G["prop"] > -0.6) & (G["pool"] > 1.2) & ~bank & ~approach
                 & ~G["headland"] & (G["slope"] < 0.85) & (G["cliff_band"] < 0.5) & (G["wet"] < 0.5)
-                & (G["skylight"] > 0.3) & (G["cave"] > 4.5))
+                & (G["skylight"] > 0.3) & (G["cave"] > CAVE["clear"][1]))
     gap = np.where(near_edge, JUNGLE["understory"][0], JUNGLE["understory"][1])
     crown_hash = Spacing(8.0)
     for x, _, z, r in crowns:

@@ -99,11 +99,12 @@ export const SHOTS: Record<string, StagedShot> = {
     camera: { position: [-12, 2.0, 62], target: [-4, 3, -10], fov: 30 },
     hour: 11,
   },
-  // The film's frame of the forbidden cave by night (`cave entrance 1`): from down the beach, the sea
-  // on the left, the spur running in from it with the cave's mouth at its foot, palms on the right.
+  // The film's frame of the forbidden cave by night (`cave entrance 1`): from the beach by the water,
+  // the sea on the left, the terraced outcrop rising from it to the right with the cave's mouth at its
+  // foot, palms on the right.
   cave: {
     characters: {},
-    camera: { position: [-190, 1.6, -70], target: [-183, 2.5, -108], fov: 50 },
+    camera: { position: [-189, 1.6, -84], target: [-195, 3.2, -112], fov: 55 },
     hour: 21,
   },
   // The film's frame of the stepping stones from the rim (`parkour stone landmark 3`): the cast on
