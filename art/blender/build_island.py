@@ -144,9 +144,11 @@ VILLAGE = {"plaza": ((0.0, -78.0), 14.0), "lanes": [([(-11.0, -71.0), (-24.0, -6
 # Round each guest house, as in the film's frames of them: a crowd of flowering bushes, banana
 # plants, monstera, ferns, red ti and cycads all round it but in front of its steps, this far out
 # from its eaves (a range; its half width, depth behind and reach in front, steps and all, `half`), and
-# a few palms over it.
+# a few palms over it. The big-leaved kinds stand further out (`clear`: the least room for each), so
+# their leaves stop short of the walls rather than reaching through them into the room.
 GUEST_GREENS = {"count": 16, "room": (0.5, 2.6), "front": 40.0, "palms": 3, "half": (2.6, 3.0, 4.1),
-                "mix": ("bush", "banana", "bush", "monstera", "bush", "ti", "fern", "banana", "cycad", "bush")}
+                "mix": ("bush", "banana", "bush", "monstera", "bush", "ti", "fern", "banana", "cycad", "bush"),
+                "clear": {"banana": 1.9, "monstera": 1.3, "cycad": 1.0, "fern": 0.8}}
 FIELDS = {"centre": (-45.0, -38.0), "half": (14.0, 12.0), "feather": 6.0, "height": 1.2}
 # The jungle waterfall, after the film's frame of it, in the middle of the island: the round water
 # the aerial shot shows through the trees in the middle of the ring of pillars is its pool. The
@@ -2204,12 +2206,12 @@ def build_plants(collection, outlines):
             # Out from the eaves: where a line from the middle that way leaves the house's box.
             hz = hz_front if math.cos(rel) > 0.0 else hz_back
             edge = min(hx / max(abs(math.sin(rel)), 1e-6), hz / max(abs(math.cos(rel)), 1e-6))
-            d = edge + greens.uniform(*g["room"])
+            pick = g["mix"][k % len(g["mix"])]
+            d = edge + greens.uniform(max(g["room"][0], g["clear"].get(pick, 0.0)), g["room"][1])
             a = front + rel
             x, z = hx_ + d * math.sin(a), hz_ + d * math.cos(a)
             if grid_at(G, "path", x, z) < 1.1:
                 continue
-            pick = g["mix"][k % len(g["mix"])]
             y = at(x, z) - 0.04
             shapes = kinds[pick]
             grown = variants.plant("under", shapes[int(greens.integers(0, len(shapes)))], x, y, z,

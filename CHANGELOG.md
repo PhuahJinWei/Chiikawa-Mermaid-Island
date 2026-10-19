@@ -347,6 +347,40 @@ outlined is drawn twice, once for its pen line. To get there:
   bushes grow along it, so it shows neither from the ground nor from the
   air but straight down. Walkers stop a step short of the edge and cannot
   jump in.
+- The guest houses are closer to the film's frames of them, outside and
+  in. Outside, their logs are round where they had been eight-sided, paler
+  and creamier, each a little lighter or darker than the next, their cut
+  ends pale round a darker heart where they stack at the corners and meet
+  the windows. The roofs' shingles lie in rows stepping down them, where
+  lines had been drawn on a flat slab, between bargeboards along the
+  gable ends that cross at the top, and the roofs are boarded underneath,
+  so the eaves show wood. The steps are three logs split down their
+  length, flat face up, their cut ends showing, where they had been planks
+  on log rails; the floor's frame is dark wood like the stilts; and the
+  orange house's long sides are boarded and painted a grey green, as in
+  the film's frame of it. Inside, the walls are dark round logs, their cut
+  ends pale down the sides of the windows and the doorway, as in the
+  film's frames inside, where they had been pale planks; the floor is
+  light planks with staggered joins; overhead are the roof's dark boards
+  on rafters and a beam along the ridge, where the orange of the roof had
+  shown, and the gables' insides are boarded dark. The windows have deep
+  sills inside. Round the houses the banana plants, monstera, cycads and
+  ferns stand further out from the walls, so no leaf reaches through them
+  into a room. Each log is one solid, its cut ends' faces coloured, where
+  each had been three pieces, so outside a house is no heavier than
+  before (5,500 triangles for the orange, 6,600 for the tan, where both
+  were 6,600); its room, drawn only near, is 2,900 where it was 700.
+- In the film look the guest houses' wood is painted with its grain, as
+  the film paints it, where it had been flat colour: streaks running
+  along each log, board and plank, finer lines close to, a few lighter
+  ones and a small knot here and there, wandering a little as they run;
+  strongest on the dark logs, floor and roof boards inside, faint on the
+  pale logs outside, none on the cut ends or painted boards. The grain
+  is painted as the picture is drawn, from the way each piece's grain
+  runs (kept in the models), so it costs no triangles and no textures to
+  download, and it fades out before it is small enough to shimmer.
+  Measured on the dev PC at 1488 x 800 inside a guest house, wood filling
+  the picture: 14.5 ms a frame against 14.3 without it.
 - The village is relaid after the film's frames of it, its houses in
   groups of their own where they had stood in a ring round the stage:
   the stage at the plaza's corner, the stilt huts facing each other across

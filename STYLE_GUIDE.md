@@ -258,17 +258,26 @@ Scale unit: **1 = Chiikawa's height.**
 
 ### Guest houses (`guesthouse exterior 1`, `2`, `guesthouse interior 1` to `4`)
 
-- Small log cabins of pale round logs on short stilts, the logs' cut ends
-  stacked at the corners, under steep gable roofs of wooden shingles
-  (orange or tan) with a window lying in the slope. The door is in the
-  front gable end, a plank door with a small diamond window and a long
-  handle, up two or three half-log steps; the gable over it is boarded
-  cream or pale green with chevrons and a small four-paned window.
-- Inside: bare log walls, a plank floor, big many-paned windows full of
-  flowers outside, and a red cloth hammock slung across the room from
-  hooks, before the window opposite the door. The film lays white futons
-  out on the floor at night; the game's rooms are left empty but for the
-  hammock.
+- Small log cabins of pale, creamy round logs on short stilts, the logs'
+  cut ends paler still round a darker heart, stacked at the corners, under
+  steep gable roofs of wooden shingles (orange or tan) lying in rows that
+  step down the roof, with a window lying in the slope and pale
+  bargeboards along the gable ends, crossing at the top. The door is in
+  the front gable end, a plank door with a small diamond window and a long
+  handle, up two or three half-log steps (logs split down their length,
+  flat face up, their cut ends showing); the gable over it is boarded
+  cream or pale green with chevrons and a small four-paned window. The
+  orange house's long sides are boarded and painted a grey green.
+- Inside: dark brown round logs, their cut ends showing pale down the
+  sides of the windows and the doorway; a floor of light planks; the
+  roof's dark boards on rafters overhead; big many-paned windows with deep
+  sills, full of flowers outside; and a red cloth hammock slung across the
+  room from hooks, before the window opposite the door. The film lays
+  white futons out on the floor at night; the game's rooms are left empty
+  but for the hammock.
+- The wood is painted with its grain: streaks along each log, board and
+  plank, a few lighter ones and the odd small knot; plain on the pale
+  logs outside but for a faint streak, clear on the dark wood inside.
 - Lots of greenery right round them: banana plants, flowering bushes
   (pink, purple, red), monstera, ferns, palms over them; a path of packed
   earth past their doors.

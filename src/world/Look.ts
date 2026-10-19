@@ -875,6 +875,60 @@ vec3 paintThatch(vec3 base, vec3 p) {
 `;
 
 /**
+ * GLSL: wood as the film paints it (needs LEAF_GLSL), from where a point is in the world (`p`) and the
+ * way its grain runs (`grain`, its length how strongly it shows; nothing where it is nought): broad
+ * streaks along the wood, finer lines near the camera, a few lighter ones and a knot here and there,
+ * all wandering a little as they run. Each fades as the wood grows small on screen (`px`: how much of
+ * the world a pixel spans there), before it could shimmer, and far off the wood is left as it is.
+ */
+const WOOD_GLSL = /* glsl */ `
+vec3 paintWood(vec3 base, vec3 p, vec3 grain, float px) {
+  float strength = length(grain);
+  float broadFade = 1.0 - smoothstep(0.012, 0.03, px);
+  if (strength < 0.02 || broadFade <= 0.0) return base;
+  vec3 axis = grain / strength;
+  float along = dot(p, axis);
+  vec3 across = p - axis * along;
+  vec3 q = across + 0.012 * vec3(sin(along * 1.9 + across.y * 7.0), sin(along * 1.3 + across.z * 6.0),
+                                 sin(along * 1.6 + across.x * 5.0));
+  float broad = leafNoise(q * 11.0 + along * 0.22);
+  float dark = smoothstep(0.58, 0.7, broad) * broadFade;
+  float light = smoothstep(0.62, 0.74, 1.0 - broad) * broadFade;
+  float fineFade = 1.0 - smoothstep(0.004, 0.01, px);
+  if (fineFade > 0.0) dark = max(dark, smoothstep(0.64, 0.74, leafNoise(q * 34.0 + along * 0.6 + 5.0)) * 0.7 * fineFade);
+  float knot = smoothstep(0.9, 0.95, leafNoise(q * 9.0 + along * 2.6 + 17.0)) * broadFade;
+  vec3 col = base * (1.0 - 0.3 * dark - 0.22 * knot) * (1.0 + 0.2 * light);
+  return mix(base, col, min(strength, 1.0));
+}
+`;
+
+/**
+ * Paints a toon material's wood the film's way (see WOOD_GLSL), from its onBeforeCompile, where its
+ * geometry's aGrain says wood lies and which way its grain runs (the houses carry it from their
+ * models' `_grain`, see addGrain in Props.ts); the rest of what it draws is left as it is.
+ */
+export function paintWood(shader: THREE.WebGLProgramParametersWithUniforms): void {
+  shader.vertexShader = shader.vertexShader
+    .replace('#include <common>', '#include <common>\nattribute vec3 aGrain;\nvarying vec3 vGrain;\nvarying vec3 vWood;')
+    .replace(
+      '#include <project_vertex>',
+      'vWood = (modelMatrix * vec4(transformed, 1.0)).xyz;\nvGrain = mat3(modelMatrix) * aGrain;\n#include <project_vertex>',
+    );
+  // The noise may be in already, with the thatch.
+  const noise = shader.fragmentShader.includes('float leafNoise(') ? '' : LEAF_GLSL;
+  shader.fragmentShader = shader.fragmentShader
+    .replace('void main() {', `varying vec3 vGrain;\nvarying vec3 vWood;\n${noise}\n${WOOD_GLSL}\nvoid main() {`)
+    .replace(
+      '#include <normal_fragment_maps>',
+      `#include <normal_fragment_maps>
+      {
+        float woodPx = length(fwidth(vWood));
+        diffuseColor.rgb = paintWood(diffuseColor.rgb, vWood, vGrain, woodPx);
+      }`,
+    );
+}
+
+/**
  * Paints a toon material's thatch the film's way (see THATCH_GLSL), from its onBeforeCompile; the
  * rest of what it draws is left as it is. Needs vertex colours.
  */

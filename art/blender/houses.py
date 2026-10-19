@@ -88,12 +88,24 @@ C = {k: L.hex_color(v) for k, v in {
     "norenLight": "#F3EAD6",
     "chochin": "#E0503E",
     "chochinBand": "#3A2A22",
-    # The guest houses: pale logs, the doors' light planks and diamond windows, and a red hammock.
-    "guestLog": "#E3C28B",
-    "guestLogDark": "#B08A55",
-    "guestLogEnd": "#F4DFB5",
+    # The guest houses: pale logs, their cut ends paler round a darker heart; the doors' light
+    # planks and diamond windows; the orange one's grey-green boarded sides; inside, dark logs with
+    # pale cut ends, a floor of light planks and the roof's dark boards on rafters; a red hammock.
+    "guestLog": "#E8D0A4",
+    "guestLogDark": "#B7976B",
+    "guestLogEnd": "#F7EACF",
+    "guestLogRing": "#E1CBA3",
     "guestDoor": "#D7AD74",
     "guestDoorLine": "#A97B47",
+    "guestDoorFrame": "#B98D5A",
+    "guestBoard": "#9CAE95",
+    "guestInLog": "#7A5234",
+    "guestInLogEnd": "#D3AF80",
+    "guestInSkin": "#4A3222",
+    "guestFloor": "#E6A465",
+    "guestFloorLine": "#9A6F45",
+    "guestRoofIn": "#6E4C30",
+    "guestRafter": "#563A23",
     "doorGlass": "#9FD3E6",
     "hammock": "#D9566B",
     "hammockDark": "#B4425A",
@@ -1186,32 +1198,116 @@ def build_plank_hut(name, collection):
 
 
 # ---------------------------------------------------------------------------- the guest houses
-# Each guest house's roof and gable colours: the film's two, an orange-shingled one with a cream
-# gable and a tan one with a pale green gable, each patterned with chevrons.
+# Each guest house's colours and sides: the film's two, an orange-shingled one with a cream gable,
+# its long sides boarded and painted a grey green, and a tan-shingled one with a pale green gable and
+# log sides; each gable patterned with chevrons.
 GUEST_STYLES = {
-    "orange": {"roof": "#D98A4B", "roofLine": "#A6602E", "gable": "#F4E4B4", "chevron": "#FFF8E2"},
-    "tan": {"roof": "#B39469", "roofLine": "#7F6544", "gable": "#DCEBC0", "chevron": "#F2F8E2"},
+    "orange": {"roof": "#D98A4B", "gable": "#F4E4B4", "chevron": "#FFF8E2", "sides": "boards"},
+    "tan": {"roof": "#B39469", "gable": "#DCEBC0", "chevron": "#F2F8E2", "sides": "logs"},
 }
 
 
-def exact_log(a, b, radius, segments=8):
-    """A log from exactly a to b (segment_bm lengthens what it makes by 4%)."""
-    mid = (a + b) / 2
-    half = (b - a) / 2 / 1.04
-    return P.segment_bm(mid - half, mid + half, radius, radius, segments)
+def tone(colour, seed, amount=0.06):
+    """`colour` a little lighter or darker, by a fixed hash of `seed`: each log or board its own."""
+    k = math.sin(seed * 12.9898 + 78.233) * 43758.5453
+    k = 2.0 * (k - math.floor(k)) - 1.0
+    return tuple(c * (1.0 + amount * k) for c in colour)
 
 
-def cut_log(a, b, radius, colour, end_colour, pieces, ends=(True, True)):
-    """A log from a to b, each end cut to show its pale grain."""
+def gltf_axis(v):
+    """A direction in Blender's frame as the glTF file holds it, y up: the exporter turns positions and
+    normals into that frame but writes custom attributes as they are."""
+    return (float(v.x), float(v.z), -float(v.y))
+
+
+def join_grained(name, pieces, collection, sharp=None):
+    """P.join, keeping each piece's wood grain as the mesh's `_grain` attribute, for the film look's
+    wood painter (paintWood in src/world/Look.ts): a piece's third item, if it has one, is the way its
+    grain runs, its length how strongly it is painted (one vector for the whole piece, or a list, one
+    a vertex); a piece without one has none."""
+    grains, plain = [], []
+    for piece in pieces:
+        bm, colour = piece[0], piece[1]
+        grain = piece[2] if len(piece) > 2 else None
+        grains.extend(grain if isinstance(grain, list) else [grain] * len(bm.verts))
+        plain.append((bm, colour))
+    obj = P.join(name, plain, collection, sharp=sharp)
+    assert len(grains) == len(obj.data.vertices), (name, len(grains), len(obj.data.vertices))
+    flat = []
+    for grain in grains:
+        flat.extend(gltf_axis(grain) if grain is not None else (0.0, 0.0, 0.0))
+    obj.data.attributes.new("_grain", "FLOAT_VECTOR", "POINT").data.foreach_set("vector", flat)
+    return obj
+
+
+def cut_log(a, b, radius, colour, end_colour, pieces, ends=(True, True), segments=12, ring=None, rings=(True, True),
+            grain=0.0):
+    """A log from exactly a to b as one solid: each end of `ends` cut to show its pale grain
+    (`end_colour`), with `ring` (a colour) the grain's darker heart in the middle of each end of
+    `rings`; an end not cut (buried in a wall) is closed in the log's own colour. The ends' faces have
+    vertices of their own, so their colours stop sharp at the rim (the pen's hull joins them up). With
+    `grain`, the film look paints grain along its length that strongly, not on its ends."""
     d = (b - a).normalized()
+    side = d.orthogonal().normalized()
+    up = d.cross(side)
+    bm, cols = bmesh.new(), []
+
+    def ring_at(c, r, colour_):
+        cols.extend([colour_] * segments)
+        return [bm.verts.new(c + (side * math.cos(2 * math.pi * i / segments) + up * math.sin(2 * math.pi * i / segments)) * r)
+                for i in range(segments)]
+
+    def face(verts, towards):
+        f = bm.faces.new(verts)
+        f.normal_update()
+        if f.normal.dot(towards) < 0:
+            f.normal_flip()
+
+    s0, s1 = ring_at(a, radius, colour), ring_at(b, radius, colour)
+    for i in range(segments):
+        j = (i + 1) % segments
+        mid = (s0[i].co + s0[j].co) / 2 - a
+        face((s0[i], s0[j], s1[j], s1[i]), mid - d * mid.dot(d))
+    for at, out, cut, heart in ((a, -d, ends[0], rings[0]), (b, d, ends[1], rings[1])):
+        rim = ring_at(at, radius, end_colour if cut else colour)
+        if cut and ring is not None and heart:
+            inner = ring_at(at, radius * 0.48, end_colour)
+            for i in range(segments):
+                j = (i + 1) % segments
+                face((rim[i], rim[j], inner[j], inner[i]), out)
+            face(ring_at(at, radius * 0.48, ring), out)
+        else:
+            face(rim, out)
+    if grain > 0.0:
+        side_verts = 2 * segments
+        pieces.append((bm, cols, [d * grain] * side_verts + [None] * (len(cols) - side_verts)))
+    else:
+        pieces.append((bm, cols))
+
+
+def half_log(a, b, radius, colour, end_colour, pieces, segments=8, grain=0.0):
+    """A log split down its length from a to b (level), lying flat face up, its ends cut to show
+    their pale grain: a step's tread; with `grain`, its wood painted with grain along it that
+    strongly."""
+    d = (b - a).normalized()
+    side = UP.cross(d).normalized()
+
+    def body(p, q, r):
+        bm = bmesh.new()
+        lo, hi = ([bm.verts.new(c + side * (r * math.cos(math.pi * i / segments)) - UP * (r * math.sin(math.pi * i / segments)))
+                   for i in range(segments + 1)] for c in (p, q))
+        for i in range(segments):
+            bm.faces.new((lo[i], lo[i + 1], hi[i + 1], hi[i]))
+        bm.faces.new((lo[segments], lo[0], hi[0], hi[segments]))
+        bm.faces.new(lo)
+        bm.faces.new(hi)
+        bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+        return bm
+
     cut = 0.03
-    a2 = a + d * cut if ends[0] else a
-    b2 = b - d * cut if ends[1] else b
-    pieces.append((exact_log(a2, b2, radius), colour))
-    if ends[0]:
-        pieces.append((exact_log(a, a2, radius * 0.94), end_colour))
-    if ends[1]:
-        pieces.append((exact_log(b2, b, radius * 0.94), end_colour))
+    pieces.append((body(a + d * cut, b - d * cut, radius), colour, d * grain if grain > 0.0 else None))
+    pieces.append((body(a, a + d * cut, radius * 0.94), end_colour))
+    pieces.append((body(b - d * cut, b, radius * 0.94), end_colour))
 
 
 def gable_bm(y, half, z0, z1, thickness, hole=None):
@@ -1251,8 +1347,8 @@ def gable_bm(y, half, z0, z1, thickness, hole=None):
 
 def grid_window(wall, opening, panes, cols, rows, pieces, inside):
     """A window in one of a log wall's openings, as the guest houses' are: a dark board frame with a
-    deep sill outside, panes that light up at night (into `panes`), a grid of bars across them, a
-    frame inside."""
+    deep sill outside, panes that light up at night (into `panes`), a grid of bars across them, and
+    inside a deep sill and a head board standing out past the room's logs."""
     u0, u1, v0, v1 = opening
     w, h = u1 - u0, v1 - v0
     uc, vc = (u0 + u1) / 2, (v0 + v1) / 2
@@ -1269,9 +1365,77 @@ def grid_window(wall, opening, panes, cols, rows, pieces, inside):
     for k in range(1, rows):
         pieces.append((oriented_box(wall.point(uc, v0 + h * k / rows, wall.t / 2 - 0.035), wall.d, wall.inward,
                                     (w + e, 0.016, 0.035)), C["frame"]))
-    for k in range(0, 2):
-        inside.append((oriented_box(wall.point(uc, v0 + h * k, wall.t + 0.03), wall.d, wall.inward,
-                                    (w + 0.16, 0.06, 0.07)), C["frame"]))
+    # Inside, the sill's top and the head's underside stand a little into the opening, so neither
+    # lies in the plane of the wall's own faces round it.
+    for v, size in ((v0 - 0.018, (w + 0.28, 0.2, 0.06)), (v1 + 0.018, (w + 0.2, 0.14, 0.06))):
+        inside.append((oriented_box(wall.point(uc, v, wall.t + 0.04), wall.d, wall.inward, size), C["frame"]))
+
+
+def inner_logs(wall, r, colour, end_colour, pieces, reach, seed=0.0):
+    """Round logs along a wall's inner face, course on course, standing out of it into the room: the
+    film's log rooms. They run from `reach`'s first to its second (u along the wall), on into the
+    walls at the corners, and are cut at the wall's openings, their cut ends pale."""
+    courses = int(wall.height / (2 * r))
+    # Cut a centimetre further back from the openings than the logs outside, so the two never end in
+    # one plane where they meet inside the wall.
+    around = [(a - 0.03, b + 0.03, c - r, d + r) for a, b, c, d in wall.openings]
+    for k in range(courses):
+        v = r + 2 * r * k
+        for u0, u1 in solid_spans(wall.length, v, around):
+            first, last = u0 < 1e-6, u1 > wall.length - 1e-6
+            u0, u1 = (reach[0] if first else u0), (reach[1] if last else u1)
+            if u1 - u0 < 0.12:
+                continue
+            cut_log(wall.point(u0, v, wall.t + 0.08 - r), wall.point(u1, v, wall.t + 0.08 - r), r,
+                    tone(colour, seed + k * 5.3 + u0, 0.08), end_colour, pieces, ends=(not first, not last), segments=10,
+                    grain=1.0)
+
+
+def board_siding(wall, colour, pieces, reach=0.15, seed=0.0):
+    """Horizontal boards along a wall's outer face from its foot to its top, every other one standing
+    a little prouder, stopping at its openings (whose frames cover their ends) and running `reach` on
+    past its ends, in under the logs at the corners: the orange guest house's boarded sides."""
+    n = max(1, round(wall.height / 0.2))
+    h = wall.height / n
+    clear = [(a - 0.01, b + 0.01, c - 0.01, d + 0.01) for a, b, c, d in wall.openings]
+    for k in range(n):
+        v = h * (k + 0.5)
+        spans = [(max(a0, b0), min(a1, b1)) for a0, a1 in solid_spans(wall.length, v - h / 2 + 0.01, clear)
+                 for b0, b1 in solid_spans(wall.length, v + h / 2 - 0.01, clear) if min(a1, b1) > max(a0, b0)]
+        for u0, u1 in spans:
+            u0 = u0 - reach if u0 < 1e-6 else u0
+            u1 = u1 + reach if u1 > wall.length - 1e-6 else u1
+            if u1 - u0 < 0.05:
+                continue
+            depth = -0.02 if k % 2 == 0 else -0.042
+            pieces.append((oriented_box(wall.point((u0 + u1) / 2, v, depth), wall.d, wall.inward, (u1 - u0, 0.012, h)),
+                           tone(colour, seed + k * 3.1 + u0, 0.05), wall.d * 0.25))
+
+
+def shingle_rows(top_edge, down, normal, length, depth, thick, colour, pieces, hole=None, seed=0.0):
+    """Rows of wooden shingles on a roof slab (its top edge, the way down it, its normal, how long down
+    it and deep along it, how thick), from its top edge down: each row a board resting on the slab
+    under the row above and standing off it at its lower edge, so the rows step down the roof as the
+    film's do. `hole` ((s0, s1) down the slope, (y0, y1) along it) is a window the rows stop round."""
+    row, overlap, lift, board, rest = 0.26, 0.07, 0.035, 0.018, 0.003
+    rows = max(1, round(length / row))
+    step = length / rows
+    for k in range(rows):
+        s1 = step * (k + 1)
+        s0 = max(0.0, s1 - step - overlap)
+        span = s1 - s0
+        along = (down * span + normal * lift).normalized()
+        spans = [(-depth / 2, depth / 2)]
+        if hole is not None:
+            (h0, h1), (y0, y1) = hole
+            if s1 > h0 - 0.02 and s0 < h1 + 0.02:
+                spans = [(-depth / 2, y0 - 0.02), (y1 + 0.02, depth / 2)]
+        for a, b in spans:
+            if b - a < 0.05:
+                continue
+            mid = top_edge + down * ((s0 + s1) / 2) + normal * (thick + rest + lift / 2 + board / 2) + V(0.0, (a + b) / 2, 0.0)
+            pieces.append((oriented_box(mid, along, V(0, 1, 0), (math.hypot(span, lift), b - a, board)),
+                           tone(colour, seed + k * 7.0 + a, 0.05), V(0.0, 0.6, 0.0)))
 
 
 def hammock(x0, x1, y, hook_z, low_z, width, pieces):
@@ -1318,13 +1482,18 @@ def hammock(x0, x1, y, hook_z, low_z, width, pieces):
 
 def build_guest_house(name, style, collection):
     """A guest house, as in the film's, where the visitors sleep: a small log cabin of pale round
-    logs, their cut ends showing at the corners, on short stilts, under a steep gable roof of wooden
-    shingles with a window in its slope. Its door is in the front gable end, a plank door with a
-    diamond window, up three half-log steps; the gable above it is boarded in a pale colour patterned
-    with chevrons round a small window. Inside, an empty room of bare log walls and a plank floor, but
-    for a red hammock slung across it before the window opposite the door. Faces -Y."""
+    logs, their cut ends pale and ringed at the corners, on short stilts, under a steep gable roof of
+    wooden shingles stepping down it in rows, with a window in its slope and bargeboards along its
+    gable ends, crossing at the top. Its door is in the front gable end, a plank door with a diamond
+    window, up three half-log steps; the gable above it is boarded in a pale colour patterned with
+    chevrons round a small window. The orange one's long sides are boarded and painted a grey green,
+    as in the film's frame of it. Inside, an empty room of dark round logs, as in the film's frames
+    inside, their cut ends pale at the windows and the doorway, on a floor of light planks under the
+    roof's dark boards and rafters, but for a red hammock slung across it before the window opposite
+    the door. Faces -Y."""
     s = GUEST_STYLES[style]
-    roof_colour, roof_line = L.hex_color(s["roof"]), L.hex_color(s["roofLine"])
+    roof_colour = L.hex_color(s["roof"])
+    boarded = s["sides"] == "boards"
     floor, wall_h, t = 0.55, 2.0, 0.2
     xi, yi = 1.95, 2.4
     xo, yo = xi + t, yi + t
@@ -1342,88 +1511,117 @@ def build_guest_house(name, style, collection):
     walls = (front, back, left, right)
     r = 0.12
     courses = int(wall_h / (2 * r))
-    for wall in walls:
-        pieces.extend(wall.skins(C["guestLogDark"], C["guestLog"]))
-        inside.extend(wall.courses(C["insideLine"], 1, start=2 * r, step=2 * r))
-        # Round logs along the wall's outer face, course on course, cut at its openings; at the corners
-        # every other course runs on past the corner, so the logs' ends stack there as the film draws.
+    for w_index, wall in enumerate(walls):
         ends_out = wall in (front, back)
+        seed = 50.0 * w_index
+        pieces.extend(wall.skins(C["guestLogDark"], C["guestInSkin"]))
+        # Inside, round logs on into the walls at the corners (past the side walls' inner faces from
+        # the front and back walls, into the front and back walls from the sides).
+        inner_logs(wall, r, C["guestInLog"], C["guestInLogEnd"], inside,
+                   (t - 0.05, wall.length - t + 0.05) if ends_out else (-0.05, wall.length + 0.05), seed)
+        for o in wall.openings:
+            if o[2] > 0.1:
+                grid_window(wall, o, panes, 3, 3, pieces, inside)
+        if boarded and not ends_out:
+            board_siding(wall, C["guestBoard"], pieces, seed=seed)
+            continue
+        # Round logs along the wall's outer face, course on course, cut at its openings; at the corners
+        # every other course runs on past the corner (every course of the boarded house's ends), so the
+        # logs' ends stack there as the film draws, pale and ringed.
         for k in range(courses):
             v = r + 2 * r * k
-            past = (0.24 if ends_out else 0.24 + t) if (k % 2 == 0) == ends_out else (-0.05 if ends_out else 0.15)
+            if boarded:
+                past = 0.24
+            else:
+                past = (0.24 if ends_out else 0.24 + t) if (k % 2 == 0) == ends_out else (-0.05 if ends_out else 0.15)
             spans = solid_spans(wall.length, v, [(a - 0.02, b + 0.02, c - r, d + r) for a, b, c, d in wall.openings])
             for u0, u1 in spans:
                 if u1 - u0 < 0.12:
                     continue
-                start = u0 - (past if u0 < 1e-6 else 0.0)
-                end = u1 + (past if u1 > wall.length - 1e-6 else 0.0)
+                first, last = u0 < 1e-6, u1 > wall.length - 1e-6
+                start = u0 - (past if first else 0.0)
+                end = u1 + (past if last else 0.0)
                 if end - start < 0.12:
                     continue
-                cut_log(wall.point(start, v, -0.03), wall.point(end, v, -0.03), r, C["guestLog"], C["guestLogEnd"], pieces)
-        for o in wall.openings:
-            if o[2] > 0.1:
-                grid_window(wall, o, panes, 3, 3, pieces, inside)
-    # The door's frame, and the plank door open into the room against the wall beside it, a diamond
+                # A cut end shows where it meets an opening or runs on past a corner; one buried in the
+                # next wall is closed plain.
+                shows = past > 0.2
+                cut = (shows or not first, shows or not last)
+                cut_log(wall.point(start, v, -0.03), wall.point(end, v, -0.03), r, tone(C["guestLog"], seed + k * 5.3 + u0),
+                        C["guestLogEnd"], pieces, ends=cut, ring=C["guestLogRing"], rings=cut, grain=0.45)
+    # The door's frame, and the plank door open into the room against the logs beside it, a diamond
     # window and a long handle on it.
     e = 0.004
     for c, size in ((V(0.0, -yo - 0.04, floor + 1.85 + 0.05 - e), (2 * door + 0.2, 0.14, 0.1)),
                     (V(-door - 0.05 + e, -yo - 0.04, floor + 0.9), (0.1, 0.14, 1.9)),
                     (V(door + 0.05 - e, -yo - 0.04, floor + 0.9), (0.1, 0.14, 1.9))):
-        pieces.append((P.box_bm(c, size), C["frame"]))
-    leaf_x = -door + 0.03
-    pieces.append((oriented_box(V(leaf_x, -yi + 0.46, floor + 0.92), V(0, 1, 0), V(1, 0, 0), (0.88, 0.05, 1.8)),
-                   C["guestDoor"]))
+        pieces.append((P.box_bm(c, size), C["guestDoorFrame"], V(0.6, 0.0, 0.0) if size[0] > size[2] else UP * 0.6))
+    leaf_x, leaf_y = -door + 0.03, -yi + 0.54
+    pieces.append((oriented_box(V(leaf_x, leaf_y, floor + 0.92), V(0, 1, 0), V(1, 0, 0), (0.88, 0.05, 1.8)),
+                   C["guestDoor"], UP * 0.8))
     for k in (-1, 0, 1):
-        pieces.append((oriented_box(V(leaf_x + 0.027, -yi + 0.46 + 0.22 * k, floor + 0.92), V(0, 1, 0), V(1, 0, 0),
+        pieces.append((oriented_box(V(leaf_x + 0.027, leaf_y + 0.22 * k, floor + 0.92), V(0, 1, 0), V(1, 0, 0),
                                     (PEN, 0.006, 1.74)), C["guestDoorLine"]))
     diamond = Matrix.Rotation(math.pi / 4, 3, "X")
     for side in (-1.0, 1.0):
-        at = V(leaf_x + side * 0.028, -yi + 0.46, floor + 1.32)
+        at = V(leaf_x + side * 0.028, leaf_y, floor + 1.32)
         bm = P.box_bm(V(0.0, 0.0, 0.0), (0.012, 0.16, 0.16))
         L.transformed(bm, Matrix.Translation(at) @ diamond.to_4x4())
         pieces.append((bm, C["doorGlass"]))
-    pieces.append((oriented_box(V(leaf_x + 0.042, -yi + 0.8, floor + 0.95), UP, V(1, 0, 0), (0.34, 0.035, 0.035)),
+    pieces.append((oriented_box(V(leaf_x + 0.042, leaf_y + 0.34, floor + 0.95), UP, V(1, 0, 0), (0.34, 0.035, 0.035)),
                    C["handle"]))
-    # The floor on its stilts, its planks drawn inside, and the half-log steps up to the door.
-    pieces.append((P.box_bm(V(0.0, 0.0, floor - 0.08), (2 * xo + 0.1, 2 * yo + 0.1, 0.16)), C["floor"]))
+    # The floor on its stilts, its light planks drawn inside (their joins staggered), and the steps
+    # up to the door: logs split down their length lying flat face up, their cut ends pale, as the
+    # film's, the upper two on short posts.
+    # The floor's frame is dark wood like the stilts, seen from outside as a band under the logs; the
+    # light planks lie over it in the room, their top a hair above the frame's.
+    pieces.append((P.box_bm(V(0.0, 0.0, floor - 0.08), (2 * xo + 0.1, 2 * yo + 0.1, 0.16)), C["logDark"]))
+    pieces.append((P.box_bm(V(0.0, 0.0, floor - 0.003), (2 * xi, 2 * yi, 0.014)), C["guestFloor"], V(0.0, 0.9, 0.0)))
     for k in range(1, 9):
         x = -xi + 2 * xi * k / 9
-        inside.append((P.box_bm(V(x, 0.0, floor + 0.002), (PEN, 2 * yi - 0.02, 0.01)), C["floorLine"]))
+        inside.append((P.box_bm(V(x, 0.0, floor + 0.002), (PEN, 2 * yi - 0.02, 0.01)), C["guestFloorLine"]))
+    for k in range(9):
+        x = -xi + 2 * xi * (k + 0.5) / 9
+        y = -yi + 0.3 + (2 * yi - 0.6) * ((0.31 + 0.37 * k) % 1.0)
+        inside.append((P.box_bm(V(x, y, floor + 0.002), (2 * xi / 9 - 0.02, PEN, 0.01)), C["guestFloorLine"]))
     for x in (-xo + 0.15, xo - 0.15):
         for y in (-yo + 0.15, 0.0, yo - 0.15):
-            pieces.append((P.box_bm(V(x, y, (floor - 0.16 - 0.3) / 2), (0.24, 0.24, floor - 0.16 + 0.3)), C["logDark"]))
-    steps_end = -yo - 1.05
-    for x in (-0.62, 0.62):
-        pieces.append((log(V(x, -yo - 0.02, floor - 0.08), V(x, steps_end, -0.08), 0.08, segments=8), C["logDark"]))
-    for k in range(3):
-        f = (k + 1) / 4
-        y = -yo + (steps_end + yo) * f
-        z = floor * (1 - f)
-        pieces.append((P.box_bm(V(0.0, y + 0.02, z - 0.05), (1.36, 0.3, 0.1)), C["guestLog"]))
-        cut_log(V(-0.7, y - 0.13, z - 0.06), V(0.7, y - 0.13, z - 0.06), 0.07, C["guestLog"], C["guestLogEnd"], pieces)
+            pieces.append((P.box_bm(V(x, y, (floor - 0.16 - 0.3) / 2), (0.24, 0.24, floor - 0.16 + 0.3)), C["logDark"],
+                           UP * 0.6))
+    treads, run = 3, 0.3
+    step_rise = floor / (treads + 1)
+    for k in range(treads):
+        top = floor - step_rise * (k + 1)
+        y = -yo - 0.02 - run / 2 - run * k
+        half_log(V(-0.65, y, top), V(0.65, y, top), run / 2, tone(C["guestLog"], 40.0 + k), C["guestLogEnd"], pieces,
+                 grain=0.7)
+        if top - run / 2 > 0.05:
+            for x in (-0.48, 0.48):
+                pieces.append((log(V(x, y, -0.1), V(x, y, top - run / 2 + 0.03), 0.06, segments=8), C["logDark"], UP * 0.6))
+    steps_end = -yo - 0.02 - run * treads
     # The gables over the front and back walls, boarded pale and patterned with chevrons, a small
     # window in each.
     gable_colour, chevron = L.hex_color(s["gable"]), L.hex_color(s["chevron"])
     rise = ridge - eave
+    wz = eave + rise * 0.42
     for sign in (-1.0, 1.0):
         # Its face as far out as the logs' middles, reaching back into the wall.
         y_face = sign * (yo + 0.1)
-        wz = eave + rise * 0.42
         # A real window through it, its frame lapping over the hole's edges, so from inside the room
         # (open up to the roof) it shows the night as the walls' windows do.
         pieces.append((gable_bm(y_face if sign < 0 else y_face - 0.18, xo, eave - 0.02, ridge - 0.04, 0.18,
                                 hole=(wz, 0.27)), gable_colour))
         out = V(0.0, sign, 0.0)
         face_y = y_face + sign * 0.012
-        for k in range(3):
-            inset = 0.32 + 0.34 * k
+        for k in range(5):
+            inset = 0.26 + 0.22 * k
             top_z = ridge - 0.04 - inset / math.cos(pitch) - 0.1
             half = (top_z - eave) / math.tan(pitch)
             if half < 0.25:
                 continue
             for sx in (-1.0, 1.0):
                 p, q = V(0.0, face_y, top_z), V(sx * half, face_y, eave + 0.06)
-                pieces.append((oriented_box((p + q) / 2, q - p, out, ((q - p).length, 0.012, 0.07)), chevron))
+                pieces.append((oriented_box((p + q) / 2, q - p, out, ((q - p).length, 0.012, 0.045)), chevron))
         for c, size in ((V(0.0, y_face + sign * 0.03, wz + 0.29), (0.68, 0.05, 0.08)),
                         (V(0.0, y_face + sign * 0.03, wz - 0.29), (0.68, 0.05, 0.08)),
                         (V(-0.3, y_face + sign * 0.03, wz), (0.08, 0.05, 0.5)),
@@ -1432,8 +1630,8 @@ def build_guest_house(name, style, collection):
         panes.append((pane(V(0.0, y_face + sign * 0.022, wz), V(1, 0, 0), out, 0.54, 0.54), C["glass"]))
         for c, size in ((V(0.0, y_face + sign * 0.03, wz), (0.03, 0.03, 0.5)), (V(0.0, y_face + sign * 0.03, wz), (0.5, 0.03, 0.03))):
             pieces.append((P.box_bm(c, size), C["frame"]))
-    # The roof: two slabs of wooden shingles, their rows drawn along them, over a log at the ridge,
-    # and a window lying in the right slope.
+    # The roof: two slabs under rows of wooden shingles stepping down them, a window lying in the right
+    # slope, a log along the ridge, and bargeboards along its gable ends crossing at the top.
     length = (xo + over) / math.cos(pitch) + 0.06
     depth = 2 * (yo + gable_over)
     thick = 0.12
@@ -1460,18 +1658,25 @@ def build_guest_house(name, style, collection):
             slab_piece(hole_s[0], hole_s[1], hole_y[1], depth / 2)
         else:
             slab_piece(0.0, length, -depth / 2, depth / 2)
-        rows = int(length / 0.24)
-        for k in range(1, rows):
-            at = length * k / rows
-            # A row across the hole stops under the frame either side of it.
-            spans = ([(-depth / 2 + 0.01, hole_y[0] - 0.02), (hole_y[1] + 0.02, depth / 2 - 0.01)]
-                     if hole_s and hole_s[0] - 0.05 < at < hole_s[1] + 0.05 else [(-depth / 2 + 0.01, depth / 2 - 0.01)])
-            for y0, y1 in spans:
-                c = top_edge + down * at + V(0.0, (y0 + y1) / 2, 0.0) + normal * (thick + 0.012)
-                pieces.append((oriented_box(c, V(0, 1, 0), normal, (y1 - y0, 0.012, PEN)), roof_line))
+        shingle_rows(top_edge, down, normal, length, depth, thick, roof_colour, pieces,
+                     hole=(hole_s, hole_y) if hole_s else None, seed=sx * 100.0)
+        # Its underside boarded dark wood all over, under the eaves as well as over the room, a
+        # centimetre clear of the slab; the window's hole goes through it too.
+        def lining_piece(s0, s1, y0, y1):
+            mid = top_edge + down * ((s0 + s1) / 2) + V(0.0, (y0 + y1) / 2, 0.0) - normal * 0.02
+            pieces.append((oriented_box(mid, down, V(0, 1, 0), (s1 - s0, y1 - y0, 0.02)), C["guestRoofIn"], V(0.0, 0.8, 0.0)))
+
+        under = length - 0.01
         if hole_s:
-            c = top_edge + down * (length * 0.5) + V(0.0, 0.7, 0.0) + normal * (thick + 0.045)
-            # The frame laps 1 cm in over the hole, so its sides stand clear of the hole's.
+            lining_piece(0.0, hole_s[0], -depth / 2, depth / 2)
+            lining_piece(hole_s[1], under, -depth / 2, depth / 2)
+            lining_piece(hole_s[0], hole_s[1], -depth / 2, hole_y[0])
+            lining_piece(hole_s[0], hole_s[1], hole_y[1], depth / 2)
+        else:
+            lining_piece(0.0, under, -depth / 2, depth / 2)
+        if hole_s:
+            # The frame stands over the shingles round the hole, lapping 1 cm in over it.
+            c = top_edge + down * (length * 0.5) + V(0.0, 0.7, 0.0) + normal * (thick + 0.075)
             for at, size in ((down * 0.35, (0.12, 0.72, 0.1)), (down * -0.35, (0.12, 0.72, 0.1)),
                              (V(0.0, 0.3, 0.0), (0.58, 0.12, 0.1)), (V(0.0, -0.3, 0.0), (0.58, 0.12, 0.1))):
                 pieces.append((oriented_box(c + at, down, V(0, 1, 0), size), C["frame"]))
@@ -1481,21 +1686,53 @@ def build_guest_house(name, style, collection):
                                C["frame"]))
                 pieces.append((oriented_box(c + normal * 0.06 + V(0.0, 0.093 * k, 0.0), down, normal, (0.72, 0.03, 0.02)),
                                C["frame"]))
+        # The bargeboards, a little way out from the slab's ends, covering them and the shingles' ends;
+        # each runs on past the ridge to cross the other, the right one a centimetre further out so the
+        # two never share a face.
+        ext = 0.22
+        for sy in (-1.0, 1.0):
+            c = top_edge + down * ((length + 0.02 - ext) / 2) + normal * ((thick + 0.06 - 0.07) / 2) \
+                + V(0.0, sy * (depth / 2 + 0.03 + (0.012 if sx > 0 else 0.0)), 0.0)
+            pieces.append((oriented_box(c, down, V(0, 1, 0), (length + 0.02 + ext, 0.05, thick + 0.13)),
+                           tone(C["guestLog"], 70.0 + sx + 3.0 * sy), down * 0.6))
     pieces.append((log(V(0.0, -yo - gable_over - 0.05, ridge + 0.05), V(0.0, yo + gable_over + 0.05, ridge + 0.05), 0.09,
-                       segments=10), C["logDark"]))
+                       segments=10), C["logDark"], V(0.0, 0.6, 0.0)))
+    # Overhead inside, the roof's dark boards (their rows drawn across them) on rafters, a beam along
+    # the ridge, and the gables' insides boarded dark round their windows, shutting the room in up to
+    # the roof.
+    in_y = yo - 0.08 - 0.012
+    s_end = xo / math.cos(pitch) + 0.06
+    for sx in (-1.0, 1.0):
+        down = V(sx * math.cos(pitch), 0.0, -math.sin(pitch))
+        normal = V(sx * math.sin(pitch), 0.0, math.cos(pitch))
+        top_edge = V(0.0, 0.0, ridge) - down * 0.06
+        boards = int(s_end / 0.3)
+        for k in range(1, boards):
+            inside.append((quad(top_edge + down * (s_end * k / boards) - normal * 0.032, V(0, 1, 0), -normal,
+                                2 * in_y - 0.02, PEN), C["guestRafter"]))
+        for y in (-1.8, -0.6, 0.6, 1.8):
+            c = top_edge + down * (s_end / 2 + 0.03) - normal * 0.085 + V(0.0, y, 0.0)
+            inside.append((oriented_box(c, down, V(0, 1, 0), (s_end - 0.06, 0.08, 0.1)), C["guestRafter"], down * 0.8))
+    inside.append((log(V(0.0, -in_y, ridge - 0.13), V(0.0, in_y, ridge - 0.13), 0.08, segments=10), C["guestRafter"],
+                   V(0.0, 0.8, 0.0)))
+    apex = ridge - 0.02 / math.cos(pitch)
+    for sign in (-1.0, 1.0):
+        inside.append((gable_bm(-in_y if sign < 0 else in_y - 0.02, (apex - eave + 0.02) / math.tan(pitch), eave - 0.02, apex,
+                                0.02, hole=(wz, 0.27)), C["guestRoofIn"], V(0.8, 0.0, 0.0)))
     # Inside, nothing but a red hammock slung from wall to wall before the window opposite the door,
-    # and a paper lantern hanging from the ridge over the middle of the room, lit at night.
-    hammock(-xi, xi, yi - 0.6, floor + 1.75, floor + 1.15, 0.75, inside)
-    paper_lantern(0.0, -0.4, ridge + 0.05, floor + 2.25, pieces, glow)
-    far += [wall.far(C["guestLog"]) for wall in walls]
+    # its hooks in the logs, and a paper lantern hanging from the ridge's beam over the middle of the
+    # room, lit at night.
+    hammock(-xi + 0.08, xi - 0.08, yi - 0.6, floor + 1.75, floor + 1.15, 0.75, inside)
+    paper_lantern(0.0, -0.4, ridge - 0.2, floor + 2.25, pieces, glow)
+    far += [wall.far(C["guestBoard"] if boarded and wall in (left, right) else C["guestLog"]) for wall in walls]
     for sign in (-1.0, 1.0):
         far.append((gable_bm(sign * (yo + 0.1) - (0.2 if sign > 0 else 0.0), xo, eave - 0.02, ridge - 0.04, 0.2), gable_colour))
     far.append((P.box_bm(V(0.0, 0.0, (floor - 0.3) / 2), (2 * xo, 2 * yo, floor + 0.3)), C["logDark"]))
 
-    body = P.join(name, pieces, collection, sharp=P.SHARP)
+    body = join_grained(name, pieces, collection, sharp=P.SHARP)
     lights = P.join(f"{name}_lamp", glow, collection)
     glass = P.join(f"{name}_pane", panes, collection)
-    room = P.join(f"{name}_inside", inside, collection, sharp=P.SHARP)
+    room = join_grained(f"{name}_inside", inside, collection, sharp=P.SHARP)
     distant = P.join(f"{name}_far", far, collection, sharp=P.SHARP)
     blocks = [
         block_box(-xo, xo, yi, yo, -10, eave), block_box(-xo, -door, -yo, -yi, -10, eave),
@@ -1503,7 +1740,7 @@ def build_guest_house(name, style, collection):
         block_box(xi, xo, -yo, yo, -10, eave),
         block_box(-xo, xo, -yo, yo, -10, floor - 0.16, camera=False),
         block_box(-xo - over, xo + over, -yo - gable_over, yo + gable_over, eave - 0.05, ridge + 0.1, walk=False),
-        block_box(leaf_x - 0.05, leaf_x + 0.05, -yi, -yi + 0.92, floor - 0.1, floor + 1.85, camera=False),
+        block_box(leaf_x - 0.05, leaf_x + 0.05, leaf_y - 0.46, leaf_y + 0.46, floor - 0.1, floor + 1.85, camera=False),
         block_box(-0.75, -0.62, steps_end, -yo, -0.2, floor, camera=False),
         block_box(0.62, 0.75, steps_end, -yo, -0.2, floor, camera=False),
     ]

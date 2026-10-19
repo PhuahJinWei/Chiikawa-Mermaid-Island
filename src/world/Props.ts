@@ -6,7 +6,7 @@ import { fireLights, type FireKind, type Room, type SourceOptions } from './Fire
 import { glowMaterial, glowUniforms, paneMaterial } from './Glow';
 import { INK, addOutline, windUniforms } from './Ink';
 import { terrainHeight } from './Island';
-import { FILM, paintThatch } from './Look';
+import { FILM, paintThatch, paintWood } from './Look';
 import { addBox, addCircle, addDeck } from './Obstacles';
 import { loadPropModel, type LabelInfo, type PartRole, type PropInfo, type PropModel } from './PropModels';
 
@@ -242,6 +242,7 @@ function nightMaterial(map: THREE.Texture): THREE.MeshToonMaterial {
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvNightUv = aNightUv;\nvNight = aNight;');
     shader.fragmentShader = shader.fragmentShader.replace('#include <common>', `#include <common>\n${NIGHT_PARS}`);
     paintThatch(shader);
+    paintWood(shader);
     fireLights(shader);
     shader.fragmentShader = shader.fragmentShader.replace('#include <lights_fragment_begin>', `#include <lights_fragment_begin>\n${NIGHT_LIGHT}`);
   };
@@ -260,6 +261,29 @@ function addNight(geometry: THREE.BufferGeometry, source: THREE.BufferGeometry, 
   }
   geometry.setAttribute('aNightUv', new THREE.BufferAttribute(at, 2));
   geometry.setAttribute('aNight', new THREE.BufferAttribute(night, 2));
+}
+
+/**
+ * A house's baked part's wood grain, for the film look's wood painter (see paintWood): the way it
+ * runs, from the model's `_grain`, turned with the house, its length (how strongly it shows) kept;
+ * nought where the model has none, so every baked part has it and they join into one mesh.
+ */
+function addGrain(geometry: THREE.BufferGeometry, source: THREE.BufferGeometry, matrix: THREE.Matrix4): void {
+  const count = geometry.getAttribute('position').count;
+  const grain = new Float32Array(count * 3);
+  const from = source.getAttribute('_grain');
+  if (from) {
+    const turn = new THREE.Matrix3().setFromMatrix4(matrix);
+    const v = new THREE.Vector3();
+    for (let i = 0; i < count; i++) {
+      v.fromBufferAttribute(from, i);
+      const strength = v.length();
+      if (strength < 0.01) continue;
+      v.applyMatrix3(turn).setLength(strength);
+      grain.set([v.x, v.y, v.z], i * 3);
+    }
+  }
+  geometry.setAttribute('aGrain', new THREE.BufferAttribute(grain, 3));
 }
 
 /** How far a room's box reaches past its inside, in metres: the walls' inner faces lie on the box's
@@ -618,7 +642,10 @@ export class Props {
         // A board under a hand-lettered sign painted solid takes the painting's colour.
         const board = part.role === 'board' && words[0] ? (painted.boards.get(words[0]) ?? null) : null;
         const geometry = placedGeometry(part.geometry, matrix, tint, false, board);
-        if (baked) addNight(geometry, part.geometry, tile, lantern, gain);
+        if (baked) {
+          addNight(geometry, part.geometry, tile, lantern, gain);
+          addGrain(geometry, part.geometry, matrix);
+        }
         props.collect(key, level, kind, !UNLINED.has(p.kind), geometry);
         if ((kind === 'glow' && !(part.role === 'lamp' && lantern >= 0)) || kind === 'flame') {
           for (const spot of lightSpots(part.geometry)) {
