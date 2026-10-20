@@ -68,7 +68,7 @@
     {"kind": "pot", "x": -36.43, "z": 1.57, "turn": 265.5, "group": "festival"},
     {"kind": "pot", "x": -38.14, "z": 1.4, "turn": 251.0, "group": "festival"},
     {"kind": "pot", "x": -40.0, "z": 1.04, "turn": 53.7, "group": "festival"},
-    {"kind": "sign", "x": -190.66, "z": -107.21, "turn": 18.0, "label": "sign.noEntry", "group": "cave"},
+    {"kind": "sign", "x": -192.69, "z": -106.91, "turn": 5.0, "label": "sign.noEntry", "group": "cave"},
     {"kind": "restaurant", "x": -176.5, "z": -158.0, "turn": 90.0, "group": "gorge"},
     {"kind": "sign_hanging", "x": -158.5, "z": -167.5, "turn": 114.0, "label": "sign.shimajiro", "group": "gorge"},
     {"kind": "stall_pink", "x": -6.72, "z": -13.95, "turn": 1.7, "label": "stall.takoyaki", "goods": "takoyaki", "group": "festival"},

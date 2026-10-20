@@ -52,7 +52,7 @@ BOARDS = {
     "stall_pink": ["#F4A3B5"], "stall_purple": ["#B68FD6"], "stall_orange": ["#F2A65A"],
     "stall_blue": ["#7EC3EA"], "stall_red": ["#E0674F"], "stall_white": ["#F7F4EC"],
     "arch": ["#E2BE86", "#FFFFFF"], "banner": ["#FFFFFF"],
-    "sign": ["#D9B483"], "sign_hanging": ["#D9B483"],
+    "sign": ["#E2E8CF"], "sign_hanging": ["#D9B483"],
 }
 # The words on the templates: in the game's own font where there is one (--font-ja in
 # src/styles.css), this strong, laid out as the game lays them out (paintLabels in Props.ts).
@@ -69,6 +69,8 @@ STRETCH = 0.03
 EDGE = 0.03
 SOLID = 0.9
 INK = "#3B2620"  # the words' colour where a face names none, as the game's
+# Paintings the user named in their own words, by the sign each is for.
+NAMED = {"cave warning signboard": "sign.noEntry"}
 
 
 def rgb(hex_colour):
@@ -117,7 +119,8 @@ def signs():
         for i, key in enumerate(keys):
             if i < len(faces) and key not in out:
                 out[key] = {"words": words.get(key, key), "kind": p["kind"], "size": faces[i]["size"],
-                            "colour": faces[i].get("colour", INK), "board": boards[min(i, len(boards) - 1)]}
+                            "colour": faces[i].get("colour", INK), "board": boards[min(i, len(boards) - 1)],
+                            "vertical": bool(faces[i].get("vertical")), "sharp": faces[i].get("sharp", 1)}
     return out
 
 
@@ -183,7 +186,17 @@ def guide_png(sign, font):
     img = np.ones((height, width, 4), dtype=np.float32)
     img[..., :3] = board
     if font is not None:
-        cover = words_cover(sign["words"], width, height, font)[..., None] * GUIDE_WORDS
+        if sign.get("vertical"):
+            # Down the face, a character a row, each as large as fits, as the game types them.
+            chars = list(sign["words"])
+            row = max(1, min(round(width * 0.8), round(height * 0.94 / max(len(chars), 1))))
+            cover = np.zeros((height, width), dtype=np.float32)
+            top = (height - row * len(chars)) // 2
+            for k, char in enumerate(chars):
+                cover[top + k * row:top + (k + 1) * row] = words_cover(char, width, row, font)
+            cover = cover[..., None] * GUIDE_WORDS
+        else:
+            cover = words_cover(sign["words"], width, height, font)[..., None] * GUIDE_WORDS
         img[..., :3] = img[..., :3] * (1.0 - cover) + rgb(sign["colour"]) * cover
     m, thick = max(2, round(GUIDE_MARGIN * height)), 3
     xs, ys = np.arange(width), np.arange(height)
@@ -240,7 +253,8 @@ def board_colour(arr):
 
 def painting_files():
     """The paintings in art/signs/, by the sign each is for: the key its file name starts with
-    ("stall.takoyaki.png" or "stall.takoyaki たこやき.png"). Subfolders are ignored."""
+    ("stall.takoyaki.png" or "stall.takoyaki たこやき.png"), or the one NAMED gives for its name.
+    Subfolders are ignored."""
     out = {}
     if not os.path.isdir(PAINTINGS):
         return out
@@ -248,7 +262,7 @@ def painting_files():
         path = os.path.join(PAINTINGS, entry)
         stem, ext = os.path.splitext(entry)
         if ext.lower() == ".png" and os.path.isfile(path) and stem.strip() and not stem.startswith("_"):
-            out.setdefault(stem.split()[0], []).append(path)
+            out.setdefault(NAMED.get(stem.strip(), stem.split()[0]), []).append(path)
     return out
 
 
@@ -308,8 +322,11 @@ def main():
         board = board_colour(arr)
         if board:
             boards[key] = board
+        # At the game's sharpness for its face (a small face seen close painted sharper, as the game
+        # paints it: `sharp` in its label's info).
         fw, fh = every[key]["size"]
-        gw, gh = max(1, round(fw * GAME_PIXELS)), max(1, round(fh * GAME_PIXELS))
+        sharp = every[key]["sharp"]
+        gw, gh = max(1, round(fw * GAME_PIXELS * sharp)), max(1, round(fh * GAME_PIXELS * sharp))
         if abs((w / h) / (tw / th) - 1.0) > STRETCH:
             # Not its template's proportions (painted for a board since reshaped): shown as it was
             # painted, as large as fits and centred, never stretched.

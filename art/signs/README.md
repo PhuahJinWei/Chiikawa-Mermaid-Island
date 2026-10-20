@@ -22,6 +22,11 @@ shows the painting, and the rest keep their typed words.
 | The arch's board, `arch.welcome` 島へようこそ!! | 6256 × 880 |
 | The arch's banner, `arch.banner` ウェルカム・トゥ・シマ | 4712 × 760 |
 | The street's banners, `banner.welcome` いらっしゃいませ!! and `banner.enjoy` たのしんでね | 4856 × 600 |
+| The cave's No Entry sign, `sign.noEntry` 立入禁止, written down its plank | 342 × 499 |
+
+The cave's sign is painted as `cave warning signboard.png` (1000 × 1451, the
+same shape): a painting named in your own words works once its name is
+listed in `NAMED` in `art/blender/build_signs.py`.
 
 A stall's canvas is its board's whole front, so a stall sign fills its board
 edge to edge with no board showing round it. A stall sign painted at the old

@@ -380,8 +380,8 @@ function paintLabels(all: Label[], painted: Map<string, ImageBitmap>): THREE.Can
   // Faces painted alike (a stall's sign on its front and on its two sides) share one patch.
   const alike = new Map<string, Label[]>();
   for (const label of all) {
-    const { size, vertical, colour } = label.info;
-    const look = `${label.key} ${size[0]} ${size[1]} ${vertical ?? false} ${colour ?? ''}`;
+    const { size, vertical, colour, sharp } = label.info;
+    const look = `${label.key} ${size[0]} ${size[1]} ${vertical ?? false} ${colour ?? ''} ${sharp ?? 1}`;
     alike.set(look, [...(alike.get(look) ?? []), label]);
   }
   const faces = [...alike.values()];
@@ -392,8 +392,8 @@ function paintLabels(all: Label[], painted: Map<string, ImageBitmap>): THREE.Can
   let used = 0;
   for (let density = LABEL_PIXELS; density >= 100; density -= 10) {
     sizes = labels.map((l) => [
-      Math.min(ATLAS_WIDTH - 2 * LABEL_GUTTER, Math.round(l.info.size[0] * density)),
-      Math.min(ATLAS_WIDTH - 2 * LABEL_GUTTER, Math.round(l.info.size[1] * density)),
+      Math.min(ATLAS_WIDTH - 2 * LABEL_GUTTER, Math.round(l.info.size[0] * density * (l.info.sharp ?? 1))),
+      Math.min(ATLAS_WIDTH - 2 * LABEL_GUTTER, Math.round(l.info.size[1] * density * (l.info.sharp ?? 1))),
     ]);
     const order = sizes.map((_, i) => i).sort((a, b) => sizes[b][1] - sizes[a][1]);
     places = new Array(labels.length);

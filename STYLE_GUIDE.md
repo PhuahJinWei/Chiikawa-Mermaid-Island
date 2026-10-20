@@ -411,7 +411,9 @@ food and cups on the ground, everyone toasting. This is the festival.
 - At its foot over the sand, close to the sea, a dark arched opening into
   the rock, a few times the cast's height, a vine or two hanging over its
   side. Open sand before it: no trees or plants in the way.
-- Before it on the sand, a weathered grey board on one post, 立入禁止!!
+- A few steps out on the sand before it, one thick plank of pale
+  weathered wood on one post (a pale cream by day, about #E3E6B2, its grain
+  a little darker; blue-grey by moonlight), about as tall as Momonga, 立入禁止!!
   written on it top to bottom in dark brush strokes.
 
 ### The forbidden cave (`cave 1`, `cave 2`, `cave 3`, `chiikawa 17`, `cave interior 1` to `8`)

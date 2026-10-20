@@ -5,12 +5,14 @@ import { loadGltf } from '../core/gltf';
 export type PropId = 'onigiri';
 
 /** A face for painted words: its size in metres, whether they run down rather than across, their
- * colour, and the face whose words it repeats (a stall's side boards repeat its front's). */
+ * colour, the face whose words it repeats (a stall's side boards repeat its front's), and how many
+ * times as sharp as other faces' its words are painted (a small face seen close: the cave's sign). */
 export interface LabelInfo {
   size: [number, number];
   vertical?: boolean;
   colour?: string;
   repeat?: number;
+  sharp?: number;
 }
 
 /**

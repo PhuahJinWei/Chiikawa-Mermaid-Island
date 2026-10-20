@@ -70,9 +70,14 @@ stage, and along every path. Not yet checked on a real phone.
   lie in level beds split by joints; a fringe of bushes grows along the
   high tiers' tops, some hanging over their edges. At its foot, close to
   the sea and over the open beach, an arched mouth opens into the dark, a
-  few vines hanging beside and over it, the No Entry sign (立入禁止) on the
-  sand beside it, and nothing grows on the sand before it (no trees or
-  palms within 15 metres, no plants within 12); the place is named 西の浜.
+  few vines hanging beside and over it, and nothing grows on the sand before
+  it (no trees or palms within 15 metres, no plants within 12); the place is
+  named 西の浜. Three metres out on the sand before the mouth stands the No
+  Entry sign, as the film's (`cave signboard 1` to `3`): one thick plank of
+  pale weathered wood, its grain running up it and a corner knocked off,
+  on one post, about as tall as Momonga, 立入禁止!!! lettered down it in two
+  columns with scratches at its corners, from the user's painting. Walkers
+  go round it either side into the mouth.
   Its inside follows.
 - The forbidden cave's inside, built in Blender with the island
   (`art/blender/cave.py`) after the film's frames of it (`cave interior 1`
@@ -304,8 +309,11 @@ stage, and along every path. Not yet checked on a real phone.
   is shaded flat, as the sign on its front is, and in the film look the
   signs take the sun's shadows with their boards, so the two meet unseen
   in sun, shade and firelight. A sign without a painting keeps its typed
-  words. How to paint them is in `art/signs/README.md`. All but the
-  cave's No Entry sign and 島二郎's (34 in all) are painted, among them
+  words. How to paint them is in `art/signs/README.md`. All but 島二郎's
+  (34 in all) are painted: the cave's No Entry sign (painted three times
+  as sharp as the rest, since the film shows it close; its painting,
+  `cave warning signboard.png`, is named in the user's own words, which
+  the build knows), and among the rest
   the arch's 島へようこそ!! and its Welcome to Shima
   banner, the street's いらっしゃいませ!! and たのしんでね, and 味じまん
   お好み焼き on a red board at the street's far end, as the film has it

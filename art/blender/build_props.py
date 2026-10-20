@@ -357,19 +357,70 @@ def object_with_uv(name, bm, uvs, collection):
     return obj
 
 
+# The cave's No Entry sign, after the film's (`cave signboard 1` to `3`): pale weathered wood, its
+# grain a little darker, its cut edges and its post darker still.
+SIGN = {k: L.hex_color(v) for k, v in {
+    "board": "#E2E8CF", "grain": "#CBCDA6", "edge": "#CDB878", "post": "#9A9468"}.items()}
+# Its plank: how wide, how tall, how thick, how high its foot stands, and the strips its front is
+# drawn in, for its grain. Measured against Momonga beside it in `cave signboard 1`: its top a little
+# under a metre up, a quarter of a metre of post showing; in the proportions of the user's painting.
+SIGN_PLANK = {"width": 0.44, "height": 0.64, "thick": 0.06, "foot": 0.28, "strips": 14}
+
+
 def build_sign(collection):
-    """The No Entry sign before the cave: a weathered board on two posts, facing -Y, with a face
-    for the game to paint its words on."""
+    """The No Entry sign before the cave, as the film's (`cave signboard 1` to `3`): one thick plank
+    of pale, weathered wood standing upright on a square post set into its back, a third of the
+    plank's height of post showing under it, the grain running up the plank and its outline a little
+    uneven, as if cut by hand. Faces -Y; its whole front is a face for the game to paint its words
+    on, written top to bottom (the user's painting of 立入禁止!!)."""
+    w, h, t = SIGN_PLANK["width"], SIGN_PLANK["height"], SIGN_PLANK["thick"]
+    z0, n = SIGN_PLANK["foot"], SIGN_PLANK["strips"]
+    xs = [-w / 2 + w * i / n for i in range(n + 1)]
+    # Its top and foot cut straight across, but for its top right corner, knocked off a little.
+    top = [z0 + h - 0.014 * max(0.0, (i - n + 2) / 2) for i in range(n + 1)]
+    foot = [z0] * (n + 1)
+    yf, yb = -t / 2, t / 2
+
+    def grain(i):
+        """The wood's colour up the line at xs[i]: paler and darker bands, and a few dark grain lines."""
+        band = 0.5 + 0.5 * math.sin(i * 2.9 + 0.7) * math.sin(i * 0.8)
+        line = 0.5 if i in (3, 8, 11) else 0.0
+        return [SIGN["board"][k] + (SIGN["grain"][k] - SIGN["board"][k]) * max(band * 0.22, line) for k in range(3)]
+
     pieces = []
-    for x in (-0.42, 0.42):
-        pieces.append((segment_bm(Vector((x, 0.0, -0.3)), Vector((x, 0.0, 1.3)), 0.05, 0.045, segments=8), C["bark"]))
-        pieces.append((L.ellipsoid_bm(Vector((x, 0.0, 1.3)), (0.048, 0.048, 0.03), u=10, v=6), C["bark"]))
-    pieces.append((box_bm(Vector((0.0, -0.05, 0.98)), (1.1, 0.06, 0.44), bevel=0.015), C["board"]))
-    sign = L.assemble_colored("sign", pieces, collection)
-    face, uvs = label_bm(Vector((0.0, -0.08, 0.98)), 1.0, 0.36)
+    # The front, in strips up the plank, each edge of a strip the colour of the grain there.
+    front = bmesh.new()
+    cols = []
+    for i in range(n):
+        vs = [front.verts.new((xs[i], yf, foot[i])), front.verts.new((xs[i + 1], yf, foot[i + 1])),
+              front.verts.new((xs[i + 1], yf, top[i + 1])), front.verts.new((xs[i], yf, top[i]))]
+        front.faces.new(vs)
+        cols += [grain(i), grain(i + 1), grain(i + 1), grain(i)]
+    pieces.append((front, cols))
+    # The back, one face facing +Y; the cut edges round it, darker, each facing out. The outline
+    # runs along the foot and back over the top, so round the front the right way.
+    outline = [(x, f) for x, f in zip(xs, foot)] + [(x, tp) for x, tp in reversed(list(zip(xs, top)))]
+    back = bmesh.new()
+    back.faces.new([back.verts.new((x, yb, z)) for x, z in reversed(outline)])
+    pieces.append((back, SIGN["board"]))
+    edges = bmesh.new()
+    ring = outline + [outline[0]]
+    for (xa, za), (xb, zb) in zip(ring, ring[1:]):
+        edges.faces.new((edges.verts.new((xa, yf, za)), edges.verts.new((xa, yb, za)),
+                         edges.verts.new((xb, yb, zb)), edges.verts.new((xb, yf, zb))))
+    pieces.append((edges, SIGN["edge"]))
+    # The post, set into the plank's back, standing from under the sand to near its top.
+    pieces.append((box_bm(Vector((0.0, 0.05, (-0.3 + z0 + h * 0.77) / 2)), (0.075, 0.07, z0 + h * 0.77 + 0.3), bevel=0.006),
+                   SIGN["post"]))
+    sign = join("sign", pieces, collection, sharp=SHARP)
+    # The words' face: the plank's whole front, a few millimetres in from its uneven edge.
+    face, uvs = label_bm(Vector((0.0, yf, z0 + h / 2)), w - 0.012, h - 0.016)
     label = object_with_uv("sign_label", face, uvs, collection)
-    info = {"footprint": {"box": [0.55, 0.12]}, "height": 1.3,
-            "label": {"size": [1.0, 0.36], "colour": "#C63A2C"}}
+    info = {"footprint": {"box": [w / 2 + 0.01, 0.06]}, "height": round(z0 + h, 3),
+            "label": {"size": [round(w - 0.012, 3), round(h - 0.016, 3)], "vertical": True, "colour": "#3B2620",
+                      # The film shows it close, so its words are painted sharper than other signs' (as
+                      # sharp as fits without the other signs' words painted any less sharp).
+                      "sharp": 3}}
     return [sign, label], info
 
 
