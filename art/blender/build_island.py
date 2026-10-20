@@ -1759,7 +1759,8 @@ def build_landmarks(collection, air):
 
 def build_cave(collection):
     """The forbidden cave's inside (cave.py), from the mouth's arch (the outcrop's mouth tier, opened
-    right through) to the doorway in the skylight's dome. Writes its walk grid, each of the floor's and
+    right through) to the doorway in the skylight's dome, and on from its far doorway to the chamber
+    with the ledge. Writes its walk grid, each of the floor's and
     the ceiling's heights stored as a share of CAVE_RANGE (65535 where there is no cave), less what its
     neighbours predict (see predicted). Returns its objects, the game's info about it and its Air."""
     spec = next(s for s in cave_rocks() if s.get("tunnel"))
@@ -1767,7 +1768,7 @@ def build_cave(collection):
     mouth.build()
     sky = SKYLIGHT
     dome = K.skylight(sky["centre"], sky["radius"], sky["lumps"], ground_height, WATER, sky["floor"], sky["seed"],
-                      sky["shaft"], sky["dome"], sky["segments"], door=CV.DOOR)
+                      sky["shaft"], sky["dome"], sky["segments"], doors=(CV.DOOR, CV.DOOR_ON))
     parts, extras, info, air, (floor, ceiling) = CV.build(mouth.mouth_loop, dome, sky, ground_height)
     objects = [CV.join_lit(name, pieces, collection) for name, pieces in parts.items()]
     objects += [join_painted(name, [(bm, cols, True) for bm, cols in pieces], collection) for name, pieces in extras.items()]

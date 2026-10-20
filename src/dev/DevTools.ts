@@ -5,9 +5,12 @@
  *   __dev.shot('frame14')      stage the shot that matches reference frame 14
  *   __dev.capture('name')      save the canvas through the local capture receiver
  *   __dev.release()            return to normal play
+ *   __dev.caveDark()           the forbidden cave's dark test: nothing in it lit with its lights out
+ *   __dev.islandDark()         the island's dark test: nothing on it lit with all its lights out
  */
 import type { ActionId } from '../characters/Actions';
 import type { CharacterId, ExpressionId } from '../characters/types';
+import type { CaveInfo } from '../world/Cave';
 
 export interface StagedCharacter {
   x: number;
@@ -41,6 +44,30 @@ export interface DevApi {
   setOutfit(on: boolean): void;
   renderNow(settle?: number): void;
   canvas(): HTMLCanvasElement;
+  /** The forbidden cave's dark test (see Cave.darkTest): every light in the cave put out (on), or lit
+   * again (off). */
+  caveDark(on: boolean): void;
+  /** The island's dark test (see Stage.darkTest): every source of the island's light put out, and the
+   * cave's (on), or lit again (off). */
+  islandDark(on: boolean): void;
+  /** The scene drawn again as it stands and read back, before the finishing passes: each pixel's light
+   * and where in the world its surface is; and which pixels look out of the forbidden cave. */
+  readScene(): SceneRead;
+  /** The forbidden cave, for staging shots in it: its layout and its floor's height at (x, z) (NaN off
+   * its floor); null if there is none. */
+  cave(): { info: CaveInfo; floorAt(x: number, z: number): number } | null;
+}
+
+/** A picture read back (DevApi.readScene), bottom row first. */
+export interface SceneRead {
+  width: number;
+  height: number;
+  /** Each pixel's light, linear rgba. */
+  colour: Float32Array;
+  /** Where in the world each pixel's surface is (xyz; w 0 where nothing was drawn). */
+  where: Float32Array;
+  /** 1 where the pixel looks out of the forbidden cave, by its mouth or up its skylight: the outside's. */
+  out: Uint8Array;
 }
 
 /** Shots that reproduce reference frames, measured from the frames themselves. */
@@ -190,8 +217,203 @@ export const SHOTS: Record<string, StagedShot> = {
   },
 };
 
+/**
+ * Views over the whole of the forbidden cave, for its dark test (see caveDark): its passage on foot with
+ * the torch held up, looking in and looking back out of its mouth; its cavern's beach; the channel and
+ * the lake under the skylight from the boat, one of the cast eating (the rice ball in hand), and the
+ * boat on the far side of the lake, well off; the skylight's well from below; and the chamber past it,
+ * its ledge, crystals and fire.
+ */
+export function caveViews({ info, floorAt }: NonNullable<ReturnType<DevApi['cave']>>): Record<string, StagedShot> {
+  const stand = (x: number, z: number, yaw: number, more: Partial<StagedCharacter> = {}): StagedCharacter => ({
+    x,
+    z,
+    yaw,
+    y: floorAt(x, z),
+    ...more,
+  });
+  const seat = (n: number, more: Partial<StagedCharacter> = {}): StagedCharacter => ({ x: 0, z: 0, yaw: Math.PI / 2, seat: n, ...more });
+  const eye = (x: number, z: number, up: number): [number, number, number] => [x, floorAt(x, z) + up, z];
+  const [mx, mz] = info.mouth.centre;
+  const [dx, dz] = info.dome.centre;
+  const w = info.water;
+  const views: Record<string, StagedShot> = {
+    passage: {
+      characters: { usagi: stand(-191.0, -119.6, 2.05, { torch: true }) },
+      camera: { position: eye(-192.8, -116.5, 1.5), target: eye(-187.5, -121.4, 0.5), fov: 50 },
+    },
+    mouth: {
+      characters: { usagi: stand(-192.8, -116.5, Math.PI, { torch: true }) },
+      camera: { position: eye(-190.6, -120.2, 1.4), target: eye(mx, mz, 1.0), fov: 55 },
+    },
+    cavern: {
+      characters: { usagi: stand(-180.6, -123.0, 1.6, { torch: true }) },
+      camera: { position: [-185.5, 1.7, -122.0], target: [-168.0, -0.6, -125.5], fov: 55 },
+    },
+    channel: {
+      boat: { x: -168.2, z: -125.2, heading: 1.185 },
+      characters: { usagi: seat(2), hachiware: seat(1), chiikawa: seat(0) },
+      camera: { position: [-166.9, 0.55, -128.4], target: [-168.2, 0.35, -125.2], fov: 45 },
+    },
+    lake: {
+      boat: { x: -142.0, z: -142.6, heading: 3.51 },
+      characters: { usagi: seat(2), hachiware: seat(1, { action: 'eat' }), chiikawa: seat(0) },
+      camera: { position: [-151.9, 0.9, -138.8], target: [-138.0, 0.6, -144.0], fov: 46 },
+    },
+    far: {
+      boat: { x: dx + 9, z: dz - 3, heading: 1.6 },
+      characters: { usagi: seat(2), hachiware: seat(1), chiikawa: seat(0, { action: 'eat' }) },
+      camera: { position: [dx - 12, w + 1.2, dz + 3], target: [dx + 9, w + 0.6, dz - 3], fov: 40 },
+    },
+    well: {
+      characters: {},
+      camera: { position: [dx - 6, w + 1.2, dz + 2], target: [dx, info.dome.top, dz], fov: 60 },
+    },
+  };
+  if (info.chamber) {
+    const [cx, cz] = info.chamber.centre;
+    const [fx, , fz] = info.fire;
+    views.chamber = {
+      characters: {
+        usagi: stand(fx - 1.2, fz + 1.4, -1.9, { torch: true }),
+        chiikawa: stand(fx - 1.0, fz - 1.4, -1.2, { action: 'eat' }),
+      },
+      camera: { position: [cx - 3.0, w + 1.4, cz + 0.5], target: [fx, w + 0.4, fz], fov: 55 },
+    };
+  }
+  return views;
+}
+
+/**
+ * Views over the island, for its dark test by night and by day (see islandDark): the festival's plaza on
+ * the beach, its stalls and arch, and its street of stalls; the village's plaza with its stage and
+ * torches; the local houses' lane, the plank huts and a guest house in its greenery, each lit inside;
+ * the beach, the moon's road on the sea and the ferry; the quay, and the bay seen from the water; the
+ * night beach under its rocks; the jungle's waterfall and its pool, the sea cliffs, the stepping stones
+ * over the gorge, its riverside path and the way to 島二郎; the fields; the forbidden cave's mouth from
+ * the beach; and the whole island from high over the bay. The cast stand in them, one eating (the rice
+ * ball in hand), islanders about the festival.
+ */
+export const ISLAND_VIEWS: Record<string, StagedShot> = {
+  festival: {
+    characters: {
+      chiikawa: { x: -2.6, z: -8.6, yaw: 0.35 },
+      hachiware: { x: -1.0, z: -9.2, yaw: -0.15, action: 'eat' },
+      usagi: { x: 1.6, z: -10.4, yaw: -0.5 },
+    },
+    crowd: [
+      [-9.0, -11.0, 0.3],
+      [4.2, -11.2, -0.4],
+      [9.0, -11.0, 0.2],
+      [-6.0, -6.2, 2.8],
+      [6.4, -7.0, -2.6],
+    ],
+    camera: { position: [-7.0, 1.7, -1.5], target: [1.0, 2.2, -14.0], fov: 50 },
+  },
+  street: {
+    characters: { momonga: { x: 0.9, z: -22.5, yaw: 0.2 }, futaba: { x: -1.2, z: -27.0, yaw: -0.3 } },
+    crowd: [
+      [-2.2, -19.0, 1.4],
+      [2.4, -30.0, -1.6],
+      [-1.6, -33.5, 0.4],
+    ],
+    camera: { position: [0.6, 1.6, -12.0], target: [0.0, 2.0, -36.0], fov: 50 },
+  },
+  village: SHOTS.village,
+  lane: SHOTS.lane,
+  guesthouse: { ...SHOTS.guesthouse, characters: { hitoha: { x: 13.2, z: -104.5, yaw: 0.2 } } },
+  planks: {
+    characters: { futaba: { x: -13.5, z: -96.5, yaw: 1.0 } },
+    camera: { position: [-8.5, 2.3, -92.0], target: [-19.0, 2.2, -99.5], fov: 50 },
+  },
+  beach: {
+    characters: { chiikawa: { x: -12.5, z: -0.5, yaw: 2.6 }, hachiware: { x: -11.4, z: -1.2, yaw: 2.6, action: 'eat' } },
+    camera: { position: [-16.0, 1.5, -6.0], target: [-4.0, 0.3, 18.0], fov: 50 },
+  },
+  quay: {
+    characters: { usagi: { x: 9.0, z: 0.6, yaw: -2.0 } },
+    camera: { position: [-1.5, 2.0, 7.0], target: [18.0, 1.0, 1.0], fov: 50 },
+  },
+  bay: SHOTS.bay,
+  nightBeach: {
+    characters: { momonga: { x: 70.0, z: -20.0, yaw: 0.5 } },
+    camera: { position: [64.0, 1.6, -12.0], target: [80.0, 2.5, -30.0], fov: 50 },
+  },
+  waterfall: SHOTS.waterfall,
+  cliffs: SHOTS.cliffs,
+  stones: SHOTS.stones,
+  riverside: SHOTS.riverside,
+  shimajiro: SHOTS.shimajiro,
+  cave: { ...SHOTS.cave, characters: { usagi: { x: -191.5, z: -96.0, yaw: 3.0 } } },
+  fields: {
+    characters: { hachiware: { x: -40.0, z: -33.0, yaw: -2.4 } },
+    camera: { position: [-35.0, 2.0, -27.0], target: [-47.0, 1.0, -40.0], fov: 50 },
+  },
+  aerial: SHOTS.aerial,
+};
+
+/** More light than this (linear, before the finishing passes) is lit. */
+const GLIMMER = 0.0005;
+
+/** What shows lit in a picture read back (more than a glimmer), of the pixels `counted` keeps: how many
+ * it kept, how many of them are lit, and where (the metre-cells with the most, x y z, how many, the
+ * brightest rgb, and where on screen from the top left). */
+function litPixels({ width, height, colour, where }: SceneRead, counted: (i: number) => boolean) {
+  const cells = new Map<string, { at: number[]; pixels: number; brightest: number[]; screen: number[] }>();
+  let seen = 0;
+  let lit = 0;
+  for (let i = 0; i < width * height; i++) {
+    if (!counted(i)) continue;
+    seen++;
+    const r = colour[i * 4];
+    const g = colour[i * 4 + 1];
+    const b = colour[i * 4 + 2];
+    const top = Math.max(r, g, b);
+    if (!(top > GLIMMER)) continue;
+    lit++;
+    const at = [where[i * 4], where[i * 4 + 1], where[i * 4 + 2]].map(Math.round);
+    const key = at.join(',');
+    const cell = cells.get(key) ?? { at, pixels: 0, brightest: [0, 0, 0], screen: [i % width, height - 1 - Math.floor(i / width)] };
+    cell.pixels++;
+    if (top > Math.max(...cell.brightest)) cell.brightest = [r, g, b].map((v) => +v.toFixed(4));
+    cells.set(key, cell);
+  }
+  const spots = [...cells.values()].sort((a, b) => b.pixels - a.pixels).slice(0, 6);
+  return { seen, lit, spots };
+}
+
+type Lit = ReturnType<typeof litPixels>;
+
+/** What of the forbidden cave shows lit (not what is seen out of its mouth or up its skylight). */
+const litInCave = (read: SceneRead): Lit => litPixels(read, (i) => read.out[i] === 0);
+/** What of the island shows lit: whatever is drawn (the sky is drawn only where nothing else is). */
+const litOnIsland = (read: SceneRead): Lit => litPixels(read, (i) => read.where[i * 4 + 3] > 0);
+
 export function installDevTools(api: DevApi): void {
   const ui = document.getElementById('ui');
+  /** A dark test: each of `views` at each of `hours`, drawn with `dark` on and read back, and what
+   * `lit` finds lit in it. Passes when it finds nothing lit in any. */
+  const darkTest = (views: Record<string, StagedShot>, hours: number[], dark: (on: boolean) => void, lit: (read: SceneRead) => Lit) => {
+    const found: Record<string, Lit> = {};
+    for (const [name, view] of Object.entries(views)) {
+      for (const hour of hours) {
+        api.stage({ ...view, hour });
+        dark(true);
+        try {
+          api.renderNow(0.6);
+          found[`${name} ${hour}h`] = lit(api.readScene());
+        } finally {
+          dark(false);
+        }
+      }
+    }
+    api.release();
+    if (ui) ui.style.display = '';
+    const failed = Object.entries(found)
+      .filter(([, v]) => v.lit > 0)
+      .map(([k]) => k);
+    return { pass: failed.length === 0, failed, views: found };
+  };
   const tools = {
     /**
      * One character framed like the official character cards; yaw turns them (0 = facing the
@@ -237,6 +459,32 @@ export function installDevTools(api: DevApi): void {
       } catch (e) {
         return `error: ${String(e)}`;
       }
+    },
+    /**
+     * The forbidden cave's dark test: whether anything in the cave gives light of its own. Each of its
+     * views (caveViews), at each of `hours` (by day and by night), is drawn with every light in the cave
+     * put out (Cave.darkTest) and read back before the finishing passes. Whatever of the cave still
+     * shows lit (not what is seen out of its mouth or up its skylight, which is the outside's) is light
+     * from nowhere: `lit` counts its pixels and `spots` says where they are. Passes when every view has
+     * lit 0. Run it after any change to how anything in the cave is drawn or lit.
+     */
+    caveDark(hours = [11, 23]) {
+      const cave = api.cave();
+      if (!cave) throw new Error('No forbidden cave on this island');
+      return darkTest(caveViews(cave), hours, api.caveDark, litInCave);
+    },
+    /**
+     * The island's dark test: whether anything on the island gives light of its own. Each of its views
+     * (ISLAND_VIEWS), at each of `hours` (deep in the night, when its lights burn, and by day), is drawn
+     * with every source of its light put out (Stage.darkTest: the sun and the moon, the sky's light, in
+     * the air and on the sea, the hour's light on the cast, the island's lights, the cave's) and read
+     * back before the finishing passes. Whatever is drawn and still shows lit is light from nowhere:
+     * `lit` counts its pixels and `spots` says where they are (the sky, drawn only where nothing else is,
+     * is not counted). Passes when every view has lit 0. Run it after any change to how anything on the
+     * island is drawn or lit.
+     */
+    islandDark(hours = [22.5, 11]) {
+      return darkTest(ISLAND_VIEWS, hours, api.islandDark, litOnIsland);
     },
   };
   (window as unknown as { __dev: typeof tools }).__dev = tools;

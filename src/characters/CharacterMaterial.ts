@@ -31,6 +31,9 @@ export interface CharacterUniforms {
   uFire: THREE.IUniform<THREE.Vector4[]>;
   /** How much a lit room they stand in warms them all round, its light coming back off the walls. */
   uFireFill: THREE.IUniform<number>;
+  /** How much of the open air's light reaches them, 1 or 0: the sky's in the air (the scene's fog) and
+   * the island's lights; none in the forbidden cave, lit by its own. Shared with their outfit. */
+  uOpenAir: THREE.IUniform<number>;
 }
 
 const NO_TEXTURE = new THREE.Texture();
@@ -62,6 +65,7 @@ export function makeCharacterUniforms(
     uShade: { value: new THREE.Color(1, 1, 1) },
     uFire: { value: Array.from({ length: CHARACTER_LIGHTS }, () => new THREE.Vector4()) },
     uFireFill: { value: 0 },
+    uOpenAir: { value: 1 },
     uMaskOn: { value: mask ? 1 : 0 },
     uMaskColor: { value: new THREE.Color(mask ?? '#ffffff') },
     uMaskTex: { value: maskTexture ?? NO_TEXTURE },
@@ -225,10 +229,23 @@ vec3 fireTint() {
 }
 `;
 
+/** The scene's fog, as three.js's fog_fragment draws it, where the open air's light reaches what is
+ * drawn (uOpenAir). */
+export const FOG_FRAGMENT = /* glsl */ `
+#ifdef USE_FOG
+  #ifdef FOG_EXP2
+  float fogFactor = 1.0 - exp(-fogDensity * fogDensity * vFogDepth * vFogDepth);
+  #else
+  float fogFactor = smoothstep(fogNear, fogFar, vFogDepth);
+  #endif
+  gl_FragColor.rgb = mix(gl_FragColor.rgb, fogColor, fogFactor * uOpenAir);
+#endif`;
+
 const FRAG = /* glsl */ `
 #include <common>
 #include <fog_pars_fragment>
 ${FIRE_GLSL}
+uniform float uOpenAir;
 
 uniform vec3 uAmbient;
 uniform vec3 uShade;
@@ -330,7 +347,7 @@ void main() {
   #endif
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
-  #include <fog_fragment>
+  ${FOG_FRAGMENT}
 }
 `;
 
@@ -338,6 +355,7 @@ const OUTLINE_FRAG = /* glsl */ `
 #include <common>
 #include <fog_pars_fragment>
 ${FIRE_GLSL}
+uniform float uOpenAir;
 uniform vec3 uLineColor;
 uniform vec3 uAmbient;
 uniform vec3 uShade;
@@ -348,7 +366,7 @@ void main() {
   #endif
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
-  #include <fog_fragment>
+  ${FOG_FRAGMENT}
 }
 `;
 

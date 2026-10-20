@@ -322,7 +322,8 @@ void main() {
   gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0);
 }`;
 
-/** The aerial clouds' shadows on the sea: soft dark patches, each where its cloud's shadow falls. */
+/** The aerial clouds' shadows on the sea: soft dark patches, each where its cloud's shadow falls, its
+ * colour the sea's in shade, in the hour's light on the sea (uSeaLight). */
 const SHADOW_VERT = /* glsl */ `
 attribute vec2 aLocal;
 varying vec2 vLocal;
@@ -332,6 +333,7 @@ void main() {
 }`;
 const SHADOW_FRAG = /* glsl */ `
 uniform vec3 uShadow;
+uniform vec3 uSeaLight;
 uniform float uFade;
 varying vec2 vLocal;
 void main() {
@@ -339,7 +341,7 @@ void main() {
   float wobble = 0.08 * sin(atan(vLocal.y, vLocal.x) * 5.0 + vLocal.x * 3.0);
   float alpha = (1.0 - smoothstep(0.55, 1.0, r + wobble)) * 0.42 * uFade;
   if (alpha < 0.004) discard;
-  gl_FragColor = vec4(uShadow, alpha);
+  gl_FragColor = vec4(uShadow * uSeaLight, alpha);
   #include <colorspace_fragment>
 }`;
 
@@ -367,10 +369,12 @@ export class FilmClouds {
   private shadowStrength = 1;
 
   /** `horizon` is the sky's horizon colour and `enclosed` how far in under the trees the camera is
-   * (both shared with the sky, so the clouds pale into its haze and are lost in its glow). */
+   * (both shared with the sky, so the clouds pale into its haze and are lost in its glow); `seaLight` the
+   * hour's light on the sea (shared with it), which the aerial clouds' shadows on it lie in. */
   constructor(
     horizon: THREE.IUniform<THREE.Color>,
     private readonly enclosed: THREE.IUniform<number>,
+    seaLight: THREE.IUniform<THREE.Color>,
   ) {
     const sky = skyCards().sort((a, b) => b.centre.length() - a.centre.length());
     this.aerialCards = aerialCards();
@@ -427,7 +431,7 @@ export class FilmClouds {
     this.shadows = new THREE.Mesh(
       this.buildShadows(),
       new THREE.ShaderMaterial({
-        uniforms: { uShadow: { value: new THREE.Color('#0B4A52') }, uFade: this.shadowFade },
+        uniforms: { uShadow: { value: new THREE.Color('#0B4A52') }, uSeaLight: seaLight, uFade: this.shadowFade },
         vertexShader: SHADOW_VERT,
         fragmentShader: SHADOW_FRAG,
         transparent: true,
@@ -553,6 +557,12 @@ export class FilmClouds {
     position.needsUpdate = true;
     // No shadows from the moon, nor in the evening's low sun.
     this.shadowStrength = (1 - night) * THREE.MathUtils.smoothstep(lightDir.y, 0.15, 0.4);
+  }
+
+  /** The light on the clouds put out, till the hour is next set (see Stage.darkTest). */
+  putOut(): void {
+    this.uniforms.uLit.value.setRGB(0, 0, 0);
+    this.uniforms.uShade.value.setRGB(0, 0, 0);
   }
 
   /** Each frame: the sky's clouds lost in the glow under the trees; the aerial ones shown only from

@@ -1014,10 +1014,11 @@ export function moonEdges(shader: THREE.WebGLProgramParametersWithUniforms): voi
  * The film's colour grade, on the finished picture (still in linear light), set by measuring the
  * film's jungle frames: warmer through the darks and the middle (the pale sky left alone), greens
  * leaning toward yellow, a little more colour and a fifth more contrast, shadows a touch green and
- * highlights warm, and the corners a little darker. By night, measured on the film's moonlit
- * beach, the picture is painted in blues: each colour drawn by its brightness toward a blue that
- * deepens in the darks and pales to white in the lights, what is blue already (the sky) left as it
- * is, firelight and lit windows keeping their warmth and the characters most of their own colours.
+ * highlights warm, and the corners a little darker. By night, measured on the film's night frames,
+ * the picture is painted in one royal blue (nightBlue): each colour drawn by its brightness onto a
+ * blue that deepens to navy in the darks and pales to a blue white in the lights, what is blue
+ * already (the sky, the sea) left as it is, firelight and lit windows keeping their warmth, and what
+ * is colourful and the characters most of their own colours.
  */
 const GRADE = {
   uniforms: {
@@ -1052,9 +1053,26 @@ const GRADE = {
     uniform float uGolden;
     uniform float uCave;
     varying vec2 vUv;
+    // The film's moonlit night, by brightness (n, 0 to 1): one royal blue with little red in it, from a
+    // deep navy in the darks (nothing goes black) through cobalt to a bright azure, paling to a blue
+    // white in the lights. Measured on its night frames (cave interior 5, jungle 10, river below parkour
+    // stone landmark 1 and 2, cave entrance 1, mermaid island beach 1): their darkest, middle and
+    // lightest thirds.
+    vec3 nightBlue(float n) {
+      const vec3 navy = vec3(0.02, 0.05, 0.2);
+      const vec3 cobalt = vec3(0.055, 0.17, 0.46);
+      const vec3 azure = vec3(0.11, 0.31, 0.83);
+      const vec3 pale = vec3(0.45, 0.65, 1.0);
+      const vec3 white = vec3(0.85, 0.92, 1.0);
+      if (n < 0.17) return mix(navy, cobalt, n / 0.17);
+      if (n < 0.32) return mix(cobalt, azure, (n - 0.17) / 0.15);
+      if (n < 0.6) return mix(azure, pale, (n - 0.32) / 0.28);
+      return mix(pale, white, (n - 0.6) / 0.4);
+    }
     void main() {
       vec4 c = texture2D(tDiffuse, vUv);
       vec3 g = pow(max(c.rgb, 0.0), vec3(1.0 / 2.2));
+      vec3 drawn = g;
       float l = dot(g, vec3(0.299, 0.587, 0.114));
       // Warmer through the darks and the middle, leaving the pale sky as it is; greens leaning
       // toward yellow.
@@ -1071,27 +1089,36 @@ const GRADE = {
       // (Not in the cave, which is painted in its own dark blues whatever the hour.)
       float night = smoothstep(0.4, 1.0, uNight) * (1.0 - uCave);
       if (night > 0.0) {
-        float n = clamp(dot(g, vec3(0.299, 0.587, 0.114)), 0.0, 1.0);
-        // Nothing goes black: the darkest shapes are a deep violet navy, the middle a blue-violet,
-        // the lights a pale periwinkle, as the film paints its night jungle. Greens lean teal and
-        // reds and purples violet, so the jungle keeps its kinds of leaf.
-        vec3 moonlit = vec3(pow(n, 1.35) + 0.05 * (1.0 - n), pow(n, 1.2), pow(n, 0.65))
-          + vec3(0.12, 0.08, 0.32) * (1.0 - smoothstep(0.0, 0.35, n));
+        // Painted from how bright each point is as drawn, with the grade's contrast, but the darks
+        // only eased down, not crushed, onto a navy floor: nothing goes black. The cast, marked in the
+        // alpha, glow pale in the night, as the film paints them, a blue white; their lines and eyes
+        // stay dark.
+        // (Not named cast: GLSL keeps that word.)
+        bool figure = c.a < 0.75;
+        float lc = clamp(l, 0.0, 1.0);
+        float n = min(0.05 + max((lc - 0.5) * uContrast + 0.5, 0.25 * lc), 1.0);
+        if (figure) n = min(n * (1.0 + 0.4 * smoothstep(0.15, 0.3, n)), 0.92);
+        // Greens lean a little teal and reds and purples violet, as the film's night leaves do, so the
+        // jungle keeps its kinds of leaf.
         float green = smoothstep(0.01, 0.12, g.g - max(g.r, g.b));
         float red = smoothstep(0.03, 0.18, g.r - max(g.g, g.b));
-        moonlit += (green * vec3(-0.02, 0.07, 0.03) + red * vec3(0.12, -0.02, 0.1)) * (0.35 + n);
-        float warm = smoothstep(0.12, 0.4, g.r - g.b) * smoothstep(0.3, 0.7, n);
+        vec3 moonlit = nightBlue(n) + (green * vec3(-0.02, 0.06, -0.02) + red * vec3(0.1, -0.02, 0.03)) * (0.35 + n);
+        // Firelight's warmth, told by the colour as drawn, down to the dim edges of its pools.
+        float warm = smoothstep(0.08, 0.25, drawn.r - drawn.b) * smoothstep(0.05, 0.25, l);
         float blue = smoothstep(0.15, 0.35, g.b - max(g.r, g.g));
-        // Under the night's blue each thing keeps much of its own colour, the more colourful the
-        // more, as the film's nights keep a red stall red, only darker and bluer; leaves alone go
-        // over to the night's teal and violet.
+        // The land, its leaves, sand and rock, goes over to the night's blue; what is colourful keeps
+        // much of its own colour, as the film's nights keep a red stall red, only darker and bluer, and
+        // the cast a little of theirs; what is blue already (the sky, the sea) and what the firelight
+        // warms keep theirs.
+        // (Only what is bright enough to show its colour: in the dark a faint tint is not a colour.)
         float top = max(max(g.r, g.g), g.b);
-        float colourful = smoothstep(0.15, 0.6, (top - min(min(g.r, g.g), g.b)) / max(top, 1e-3)) * (1.0 - green);
-        g = mix(g, moonlit, night * 0.75 * (1.0 - 0.65 * colourful) * (1.0 - warm) * (1.0 - blue) * (c.a < 0.75 ? 0.45 : 1.0));
+        float colourful = smoothstep(0.15, 0.6, (top - min(min(g.r, g.g), g.b)) / max(top, 1e-3)) * (1.0 - green)
+          * smoothstep(0.06, 0.25, top);
+        g = mix(g, moonlit, night * (1.0 - 0.65 * colourful) * (1.0 - warm) * (1.0 - blue) * (figure ? 0.8 : 1.0));
       }
       vec2 d = vUv - 0.5;
       g *= 1.0 - uVignette * dot(d, d);
-      gl_FragColor = vec4(pow(max(g, 0.0), vec3(2.2)), c.a);
+      gl_FragColor = vec4(pow(max(g, 0.0), vec3(2.2)), 1.0);
       // Out to the screen's colours: the grade is the last pass, drawn straight to the screen.
       #include <colorspace_fragment>
     }`,
@@ -1122,8 +1149,9 @@ const PAINT = {
     varying vec2 vUv;
     void main() {
       vec4 here = texture2D(tDiffuse, vUv);
+      // The characters as drawn, still marked for the grade.
       if (here.a < 0.75) {
-        gl_FragColor = vec4(here.rgb, 1.0);
+        gl_FragColor = here;
         return;
       }
       vec3 sum[4];

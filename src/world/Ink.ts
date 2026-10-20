@@ -98,6 +98,9 @@ const OUTLINE_VERT = /* glsl */ `
 #include <common>
 #include <fog_pars_vertex>
 uniform vec2 uResolution;
+#ifdef WORLD
+varying vec3 vWorld;
+#endif
 ${PEN_GLSL}
 #ifdef SWAY
 attribute float aSway;
@@ -123,6 +126,9 @@ void main() {
 #ifdef USE_INSTANCING
   p = (instanceMatrix * vec4(p, 1.0)).xyz;
   n = mat3(instanceMatrix) * n;
+#endif
+#ifdef WORLD
+  vWorld = (modelMatrix * vec4(p, 1.0)).xyz;
 #endif
   vec4 mvPosition = modelViewMatrix * vec4(p, 1.0);
   vec3 nV = normalize(normalMatrix * n);
@@ -202,6 +208,32 @@ export function inkOutlineMaterial(motion: OutlineMotion = 'still', hard = false
   return material;
 }
 
+/**
+ * The pen's outline material for something not lit by the hour's light as the rest of the world is
+ * (what is in the forbidden cave, by the cave's own; what a character holds, as they are): an inverted
+ * hull as inkOutlineMaterial's, coloured by `fragmentShader`, which has vWorld (where the line is) and
+ * `uniforms` besides the pen's (uInk). `fog` if what it outlines takes the scene's fog.
+ */
+export function inkOutlineMaterialLit(
+  uniforms: Record<string, THREE.IUniform>,
+  fragmentShader: string,
+  fog = false,
+): THREE.ShaderMaterial {
+  return new THREE.ShaderMaterial({
+    uniforms: {
+      ...(fog ? THREE.UniformsUtils.clone(THREE.UniformsLib.fog) : {}),
+      ...inkUniforms,
+      uResolution: sharedUniforms.uResolution,
+      ...uniforms,
+    },
+    defines: { WORLD: '', ...(FILM ? { FILM_MASK: '' } : {}) },
+    vertexShader: OUTLINE_VERT,
+    fragmentShader,
+    side: THREE.BackSide,
+    fog,
+  });
+}
+
 const hullGeometries = new WeakMap<THREE.BufferGeometry, THREE.BufferGeometry>();
 
 /**
@@ -244,12 +276,13 @@ export function outlineGeometry(geometry: THREE.BufferGeometry): THREE.BufferGeo
 
 /**
  * Gives a solid mesh its outline: a hull sharing its shape (and, for instanced meshes, its
- * instances), added beside it. Returns the hull.
+ * instances), added beside it, drawn with the pen's material (or `material`, for one lit otherwise:
+ * see inkOutlineMaterialLit). Returns the hull.
  */
-export function addOutline(mesh: THREE.Mesh, motion?: OutlineMotion, hard = false): THREE.Mesh {
+export function addOutline(mesh: THREE.Mesh, motion?: OutlineMotion, hard = false, material?: THREE.Material): THREE.Mesh {
   let hull: THREE.Mesh;
   const geometry = outlineGeometry(mesh.geometry);
-  const material = inkOutlineMaterial(motion ?? (geometry.getAttribute('aSway') !== undefined ? 'sway' : 'still'), hard);
+  material ??= inkOutlineMaterial(motion ?? (geometry.getAttribute('aSway') !== undefined ? 'sway' : 'still'), hard);
   if ((mesh as THREE.InstancedMesh).isInstancedMesh) {
     const src = mesh as THREE.InstancedMesh;
     const inst = new THREE.InstancedMesh(geometry, material, src.count);

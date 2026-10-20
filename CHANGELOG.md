@@ -86,26 +86,77 @@ stage, and along every path. Not yet checked on a real phone.
   higher or wider than the mouth, its vault rippled with flowstone and hung
   with small stalactites, broken stone heaped along its walls and pebbles
   over its floor. It opens into a cavern where the cave's sea comes in onto
-  a little beach, the rowboat drawn up on its sand, the water glowing a
-  little where it laps at it, heavy rounded rock hanging from the roof. The
+  a little beach, the rowboat drawn up on its sand, heavy rounded rock
+  hanging from the roof, dark but for the torch carried through it. The
   sea runs on east under the spur, dark, through a doorway in the dome's
   wall into the round chamber under the skylight: its water glows blue,
   brightest under the opening, sparkles winking on it and motes drifting
-  over it, a thin mist lying low over it far off; pale columns of rock
-  stand round its edge and boulders break it. Beyond lies a ledge laid with
-  rounded cobbles, crystals at its back and dark rounded rock behind them,
-  and a small fire. The place is named ひみつの洞窟.
+  over it; pale columns of rock
+  stand round its edge and boulders break it. Through a doorway in the
+  dome's far wall the sea runs on east, deeper in under the high ground,
+  to a chamber of its own past the skylight's, dark but for its fire, as
+  the film's (`cave interior 7`, `8`): a ledge laid with rounded cobbles
+  at its back, crystals either side and dark rounded rock behind them.
+  The place is named ひみつの洞窟.
 - The cave has its own light, whatever the hour, measured on the film's
   frames: its walls a near-black navy, its floors and the tops of its
-  stones a royal blue, the rock round the lake a little lighter; the moon's
-  light or the sun's coming in by the skylight and the mouth; the water's
-  glow; and a torch carried through it, a small bright pool of cream light
-  with the dark close round it, the flowstone showing where it falls. The
+  stones a dark blue a little lighter, the rock round the lake lighter
+  still; the
+  water's glow; and a torch carried through it, a small bright pool of
+  cream light with the dark close round it, the flowstone showing where it
+  falls. The outside's light comes in only where it truly can. The sky's,
+  by the mouth and down the skylight's well, is baked into the rock as the
+  share of rays from each point that leave the cave by them: the mouth's
+  rim lit as the beach outside, a metre in a quarter of that, dark by
+  three. The sun, or the moon once it has set, shines in where a line to
+  it passes out through the mouth's arch or up through the well's foot and
+  rim, onto the threshold when it is in front of the mouth and down the
+  well in a beam that slants as it goes over, laying a bright patch on the
+  water that moves with the hour; the shaft of it shows in rays, and by
+  day the bright water lights the dome's walls a little. Whoever stands in
+  it is lit as by day outside. Nothing else lights it: where nothing shines,
+  the cave is dark. Nothing in it has light of its own but the lake's glow,
+  the torches and the fire: the water's dark is the cave's dark seen in it,
+  the cast's pale glow the painted dark's light on them, the motes over the
+  lake lit by it, and the crystals dark, as the film's, but where light
+  catches them. The boat and the torch's stick are lit as the cast are,
+  so they read in the dark, and so are their lines (they had been drawn
+  in the daylight outside, brown lines in the dark); a rice ball in hand
+  is lit as the hand holding it, and the sky's haze in the air stays
+  outside. A dark test in the dev tools (`__dev.caveDark()`) puts out
+  every light in the cave and finds nothing in it still lit, in each of
+  its views by day and by night. The
   ledge's fire is redder, turning the cobbles round it the film's warm
   magenta. The night's moonlit colour grade gives way to the cave's own a
   few steps in from the mouth. The cast in it are a pale glowing cyan, as
   the film draws them there, a warm cream on the side turned to a torch.
   Walking in it you hold the torch up, its flame over your head.
+- Shadows only ever darken the ground they lie on. The soft brown shadow
+  under each of the cast, and the one a lantern or a torch throws, had been
+  laid on as a see-through brown, lighter than the ground wherever the
+  ground was darker than it: at night, and on the cave's floor. Its brown
+  is now the hour's light on the ground, so by day it is as it was, by
+  night it is dimmer, and in the cave it only darkens.
+- A dark test for the whole island in the dev tools (`__dev.islandDark()`),
+  as the cave's: it puts out every source of light the island has (the sun
+  and the moon, the sky's light on what faces it, in the air and on the
+  sea, the hour's light on the cast and on what is painted flat, the
+  moon's rim, the clouds', the lanterns, windows and torches and the light
+  they throw, the houses' baked lantern light, and the cave's own), draws
+  eighteen views at 22:30 and at 11:00 (the festival's plaza and its
+  street, the village's plaza, the lane, the plank huts, a guest house, the
+  beach with the moon's road, the quay, the bay from the water, the night
+  beach, the waterfall, the sea cliffs, the stepping stones, the riverside
+  path, the way to 島二郎, the fields, the cave's mouth and the whole
+  island from high up) and finds nothing in any of them still lit, in
+  about five seconds. A fixed colour, a stray light, a fixed-colour patch
+  laid on the ground and a glowing material, each planted in a view, are
+  caught. Its first run found the festival's confetti, whose colour was a
+  copy of the hour's light that nothing put out with it: it now takes the
+  hour's light itself, no change to see. By day it found the glints and
+  the clouds' shadows below. Every view checked against captures taken
+  before at both hours: 29 of 32 the same to the pixel, the other three
+  within the few pixels two loads of the same page differ by.
 - The cave's rowboat (PLAN.md 6.2). Beside it the action button (乗る) gets
   you in, and from the beach pushes it off into the water. The stick steers
   it, as walking is steered, the boat turning gently and pulling ahead at
@@ -117,8 +168,8 @@ stage, and along every path. Not yet checked on a real phone.
   flame mirrored in the water ahead as a column of short golden strokes.
   From deep in the cave the jungle and rocks outside are not drawn but for
   the jungle round the skylight, which shows up its well: at 1488 x 800 on
-  the dev PC the lake's view takes 21 ms, the ledge's 19 and the passage's
-  16 (the lake's took 24 to 32 drawing them all).
+  the dev PC the lake's view takes 19 to 20 ms, the ledge's chamber's 16
+  and the passage's 14 (the lake's took 24 to 32 drawing them all).
 - The stepping stones across the gorge, after the film's frames of them:
   six tall pillars of the gorge's white rock standing in its river, each
   topped with a flat round mat of grass, 40 to 90 cm apart, from a pillar
@@ -887,12 +938,11 @@ outlined is drawn twice, once for its pen line. To get there:
   and the lanterns glow, and light what stands round them warm,
   flickering: the ground and the stage round the village's torches flood
   orange, and anyone standing near them is firelit a warm cream against
-  the night's blue. By night the land lies darker than the sky, its
-  shapes against it, in the film's violet navy, blue-violet and pale
-  periwinkle; open ground and clearings lie pale in the moonlight under
-  the dark of the trees. Each thing keeps its own colour under the
+  the night's blue. By night the land is painted in the film's royal blue
+  (see below); open ground and clearings lie pale in the moonlight under
+  the dark of the trees. What is colourful keeps its own colour under the
   night's blue, only darker and bluer (a red stall stays red, a blue one
-  blue), while the jungle's leaves go over to teal and violet. The moon
+  blue). The moon
   glows in a wide halo in a sky thick with pale cyan stars, and rims the
   very edges of leaves, trunks and rocks that turn toward it in cool
   cyan. The golden hour floods the jungle with golden light: everything
@@ -905,6 +955,27 @@ outlined is drawn twice, once for its pen line. To get there:
   sea darkens with the sky at sunset, and dusk passes through the film's
   cool steel blue before the night. Under half a millisecond more a frame
   at night on the dev PC, and no measurable cost by day.
+- Nights in the film's royal blue, where they had lain under a murky
+  layer: grey and dim, the jungle olive and teal, the darks violet, the
+  sand a grey lilac (the user set the game's view down the cave's skylight
+  beside the film's frame of it). Each colour is now painted by its
+  brightness onto one blue measured on the film's night frames (the
+  skylight from above, the night jungle, the riverside path, the way to
+  島二郎, the cave's beach under the moon): a deep navy in the shadows,
+  never black, cobalt through the middle, a bright azure where the moon
+  falls and a pale blue white in the lights, with little red in any of it.
+  The jungle's leaves keep a hint of teal or violet, the sand is a
+  moonlit blue, and the cast glow a pale blue white, as the film draws
+  them at night. Firelight and lit windows keep their warmth out to the
+  dim edges of their pools on the ground, a stall most of its colour, the
+  sky and the sea theirs. The sky's light at night is stronger (1.0 where
+  it was 0.42), so rock, leaves and pebbles in the shade still show their
+  shapes. Seen down the skylight, the jungle round it went from a mean
+  colour of (28, 49, 79) to (14, 62, 136), the film's (13, 46, 116). The
+  cast had never kept their own colours at night as meant: the brushwork
+  pass dropped the mark that tells them from the scenery before the grade
+  could read it; it keeps it now. Nothing changes by day: the same frames
+  by day, in the golden hour and at dawn are the same to the pixel.
 - The festival's stalls are the film's booths: where they were boxes 3.3
   metres high, each is now a booth 2.4 metres wide on four thin posts
   under a flat roof 2.75 metres up. A deep header board runs across its
@@ -1209,6 +1280,15 @@ outlined is drawn twice, once for its pen line. To get there:
 
 **Fixed**
 
+- The sun's glints winking on the shallows of the sea and of the
+  waterfall's pool were pure white at any hour, brighter than any light on
+  the water in the golden hour and at dusk. They are the hour's light on
+  the water now: white by day as before (the same to the pixel from 7:12
+  to 15:00), a little golden in the golden hour, dimmer at dawn and dusk,
+  and gone by night as before.
+- The clouds' shadows on the sea, seen from high above, were a fixed dark
+  teal laid over it, which would come out lighter than a darker sea. They
+  are now the sea's own light in shade, by day exactly as they were.
 - Small things in a house's room, an apple, a knob, a peg on a shelf, are
   lit by its lantern at night, where they had been left in the night's
   blue: the bake (houses.py bake_night) keeps every face that sees the

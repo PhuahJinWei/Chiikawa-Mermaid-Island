@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { caveFlameMaterial, caveThingMaterial, type Cave } from './Cave';
+import { caveFlameMaterial, caveInkMaterial, caveThingMaterial, type Cave } from './Cave';
 import { addOutline } from './Ink';
 import { addSwitchedBox } from './Obstacles';
 
@@ -83,6 +83,8 @@ export class Boat {
     this.water = cave.info.water;
     const material = caveThingMaterial();
     this.materials.push(material);
+    // Its lines in the light it has, as it has.
+    const ink = caveInkMaterial(material.uniforms.uLit as THREE.IUniform<THREE.Color>);
     this.hull = new THREE.Mesh(cave.boatGeometry, material);
     // The boat's own frame has its length along x, the bow toward +x; turned so it points along +z,
     // the way an object's rotation.y = 0 faces.
@@ -90,7 +92,7 @@ export class Boat {
     this.hull.position.y = -0.12;
     const body = new THREE.Group();
     body.add(this.hull);
-    addOutline(this.hull);
+    addOutline(this.hull, 'still', false, ink);
     for (const side of [-1, 1]) {
       const pivot = new THREE.Group();
       pivot.position.set(side * (HALF_BEAM + 0.04), 0.36, 0);
@@ -99,7 +101,7 @@ export class Boat {
       oar.position.set(-side * 0.55, 0, 0);
       oar.rotation.y = side > 0 ? 0 : Math.PI;
       pivot.add(oar);
-      addOutline(oar);
+      addOutline(oar, 'still', false, ink);
       body.add(pivot);
       this.oars.push(pivot);
     }
@@ -107,7 +109,7 @@ export class Boat {
     const stick = new THREE.Mesh(cave.torchGeometry, material);
     const flame = new THREE.Mesh(cave.torchFlameGeometry, caveFlameMaterial());
     this.torch.add(stick, flame);
-    addOutline(stick);
+    addOutline(stick, 'still', false, ink);
     // At the bow, lighting the way, its flame mirrored ahead; out of the line from the camera behind
     // to the rower.
     this.torch.position.set(0.22, 0.25, HALF_LENGTH - 0.3);
@@ -473,7 +475,9 @@ export class Boat {
         pivot.rotation.set(0, side * 1.35, -side * 0.06);
       }
     });
-    this.cave.termsAt(this.position.x, this.water + 0.5, this.position.z, this.materials[0].uniforms.uHere.value as THREE.Vector3);
+    // Lit as the cast are where it is, a little dimmer, as wood is.
+    const lit = this.materials[0].uniforms.uLit.value as THREE.Color;
+    this.cave.lightOn(this.position.x, this.position.y + 0.5, this.position.z, lit).multiplyScalar(0.6);
   }
 
   private place(): void {

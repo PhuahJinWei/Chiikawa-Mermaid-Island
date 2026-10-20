@@ -53,14 +53,28 @@ ROUTE = [
     ((-152.8, -136.8), -2.20, 8.4, 3.6),
 ]
 STEP = 0.4             # metres between the tube's rings
-# The cavern's beach: where the boat lies drawn up on its sand (x, z), and where its water glows a little
-# as it laps at it (x, z, how far), as the film's (`cave interior 2`).
-BEACH = {"boat": (-179.0, -125.0), "glow": (-176.8, -123.2, 5.5)}
+# The cavern's beach: where the boat lies drawn up on its sand (x, z), as the film's (`cave interior 2`).
+BEACH = {"boat": (-179.0, -125.0)}
 FLOOR_POINTS = 14      # points across a ring's floor, and round its walls and vault
 ARCH_POINTS = 38
 # The dome's doorway, where the sea comes in: its middle's angle round the dome (from east toward
 # south), its half width at the wall, and the height of its top.
 DOOR = (math.radians(152.0), 4.2, 3.2)
+# The doorway in the dome's far wall, where the sea runs on, east under the high ground, to the chamber
+# with the ledge; as DOOR.
+DOOR_ON = (math.radians(-8.3), 3.4, 2.9)
+# That chamber, deeper in past the dome, dark but for the fire and the torch, as the film's ledge
+# (`cave interior 7`, `8`): its middle (x, z), how far its wall stands from it at the water, how high
+# its vault rises over the water, its floor's height under the water, its doorway toward the dome
+# (angle, half width, top) and its seed. Under the high ground, four metres and more of rock over it.
+CHAMBER = {"centre": (-119.0, -145.5), "radius": 7.6, "rise": 5.6, "floor": -2.6,
+           "door": (math.radians(171.7), 3.4, 2.9), "seed": 9}
+# The sea's way on from the dome's far doorway to the chamber's, as ROUTE.
+ROUTE_ON = [
+    ((-132.6, -143.5), -2.2, 6.6, 3.3),
+    ((-129.5, -144.0), -2.3, 6.4, 3.4),
+    ((-126.5, -144.4), -2.2, 6.6, 3.3),
+]
 
 # The stone's own colours: pale, as the film's cave rock shows where the torch lights it; the game's
 # light turns it the film's deep blue away from the torch.
@@ -116,11 +130,11 @@ def bl(p):
 
 
 # ---------------------------------------------------------------------------- the way through
-def centreline(step=STEP):
-    """Points every `step` metres along the cave's middle, through ROUTE's points (Catmull-Rom), each
+def centreline(route=ROUTE, step=STEP):
+    """Points every `step` metres along the cave's middle, through `route`'s points (Catmull-Rom), each
     with its floor's height, width and vault's height eased between theirs: rows of (x, z, floor,
     width, tall) and the way on there (x, z)."""
-    pts = np.array([[x, z, f, w, t] for (x, z), f, w, t in ROUTE], dtype=float)
+    pts = np.array([[x, z, f, w, t] for (x, z), f, w, t in route], dtype=float)
     n = len(pts)
     dense = []
     for i in range(n - 1):
@@ -254,16 +268,17 @@ def orient_loop(loop, start_near, along_toward):
 THROAT = 5             # rings over which the mouth's arch, and the doorway, turn into the cave's outline
 
 
-def tube(mouth_loop, door_loop, seed=0):
-    """The cave's walls: rings of its outline along the way, joined into one tube, from the mouth's arch
-    to the dome's doorway. At either end the opening's own edge (from the rock or the dome) turns over
-    THROAT rings into the cave's outline. Returns (bmesh, colours, each vertex's game position, the
-    rings with what their points are, for placing things along the walls)."""
-    rows, way = centreline()
+def tube(mouth_loop, door_loop, seed=0, route=ROUTE, by_mouth=True):
+    """The cave's walls: rings of its outline along `route`, joined into one tube, from the mouth's
+    arch to the dome's doorway (or from one doorway to another). At either end the opening's own edge
+    (from the rock or the dome) turns over THROAT rings into the cave's outline. Returns (bmesh,
+    colours, each vertex's game position, the rings with what their points are, for placing things
+    along the walls)."""
+    rows, way = centreline(route)
     n = len(rows)
     rings = []
     # Calm by the mouth, where the face leans over the passage close above.
-    calm = smoothstep(1.2, 3.5, np.arange(n) * STEP)
+    calm = smoothstep(1.2, 3.5, np.arange(n) * STEP) if by_mouth else np.ones(n)
     for k, (row, w) in enumerate(zip(rows, way)):
         pts, kind, out = section(row, w)
         pts, d = rough(pts, kind, out, float(calm[k]))
@@ -320,7 +335,7 @@ def tube(mouth_loop, door_loop, seed=0):
     # Every face is wound the same way round the tube, so all of them look into the cave once one of the
     # floor's faces halfway along looks up.
     bm.normal_update()
-    probe = verts[n // 2][FLOOR_POINTS // 2]
+    probe = verts[len(verts) // 2][FLOOR_POINTS // 2]
     if max(probe.link_faces, key=lambda f: abs(f.normal.z)).normal.z < 0.0:
         bmesh.ops.reverse_faces(bm, faces=bm.faces[:])
     return bm, colours, positions, body
@@ -492,11 +507,13 @@ def hanging(body, rng):
 
 
 def beach_stones(body, rng, blocks):
-    """A few rounded stones on the cavern's beach: (bmesh, colours) pieces, each a block for walkers."""
+    """A few rounded stones on the cavern's beach: (bmesh, colours) pieces, each a block for walkers. Not
+    in the passage, whose floor by the mouth stands as low over the water: a stone there would stand in
+    the way in."""
     pieces = []
     for k, (pts, kind, out, d, row) in enumerate(body):
         floor = row[2]
-        if not (WATER + 0.1 < floor < WATER + 0.75) or rng.random() > 0.35:
+        if k * STEP < 12.0 or not (WATER + 0.1 < floor < WATER + 0.75) or rng.random() > 0.35:
             continue
         floor_pts = pts[kind == 0]
         p = floor_pts[int(rng.choice([1, 2, FLOOR_POINTS - 3, FLOOR_POINTS - 2]))]
@@ -511,15 +528,15 @@ def beach_stones(body, rng, blocks):
 # ---------------------------------------------------------------------------- the dome's far side
 # The ledge: from which angle to which round the dome's middle (from east toward south), how far out its
 # front edge runs (before it wanders) and its back (in the wall), its top's height and its foot's.
-SHELF = {"angles": (-0.62, 0.62), "front": 6.7, "back": 11.4, "top": 0.25, "bottom": -2.9}
+SHELF = {"angles": (-0.95, 0.95), "front": 3.4, "back": 8.8, "top": 0.25, "bottom": -2.9}
 CRYSTAL = {"stone": "#C9C4EC", "pale": "#E6E3FA", "deep": "#9C97D8"}
 
 
 def shelf(centre):
-    """The landed ground beyond the water, along the dome's east side, as the film's (`cave interior 7`,
-    `8`): a ledge of stone, its top flat and worn into ripples, its front edge wandering and dropping into
-    the water, its back under the dome's wall. Returns (bmesh, colours, its top's front edge as (x, z)
-    points)."""
+    """The landed ground beyond the water, at the back of the chamber past the dome (`centre` its middle),
+    as the film's (`cave interior 7`, `8`): a ledge of stone, cobbled (see cobbles), its front edge
+    wandering and dropping into the water, its back under the chamber's wall. Returns (bmesh, colours,
+    its top's front edge as (x, z) points)."""
     cx, cz = centre
     a0, a1 = SHELF["angles"]
     angles = np.linspace(a0, a1, 34)
@@ -577,7 +594,7 @@ def cobbles(centre, edge, rng, blocks):
     pieces = []
     k = 0
     for ring in np.arange(0.0, 4.2, 0.4):
-        for a in np.arange(a0 + 0.02, a1 - 0.02, 0.4 / 8.5):
+        for a in np.arange(a0 + 0.02, a1 - 0.02, 0.4 / (SHELF["front"] + 0.6 + ring)):
             aa = a + rng.uniform(-0.015, 0.015)
             front = float(np.interp(aa, [f[0] for f in fronts], [f[1] for f in fronts]))
             r = front + 0.32 + ring + rng.uniform(-0.08, 0.08)
@@ -630,21 +647,20 @@ def pebbles(floor, rng):
     return pieces
 
 
-def formations(centre, rng, blocks):
+def formations(centre, inner, rng, blocks):
     """What the film's frames show round the glowing water under the dome (`cave interior 4`, `5`, `7`,
-    `8`): pale columns of rock standing at its edge out of the water, leaning a little; a few boulders
-    breaking its surface; and behind the ledge the dark rounded masses of the wall's rock. Returns
-    (bmesh, colours) pieces; those walkers could reach are blocks for them."""
+    `8`): pale columns of rock standing at the dome's edge (`centre` its middle) out of the water, leaning
+    a little; a few boulders breaking its surface; and in the chamber past it (`inner` its middle),
+    behind the ledge, the dark rounded masses of the wall's rock. Returns (bmesh, colours) pieces; those
+    walkers could reach are blocks for them."""
     cx, cz = centre
     pieces = []
-    door = math.degrees(DOOR[0])
+    doors = [math.degrees(DOOR[0]), math.degrees(DOOR_ON[0])]
     a0, a1 = (math.degrees(a) for a in SHELF["angles"])
-    # Columns round the edge, out of the doorway and the ledge.
+    # Columns round the dome's edge, out of its doorways.
     for k in range(13):
         deg = 360.0 * k / 13 + rng.uniform(-8.0, 8.0)
-        d = (deg - door + 180.0) % 360.0 - 180.0
-        e = (deg + 180.0) % 360.0 - 180.0
-        if abs(d) < 30.0 or a0 - 12.0 < e < a1 + 12.0:
+        if any(abs((deg - door + 180.0) % 360.0 - 180.0) < 30.0 for door in doors):
             continue
         a = math.radians(deg)
         r = rng.uniform(9.1, 9.9)
@@ -661,10 +677,11 @@ def formations(centre, rng, blocks):
         c = (cx + r * math.cos(a), WATER - 0.05, cz + r * math.sin(a))
         bm = lump(c, (s * 1.2, s * 0.7, s), int(rng.integers(0, 10000)), u=10, v=7, rough=0.2, spin=rng.uniform(0.0, math.pi))
         pieces.append((bm, stone(positions(bm), k + 50)))
-    # Behind the ledge, the wall's rock in big rounded masses, dark, as the film draws it there.
+    # Behind the ledge, the chamber's rock in big rounded masses, dark, as the film draws it there.
+    cx, cz = inner
     for k in range(6):
         a = math.radians(a0 + (a1 - a0) * (k + 0.5) / 6 + rng.uniform(-4.0, 4.0))
-        r = rng.uniform(10.6, 11.3)
+        r = rng.uniform(CHAMBER["radius"] - 0.5, CHAMBER["radius"] + 0.2)
         h = rng.uniform(1.6, 2.8)
         w = rng.uniform(0.9, 1.4)
         c = (cx + r * math.cos(a), SHELF["top"] + h * 0.45, cz + r * math.sin(a))
@@ -673,6 +690,54 @@ def formations(centre, rng, blocks):
         blocks.append({"circle": [round(c[0], 2), round(c[2], 2), round(w * 0.85, 2)],
                        "y": [round(SHELF["top"] - 0.2, 2), round(SHELF["top"] + h, 2)]})
     return pieces
+
+
+def chamber(spec):
+    """The chamber deeper in, past the dome, where the ledge is (the film's `cave interior 7`, `8`): a
+    shell of rock looking into it, its floor under the water, its wall rising from the water steep and
+    uneven, pocketed, rounding over into a low vault, and a doorway cut in it toward the dome (as
+    karst.skylight cuts the dome's). Returns (bmesh, colours, the doorway's edge in order round it)."""
+    import karst as K
+    rng = np.random.default_rng(spec["seed"])
+    cx, cz = spec["centre"]
+    segments = 72
+    theta = np.linspace(0.0, 2.0 * math.pi, segments, endpoint=False)
+    cos, sin = np.cos(theta), np.sin(theta)
+    p = rng.uniform(0.0, 2.0 * math.pi, 4)
+    reach = spec["radius"] * (1.0 + 0.06 * np.sin(2.0 * theta + p[0]) + 0.04 * np.sin(5.0 * theta + p[1]))
+    floor = spec["floor"]
+    # Rings round the middle: the floor under the water out to the wall's foot, then the wall and the
+    # vault from the water up toward its top, steep low down.
+    rows = [(k * reach, np.full(segments, y)) for k, y in ((0.22, floor), (0.45, floor + 0.05), (0.7, floor + 0.35),
+                                                          (0.92, WATER - 1.8))]
+    rows.append((reach + 0.05, np.full(segments, WATER - 0.8)))
+    for v in (1.0, 0.86, 0.72, 0.58, 0.45, 0.33, 0.22, 0.12, 0.05):
+        phi = 0.5 * math.pi * v
+        pocket = 0.35 * np.sin(5.0 * theta + 4.0 * v + p[2]) * np.sin(3.0 * theta - 2.0 * v + p[3]) * math.sin(math.pi * v)
+        rows.append((reach * math.sin(phi) ** 0.6 + pocket, np.full(segments, WATER + spec["rise"] * math.cos(phi))))
+    bm = bmesh.new()
+    rings = [[bm.verts.new(bl((cx + r[j] * cos[j], y[j], cz + r[j] * sin[j]))) for j in range(segments)] for r, y in rows]
+    faces = {}
+    for i, (lo, hi) in enumerate(zip(rings, rings[1:])):
+        for j in range(segments):
+            k = (j + 1) % segments
+            faces[i, j] = bm.faces.new((lo[j], lo[k], hi[k], hi[j]))
+    bm.faces.new(rings[0])
+    bm.faces.new(rings[-1])
+    # The shell closes round the chamber's air: its faces, turned out of that, are turned in to it.
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    bmesh.ops.reverse_faces(bm, faces=bm.faces[:])
+    a, half, tall = spec["door"]
+    cols_in = [j for j in range(segments) if abs(K.angle_diff(theta[j], a)) * spec["radius"] <= half]
+    cols_in = [j for j in cols_in if (j + 1) % segments in cols_in]
+    top_row = next(i for i, (_, ys) in enumerate(rows) if i > 4 and float(np.mean(ys)) >= tall)
+    bmesh.ops.delete(bm, geom=[faces[i, j] for i in range(3, top_row) for j in cols_in], context="FACES_ONLY")
+    loop = K.boundary_loop(bm)
+    pts = positions(bm)
+    col = stone(pts, 61, "rockDark")
+    col = mix(col, C["wet"], smoothstep(WATER + 0.35, WATER, pts[:, 1]) * 0.8)
+    col = mix(col, C["deep"], smoothstep(WATER - 0.2, WATER - 1.2, pts[:, 1]))
+    return bm, col, loop
 
 
 def crystal(base, axis, length, radius, spin):
@@ -708,7 +773,7 @@ def crystals(centre, rng, blocks):
     cx, cz = centre
     cols = palette(CRYSTAL)
     pieces = []
-    for a, r in ((-0.5, 9.8), (0.48, 9.6), (0.06, 10.3)):
+    for a, r in ((-0.6, 6.2), (0.55, 6.0), (0.08, 6.8)):
         bx, bz = cx + r * math.cos(a), cz + r * math.sin(a)
         inward = np.array([-math.cos(a), 0.0, -math.sin(a)])
         for n in range(int(rng.integers(5, 8))):
@@ -902,7 +967,7 @@ def torch():
 
 # ---------------------------------------------------------------------------- walking, the water, the light
 GRID = 0.25            # the walk grid's cells (m)
-BOUNDS = (-197.0, -156.5, -130.5, -107.0)   # x0, z0, x1, z1 over everything inside the cave
+BOUNDS = (-197.0, -156.5, -108.0, -107.0)   # x0, z0, x1, z1 over everything inside the cave
 OPEN = 30.0            # a ceiling's height where there is none (under the skylight, out of the mouth)
 FLOOR_TOP = 2.0        # no floor in the cave is higher
 
@@ -955,12 +1020,15 @@ def walk_grid(floors, ceilings):
     return floor, ceiling
 
 
-def light_terms(pieces, everything, sources, glow_disc):
+def light_terms(pieces, everything, glow_disc, openings):
     """How each vertex of `pieces` ((bmesh, ...) tuples) is lit, as the game lights the cave: how open it
-    is to the cave round it (ao), how much of the outside's light reaches it through the openings in
-    `sources` ((centre, normal into the cave, radius) discs: the skylight's well, the mouth) as a diffuse
-    light of strength 1, and how much of the glowing water under the dome (`glow_disc`: centre, radius)
-    it sees: (N, 3) arrays, one a piece. `everything` is every bmesh that casts shadow in the cave."""
+    is to the cave round it (ao), how much of the outside it sees by the cave's openings (`openings`:
+    the mouth's arch and the skylight's well, as the game's info gives them): of rays out over it, as a
+    diffuse light falls, the share that leaves the cave by them, 0 deep in to 1 out under the open sky
+    (a ray that gets out another way has gone through rock that is not the cave's: from a part buried
+    in the rock, which sees nothing); and how much of the glowing water under the dome (`glow_disc`:
+    centre, radius) it sees: (N, 3) arrays, one a piece. `everything` is every bmesh that casts shadow
+    in the cave."""
     combined = bmesh.new()
     for bm in everything:
         L.append_bm(combined, bm)
@@ -985,8 +1053,30 @@ def light_terms(pieces, everything, sources, glow_disc):
             pts.append(np.asarray(centre) + (a * math.cos(th) + b * math.sin(th)) * r)
         return np.array(pts), normal, math.pi * radius * radius / count
 
-    skies = [disc_samples(c, n, r, 14) for c, n, r in sources]
+    # Rays out over each vertex for the daylight: cosine-weighted, as a diffuse light falls, many of
+    # them, since few find the way out.
+    m = 40
+    w1, w2 = (np.arange(m) + 0.5) / m, (np.arange(m) * 0.618034) % 1.0
+    escape = np.stack([np.sqrt(w1) * np.cos(2 * math.pi * w2), np.sqrt(w1) * np.sin(2 * math.pi * w2), np.sqrt(1 - w1)], 1)
     glow = disc_samples((glow_disc[0][0], WATER + 0.02, glow_disc[0][1]), (0.0, 1.0, 0.0), glow_disc[1], 16)
+    arch, top = openings["arch"], openings["well"]["top"]
+    a_foot, a_way = np.array(arch["foot"]), np.array([arch["facing"][0], 0.0, arch["facing"][1]])
+    a_side = np.array([-a_way[2], 0.0, a_way[0]])
+
+    def leaves(s, d):
+        """Whether a ray from s along d, meeting nothing of the cave's, leaves by one of its openings."""
+        if d[1] > 1e-6:
+            t = (top[1] - s[1]) / d[1]
+            if t >= 0.0 and math.hypot(s[0] + d[0] * t - top[0], s[2] + d[2] * t - top[2]) < top[3] + 0.4:
+                return True
+        out = float(d @ a_way)
+        if out > 1e-6:
+            t = float((a_foot - s) @ a_way) / out
+            if t >= -0.3:
+                q = s + d * t
+                if abs(float((q - a_foot) @ a_side)) < arch["half"] + 0.4 and a_foot[1] - 0.4 < q[1] < a_foot[1] + arch["height"] + 0.4:
+                    return True
+        return False
     out = []
     for piece in pieces:
         bm = piece[0]
@@ -1026,7 +1116,12 @@ def light_terms(pieces, everything, sources, glow_disc):
                     total += cos_r * cos_s * area / (math.pi * dist * dist)
                 return total
 
-            res[vi, 1] = min(sum(received(*s) for s in skies), 2.0)
+            out_ = 0
+            for h in escape:
+                d = t1 * h[0] + t2 * h[1] + nrm * h[2]
+                if tree.ray_cast(bl(start), Vector((d[0], -d[2], d[1])))[0] is None and leaves(start, d):
+                    out_ += 1
+            res[vi, 1] = out_ / m
             res[vi, 2] = min(received(*glow), 2.0)
         out.append(res)
     return out
@@ -1110,25 +1205,28 @@ def build(mouth_loop, dome, sky, ground, seed=85):
     pieces; extra objects' pieces with no light: the flames, the boat, its oar and the torch; the game's
     info; the cave's Air, for cutting the rock and ground it runs through)."""
     rng = np.random.default_rng(seed)
-    dome_bm, dome_cols, vine_bm, vine_cols, door_loop = dome
+    dome_bm, dome_cols, vine_bm, vine_cols, (door_loop, door_on_loop) = dome
     tube_bm, tube_cols, _, body = tube(mouth_loop, door_loop)
-    air = Air(tube_bm, dome_bm)
+    chamber_bm, chamber_cols, chamber_loop = chamber(CHAMBER)
+    on_bm, on_cols, _, _ = tube(door_on_loop, chamber_loop, route=ROUTE_ON, by_mouth=False)
+    air = Air(tube_bm, dome_bm, on_bm, chamber_bm)
     centre = sky["centre"]
+    inner = CHAMBER["centre"]
     dome_cols = recolour_dome(dome_bm, sky, ground)
     blocks = []
     hung = hanging(body, rng)
     loose = drips(body, rng)
     heaps, slabs = rubble(body, rng, blocks)
     loose += heaps + beach_stones(body, rng, blocks)
-    shelf_bm, shelf_cols, edge = shelf(centre)
-    fire_at = (centre[0] + 8.1 * math.cos(-0.05), SHELF["top"] + 0.01, centre[1] + 8.1 * math.sin(-0.05))
+    shelf_bm, shelf_cols, edge = shelf(inner)
+    fire_at = (inner[0] + 5.2 * math.cos(-0.05), SHELF["top"] + 0.01, inner[1] + 5.2 * math.sin(-0.05))
     fire_stones, flame, fire_light = fire(fire_at, rng, blocks)
-    crystal_pieces = crystals(centre, rng, blocks)
-    formed = formations(centre, rng, blocks)
-    laid = cobbles(centre, edge, np.random.default_rng(seed + 7), blocks)
+    crystal_pieces = crystals(inner, rng, blocks)
+    formed = formations(centre, inner, rng, blocks)
+    laid = cobbles(inner, edge, np.random.default_rng(seed + 7), blocks)
 
-    floor, ceiling = walk_grid([tube_bm, dome_bm, shelf_bm] + [b for b, _ in slabs + formed + laid],
-                               [tube_bm, dome_bm, shelf_bm] + [b for b, _ in slabs + hung + formed])
+    walls = [tube_bm, dome_bm, on_bm, chamber_bm, shelf_bm]
+    floor, ceiling = walk_grid(walls + [b for b, _ in slabs + formed + laid], walls + [b for b, _ in slabs + hung + formed])
     loose += pebbles(floor, np.random.default_rng(seed + 8))
     # The apron before the mouth: the beach's own ground, a metre or two out across the arch's width, so
     # walkers step in and out without the rock's foot in the way.
@@ -1150,13 +1248,17 @@ def build(mouth_loop, dome, sky, ground, seed=85):
     well_top = float(np.mean(ground(centre[0] + sky["radius"] * np.cos(np.linspace(0, 6.28, 24)),
                                     centre[1] + sky["radius"] * np.sin(np.linspace(0, 6.28, 24)))))
     water = water_mesh(floor, centre, sky["dome"])
-    sources = [((centre[0], well_top - 0.3, centre[1]), (0.0, -1.0, 0.0), sky["radius"] * 0.92),
-               (tuple(mouth_c - face * 0.2), tuple(-face), 1.35)]
-    stony = [(tube_bm, tube_cols), (dome_bm, dome_cols), (shelf_bm, shelf_cols)] + hung + loose + slabs + fire_stones + formed + laid
+    stony = [(tube_bm, tube_cols), (dome_bm, dome_cols), (on_bm, on_cols), (chamber_bm, chamber_cols),
+             (shelf_bm, shelf_cols)] + hung + loose + slabs + fire_stones + formed + laid
     glass = crystal_pieces
     vines = [(vine_bm, vine_cols)]
     everything = [b for b, _ in stony + glass]
-    lights = light_terms(stony + glass + vines + [water], everything, sources, (centre, sky["dome"] * 0.9))
+    openings = {"arch": {"foot": [float(mouth_c[0]), float(mouth[:, 1].min()), float(mouth_c[2])],
+                         "facing": [float(face[0]), float(face[2])],
+                         "half": float(np.max(np.abs((mouth - mouth_c) @ side))),
+                         "height": float(mouth[:, 1].max() - mouth[:, 1].min())},
+                "well": {"top": [centre[0], well_top, centre[1], sky["radius"] - 0.15]}}
+    lights = light_terms(stony + glass + vines + [water], everything, (centre, sky["dome"] * 0.9), openings)
     # The water takes the skylight's light where it falls on it, in its colour's second channel.
     water = (water[0], np.column_stack([water[1][:, 0], np.clip(lights[-1][:, 1], 0.0, 2.0), water[1][:, 2]]))
     lights = lights[:-1]
@@ -1174,10 +1276,20 @@ def build(mouth_loop, dome, sky, ground, seed=85):
         "grid": {"origin": [BOUNDS[0], BOUNDS[1]], "cell": GRID, "size": [int(floor.shape[1]), int(floor.shape[0])]},
         "mouth": {"centre": [round(float(mouth_c[0]), 2), round(float(mouth_c[2]), 2)], "facing": 85.0},
         "dome": {"centre": list(centre), "radius": sky["dome"], "top": round(well_top, 2)},
+        # The openings the sun and the moon shine in by: the skylight's well, its rim at the ground and
+        # its foot over the dome (x, y, z, radius each), and the mouth's arch (its middle at its foot,
+        # the way it faces out, how wide and how high).
+        "well": {"top": [centre[0], round(well_top, 2), centre[1], round(sky["radius"] - 0.15, 2)],
+                 "foot": [centre[0], round(well_top - sky["shaft"], 2), centre[1], round(sky["radius"] - 0.55, 2)]},
+        "arch": {"foot": [round(float(mouth_c[0]), 2), round(float(mouth[:, 1].min()), 2), round(float(mouth_c[2]), 2)],
+                 "facing": [round(float(face[0]), 3), round(float(face[2]), 3)],
+                 "half": round(float(np.max(np.abs((mouth - mouth_c) @ side))), 2),
+                 "height": round(float(mouth[:, 1].max() - mouth[:, 1].min()), 2)},
+        "chamber": {"centre": list(inner), "radius": CHAMBER["radius"]},
         "fire": [round(v, 2) for v in fire_light],
         "blocks": blocks,
         "ledge": [[round(x, 2), round(z, 2)] for x, z in edge],
-        "beach": {"boat": list(BEACH["boat"]), "glow": list(BEACH["glow"])},
+        "beach": {"boat": list(BEACH["boat"])},
     }
     return parts, extras, info, air, (floor, ceiling)
 

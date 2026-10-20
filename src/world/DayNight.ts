@@ -68,11 +68,13 @@ interface Key {
 
 // After the film's palette: bright turquoise-and-green days, a warm golden afternoon, orange and
 // pink at sunset, a cool steel-blue dusk, royal-blue moonlit nights, measured on the film's
-// moonlit beach (STYLE_GUIDE.md, section 5). By night the moon lights the land from one side and
-// the sky's light is low, so the land lies darker than the sky, its shapes against it.
+// moonlit beach (STYLE_GUIDE.md, section 5). By night the moon lights the land from one side, and
+// the sky's light, though low, lights what the moon does not enough to show its shapes (in the
+// jungle's shade and in the gorge), as the film's night frames do; the colour grade paints it all in
+// the night's blue (see Look.ts).
 const NIGHT: Key = {
   top: '#1247A4', horizon: '#1653A4', ambient: [0.32, 0.38, 0.64], light: '#B2C6FF', lightIntensity: 1.4,
-  hemiSky: '#3A5296', hemiGround: '#141A36', hemiIntensity: 0.42, cloud: [0.03, 0.08, 0.3], sea: [0.14, 0.18, 0.44], night: 1,
+  hemiSky: '#3A5296', hemiGround: '#141A36', hemiIntensity: 1.0, cloud: [0.03, 0.08, 0.3], sea: [0.14, 0.18, 0.44], night: 1,
 };
 const BLUE: Key = {
   top: '#38559A', horizon: '#8698C2', ambient: [0.6, 0.64, 0.86], light: '#9FB6EA', lightIntensity: 1.0,

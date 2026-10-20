@@ -15,6 +15,7 @@ import { ACTIONS, type ActionContext, type ActionId } from './Actions';
 import type { EmoteHost, EmoteSystem } from './Emotes';
 import { t } from '../i18n/I18n';
 import { penAt } from '../world/Ink';
+import type { HeldLight } from './Props';
 import { CANOPY_SHADE } from '../world/Look';
 
 export interface CharacterOptions {
@@ -84,6 +85,7 @@ const _e = new THREE.Euler();
 const _m = new THREE.Matrix4();
 const _from = new THREE.Vector3();
 const _cave = new THREE.Color();
+const _tint = new THREE.Color();
 const _s = new THREE.Vector3();
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
@@ -211,6 +213,8 @@ export class Character implements EmoteHost {
   private feet = NaN;
   /** How deep in the trees' shade they stand (see FrameContext.shade); NaN until first measured. */
   private shaded = NaN;
+  /** Whether they are in the forbidden cave, lit by its own light (see updateShade). */
+  private inCave = false;
   private crouch = -1;
 
   private readonly squash = new Spring(3.0, 0.2, 1);
@@ -280,6 +284,12 @@ export class Character implements EmoteHost {
     this.fireShadow = makeCastShadow();
     this.prop = prop;
     this.prop.visible = false;
+    // What they hold is lit as their hand is.
+    const held = prop.userData.light as HeldLight | undefined;
+    if (held) {
+      held.uShade = this.uniforms.uShade;
+      held.uOpenAir = this.uniforms.uOpenAir;
+    }
     this.updateParts();
   }
 
@@ -707,13 +717,17 @@ export class Character implements EmoteHost {
     if (!ctx.shade) return;
     const pos = this.root.position;
     const y = this.feetY + this.height * 0.55;
-    if (ctx.caveLight?.(pos.x, y, pos.z, _cave)) {
+    this.inCave = !!ctx.caveLight?.(pos.x, y, pos.z, _cave);
+    if (this.inCave) {
       // In the cave its own light lights them, whatever the hour outside: shade is the share of the
       // hour's light (uAmbient) that it is.
       const a = sharedUniforms.uAmbient.value;
       this.uniforms.uShade.value.setRGB(_cave.r / Math.max(a.r, 0.05), _cave.g / Math.max(a.g, 0.05), _cave.b / Math.max(a.b, 0.05));
+      // Nor does the open air's light, the sky's in the air (the fog) and the island's lights, reach in.
+      this.uniforms.uOpenAir.value = 0;
       this.shaded = NaN;
     } else {
+      this.uniforms.uOpenAir.value = 1;
       const shade = ctx.shade(pos.x, y, pos.z);
       this.shaded = Number.isNaN(this.shaded) ? shade : this.shaded + (shade - this.shaded) * Math.min(1, dt * 5);
       this.uniforms.uShade.value.setRGB(1, 1, 1).lerp(CANOPY_SHADE, this.shaded);
@@ -731,6 +745,13 @@ export class Character implements EmoteHost {
     this.shadow.position.set(pos.x, ground + 0.025, pos.z);
     this.shadow.scale.setScalar(this.width * 1.15 * k);
     (this.shadow.material as THREE.MeshBasicMaterial).opacity = k;
+    // A shadow only takes light away. Its warm brown is the hour's light on the ground where they stand
+    // (white by day, so as painted; dimmer by night, and in the trees' shade), and none in the forbidden
+    // cave, whose floor's light is its own and dim: never lighter than the ground it lies on.
+    if (this.inCave) _tint.setRGB(0, 0, 0);
+    else _tint.copy(sharedUniforms.uAmbient.value).multiply(this.uniforms.uShade.value);
+    (this.shadow.material as THREE.MeshBasicMaterial).color.copy(_tint);
+    (this.fireShadow.material as THREE.MeshBasicMaterial).color.copy(_tint);
     this.updateFireShadow(ground, k);
 
     if (this.torch) {

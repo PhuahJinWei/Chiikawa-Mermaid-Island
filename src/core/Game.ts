@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { Stage } from '../world/Stage';
 import { cameraClear, cameraLimit, clampInAir, clampToWalkable, groundHeight, splashDown } from '../world/Island';
 import { Boat } from '../world/Boat';
-import { caveFlameMaterial, caveThingMaterial } from '../world/Cave';
+import { caveFlameMaterial, caveInkMaterial, caveThingMaterial } from '../world/Cave';
 import { Input } from './Input';
 import { CameraRig } from './CameraRig';
 import { FreeCamera } from './FreeCamera';
@@ -73,6 +73,8 @@ const _right = new THREE.Vector3();
 const _want = new THREE.Vector3();
 const _seat = new THREE.Vector3();
 const _flame = new THREE.Vector3();
+const _stick = new THREE.Vector3();
+const _seen = new THREE.Vector3();
 const _boatFlame = new THREE.Vector3();
 const _landing = new THREE.Vector3();
 const _from = new THREE.Vector3();
@@ -138,6 +140,8 @@ export class Game {
    * where on the shore you would step out of the boat. */
   private boat: Boat | null = null;
   private caveTorch: THREE.Group | null = null;
+  /** The light on the carried torch's stick (its material's uLit), as on the cast where it is. */
+  private caveTorchLit: THREE.Color | null = null;
   private rowing = false;
   private readonly shoreAt = new THREE.Vector3();
   /** 0..1: how far the view is lifted so characters stay visible above the open test panel. */
@@ -261,9 +265,12 @@ export class Game {
     const cave = this.stage.cave;
     if (!cave) return;
     const torch = new THREE.Group();
-    const stick = new THREE.Mesh(cave.torchGeometry, caveThingMaterial());
+    const wood = caveThingMaterial();
+    const lit = wood.uniforms.uLit as THREE.IUniform<THREE.Color>;
+    this.caveTorchLit = lit.value;
+    const stick = new THREE.Mesh(cave.torchGeometry, wood);
     torch.add(stick, new THREE.Mesh(cave.torchFlameGeometry, caveFlameMaterial()));
-    addOutline(stick);
+    addOutline(stick, 'still', false, caveInkMaterial(lit));
     // Carried, a long one, its flame up over the bearer's head as the film's.
     torch.scale.set(1, 1.35, 1);
     torch.visible = false;
@@ -299,6 +306,11 @@ export class Game {
     const held = [...this.characters.values()].some((ch) => ch.holdsTorch);
     this.caveTorch?.updateMatrixWorld(true);
     this.stage.caveTorches.carried = held && this.caveTorch ? _flame.set(0, 0.66, 0).applyMatrix4(this.caveTorch.matrixWorld) : null;
+    // Its stick lit as the cast are where it is, a little dimmer, as wood is (as the boat is).
+    if (held && this.caveTorch && this.caveTorchLit) {
+      const at = _stick.setFromMatrixPosition(this.caveTorch.matrixWorld);
+      cave.lightOn(at.x, at.y, at.z, this.caveTorchLit).multiplyScalar(0.6);
+    }
     boat.update(this.time);
     this.stage.caveTorches.boat = boat.torchFlame(_boatFlame);
     let label: string | null = null;
@@ -716,6 +728,77 @@ export class Game {
         this.draw();
       },
       canvas: () => this.renderer.domElement,
+      caveDark: (on) => this.stage.cave?.darkTest(on),
+      islandDark: (on) => {
+        this.stage.darkTest(on);
+        // The waterfall's pool mirrors what stood round it when it last looked: in the dark, while the
+        // test ran. It looks again.
+        if (!on) this.reflectedHour = Number.NaN;
+      },
+      readScene: () => {
+        const cave = this.stage.cave;
+        const { x: width, y: height } = this.renderer.getDrawingBufferSize(new THREE.Vector2());
+        const picture = new THREE.WebGLRenderTarget(width, height, { type: THREE.FloatType });
+        picture.depthTexture = new THREE.DepthTexture(width, height);
+        const where = new THREE.WebGLRenderTarget(width, height, { type: THREE.FloatType, depthBuffer: false });
+        // Where each pixel's surface is in the world, from the picture's depth (w 0 where nothing is).
+        const toWorld = new THREE.ShaderMaterial({
+          uniforms: {
+            tDepth: { value: picture.depthTexture },
+            uUnproject: { value: this.camera.projectionMatrixInverse },
+            uCameraWorld: { value: this.camera.matrixWorld },
+          },
+          vertexShader: /* glsl */ `
+            varying vec2 vUv;
+            void main() {
+              vUv = uv;
+              gl_Position = vec4(position.xy, 0.0, 1.0);
+            }`,
+          fragmentShader: /* glsl */ `
+            uniform sampler2D tDepth;
+            uniform mat4 uUnproject;
+            uniform mat4 uCameraWorld;
+            varying vec2 vUv;
+            void main() {
+              float d = texture2D(tDepth, vUv).x;
+              if (d >= 1.0) {
+                gl_FragColor = vec4(0.0);
+                return;
+              }
+              vec4 view = uUnproject * vec4(vec3(vUv, d) * 2.0 - 1.0, 1.0);
+              gl_FragColor = vec4((uCameraWorld * vec4(view.xyz / view.w, 1.0)).xyz, 1.0);
+            }`,
+        });
+        const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), toWorld);
+        quad.frustumCulled = false;
+        const before = this.renderer.getRenderTarget();
+        this.renderer.setRenderTarget(picture);
+        this.renderer.render(this.scene, this.camera);
+        this.renderer.setRenderTarget(where);
+        this.renderer.render(quad, this.camera);
+        this.renderer.setRenderTarget(before);
+        const colour = new Float32Array(width * height * 4);
+        const at = new Float32Array(width * height * 4);
+        this.renderer.readRenderTargetPixels(picture, 0, 0, width, height, colour);
+        this.renderer.readRenderTargetPixels(where, 0, 0, width, height, at);
+        const out = new Uint8Array(width * height);
+        if (cave) {
+          const eye = this.camera.position;
+          for (let i = 0; i < width * height; i++) {
+            if (at[i * 4 + 3] === 0 || cave.seenOut(eye, _seen.set(at[i * 4], at[i * 4 + 1], at[i * 4 + 2]))) out[i] = 1;
+          }
+        }
+        picture.depthTexture.dispose();
+        picture.dispose();
+        where.dispose();
+        quad.geometry.dispose();
+        toWorld.dispose();
+        return { width, height, colour, where: at, out };
+      },
+      cave: () => {
+        const cave = this.stage.cave;
+        return cave ? { info: cave.info, floorAt: (x: number, z: number) => cave.grid.floorAt(x, z) } : null;
+      },
     };
   }
 

@@ -130,25 +130,37 @@ def arch_nearest(u, v, half, height):
     return side if math.hypot(side[0] - u, side[1] - v) <= math.hypot(top[0] - u, top[1] - v) else top
 
 
-def boundary_loop(bm):
-    """The edge of a mesh's one hole, as its points in order round it, in game coordinates (x, y, z)."""
+def boundary_loops(bm):
+    """The edges of a mesh's holes, each as its points in order round it, in game coordinates (x, y, z)."""
     edges = [e for e in bm.edges if e.is_boundary]
-    assert edges, "no hole"
     after = {}
     for e in edges:
         a, b = e.verts
         after.setdefault(a, []).append(b)
         after.setdefault(b, []).append(a)
-    start = edges[0].verts[0]
-    loop, prev, cur = [start], None, start
-    while True:
-        nxt = next(v for v in after[cur] if v is not prev)
-        if nxt is start:
-            break
-        loop.append(nxt)
-        prev, cur = cur, nxt
-    assert len(loop) == len(edges), (len(loop), len(edges))
-    return [(v.co.x, v.co.z, -v.co.y) for v in loop]
+    loops, seen = [], set()
+    for e in edges:
+        start = e.verts[0]
+        if start in seen:
+            continue
+        loop, prev, cur = [start], None, start
+        seen.add(start)
+        while True:
+            nxt = next(v for v in after[cur] if v is not prev)
+            if nxt is start:
+                break
+            loop.append(nxt)
+            seen.add(nxt)
+            prev, cur = cur, nxt
+        loops.append([(v.co.x, v.co.z, -v.co.y) for v in loop])
+    return loops
+
+
+def boundary_loop(bm):
+    """The edge of a mesh's one hole, as its points in order round it, in game coordinates (x, y, z)."""
+    loops = boundary_loops(bm)
+    assert len(loops) == 1, f"{len(loops)} holes"
+    return loops[0]
 
 
 def arch(u, v, half, height):
@@ -943,7 +955,7 @@ def skylight_edge(radius, lumps, theta):
     return radius * (1.0 + sum(amp * np.sin(k * theta + phase) for k, amp, phase in lumps))
 
 
-def skylight(centre, radius, lumps, ground, water, floor, seed, shaft=3.8, dome=10.5, segments=96, door=None):
+def skylight(centre, radius, lumps, ground, water, floor, seed, shaft=3.8, dome=10.5, segments=96, doors=()):
     """The cave's skylight, after the film's frames looking down into it and up out of it and the
     user's sketch of it: a round opening in the jungle floor like a well's mouth, the ground running
     right to its edge (build_island cuts the opening out of the ground at the same `segments`
@@ -953,10 +965,11 @@ def skylight(centre, radius, lumps, ground, water, floor, seed, shaft=3.8, dome=
     `dome` metres from the middle at the water, its floor at `floor` under it. Moss hangs over the
     edge in tongues and vines down the well, some on past its foot into the cave. The lip follows
     the ground round (`ground(x, z)`: its height). A closed solid: the cave's inside, the rest shut
-    away under the ground; but for `door` (angle, half width, top), a doorway cut in the dome's wall
-    toward that angle, from under the water up to `top`, for the cave's sea to come in by. Returns
-    (the rock's bmesh, its colours, the vines' bmesh, their colours, the doorway's edge in order round
-    it in game coordinates, or None)."""
+    away under the ground; but for each of `doors` (angle, half width, top), a doorway cut in the
+    dome's wall toward that angle, from under the water up to `top`, for the cave's sea to come in by
+    and run on by, and on through the solid's hidden outer wall behind it. Returns (the rock's bmesh,
+    its colours, the vines' bmesh, their colours, each doorway's edge in order round it in game
+    coordinates)."""
     rng = np.random.default_rng(seed)
     C = {**SHARED, **STONES["karst"]}
     cx, cz = centre
@@ -1062,17 +1075,25 @@ def skylight(centre, radius, lumps, ground, water, floor, seed, shaft=3.8, dome=
     bm.faces.new(rings[0])
     bm.faces.new(rings[-1])
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
-    loop = None
-    if door is not None:
-        # The doorway: the wall's faces toward its angle, from the floor's outer edge under the water
-        # (the fourth row) up to the first of the vault's rows at or over its top.
-        a, half, tall = door
+    loops = []
+
+    def door_columns(a, half):
         cols_in = [j for j in range(segments) if abs(angle_diff(theta[j], a)) * dome <= half]
-        cols_in = [j for j in cols_in if (j + 1) % segments in cols_in]
+        return [j for j in cols_in if (j + 1) % segments in cols_in]
+
+    for a, half, tall in doors:
+        # A doorway: the wall's faces toward its angle, from the floor's outer edge under the water (the
+        # fourth row) up to the first of the vault's rows at or over its top; its edge the hole there.
         top_row = next(i for i, (_, ys, kind, _) in enumerate(rows) if kind == "cave" and i > 4 and float(np.mean(ys)) >= tall)
-        cut = [faces[i, j] for i in range(3, top_row) for j in cols_in]
+        cut = [faces[i, j] for i in range(3, top_row) for j in door_columns(a, half)]
         bmesh.ops.delete(bm, geom=cut, context="FACES_ONLY")
-        loop = boundary_loop(bm)
+        at = (cx + dome * math.cos(a), cz + dome * math.sin(a))
+        loops.append(min(boundary_loops(bm), key=lambda lp: min(math.hypot(p[0] - at[0], p[2] - at[1]) for p in lp)))
+    # And through the solid's hidden outer wall behind each doorway, where the passage runs on through
+    # the rock (else it would stand across the passage, a wall seen from it).
+    behind = len(rows) - 3
+    bmesh.ops.delete(bm, geom=[faces[behind, j] for a, half, _ in doors for j in door_columns(a, half)],
+                     context="FACES_ONLY")
 
     # Vines hanging from the lip down the well a hand's breadth off its side, none past its foot (from
     # the water below only their leaves show, round its edge), leaves along them in bunches.
@@ -1112,4 +1133,4 @@ def skylight(centre, radius, lumps, ground, water, floor, seed, shaft=3.8, dome=
             L.append_bm(vb, leaf)
             vine_cols.extend([VINE[("leaf", "leafMid", "leafDark")[int(rng.integers(0, 3))]]] * len(leaf.verts))
             leaf.free()
-    return bm, cols, vb, vine_cols, loop
+    return bm, cols, vb, vine_cols, loops

@@ -75,14 +75,20 @@ never pushed, because it is other people's artwork.
   of the brush and a few pebbles, darker toward its edges; where grass
   meets earth it breaks over the edge in tufts, never a clean line. Still water mirrors what
   stands round it, darker and greener; falling water is a soft veil of
-  streaks, glowing over its lip. Nights are moonlit royal blue, the land
-  darker than the sky, clearings pale in the moonlight, each thing
-  keeping its own colour, only darker and bluer, the moon glowing in a
-  wide halo in a sky thick with pale cyan stars and rimming the very
-  edges of leaves, trunks and rocks in cool cyan, the jungle violet navy,
-  teal and violet; torches burn in big licking cartoon flames, and they,
-  lanterns and lit windows glow and light what is round them warm,
-  firelit faces a warm cream. Dusk is a cool steel blue; the golden hour
+  streaks, glowing over its lip. Nights are one royal blue, as the film's
+  night frames measure it: a deep navy in the shadows (never black, never
+  grey), cobalt through the middle, a bright azure where the moon falls
+  and a pale blue white in the lights, with little red in any of it, never
+  a murky grey, teal or violet layer over the land. Clearings and open sand
+  lie pale in the moonlight; the jungle is navy and cobalt, its leaves a
+  hint of teal or violet; rock, leaves and pebbles in the shade still show
+  their shapes. What is colourful keeps its own colour, only darker and
+  bluer, and the cast glow a pale blue white. The moon glows in a wide halo
+  in a sky thick with pale cyan stars and rims the very edges of leaves,
+  trunks and rocks in cool cyan; torches burn in big licking cartoon
+  flames, and they, lanterns and lit windows glow and light what is round
+  them warm, out to the dim edges of their pools, firelit faces a warm
+  cream. Dusk is a cool steel blue; the golden hour
   floods the jungle with golden light, its haze gold toward the sun and
   thin elsewhere; the evening's haze takes the sky's colours, never a
   green fog.
@@ -93,6 +99,26 @@ never pushed, because it is other people's artwork.
   are measured in drawn pixels, so they come out coarser when it draws
   coarser. Judge the look, and take captures to set beside the film, at
   full resolution (in development, `__game.setPixelRatio(1)` first).
+- **No light without a source.** Everything lit takes its light from
+  something that gives it: the sun or the moon, the sky's light (on what
+  faces it, in the air as haze, on the sea), the hour's light on what is
+  painted flat (the cast, the pen's lines, the falling water, the
+  confetti), the moon's cool rim, and the island's own lights (torches,
+  lanterns, lit windows and the lantern light baked into the houses); in
+  the forbidden cave, its own (below). Only the sky with its moon, stars
+  and clouds, the flames, the lanterns and lit windows, and the cave's lake
+  give light of their own. Nothing else has a colour of its own lit in a
+  shader (no glow put on for looks, no fixed colour standing in for light),
+  nothing is lit by a light that does not reach it, and a shadow or
+  anything else laid over the ground only takes light away: its colour is
+  the light where it lies (the cast's shadows, the clouds' shadows on the
+  sea), never a fixed colour that comes out lighter than dark ground. A
+  glint is its light's: the sun's on the water is the hour's light there,
+  white by day, golden in the golden hour. In development
+  `__dev.islandDark()` puts out every source the island has and finds
+  nothing still lit in its views by night and by day, and
+  `__dev.caveDark()` does the same in the cave; run both after any change
+  to how anything is drawn or lit.
 - **Everyone is a round blob.** Head and body are one soft shape, wider at
   the head, with tiny stub arms and almost invisible feet. Heights are close
   to one head tall. This is a gift for procedural modelling.
@@ -374,7 +400,7 @@ green-turquoise water you can see sparkles in. Confetti welcome on arrival.
 - Starfish scattered on the sand. Bonfire of crossed logs with a big soft
   cartoon flame casting an orange pool of light.
 - Everything is painted in blues: a royal-blue sky, clouds barely lighter
-  than it, a deep blue sea, blue-grey sand and deep blue silhouettes,
+  than it, a deep blue sea, moonlit blue sand and deep blue silhouettes,
   never black; only firelight and lit windows stay warm.
 
 ### Night feast (`chiikawa 10`)
@@ -422,9 +448,18 @@ food and cups on the ground, everyone toasting. This is the festival.
 - Entered on foot through its one mouth on the west beach; a boat crosses
   its sea.
 - Lit by its own dark, not the night's moonlit blues, as measured on the
-  film's frames: walls a near-black navy (about #030F41), floors and the
-  tops of stones a royal blue (about #0528A0), the rock round the glowing
-  water a little lighter (#0A2260). A torch makes a small bright pool of
+  film's frames: walls a near-black navy (about #030F41), floors a dark
+  blue a little lighter (the film's sand away from the torch, about
+  #020F2E), royal blue (about #0528A0) only where something lights them,
+  the rock round the glowing water a little lighter (#0A2260). Light only
+  where something gives it: the film's glow on the beach's water, which
+  nothing there would give, is left out, and so is its band of mist over
+  the lake (flat sheets of mist, seen along the water, read as a slab of
+  light); the light in the air is the shaft's rays down the well. Nothing
+  in the cave has light of its own but the lake's glow, the torches and the
+  fire: the crystals are dark, as the film's, but where light catches them;
+  what is made (the boat, a torch's stick, their lines, a rice ball in hand)
+  is lit as the cast are where it is; a shadow only darkens. A torch makes a small bright pool of
   pale cream (about #C8C3B9 on the rock), the dark close round it; on the
   water it shows as a column of short golden strokes. The cast glow a pale
   cyan (#9BE3F9), warm on their torch side.
@@ -449,10 +484,16 @@ food and cups on the ground, everyone toasting. This is the festival.
   over it far off; pale columns of rock stand round its edge (`cave
   interior 4`, `5`). From the water the sky shows up the well, ringed by
   leaves (`cave interior 6`).
-- A flat stone ledge beside the water, laid with rounded cobbles, crystals
-  at its back and dark rounded rock behind, lit by a small fire whose light
-  turns the cobbles a warm magenta against the blue, where the Siren and
-  the mermaids sit (`cave interior 7`, `8`).
+- Past the skylight's chamber, deeper in, a dark chamber of its own: a flat
+  stone ledge at its back beside the water, laid with rounded cobbles,
+  crystals either side and dark rounded rock behind, lit by a small fire
+  whose light turns the cobbles a warm magenta against the blue, where the
+  Siren and the mermaids sit (`cave interior 7`, `8`). In the film the
+  Siren's own glow lights it, its walls a brighter indigo.
+- Daylight comes in only where it truly can: bright at the mouth's rim,
+  gone a few metres in; down the skylight's well a slanting beam and a
+  sunlit patch on the water that move with the hour (the moon's, pale, by
+  night); nowhere else.
 
 ### Arrival ferry (`boat`)
 
@@ -484,9 +525,9 @@ shading toward the water. At anchor out in the bay.
 | Sky | #6EC6F0 → #CFEFFF, white puffy clouds | #0F2350 → #1E3A7A, stars |
 | Sea, shallow | #2FD1B8 | #1B3C6E with moon streak #E8F1FF |
 | Sea, deep | #1AA6C9 → #0B3D7A | #050B1E |
-| Sand | #EBC48F | #3A3F66 |
-| Foliage | #3FA34D, #8FD16A, #1F6B3A | #1A2B3A |
-| Karst rock | #C9D6D9 | #3B4A66 |
+| Sand | #EBC48F | #2D53CD (moonlit, `cave entrance 1`) |
+| Foliage | #3FA34D, #8FD16A, #1F6B3A | #051639 → #0E2C72 → #1547B2 (`cave interior 5`) |
+| Karst rock | #C9D6D9 | on the night's blue, as the foliage |
 | Thatch / wood | #C9A46A / #8A5A3B | — |
 | Fire light | — | #FFB347 core #FFE58A |
 | Moon | — | #F5F1C9 |

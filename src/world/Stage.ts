@@ -104,7 +104,6 @@ export class Stage {
   /** Toward the sun (or the moon), for keeping the film look's shadows round the camera. */
   private readonly lightDir = new THREE.Vector3(0, 1, 0);
   private readonly ahead = new THREE.Vector3();
-  private confettiMaterial: THREE.MeshBasicMaterial | null = null;
   private landmarks: Landmarks | null = null;
   private props: Props | null = null;
   /** In the film look, the light the torches, windows and lanterns throw after dark. */
@@ -125,6 +124,11 @@ export class Stage {
   private readonly skyHorizon = new THREE.Color();
   private skyNight = 0;
   private skyEnclosed = -1;
+  /** The hour and the moment last set (see setHour, update), and whether the dark test is on (see
+   * darkTest). */
+  private hours = 10;
+  private time = 0;
+  private dark = false;
   /** The island's named places, once the layout has loaded. */
   zones: Zones | null = null;
   /** The forbidden cave's inside, once it has loaded (see Cave.ts). */
@@ -173,7 +177,7 @@ export class Stage {
     this.cloudMaterial = this.makeCloudMaterial();
     if (FILM) {
       // The film look's clouds, many of their own shapes round the sky (see Clouds.ts).
-      this.filmClouds = new FilmClouds(this.skyMaterial.uniforms.uHorizon, this.skyMaterial.uniforms.uEnclosed);
+      this.filmClouds = new FilmClouds(this.skyMaterial.uniforms.uHorizon, this.skyMaterial.uniforms.uEnclosed, this.waterLight.uTint);
       this.clouds = new THREE.Group().add(this.filmClouds.mesh);
       world.add(this.filmClouds.aerial);
     } else {
@@ -298,6 +302,7 @@ export class Stage {
   /** Lights the island for `hours` past midnight: the sky, the sun or the moon, the sea, the
    * clouds, everything drawn with the ambient tint, and the festival's lights. */
   setHour(hours: number): void {
+    this.hours = hours;
     const look = skyAt(hours, this.look);
     const u = this.skyMaterial.uniforms;
     this.skyTop.copy(look.top);
@@ -355,8 +360,55 @@ export class Stage {
     this.waterLight.uMoonDir.value.copy(look.moonDir);
     this.waterLight.uNight.value = look.night;
     glowUniforms.uGlow.value = look.glow;
-    this.confettiMaterial?.color.copy(look.ambient);
-    this.cave?.setHour(look.night);
+    this.cave?.setLight(look);
+    if (this.dark) this.putOut();
+  }
+
+  /**
+   * For proving that nothing on the island gives light of its own: with `on`, every source of its
+   * light is put out (see putOut), and the forbidden cave's with them (Cave.darkTest), until it is
+   * called off; whatever still shows lit then is light from nowhere (the dev tools' islandDark renders
+   * and finds it). The sky (and the moon and stars in it, and its clouds) is drawn where nothing else
+   * is, and is left as it is.
+   */
+  darkTest(on: boolean): void {
+    this.dark = on;
+    this.cave?.darkTest(on);
+    if (on) {
+      this.putOut();
+      return;
+    }
+    this.waterLight.uMoon.value.set(COLORS.moon);
+    this.setHour(this.hours);
+    this.firelight?.update(glowUniforms.uGlow.value, this.time);
+  }
+
+  /**
+   * Every source of the island's light out (see darkTest). Nothing else may light anything on it: no
+   * colour of its own in a shader, no copy of one of these that this cannot reach.
+   */
+  private putOut(): void {
+    // The sun, or the moon once it has set; and the sky's light and the ground's on what faces them.
+    this.light.intensity = 0;
+    this.hemi.intensity = 0;
+    // The hour's light on what is painted flat: the cast, their lines and their shadows, the pen's
+    // lines, the falling water and its mist.
+    sharedUniforms.uAmbient.value.setRGB(0, 0, 0);
+    // The moon's cool rim on leaves, trunks and rock, and its road on the sea.
+    moonUniforms.uMoonRim.value.setRGB(0, 0, 0);
+    this.waterLight.uMoon.value.setRGB(0, 0, 0);
+    // The sky's light in the air, which far things fade into; on the sea, and its haze.
+    (this.scene.fog as THREE.Fog).color.setRGB(0, 0, 0);
+    this.waterLight.uTint.value.setRGB(0, 0, 0);
+    this.waterLight.uSeaHaze.value.setRGB(0, 0, 0);
+    // The clouds' light (seen from high up, they float over the island) and the sun's shafts into the
+    // waterfall's clearing.
+    this.filmClouds?.putOut();
+    if (this.shafts) (this.shafts.material as THREE.ShaderMaterial).uniforms.uStrength.value = 0;
+    // The island's lights: its windows and lanterns, the flames (drawn only while they burn), and the
+    // light grid's light from all of them, the houses' baked lantern light and the light on the cast.
+    glowUniforms.uGlow.value = 0;
+    this.firelight?.update(0, this.time);
   }
 
   /** The hour's sky colours onto the sky, the background and the haze, in the film look as seen
@@ -409,6 +461,7 @@ export class Stage {
   }
 
   update(camera: THREE.Camera, time: number): void {
+    this.time = time;
     this.water.uniforms.uTime.value = time;
     if (this.shafts) (this.shafts.material as THREE.ShaderMaterial).uniforms.uTime.value = time;
     this.skyMaterial.uniforms.uTime.value = time;
@@ -418,10 +471,10 @@ export class Stage {
     let lookout: { x: number; z: number; r: number } | null = null;
     if (this.cave) {
       this.cave.update(time, camera, this.caveTorches.carried, this.caveTorches.boat);
-      // No jungle haze in the cave: from inside it everything seen is the cave's own dark, and its
-      // own night, not the moonlit grade's.
+      // No jungle haze in the cave: from inside it (or the rock round it) everything seen is the cave's
+      // own dark, and its own night, not the moonlit grade's.
       const p = camera.position;
-      if (this.cave.isInside(p.x, p.y, p.z)) jungleHaze.uJungleThick.value = 0;
+      if (this.cave.encloses(p.x, p.y, p.z)) jungleHaze.uJungleThick.value = 0;
       caveUniform.value = this.cave.immersion(p.x, p.y, p.z);
       // From deep in it, the outside shows only up the skylight's well: the rest is not drawn.
       lookout = this.cave.lookout(p.x, p.y, p.z);
@@ -470,6 +523,7 @@ export class Stage {
       this.skyMaterial.uniforms.uEnclosed.value = this.enclosed;
       if (Math.abs(this.enclosed - this.skyEnclosed) > 0.01) this.paintSky();
     }
+    if (this.dark) this.putOut();
   }
 
   private makeWaterMaterial(): THREE.ShaderMaterial {
@@ -594,10 +648,11 @@ export class Stage {
           float away = length(vWorld.xz - cameraPosition.xz);
           col = mix(col, uSeaHaze, 0.8 * pow(smoothstep(25.0, 560.0, away), 0.7));
           #endif
+          // The sun's glints on the shallows, in the hour's light on the sea (white by day).
           vec2 cell = floor(vWorld.xz * 1.6);
           float sparkle = step(0.986, hash(cell + floor(uTime * 1.5))) * shallow * (1.0 - uNight);
           float dotMask = 1.0 - smoothstep(0.05, 0.18, length(fract(vWorld.xz * 1.6) - 0.5));
-          col = mix(col, vec3(1.0), sparkle * dotMask);
+          col = mix(col, uTint, sparkle * dotMask);
           // The moon's road: a broken streak of light across the water toward the moon, widening
           // into the distance, as in the film's night beach.
           if (uNight > 0.0 && uMoonDir.y > 0.0) {
@@ -839,7 +894,8 @@ export class Stage {
     return group;
   }
 
-  /** Paper confetti from the welcome festival, scattered over its plaza and street. */
+  /** Paper confetti from the welcome festival, scattered over its plaza and street, in the hour's light
+   * on what is painted flat (uAmbient). */
   private makeConfetti(): THREE.InstancedMesh {
     const count = 900;
     // The beach in front of the stalls, and the street through the arch: x, z, half sizes.
@@ -848,8 +904,14 @@ export class Stage {
       [0, -29.5, 4.3, 14],
     ];
     const geo = new THREE.PlaneGeometry(0.07, 0.05).rotateX(-Math.PI / 2);
-    this.confettiMaterial = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
-    const mesh = new THREE.InstancedMesh(geo, this.confettiMaterial, count);
+    const material = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
+    material.onBeforeCompile = (shader) => {
+      shader.uniforms.uAmbient = sharedUniforms.uAmbient;
+      shader.fragmentShader = shader.fragmentShader
+        .replace('#include <common>', '#include <common>\nuniform vec3 uAmbient;')
+        .replace('vec4 diffuseColor = vec4( diffuse, opacity );', 'vec4 diffuseColor = vec4( diffuse * uAmbient, opacity );');
+    };
+    const mesh = new THREE.InstancedMesh(geo, material, count);
     const m = new THREE.Matrix4();
     const q = new THREE.Quaternion();
     const up = new THREE.Vector3(0, 1, 0);
