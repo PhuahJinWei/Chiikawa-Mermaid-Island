@@ -20,10 +20,13 @@ export interface TerrainInfo {
   height: { url: string; grid: number; min: number; max: number; predicted?: boolean };
   /** The painted colour map, laid over the whole square from above. */
   colours: string;
-  /** Where grass (red), bare earth (green: the paths, the village's clearing, the festival's street)
-   * and sand (blue) lie, mapped as the colours are; the rest is fields, the waterfall pool's bank,
-   * rubble and rock. The film look paints its grass and earth from it. */
+  /** Where grass (red), bare earth (green: the paths, the village's clearing, the festival's street,
+   * steep ground) and sand (blue) lie, mapped as the colours are; the rest is fields, the waterfall
+   * pool's bank and the rivers' edges. The film look paints its grass and earth from it. */
   kinds?: string;
+  /** How thickly stones fallen from the rocks lie (red, 0 to 1), at their feet and over the steep
+   * ground under the cliffs, mapped as the colours are. The film look paints the stones from it. */
+  scree?: string;
   /** A cave's skylight, if the island has one: a round opening in the ground like a well's mouth,
    * cut out of the ground's mesh, over a dome with the sea come in under the island at its foot. Its
    * middle (x, z) and radius, its edge wandering from round by a few waves (how many times round, how
@@ -515,6 +518,53 @@ vec3 pebbleTone(vec2 p, float px) {
   tone = mix(tone, vec3(0.72, 0.71, 0.7), crack);
   return mix(vec3(1.0), tone, fade);
 }
+#ifdef SCREE
+uniform sampler2D uScree;
+// Stones fallen from the rocks, lying at their feet and over the steep ground under the cliffs, as the
+// film scatters stones over its ground ('density', from the scree map, how thickly they lie, 0 to 1):
+// in some of the half-metre cells where they lie thickest, fewer and smaller further out; pale and
+// rounded, lit along their sunward side, shaded and darker along the other, each with a soft shadow on
+// the ground beside it. Returns the stone's colour (rgb) and how much of p it covers (a), and in
+// 'shadow' how much its shadow darkens the ground there; faded out before they are small enough to
+// shimmer ('px' is how many metres a pixel spans there).
+vec4 screeStones(vec2 p, float density, float px, out float shadow) {
+  const float size = 0.5;
+  shadow = 0.0;
+  float fade = 1.0 - smoothstep(0.05, 0.12, px);
+  if (fade <= 0.0) return vec4(0.0);
+  vec2 q = p / size;
+  vec2 i = floor(q);
+  vec2 f = q - i;
+  float aa = 0.8 * px / size;
+  vec4 stone = vec4(0.0);
+  for (int y = -1; y <= 1; y++) {
+    for (int x = -1; x <= 1; x++) {
+      vec2 g = vec2(float(x), float(y));
+      vec3 h = groundHash(i + g + 113.0);
+      if (h.z > 0.5 * density) continue;
+      vec3 k = groundHash(i + g + 271.0);
+      float r = (0.12 + 0.2 * k.x) * (0.7 + 0.5 * density);
+      vec2 d = f - (g + 0.25 + 0.5 * h.xy);
+      float turn = 6.2831853 * k.y;
+      vec2 e = mat2(cos(turn), -sin(turn), sin(turn), cos(turn)) * d;
+      e.y *= 1.2 + 0.5 * k.z;
+      float dist = length(e);
+      // Its shadow, cast away from the sun across the ground.
+      shadow = max(shadow, 1.0 - smoothstep(0.75 * r, 1.4 * r, length(d - vec2(0.6, 0.8) * 0.5 * r)));
+      float cover = 1.0 - smoothstep(r - aa, r + aa, dist);
+      if (cover > stone.a) {
+        float lit = smoothstep(-0.7, 0.5, dot(d, vec2(-0.6, -0.8)) / r);
+        vec3 tone = mix(vec3(0.2, 0.19, 0.18), vec3(0.58, 0.56, 0.52), lit) * mix(0.84, 1.12, fract(h.z * 7.3));
+        tone *= mix(vec3(0.97, 1.0, 1.04), vec3(1.05, 1.0, 0.94), k.z);
+        tone = mix(tone, tone * 0.45, smoothstep(0.6 * r, r, dist) * (1.0 - 0.7 * lit));
+        stone = vec4(tone, cover);
+      }
+    }
+  }
+  shadow *= fade;
+  return vec4(stone.rgb, stone.a * fade);
+}
+#endif
 `;
 
 /** GLSL, after the colour map is read: the film's grass and earth over it (needs GROUND_PAINT_GLSL,
@@ -524,6 +574,9 @@ const GROUND_PAINT = /* glsl */ `
 {
   vec2 p = vGroundWorld.xz;
   vec3 kind = texture2D(uKinds, vMapUv).rgb;
+  #ifdef SCREE
+  float scree = texture2D(uScree, vMapUv).r;
+  #endif
   float px = length(fwidth(p));
   vec2 uvdx = dFdx(vMapUv);
   vec2 uvdy = dFdy(vMapUv);
@@ -570,20 +623,30 @@ const GROUND_PAINT = /* glsl */ `
     }
     diffuseColor.rgb *= tone;
   }
+  #ifdef SCREE
+  // Stones fallen from the rocks (see screeStones), over whatever ground they lie on.
+  if (scree > 0.02) {
+    float shadow;
+    vec4 stone = screeStones(p, scree, px, shadow);
+    diffuseColor.rgb *= 1.0 - 0.45 * shadow;
+    diffuseColor.rgb = mix(diffuseColor.rgb, stone.rgb, stone.a);
+  }
+  #endif
 }
 `;
 
 /**
  * The film look's ground: the same painted colour map, its grass and earth painted over it the
- * film's way where `kinds` says they lie, lit by the sun through the soft ramp and shaded where
- * rocks, trees and houses cast their shadows, without the pen's waterline (the film paints its
- * shores without a line).
+ * film's way where `kinds` says they lie, and the stones fallen from the rocks where `scree` does,
+ * lit by the sun through the soft ramp and shaded where rocks, trees and houses cast their shadows,
+ * without the pen's waterline (the film paints its shores without a line).
  */
 function filmGroundMaterial(
   colours: THREE.Texture,
   info: TerrainInfo,
   floor: THREE.Texture,
   kinds: THREE.Texture | null,
+  scree: THREE.Texture | null,
 ): THREE.MeshToonMaterial {
   const material = new THREE.MeshToonMaterial({
     map: colours,
@@ -600,6 +663,7 @@ function filmGroundMaterial(
       uSea: { value: info.water },
       uPool: { value: poolUniform(info) },
       uKinds: { value: kinds },
+      uScree: { value: scree },
     });
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vGroundWorld;')
@@ -609,6 +673,7 @@ function filmGroundMaterial(
         '#include <common>',
         `#include <common>
         ${FLOOR_GLSL}
+        ${kinds && scree ? '#define SCREE' : ''}
         ${kinds ? GROUND_PAINT_GLSL : ''}
         uniform vec3 uEdge;
         uniform float uSea;
@@ -666,6 +731,14 @@ function canStand(x: number, z: number, feet: number): boolean {
   return terrain.walkable(x, z, feet);
 }
 
+/** Whether someone can stand on the cave's floor at (x, z): where its walk grid lets them, clear of what
+ * stands on it (the ledge's crystals and its fire); where the boat lets its rower out. */
+export function caveStandable(x: number, z: number): boolean {
+  if (!cave) return false;
+  const k = cave.at(x, z);
+  return k >= 0 && cave.walk[k] === 1 && !blocked(x, z, PROP_MARGIN, cave.floorAt(x, z));
+}
+
 /** Puts back a height grid stored as each sample less what its neighbours west, north and
  * north-west predict, round 65536 (predicted in art/blender/build_island.py), in place. */
 function unpredict(q: Uint16Array, n: number): void {
@@ -699,13 +772,14 @@ export async function loadTerrain(): Promise<Terrain> {
     hazeClearing([fx + 0.6 * (fx - px), info.pool.level + 9, fz + 0.6 * (fz - pz)], 10, 0.75, 0.02);
   }
 
-  const [buffer, colours, kinds] = await Promise.all([
+  const [buffer, colours, kinds, scree] = await Promise.all([
     fetch(info.height.url).then((r) => {
       if (!r.ok) throw new Error(`Could not load ${info.height.url}`);
       return r.arrayBuffer();
     }),
     new THREE.TextureLoader().loadAsync(info.colours),
     FILM && info.kinds ? new THREE.TextureLoader().loadAsync(info.kinds) : Promise.resolve(null),
+    FILM && info.scree ? new THREE.TextureLoader().loadAsync(info.scree) : Promise.resolve(null),
   ]);
   const { grid, min, max } = info.height;
   const q = new Uint16Array(buffer);
@@ -719,10 +793,11 @@ export async function loadTerrain(): Promise<Terrain> {
   colours.colorSpace = THREE.SRGBColorSpace;
   colours.anisotropy = 4;
   colours.needsUpdate = true;
-  if (kinds) {
-    kinds.flipY = false;
-    kinds.colorSpace = THREE.NoColorSpace;
-    kinds.needsUpdate = true;
+  for (const map of [kinds, scree]) {
+    if (!map) continue;
+    map.flipY = false;
+    map.colorSpace = THREE.NoColorSpace;
+    map.needsUpdate = true;
   }
   found.removeFromParent();
   found.position.set(0, 0, 0);
@@ -730,7 +805,7 @@ export async function loadTerrain(): Promise<Terrain> {
   found.scale.set(1, 1, 1);
 
   terrain = new Terrain(info, heights, found);
-  found.material = FILM ? filmGroundMaterial(colours, info, terrain.texture, kinds) : groundMaterial(colours, info, terrain.texture);
+  found.material = FILM ? filmGroundMaterial(colours, info, terrain.texture, kinds, scree) : groundMaterial(colours, info, terrain.texture);
   found.receiveShadow = FILM;
   // The stepping stones: their tops and the rims' ledges to stand on, their bodies to bump into.
   for (const pad of info.stones?.pads ?? []) addPad(pad.centre[0], pad.centre[1], pad.outline, pad.top);

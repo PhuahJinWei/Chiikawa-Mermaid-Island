@@ -86,17 +86,75 @@ stage, and along every path. Not yet checked on a real phone.
   higher or wider than the mouth, its vault rippled with flowstone and hung
   with small stalactites, broken stone heaped along its walls and pebbles
   over its floor. It opens into a cavern where the cave's sea comes in onto
-  a little beach, the rowboat drawn up on its sand, heavy rounded rock
-  hanging from the roof, dark but for the torch carried through it. The
+  a little beach, the rowboat drawn up on its sand, rounded knobs of rock
+  hanging from the roof (0.6 to 1.1 m across; they had been twice that,
+  too big), dark but for the torch carried through it. The
   sea runs on east under the spur, dark, through a doorway in the dome's
   wall into the round chamber under the skylight: its water glows blue,
   brightest under the opening, sparkles winking on it and motes drifting
-  over it; pale columns of rock
-  stand round its edge and boulders break it. Through a doorway in the
+  over it. Its rock hangs in folds down the vault, as the film's does
+  (`cave interior 4`): ridges of every width side by side, some on into
+  the water, some ending short of it in a rounded lobe, broad masses
+  standing out into the water and dark hollows at its edge; stalactites
+  hang where the vault leans in over the water. Fluted columns of rock
+  stand out of the water before the wall in clusters, low shelves of rock
+  lie along the shore, dark boulders break the water, and both doorways
+  are arches worn by the sea. Up the well the rock's beds wander up and
+  down round it, and its foot rounds over unevenly, dark and wet, rather
+  than ringing the vault in pale stone. The rock is painted darker in its
+  hollows and paler on its ridges, and lit pixel by pixel toward the
+  glowing water, catching the film's cyan along its edges; far off across
+  the water, low down, it shows through a faint haze of the lake's light.
+  The cave's daylight is the island's own now, the sun's and the sky's as
+  they light the ground outside, blue from the sky; it had been about
+  twice as bright and white, the dome a plaster grey by day. As cheap to
+  draw as before. The rest of the cave the same: up the walls of the
+  cavern and the sea's ways and over them, heavy rounded masses of rock,
+  bigger the wider the cave, as the film's (`cave interior 2`, `3`);
+  flowstone hanging in runs down the passage's walls (`cave interior 1`);
+  the chamber's rock in rounded masses piled up its walls, its doorway an
+  arch; all of it painted darker in its hollows and paler on its ridges. In
+  the dark its forms show, as the film paints them, by a little more of the
+  cave's painted dark along their edges (not on the floors, which stay as
+  dark as they were). Low down, by the water and the floors, the rock is as
+  it was, and nothing hangs lower than 1.9 m over the water or a floor: the
+  boat's rower and walkers pass under (a rock over the cavern's water had
+  come low enough to keep the boat from turning off the beach). As cheap
+  to draw as before. Looking up the skylight's well from the water, the
+  sky shows ringed by the plants at its edge, as in the film's frame of
+  it (`cave interior 6`): the trees that crowd round the opening, as
+  they do from above (`cave interior 5`), are not drawn while you are
+  deep in the cave, where they had filled it. What is seen up the well
+  keeps the island's night colours, the leaves round its edge a moonlit
+  navy where they had been black (the cave's own rock and water are as
+  they were, to the pixel). Through a doorway in the
   dome's far wall the sea runs on east, deeper in under the high ground,
   to a chamber of its own past the skylight's, dark but for its fire, as
-  the film's (`cave interior 7`, `8`): a ledge laid with rounded cobbles
-  at its back, crystals either side and dark rounded rock behind them.
+  the film's (`cave interior 7`, `8`): a broad ledge of the rock at its
+  back, with room on it for the Siren, giant as she is, to rest by the
+  cast as she does in the film. It is twice the size it was, about 120 m²,
+  20 m across and 8 m deep at its middle; the chamber has grown round it,
+  its wall 10 m from its middle where it had been 7.6, its doorway where
+  it was.
+  The ledge looks left by the sea, of the cave's own rock, and lies low
+  as the film's does: its top only 13 cm over the water (its lip about a
+  sixth of the cast's height; it had stood 57 cm, about as high as
+  Chiikawa), its edge wandering as it drops sheer into the water, and its
+  ends narrowing away into the wall rather than stopping square. It is
+  cobbled all over with rounded stones packed close, flattish and bedded
+  in it, of every size, bigger toward the back, with a few bare patches of
+  the rock between them; wet down its lip, dry on top. Behind it the
+  wall rises in tall rounded lobes of the rock side by side, where six
+  boulders had stood on the ledge apart like props, and the crystals stand
+  at its back toward either end. As cheap to draw as before. Walking to
+  its low front you stop at the brink, as at a wall, rather than step off
+  into water too deep to wade. Anywhere in the cave, the floor's height
+  blending down into deep water had let walkers stand at such a brink
+  with their feet sunk in it (more than a metre at worst); the dome's
+  little rocks by the shore now take a walker only where they can stand.
+  Getting out of the boat by the crystals or the fire sets you beside
+  them rather than in them, from where you could walk off over the sea's
+  floor.
   The place is named ひみつの洞窟.
 - The cave has its own light, whatever the hour, measured on the film's
   frames: its walls a near-black navy, its floors and the tops of its
@@ -201,11 +259,11 @@ stage, and along every path. Not yet checked on a real phone.
   from the middle of the beach, and the white duck ferry lies at anchor out
   in the bay, bobbing, as in the film's aerial shot. The bay is a quay, as
   in the film's frames of it: its sand stands level half a metre over the
-  sea out to a low wall of timber, planks laid on edge behind log posts
-  every two metres, their cut tops a little proud of the sand, dropping
-  straight into water a metre and a half deep; the pier's deck meets the
-  quay's top, and a row of clay pots stands on the sand behind the wall
-  either side of it. The ferry is built
+  sea out to a low wall of timber, upright planks close side by side
+  between log posts every two metres, their cut tops a little proud of the
+  sand, dropping straight into water a metre and a half deep; the pier's
+  deck meets the quay's top. Past the wall's ends the sand runs down to the
+  sea as a beach. The ferry is built
   after the film's and sketches of it from the front, both sides and above:
   simple and round all over, no hard edges, a bell in section and an egg
   from above, widest at the cabin's front wall. A tall, bendy neck rises
@@ -931,6 +989,32 @@ outlined is drawn twice, once for its pen line. To get there:
   splashes. The build writes where grass, earth and sand lie beside the
   colour map; the waterfall's frame and its bank are as they were. The
   painting costs under 0.1 ms a frame on the dev PC.
+- The ground at the rocks' feet as the film paints it, where a flat ring
+  of pale grey two or three metres wide had lain round every rock, and a
+  band of white pebbles round those on the beach. The ground runs right up
+  to each rock now, grass to the foot of the pillars and cliffs as round
+  the film's (`parkour stone landmark 3`), sand to the cave's rock as in
+  `cave entrance 3`: darker and damp close in, mossy in the grass and
+  gritty in the sand, ragged, with stones fallen from the rock lying about
+  on it, thickest close in and in clusters, a few further out. Each stone
+  is pale and rounded, lit along its sunward side, darker along the other,
+  with a soft shadow beside it; the build writes how thickly they lie
+  beside the colour map, and the film look paints them. The steep ground
+  under the high ground's cliffs and down the gorge's walls is broken
+  stone in the rock's own greys, brushed and with stones on it, where it
+  had been flat grey. The stones cost at most about 0.2 ms a frame on the
+  dev PC, where they fill the view.
+- The paths as trodden, not ruled: each rounds its corners, wanders a
+  little from side to side, swells and narrows, its edges ragged where the
+  grass creeps in over them in tufts, worn paler down the middle and
+  darker toward its edges, a warmer earth, as the film's jungle paths are
+  (`jungle 6`). A path through the trees' shade stays a path, only
+  shaded: painted over with the jungle's floor, it had ended in a point
+  wherever the shade crossed it, as the path north to the sea cliffs by
+  the bay did. The tufts and the clover along the paths follow their
+  edges as trodden; the jungle is planted where it was (every tree and
+  palm in its place), but for 112 small plants that would now stand on a
+  path.
 - Evenings and nights lit the film's way, where night had been one flat
   blue wash and the island's lights lit nothing. The tiki torches burn in
   big cartoon flames, a pale yellow heart with tongues of orange licking
@@ -976,6 +1060,28 @@ outlined is drawn twice, once for its pen line. To get there:
   pass dropped the mark that tells them from the scenery before the grade
   could read it; it keeps it now. Nothing changes by day: the same frames
   by day, in the golden hour and at dawn are the same to the pixel.
+- Trees and leaves at night are a dark green navy, darker than the sand
+  and rock round them, as the film's (the user: its trees are darker, and
+  greener). They had come out a bright cobalt, about twice as bright as the
+  film's from above, the moonlit tops of the crowns painted as bright as
+  open sand. Seen down the skylight, the crowns round it went from a
+  brightness of 0.53 to 0.60 to 0.36 to 0.39, the film's 0.29 to 0.37,
+  and lean a little teal; the jungle seen from within it was already the
+  film's and hardly changes. Sand, rock, houses, stalls, the lights and the
+  cast are as they were.
+- Seven more tiki torches light the village at night, where away from
+  the stage it lay dark (the user: too dark): two on the plaza, on its
+  west side and at its south edge where the path comes in, one between
+  the lane's two northern huts, one in the plank huts' yard, one where the
+  path north leaves the plaza and two along the guest houses' path. Each
+  throws the warm pool the stage's torches do, the moon's blue between
+  them. They stand on open sand clear of the plants and out of the film's
+  frames of the lane and the guest house, so the lane's, lit from the
+  side, keeps its view through to the sea. By day the island's eighteen
+  test views are the same to the pixel but for a torch far off in the
+  plaza's, the festival's and the street's, and one torch's shadow in the
+  plank huts' yard; the jungle grows as it did, the torches being left out
+  of its planting as the festival's stalls are.
 - The festival's stalls are the film's booths: where they were boxes 3.3
   metres high, each is now a booth 2.4 metres wide on four thin posts
   under a flat roof 2.75 metres up. A deep header board runs across its
@@ -1277,6 +1383,10 @@ outlined is drawn twice, once for its pen line. To get there:
 - Diving, swimming and everything underwater, from the plan (none of it
   had been built): you wade in the shallows, and only the rowboat goes
   onto deeper water.
+- The clay pots along the bay's quay, 52 of them on the sand behind the
+  timber either side of the pier, and the festival's eight fruit baskets
+  by the stalls' counters, at the user's word. The village's two baskets
+  at the stage's foot stay.
 
 **Fixed**
 
@@ -1343,6 +1453,35 @@ outlined is drawn twice, once for its pen line. To get there:
   them. The ferry's one reported pair was such. It now reports only the
   guest houses' door outline, set exactly 2 mm in front of the glass, the
   check's own limit, which the compression rounds to 1.99 mm.
+- The bay's beach is no longer sharp and oddly shaped. Where the quay's
+  sand met the water it stepped down, holes opened in the water before the
+  timber and the surf ran in a zigzag: the sea and the ground's paint under
+  it read the ground's heights on a grid 1.12 metres apart, so the quay's
+  sheer drop crossed the water's surface in steps. Along the quay the
+  water now meets an even slope through its surface, so its edge runs
+  straight to about 2 centimetres, and the sand drops within 3 centimetres
+  inside the planks. Past the timber's ends the drop turns into a beach,
+  the raised sand easing into it over 6 metres, and the water shallows over
+  the timber's last 12 metres, so the surf bends smoothly round them.
+- Every beach's waterline is drawn smooth. Seen from above, the sand met
+  the shallows in short straight pieces with a corner about every metre,
+  where the heights between the grid's points were blended four at a time.
+  Near the water's surface the water's edge, the ground painted as under
+  water and the pen's line along it now follow a smooth curve through the
+  grid's points; steep ground and the quay keep their exact edges.
+- The forbidden cave's mouth meets the beach with no step. The sand before
+  it lay 3 to 15 centimetres under the cave's floor, so the opening stood
+  on a low step, and a dark band ran along its threshold. The sand is now
+  level with the mouth's sill for a metre out and a metre past its ends,
+  easing into the beach over the next 3, and the ground's edge runs along
+  the sill, so the cave's floor (0.347 metres up at the sill) meets the
+  sand (0.343) with nothing between. The dark band was the floor between
+  the sill and the middle of the arch's outline, which the light counted
+  as outside the cave, lit by neither the sun nor the sky. The arch the
+  light comes in by now stands on the sill and leans back as the mouth's
+  face does, 0.37 metres for each metre up, so the threshold takes the
+  daylight the floor behind it does, and the vines over the mouth count as
+  outside it. The cave's dark test passes.
 
 ## M0.1 — Downloaded cast and the island outfit (2026-10-16)
 

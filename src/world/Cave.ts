@@ -37,10 +37,11 @@ export interface CaveInfo {
   /** The ledge's front edge, the landed ground beyond the water: (x, z) points. */
   ledge: [number, number][];
   /** The openings the sun and the moon shine in by: the skylight's well, its rim at the ground and its
-   * foot over the dome (x, y, z and radius each); and the mouth's arch, its middle at its foot (x, y, z),
-   * the way it faces out of the cave (x, z), its half width and its height. */
+   * foot over the dome (x, y, z and radius each); and the mouth's arch, the middle of its sill (x, y, z),
+   * the way it faces out of the cave (x, z), how far back it leans for each metre it rises (as its face
+   * does: what stands before that leaning plane is out of the cave), its half width and its height. */
   well?: { top: [number, number, number, number]; foot: [number, number, number, number] };
-  arch?: { foot: [number, number, number]; facing: [number, number]; half: number; height: number };
+  arch?: { foot: [number, number, number]; facing: [number, number]; lean?: number; half: number; height: number };
   /** The chamber past the dome, where the ledge is: its middle (x, z) and how far its wall stands. */
   chamber?: { centre: [number, number]; radius: number };
   /** The cavern's beach: where the boat lies drawn up on it (x, z). */
@@ -139,8 +140,10 @@ export class CaveGrid {
         if (!outsideWalkable(x, z, near)) this.wall[k] = 1;
       }
     }
-    // Where a walker may go: floor not under deep water, with room over it, not too steep, and not
-    // within MARGIN of a wall or the foot of a drop.
+    // Where a walker may go: floor not under deep water, with room over it, not too steep, not within
+    // MARGIN of a wall or the foot of a drop, and not on the brink of a drop into water too deep to wade:
+    // the floor's height blends from each cell into the eight round it, so by such a drop, even across a
+    // corner, their feet would sink into the water (off the ledge's low lip).
     const ok = new Uint8Array(n);
     for (let j = 0; j < this.nz; j++) {
       for (let i = 0; i < this.nx; i++) {
@@ -157,19 +160,21 @@ export class CaveGrid {
         ok[k] = steep ? 0 : 1;
       }
     }
-    const r = Math.ceil(MARGIN / this.cell);
+    const r = Math.max(1, Math.ceil(MARGIN / this.cell));
     for (let j = 0; j < this.nz; j++) {
       for (let i = 0; i < this.nx; i++) {
         const k = j * this.nx + i;
         if (!ok[k]) continue;
+        const f = this.floor[k];
         let clear = true;
         for (let b = -r; b <= r && clear; b++) {
           for (let a = -r; a <= r; a++) {
-            if ((a * a + b * b) * this.cell * this.cell > MARGIN * MARGIN + 1e-6) continue;
             const kk = this.index(i + a, j + b);
             if (kk < 0) continue;
             const ff = this.floor[kk];
-            if (this.wall[kk] || (!Number.isNaN(ff) && ff - this.floor[k] > STEP_UP)) {
+            const near = (a * a + b * b) * this.cell * this.cell <= MARGIN * MARGIN + 1e-6;
+            const brink = Math.abs(a) <= 1 && Math.abs(b) <= 1 && f - ff > STEP_UP && ff < info.water - WADE;
+            if ((near && (this.wall[kk] || (!Number.isNaN(ff) && ff - f > STEP_UP))) || brink) {
               clear = false;
               break;
             }
@@ -262,17 +267,21 @@ export const caveLight = {
   uCaveSky: { value: new THREE.Color(0.3, 0.4, 0.7) },
   uCaveGlow: { value: new THREE.Color(0.003, 0.03, 0.26) },
   uLakeGlow: { value: new THREE.Color('#2FA6FF') },
+  /** The glowing water's middle, at its surface (x, y, z), which its light on the rock comes from. */
+  uLakeAt: { value: new THREE.Vector3(0, -100, 0) },
   /** The way to the sun, or to the moon once the sun is down, and its light (black while neither is up). */
   uSunWay: { value: new THREE.Vector3(0, 1, 0) },
   uSunLight: { value: new THREE.Color(0, 0, 0) },
   /** The openings it shines in by (see CaveInfo): the well's rim and foot (x, y, z, radius), how far
    * from the dome's middle its light can reach, and the mouth's arch: its foot (x, y, z, half width) and
-   * the way it faces (x, z), its height and how far in its light can reach before the passage bends. */
+   * the way it faces (x, z), its height and how far in its light can reach before the passage bends, and
+   * how far back it leans as it rises. */
   uWellTop: { value: new THREE.Vector4(0, -100, 0, 0) },
   uWellFoot: { value: new THREE.Vector4(0, -100, 0, 0) },
   uDomeReach: { value: 0 },
   uArchFoot: { value: new THREE.Vector4(0, -100, 0, 0) },
   uArchWay: { value: new THREE.Vector4(0, 1, 1, 0) },
+  uArchLean: { value: 0 },
   uTorch: { value: Array.from({ length: CAVE_LIGHTS }, () => new THREE.Vector4()) },
   uTorchColour: { value: Array.from({ length: CAVE_LIGHTS }, () => new THREE.Color()) },
   uTime: windUniforms.uTime,
@@ -294,6 +303,7 @@ uniform vec3 uCaveFloor;
 uniform vec3 uCaveSky;
 uniform vec3 uCaveGlow;
 uniform vec3 uLakeGlow;
+uniform vec3 uLakeAt;
 uniform vec3 uSunWay;
 uniform vec3 uSunLight;
 uniform vec4 uWellTop;
@@ -301,6 +311,7 @@ uniform vec4 uWellFoot;
 uniform float uDomeReach;
 uniform vec4 uArchFoot;
 uniform vec4 uArchWay;
+uniform float uArchLean;
 /* How much of the sun (or the moon) reaches p, soft at the edges: in the dome, through the skylight's
    well, its foot and its rim (the dome's vault is round, so nothing else stands in the way); in the
    passage's first metres, through the mouth's arch. Nowhere else: the rest is under rock. */
@@ -315,8 +326,9 @@ float caveSunShare(vec3 p) {
   }
   float mouth = 0.0;
   vec2 f = uArchWay.xy;
-  float outward = dot(l.xz, f);
-  float inward = dot(uArchFoot.xz - p.xz, f);
+  // Across the arch's plane, which leans back as it rises.
+  float outward = dot(l.xz, f) + uArchLean * l.y;
+  float inward = dot(uArchFoot.xz - p.xz, f) - uArchLean * (p.y - uArchFoot.y);
   if (outward > 0.02 && inward > -0.3 && inward < uArchWay.w) {
     vec3 q = p + l * (inward / outward);
     float across = abs(dot(q.xz - uArchFoot.xz, vec2(-f.y, f.x))) / uArchFoot.w;
@@ -393,7 +405,19 @@ function rockMaterial(shine = 0): THREE.ShaderMaterial {
         vec3 n = normalize(vNormal) * (gl_FrontFacing ? 1.0 : -1.0);
         vec3 lit = clamp(vLight, vec3(0.0), vec3(2.0));
         float open = 0.3 + 0.7 * lit.x;
-        vec3 light = caveDark(n) * open + uCaveSky * lit.y + uCaveGlow * lit.z * (0.55 + 0.45 * open);
+        // The lake's light comes off its water, before and below the rock: what of the rock's folds and
+        // lumps turns toward it takes more of it, what turns away less, pixel by pixel; and along the
+        // rock's edges, where it turns from the eye, it catches the film's cyan rim of it.
+        vec3 eye = normalize(cameraPosition - vWorld);
+        float toward = max(dot(n, normalize(uLakeAt - vWorld)), 0.0);
+        float edge = 1.0 - max(dot(n, eye), 0.0);
+        float rim = edge * edge * edge * (0.2 + 0.8 * toward);
+        // The film paints the rock in the dark by its forms: where it turns from the eye it holds a little
+        // more of the painted dark's blue, so its lumps and masses read in it (cave interior 1, 2, 3); not
+        // the floors, which stay as dark as they are.
+        float forms = 1.6 * edge * edge * (1.0 - smoothstep(0.45, 0.85, n.y));
+        vec3 light = caveDark(n) * open * (1.0 + forms) + uCaveSky * lit.y
+          + uCaveGlow * lit.z * ((0.55 + 0.45 * open) * (0.3 + 0.7 * toward) + 0.9 * rim);
         // Where the torch lights it, the rock shows its flowstone: drips running down over the vault and
         // the walls in rounded runs, as the film's arch (cave interior 1).
         float along = dot(vWorld.xz, vec2(0.8, 0.6));
@@ -409,6 +433,12 @@ function rockMaterial(shine = 0): THREE.ShaderMaterial {
         // Crystals catch the light that reaches them and glint with it: dark but for that, as the
         // film's are (cave interior 7, 8), no light of their own.
         col += uShine * clamp(vColour, 0.0, 1.0) * light * 0.5;
+        // The air over the glowing water holds a little of its light: the rock far off across it, low
+        // down, shows through a faint haze of it, as the film's far walls do (cave interior 4).
+        float far = 1.0 - exp(-0.05 * distance(cameraPosition, vWorld));
+        float low = 1.0 - smoothstep(0.5, 4.5, vWorld.y - uLakeAt.y);
+        float over = 1.0 - smoothstep(uDomeReach + 2.0, uDomeReach + 7.0, distance(vWorld.xz, uLakeAt.xz));
+        col = mix(col, uCaveGlow * 0.5, far * low * over * 0.55);
         gl_FragColor = vec4(col, 1.0);
         #include <tonemapping_fragment>
         #include <colorspace_fragment>
@@ -773,6 +803,7 @@ export class Cave {
       const [ax, ay, az] = info.arch.foot;
       caveLight.uArchFoot.value.set(ax, ay, az, info.arch.half);
       caveLight.uArchWay.value.set(info.arch.facing[0], info.arch.facing[1], info.arch.height, ARCH_REACH);
+      caveLight.uArchLean.value = info.arch.lean ?? 0;
     }
     this.group.add(group);
     this.motes = motes(info.dome.centre, info.dome.radius * 0.9, info.water);
@@ -786,6 +817,7 @@ export class Cave {
       new THREE.Vector3(origin[0] + cell * size[0], info.dome.top + 1, origin[1] + cell * size[1]),
     );
     caveLight.uTorchColour.value[1].copy(FIRE_COLOUR);
+    caveLight.uLakeAt.value.set(info.dome.centre[0], info.water, info.dome.centre[1]);
   }
 
   /** Loads the cave (`url`, cave.glb) and its walk grid; `outsideWalkable` says where someone outside it
@@ -835,14 +867,18 @@ export class Cave {
    */
   setLight(look: SkyLook): void {
     const day = 1 - look.night;
-    caveLight.uCaveSky.value.setRGB(0.01 + 1.4 * day, 0.03 + 1.32 * day, 0.22 + 1.2 * day);
+    // The sky's light, as it lights the island's ground (its hemisphere light, sky side, as a diffuse
+    // surface takes it): blue by day as the sky is, a dim blue by night; the share of it each point of
+    // the rock sees by the openings is baked into the rock.
+    caveLight.uCaveSky.value.copy(look.hemiSky).multiplyScalar(look.hemiIntensity / Math.PI);
     const sun = look.sunDir.y > 0.02;
     this.sunUp = sun;
     const way = sun ? look.sunDir : look.moonDir;
     caveLight.uSunWay.value.copy(way);
     const up = smooth(0.0, 0.12, way.y);
     this.sunIn = up;
-    caveLight.uSunLight.value.copy(look.light).multiplyScalar(look.lightIntensity * (sun ? SUN_IN : MOON_IN) * up);
+    // The sun's (or the moon's) light, as it lights the island's ground.
+    caveLight.uSunLight.value.copy(look.light).multiplyScalar((look.lightIntensity / Math.PI) * up);
     // The shaft: along the light's way, as strong as the light that comes down it.
     const y = Math.max(way.y, 0.25);
     this.beamSlant.value.set(-way.x / y, -way.z / y);
@@ -853,7 +889,7 @@ export class Cave {
     caveLight.uCaveGlow.value
       .copy(LAKE_ON_ROCK)
       .multiplyScalar(caveLight.uLakeGlow.value.b / LAKE_GLOW)
-      .add(_bounce.setRGB(0.32, 0.34, 0.36).multiplyScalar(day * (sun ? up : 0)));
+      .add(_bounce.copy(caveLight.uSunLight.value).multiply(SUNLIT_WATER).multiplyScalar(day * (sun ? 1 : 0)));
     if (this.dark) this.putOut();
   }
 
@@ -902,8 +938,9 @@ export class Cave {
     if (arch) {
       const [ax, ay, az] = arch.foot;
       const [fx, fz] = arch.facing;
-      const a = (from.x - ax) * fx + (from.z - az) * fz;
-      const b = (to.x - ax) * fx + (to.z - az) * fz;
+      const lean = arch.lean ?? 0;
+      const a = (from.x - ax) * fx + (from.z - az) * fz + lean * (from.y - ay);
+      const b = (to.x - ax) * fx + (to.z - az) * fz + lean * (to.y - ay);
       if (a < 0 && b > 0) {
         const t = a / (a - b);
         const across = Math.abs((from.x + (to.x - from.x) * t - ax) * -fz + (from.z + (to.z - from.z) * t - az) * fx);
@@ -940,8 +977,9 @@ export class Cave {
     let mouth = 0;
     const a = caveLight.uArchFoot.value;
     const w = caveLight.uArchWay.value;
-    const outward = l.x * w.x + l.z * w.y;
-    const inward = (a.x - x) * w.x + (a.z - z) * w.y;
+    const lean = caveLight.uArchLean.value;
+    const outward = l.x * w.x + l.z * w.y + lean * l.y;
+    const inward = (a.x - x) * w.x + (a.z - z) * w.y - lean * (y - a.y);
     if (outward > 0.02 && inward > -0.3 && inward < w.w) {
       const t = inward / outward;
       const qx = x + l.x * t;
@@ -1107,8 +1145,9 @@ const PAINTED_DARK = caveLight.uCaveAmbient.value.b;
 
 /** How strongly the sun's light (the island's, at the hour) shines in where it falls in the cave, and
  * the moon's; and how far in past the mouth's arch its light can reach before the passage bends. */
-const SUN_IN = 0.5;
-const MOON_IN = 0.3;
+/** How much of the sun's light the sunlit water under the well gives back onto the dome's walls, in
+ * its cyan. */
+const SUNLIT_WATER = new THREE.Color(0.17, 0.26, 0.3);
 const ARCH_REACH = 9;
 
 function smooth(a: number, b: number, x: number): number {

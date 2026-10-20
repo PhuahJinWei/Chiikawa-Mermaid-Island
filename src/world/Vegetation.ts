@@ -207,7 +207,10 @@ export class Vegetation {
   }
 
   /** Each patch near enough the camera drawn whole, the canopy's further off in its far version; and
-   * with `lookout` (from deep in the forbidden cave, see Cave.lookout), only the patches near it. */
+   * with `lookout` (from deep in the forbidden cave, see Cave.lookout), only the plants near it and no
+   * trees: from there the jungle shows only up the skylight's well, and the film shows it from the
+   * water under it as the low plants round its edge against the sky (`cave interior 6`), though from
+   * above the trees crowd round it (`cave interior 5`). */
   update(camera: THREE.Camera, lookout: { x: number; z: number; r: number } | null = null): void {
     const p = camera.position;
     const seen = (patch: { centre: THREE.Vector3; radius: number }) =>
@@ -217,7 +220,7 @@ export class Vegetation {
       for (const m of patch.meshes) m.visible = near;
     }
     for (const patch of this.canopy) {
-      const show = seen(patch);
+      const show = !lookout;
       const near = p.distanceTo(patch.centre) - patch.radius < CANOPY_REACH;
       for (const m of patch.meshes) m.visible = near && show;
       for (const m of patch.far) m.visible = !near && show;

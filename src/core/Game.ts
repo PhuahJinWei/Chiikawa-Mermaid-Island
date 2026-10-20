@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { Stage } from '../world/Stage';
-import { cameraClear, cameraLimit, clampInAir, clampToWalkable, groundHeight, splashDown } from '../world/Island';
+import { cameraClear, cameraLimit, caveStandable, clampInAir, clampToWalkable, groundHeight, splashDown } from '../world/Island';
 import { Boat } from '../world/Boat';
 import { caveFlameMaterial, caveInkMaterial, caveThingMaterial } from '../world/Cave';
 import { Input } from './Input';
@@ -314,12 +314,8 @@ export class Game {
     boat.update(this.time);
     this.stage.caveTorches.boat = boat.torchFlame(_boatFlame);
     let label: string | null = null;
-    const standable = (x: number, z: number) => {
-      const k = cave.grid.at(x, z);
-      return k >= 0 && cave.grid.walk[k] === 1;
-    };
     if (this.staged || boat.sliding) label = null;
-    else if (this.rowing) label = boat.shore(standable, this.shoreAt) ? t('hud.getOut') : null;
+    else if (this.rowing) label = boat.shore(caveStandable, this.shoreAt) ? t('hud.getOut') : null;
     else if (inside && boat.canBoard(p)) label = t('hud.board');
     this.hud.setAction(label);
     if (!this.input.consumeAction() || !label) return;

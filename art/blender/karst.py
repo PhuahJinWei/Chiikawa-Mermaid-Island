@@ -973,7 +973,10 @@ def skylight(centre, radius, lumps, ground, water, floor, seed, shaft=3.8, dome=
     rng = np.random.default_rng(seed)
     C = {**SHARED, **STONES["karst"]}
     cx, cz = centre
-    theta = np.linspace(0.0, 2.0 * math.pi, segments, endpoint=False)
+    # Round the solid at twice the angles the ground's opening is cut at (every other one of them the same),
+    # so the dome's folds have the vertices to show.
+    fine = 2 * segments
+    theta = np.linspace(0.0, 2.0 * math.pi, fine, endpoint=False)
     cos, sin = np.cos(theta), np.sin(theta)
     p = rng.uniform(0.0, 2.0 * math.pi, 14)
 
@@ -994,6 +997,11 @@ def skylight(centre, radius, lumps, ground, water, floor, seed, shaft=3.8, dome=
     top = ground_at(edge) - 0.18
     foot = float(np.mean(top + 0.18)) - shaft
 
+    # Its two beds wander up and down round it, as the rock's layers do, so that from below they show as
+    # its layers, not as rings.
+    bed1 = 0.355 + 0.07 * np.sin(2.0 * theta + p[3]) + 0.03 * np.sin(7.0 * theta + p[8])
+    bed2 = 0.705 + 0.06 * np.sin(3.0 * theta + p[9]) + 0.03 * np.sin(8.0 * theta + p[11])
+
     def wall(t):
         """The well's side `t` of the way down it (0 under the lip, 1 at its foot): how far from
         the middle at each angle, and how high."""
@@ -1001,7 +1009,7 @@ def skylight(centre, radius, lumps, ground, water, floor, seed, shaft=3.8, dome=
         r = (edge - 0.06 - 0.3 * t
              + rough * ((0.1 + 0.08 * t) * groove
                         + 0.09 * np.sin(2.0 * theta + p[5] + 2.5 * t) * np.sin(5.0 * theta + p[6] - 1.5 * t))
-             - 0.08 * smoothstep(0.34, 0.37, t) + 0.12 * smoothstep(0.69, 0.72, t))
+             - 0.08 * smoothstep(bed1 - 0.03, bed1 + 0.03, t) + 0.12 * smoothstep(bed2 - 0.03, bed2 + 0.03, t))
         return r, top + (foot + 0.35 - top) * t
 
     r_foot = wall(1.0)[0]
@@ -1011,23 +1019,69 @@ def skylight(centre, radius, lumps, ground, water, floor, seed, shaft=3.8, dome=
     phi0 = np.arcsin(r0 / reach)
     rise = (y0 - water) / np.cos(phi0)
 
+    # The dome's rock, as the film's (`cave interior 4`): hanging in folds down the vault, ridges of every
+    # width side by side, each from high under the vault down to its own end, some on into the water, some
+    # stopping short of it in a rounded lobe; a few broad masses standing out from the wall into the water,
+    # rounding over at their tops; and dark hollows in it at the water's edge. Plain round each doorway,
+    # where the sea has worn it.
+    def arc(a):
+        """Each angle's way round the dome's wall from the angle `a`, in metres at the water."""
+        return angle_diff(theta, a) * dome
+
+    n_folds = 76
+    folds = list(zip((np.arange(n_folds) + rng.uniform(-0.35, 0.35, n_folds)) * 2.0 * math.pi / n_folds,
+                     rng.uniform(0.35, 1.05, n_folds), rng.uniform(0.25, 0.65, n_folds),
+                     np.where(rng.random(n_folds) < 0.4, rng.uniform(-0.8, -0.1, n_folds), rng.uniform(0.5, 3.0, n_folds)),
+                     rng.uniform(0.0, 2.0 * math.pi, n_folds)))
+    masses = list(zip(rng.uniform(0.0, 2.0 * math.pi, 7), rng.uniform(1.0, 2.1, 7), rng.uniform(0.55, 1.2, 7),
+                      rng.uniform(1.6, 4.2, 7)))
+    hollows = list(zip(rng.uniform(0.0, 2.0 * math.pi, 6), rng.uniform(0.6, 1.3, 6), rng.uniform(0.4, 0.8, 6),
+                       rng.uniform(1.0, 2.2, 6)))
+    plain = np.ones(fine)
+    for a, half, _ in doors:
+        plain = np.minimum(plain, smoothstep(half + 0.3, half + 1.6, np.abs(arc(a))))
+
+    def bell(s, half):
+        return np.where(np.abs(s) < half, np.cos(0.5 * math.pi * np.clip(s / half, -1.0, 1.0)) ** 2, 0.0)
+
+    def relief(y):
+        """How far the dome's wall stands in from its round (less than 0) or goes back into the rock
+        (more) at the heights `y` (one, or one for each angle), at each angle."""
+        y = np.broadcast_to(np.asarray(y, dtype=float), (fine,))
+        ridge = np.zeros(fine)
+        for at, half, deep, end, wander in folds:
+            # Each from high under the vault down to its end, rounded there, narrowing to its tip.
+            tip = np.clip((y - water - end + 0.3) / 0.9, 0.0, 1.0) ** 0.5
+            ridge = np.maximum(ridge, deep * tip * bell(arc(at + 0.035 * np.sin(0.55 * y + wander)), half * np.maximum(tip, 0.08)))
+        out = -ridge
+        for at, half, deep, top_y in masses:
+            out -= deep * np.clip((water + top_y - y) / 1.3, 0.0, 1.0) ** 0.5 * bell(arc(at), half)
+        for at, half, deep, tall in hollows:
+            h = (y - water + 0.4) / (tall + 0.4)
+            out += deep * np.where((h > 0.0) & (h < 1.0), np.sin(math.pi * np.clip(h, 0.0, 1.0)), 0.0) * bell(arc(at), half)
+        # None up in the vault's top, where the well's foot rounds over into it.
+        return out * plain * (1.0 - smoothstep(foot - 2.6, foot - 0.9, y))
+
     # Rings round the middle, one after another round the solid's cross-section: (radii, heights,
     # kind, how far down: the well's t, or the vault's).
     rows = []
     # The cave's floor under the water, then its side up to the water.
     for k, y in ((0.22, floor), (0.45, floor + 0.05), (0.7, floor + 0.35), (0.92, water - 1.8)):
-        rows.append((k * reach, np.full(segments, y), "cave", 1.0))
-    rows.append((reach + 0.05, np.full(segments, water - 0.8), "cave", 1.0))
-    # The vault, from the water up to the well's foot.
-    for v in (1.0, 0.86, 0.72, 0.58, 0.45, 0.33, 0.22, 0.11, 0.0):
+        rows.append((k * reach, np.full(fine, y), "cave", 1.0))
+    rows.append((reach + 0.05 + relief(water - 0.8), np.full(fine, water - 0.8), "cave", 1.0))
+    # The vault, from the water up to the well's foot, in rows close enough for its folds to show.
+    for v in np.linspace(1.0, 0.0, 20):
         phi = phi0 + (0.5 * math.pi - phi0) * v
-        pocket = 0.3 * np.sin(6.0 * theta + 5.0 * v + p[9]) * np.sin(4.0 * theta - 3.0 * v + p[10]) * math.sin(math.pi * v)
-        rows.append((reach * np.sin(phi) + pocket, water + rise * np.cos(phi), "cave", v))
-    # The well's foot, rounding over into the vault.
-    rows.append((r_foot + 0.35, np.full(segments, foot - 0.08), "foot", 1.0))
-    rows.append((r_foot + 0.1, np.full(segments, foot + 0.1), "foot", 1.0))
-    # Up the well.
-    for t in (1.0, 0.86, 0.72, 0.69, 0.52, 0.37, 0.34, 0.22, 0.1, 0.0):
+        y = water + rise * np.cos(phi)
+        pocket = 0.2 * np.sin(6.0 * theta + 5.0 * v + p[9]) * np.sin(4.0 * theta - 3.0 * v + p[10]) * math.sin(math.pi * v)
+        rows.append((reach * np.sin(phi) + pocket + relief(y), y, "cave", float(v)))
+    # The well's foot, rounding over into the vault: unevenly, lower and higher round it.
+    sag = (0.25 * (0.5 + 0.5 * np.sin(5.0 * theta + p[2]) * np.sin(3.0 * theta - p[5]))
+           + 0.08 * (0.5 + 0.5 * np.sin(11.0 * theta + p[7])))
+    rows.append((r_foot + 0.35 + 0.12 * np.sin(4.0 * theta + p[12]), foot - 0.08 + sag, "foot", 1.0))
+    rows.append((r_foot + 0.1, foot + 0.1 + 0.6 * sag, "foot", 1.0))
+    # Up the well, in rows close enough for its beds to wander.
+    for t in (1.0, 0.9, 0.79, 0.72, 0.66, 0.56, 0.46, 0.39, 0.32, 0.22, 0.12, 0.0):
         rows.append((*wall(t), "well", t))
     # The lip, rounding over from the well onto the ground and on under it.
     rows.append((edge - 0.03, ground_at(edge) + bump - 0.07, "lip", 0.0))
@@ -1036,17 +1090,17 @@ def skylight(centre, radius, lumps, ground, water, floor, seed, shaft=3.8, dome=
     rows.append((edge + under, ground_at(edge + under) - 0.12, "hidden", 0.0))
     rows.append((edge + under + 0.4, ground_at(edge + under + 0.4) - 0.5, "hidden", 0.0))
     # Shut away under the ground: out past the dome, down, and back in under its floor.
-    out = np.full(segments, float(reach.max()) + 0.7)
-    rows.append((out, np.full(segments, float(ground_at(out).min()) - 2.5), "hidden", 0.0))
-    rows.append((out, np.full(segments, floor - 1.2), "hidden", 0.0))
-    rows.append((0.22 * reach, np.full(segments, floor - 1.2), "hidden", 0.0))
+    out = np.full(fine, float(reach.max()) + 1.6)
+    rows.append((out, np.full(fine, float(ground_at(out).min()) - 2.5), "hidden", 0.0))
+    rows.append((out, np.full(fine, floor - 1.2), "hidden", 0.0))
+    rows.append((0.22 * reach, np.full(fine, floor - 1.2), "hidden", 0.0))
 
     def colour(ys, kind, depth):
         if kind == "hidden":
-            return np.broadcast_to(C["foot"], (segments, 3))
+            return np.broadcast_to(C["foot"], (fine, 3))
         band = 0.5 + 0.5 * np.sin(3.0 * theta + p[11] + 0.6 * ys)
-        c = mix(np.broadcast_to(C["stone"], (segments, 3)), C["stoneMid"], smoothstep(0.3, 0.7, band))
-        moss = mix(np.broadcast_to(C["moss"], (segments, 3)), C["mossDark"], wave(11, p[12]))
+        c = mix(np.broadcast_to(C["stone"], (fine, 3)), C["stoneMid"], smoothstep(0.3, 0.7, band))
+        moss = mix(np.broadcast_to(C["moss"], (fine, 3)), C["mossDark"], wave(11, p[12]))
         if kind == "lip":
             # Worn stone with moss on it in patches.
             return mix(c, moss, 0.25 + 0.55 * smoothstep(0.3, 0.7, wave(5, p[13]) * wave(2, p[0]) * 1.6))
@@ -1058,19 +1112,19 @@ def skylight(centre, radius, lumps, ground, water, floor, seed, shaft=3.8, dome=
         if kind == "foot":
             return c * 0.5
         # The cave: dark stone, darker deep under the vault, wet and dark where the water laps.
-        c = mix(np.broadcast_to(C["groove"] * 0.55, (segments, 3)), C["cave"], 0.25 + 0.5 * depth)
+        c = mix(np.broadcast_to(C["groove"] * 0.55, (fine, 3)), C["cave"], 0.25 + 0.5 * depth)
         return mix(c, C["wet"] * 0.45, 1.0 - smoothstep(0.0, 0.9, np.abs(ys - water)))
 
     bm = bmesh.new()
     rings, cols = [], []
     for radii, ys, kind, depth in rows:
         xs, zs = cx + radii * cos, cz + radii * sin
-        rings.append([bm.verts.new((float(xs[j]), -float(zs[j]), float(ys[j]))) for j in range(segments)])
+        rings.append([bm.verts.new((float(xs[j]), -float(zs[j]), float(ys[j]))) for j in range(fine)])
         cols.extend(list(colour(ys, kind, depth)))
     faces = {}
     for i, (lo, hi) in enumerate(zip(rings, rings[1:])):
-        for j in range(segments):
-            k = (j + 1) % segments
+        for j in range(fine):
+            k = (j + 1) % fine
             faces[i, j] = bm.faces.new((lo[j], lo[k], hi[k], hi[j]))
     bm.faces.new(rings[0])
     bm.faces.new(rings[-1])
@@ -1078,15 +1132,42 @@ def skylight(centre, radius, lumps, ground, water, floor, seed, shaft=3.8, dome=
     loops = []
 
     def door_columns(a, half):
-        cols_in = [j for j in range(segments) if abs(angle_diff(theta[j], a)) * dome <= half]
-        return [j for j in cols_in if (j + 1) % segments in cols_in]
+        cols_in = [j for j in range(fine) if abs(angle_diff(theta[j], a)) * dome <= half]
+        return [j for j in cols_in if (j + 1) % fine in cols_in]
 
     for a, half, tall in doors:
         # A doorway: the wall's faces toward its angle, from the floor's outer edge under the water (the
-        # fourth row) up to the first of the vault's rows at or over its top; its edge the hole there.
-        top_row = next(i for i, (_, ys, kind, _) in enumerate(rows) if kind == "cave" and i > 4 and float(np.mean(ys)) >= tall)
-        cut = [faces[i, j] for i in range(3, top_row) for j in door_columns(a, half)]
+        # fourth row) up, within an arch worn by the sea: upright sides to its springing, a rounded head
+        # up to `tall`; its edge then laid on that arch, and the hole there its edge.
+        spring = tall - 0.45 * half
+
+        def within(u, y):
+            if abs(u) >= half:
+                return False
+            return y <= spring or (u / half) ** 2 + ((y - spring) / (tall - spring)) ** 2 < 1.0
+
+        top_row = next(i for i, (_, ys, kind, _) in enumerate(rows)
+                       if kind == "cave" and i > 4 and float(np.mean(ys)) >= tall + 0.4)
+        cut = []
+        for i in range(3, top_row):
+            for j in door_columns(a, half + 0.5):
+                c = faces[i, j].calc_center_median()
+                if within(angle_diff(math.atan2(-c.y - cz, c.x - cx), a) * dome, c.z):
+                    cut.append(faces[i, j])
         bmesh.ops.delete(bm, geom=cut, context="FACES_ONLY")
+        for vert in {v for e in bm.edges if e.is_boundary for v in e.verts}:
+            x, z, y = vert.co.x, -vert.co.y, vert.co.z
+            u = angle_diff(math.atan2(z - cz, x - cx), a) * dome
+            if abs(u) > half + 1.0 or y < water - 1.0:
+                continue
+            if y <= spring:
+                u, h = math.copysign(half, u), y
+            else:
+                eu, ev = u / half, (y - spring) / (tall - spring)
+                n = math.hypot(eu, ev) or 1.0
+                u, h = half * eu / n, spring + (tall - spring) * ev / n
+            rr, b = math.hypot(x - cx, z - cz), a + u / dome
+            vert.co = (cx + rr * math.cos(b), -(cz + rr * math.sin(b)), h)
         at = (cx + dome * math.cos(a), cz + dome * math.sin(a))
         loops.append(min(boundary_loops(bm), key=lambda lp: min(math.hypot(p[0] - at[0], p[2] - at[1]) for p in lp)))
     # And through the solid's hidden outer wall behind each doorway, where the passage runs on through
@@ -1098,8 +1179,9 @@ def skylight(centre, radius, lumps, ground, water, floor, seed, shaft=3.8, dome=
     # Vines hanging from the lip down the well a hand's breadth off its side, none past its foot (from
     # the water below only their leaves show, round its edge), leaves along them in bunches.
     vb, vine_cols = bmesh.new(), []
-    for _ in range(20):
-        j = int(rng.integers(0, segments))
+    # (Each at its own angle, so no two hang one over the other, their leaves in one another.)
+    for j in rng.choice(fine, 20, replace=False):
+        j = int(j)
         a = float(theta[j])
         length = rng.uniform(1.0, shaft - 0.4)
         y_top = float(top[j]) + 0.18 + float(bump[j]) - 0.1

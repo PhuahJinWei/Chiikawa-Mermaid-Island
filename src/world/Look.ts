@@ -1052,7 +1052,26 @@ const GRADE = {
     uniform float uNight;
     uniform float uGolden;
     uniform float uCave;
+    // The scene's depth and the camera, as the depth of field has them (see FilmPost), and the
+    // skylight's opening (uJungleHole: its middle, how far round, the height of its rim).
+    uniform sampler2D tDepth;
+    uniform float uNear;
+    uniform float uFar;
+    uniform vec2 uProj;
+    uniform mat4 uCameraWorld;
+    uniform vec4 uJungleHole;
     varying vec2 vUv;
+    #include <packing>
+    // Whether what is seen at uv is the island's, up the forbidden cave's skylight (over its rim, or the
+    // sky): seen from in the cave, that keeps the island's night, as the film paints the leaves round
+    // the opening from the water under it (cave interior 6).
+    bool overRim(vec2 uv) {
+      float d = texture2D(tDepth, uv).x;
+      if (d >= 1.0) return true;
+      float viewZ = perspectiveDepthToViewZ(d, uNear, uFar);
+      vec3 view = vec3((uv * 2.0 - 1.0) / uProj * -viewZ, viewZ);
+      return (uCameraWorld * vec4(view, 1.0)).y > uJungleHole.w;
+    }
     // The film's moonlit night, by brightness (n, 0 to 1): one royal blue with little red in it, from a
     // deep navy in the darks (nothing goes black) through cobalt to a bright azure, paling to a blue
     // white in the lights. Measured on its night frames (cave interior 5, jungle 10, river below parkour
@@ -1086,8 +1105,9 @@ const GRADE = {
         g = mix(g, g * vec3(1.07, 1.0, 0.8) + vec3(0.02, 0.015, 0.0), uGolden * 0.75);
         g.r += uGolden * 0.12 * max(g.g - max(g.r, g.b), 0.0);
       }
-      // (Not in the cave, which is painted in its own dark blues whatever the hour.)
-      float night = smoothstep(0.4, 1.0, uNight) * (1.0 - uCave);
+      // (Not in the cave, which is painted in its own dark blues whatever the hour; but what is seen of the
+      // island from in it, up its skylight, is the island's.)
+      float night = smoothstep(0.4, 1.0, uNight) * (1.0 - (uCave > 0.0 && !overRim(vUv) ? uCave : 0.0));
       if (night > 0.0) {
         // Painted from how bright each point is as drawn, with the grade's contrast, but the darks
         // only eased down, not crushed, onto a navy floor: nothing goes black. The cast, marked in the
@@ -1098,11 +1118,14 @@ const GRADE = {
         float lc = clamp(l, 0.0, 1.0);
         float n = min(0.05 + max((lc - 0.5) * uContrast + 0.5, 0.25 * lc), 1.0);
         if (figure) n = min(n * (1.0 + 0.4 * smoothstep(0.15, 0.3, n)), 0.92);
-        // Greens lean a little teal and reds and purples violet, as the film's night leaves do, so the
-        // jungle keeps its kinds of leaf.
+        // Leaves lie darker than the sand and rock round them, a dark green navy, as the film paints its
+        // night jungle (from above and from within: navy in their shade, cobalt at most on their lit
+        // edges), and lean a little teal; reds and purples lean violet, so the jungle keeps its kinds of
+        // leaf.
         float green = smoothstep(0.01, 0.12, g.g - max(g.r, g.b));
         float red = smoothstep(0.03, 0.18, g.r - max(g.g, g.b));
-        vec3 moonlit = nightBlue(n) + (green * vec3(-0.02, 0.06, -0.02) + red * vec3(0.1, -0.02, 0.03)) * (0.35 + n);
+        if (!figure) n *= 1.0 - 0.45 * green;
+        vec3 moonlit = nightBlue(n) + (green * vec3(-0.02, 0.07, -0.04) + red * vec3(0.1, -0.02, 0.03)) * (0.35 + n);
         // Firelight's warmth, told by the colour as drawn, down to the dim edges of its pools.
         float warm = smoothstep(0.08, 0.25, drawn.r - drawn.b) * smoothstep(0.05, 0.25, l);
         float blue = smoothstep(0.15, 0.35, g.b - max(g.r, g.g));
@@ -1362,6 +1385,10 @@ export class FilmPost {
     grade.uniforms.uNight = nightUniform;
     grade.uniforms.uGolden = goldenUniform;
     grade.uniforms.uCave = caveUniform;
+    // What it reads of the scene's depth, as the depth of field reads it, to tell the island seen up the
+    // cave's skylight from the cave (see GRADE).
+    for (const name of ['tDepth', 'uNear', 'uFar', 'uProj', 'uCameraWorld'] as const) grade.uniforms[name] = this.focus.uniforms[name];
+    grade.uniforms.uJungleHole = jungleHaze.uJungleHole;
     this.composer.addPass(grade);
     this.setTexel(size.x, size.y);
   }

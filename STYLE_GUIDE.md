@@ -80,9 +80,11 @@ never pushed, because it is other people's artwork.
   grey), cobalt through the middle, a bright azure where the moon falls
   and a pale blue white in the lights, with little red in any of it, never
   a murky grey, teal or violet layer over the land. Clearings and open sand
-  lie pale in the moonlight; the jungle is navy and cobalt, its leaves a
-  hint of teal or violet; rock, leaves and pebbles in the shade still show
-  their shapes. What is colourful keeps its own colour, only darker and
+  lie pale in the moonlight; the trees and every leaf lie darker than the
+  sand and rock round them, a dark green navy (navy in their shade, cobalt
+  at most on their lit edges, seen from above as from within the jungle),
+  a hint of teal or violet in them; rock, leaves and pebbles in the shade
+  still show their shapes. What is colourful keeps its own colour, only darker and
   bluer, and the cast glow a pale blue white. The moon glows in a wide halo
   in a sky thick with pale cyan stars and rims the very edges of leaves,
   trunks and rocks in cool cyan; torches burn in big licking cartoon
@@ -257,6 +259,12 @@ Scale unit: **1 = Chiikawa's height.**
   boards, posts leaning out from its corners, and a tall conical thatched
   roof about twice as wide as the tower. Tiki torches stand in a row in
   front of it.
+- More tiki torches stand about the village and light it by night, each
+  its own warm pool with the moon's blue between: two on the plaza's
+  edges, one between the lane's northern huts, one in the plank huts'
+  yard, one where the path north leaves the plaza and two along the guest
+  houses' path. They stand on open sand clear of the plants, and out of
+  the film's frames of the lane and the guest house.
 - Sandy packed-earth paths with scattered confetti during the festival.
 - Festival stalls along the beach front: square, roomy booths, as deep as
   they are wide, a step apart on thin posts under a flat roof, with deep
@@ -348,7 +356,7 @@ green-turquoise water you can see sparkles in. Confetti welcome on arrival.
   pier; palms and the jungle's canopy behind them.
 - The festival's stalls and arch stand back from it across open sand.
 
-### Jungle (`chiikawa 2`, `11`, `13`, `15`)
+### Jungle (`chiikawa 2`, `11`, `13`, `15`, `jungle 6`)
 
 - Tall palms with striped trunks, ferns, cycads, big monstera leaves.
 - Flower bushes everywhere: purple violets, white jasmine, yellow
@@ -361,6 +369,17 @@ green-turquoise water you can see sparkles in. Confetti welcome on arrival.
   yellow heart, facing every way among the leaves, some in twos and
   threes.
 - Soft clover ground cover and bright green grass clearings.
+- Paths of trodden earth, a warm ochre a little darker than the sand,
+  wandering and wider and narrower as they go, worn paler down the middle
+  and darker toward their edges, where the grass creeps in over them in
+  tufts; under the trees shaded, never lost (`jungle 6`). Never a strip
+  of even width with ruled edges.
+- The ground runs right up to the rocks and cliffs: grass and ferns to
+  their foot, sand to the rock on the beach, darker and damp close in,
+  pale stones fallen from them lying about, more close in and in clusters
+  (`parkour stone landmark 3`, `cave entrance 3`). Never a ring of pale
+  grey or a band of pebbles round them; the gorge's riverside bank of
+  pebbles is its own.
 - Blue butterflies; bubbles float in one clearing.
 - Golden backlight through the canopy in the late afternoon.
 
@@ -469,6 +488,11 @@ food and cups on the ground, everyone toasting. This is the festival.
 - The cavern's beach: dark blue sand, the rowboat drawn up on it, the water
   beyond glowing blue with sparkles, heavy rounded rock round it (`cave
   interior 2`). The sea on from it is dark (`cave interior 3`).
+- Its rock is never smooth plaster anywhere: heavy rounded masses up the
+  walls of its wide places, flowstone in runs down the passage, rounded
+  masses piled up the chamber, darker in their hollows and paler on their
+  ridges; in the dark their forms still show, a little more of the
+  painted dark's blue along their edges, as the film paints dark rock.
 - Dark blue rock walls with cyan rim light on the edges.
 - **The heart of the cave:** a round opening in the ceiling, ringed by
   hanging vines, with the full moon directly above. A wide shaft of
@@ -482,14 +506,27 @@ food and cups on the ground, everyone toasting. This is the festival.
   bright cyan-blue (about #38AEFE) in a disc under the opening, fading to a
   deep blue toward its shore, sparkles winking on it, a band of mist low
   over it far off; pale columns of rock stand round its edge (`cave
-  interior 4`, `5`). From the water the sky shows up the well, ringed by
-  leaves (`cave interior 6`).
-- Past the skylight's chamber, deeper in, a dark chamber of its own: a flat
-  stone ledge at its back beside the water, laid with rounded cobbles,
-  crystals either side and dark rounded rock behind, lit by a small fire
-  whose light turns the cobbles a warm magenta against the blue, where the
-  Siren and the mermaids sit (`cave interior 7`, `8`). In the film the
-  Siren's own glow lights it, its walls a brighter indigo.
+  interior 4`, `5`). Its walls are never a smooth bowl: the rock hangs in
+  folds down them, ridges of every width, some into the water and some
+  ending short of it, with broad masses standing out and dark hollows at
+  the water's edge, darker in its hollows, paler on its ridges and rimmed
+  in cyan where it turns from the eye toward the water; its doorways are
+  arches worn by the sea. From the water the sky shows up the well, ringed
+  by leaves, its rock dark and layered (`cave interior 6`): no trees over
+  it from below, though from above they crowd round it (`cave interior
+  5`); the leaves round its edge in the night's navy.
+- Past the skylight's chamber, deeper in, a dark chamber of its own: a
+  broad ledge of the rock at its back beside the water, big enough for the
+  Siren, giant as she is, to rest on by the cast. It is a shelf the sea
+  has left, never a stage: lying low, its top just over the water (its lip
+  a sixth of the cast's height), cobbled all over with flattish rounded
+  stones of every size packed close, its edge wandering into the water,
+  its ends narrowing away into the wall. The wall behind it rises in tall rounded lobes of
+  the rock, the crystals at its back toward either end, and nothing stands
+  on it apart like a prop. A small fire lights it, turning the cobbles a
+  warm magenta against the blue, where the Siren and the mermaids sit
+  (`cave interior 7`, `8`). In the film the Siren's own glow lights it,
+  its walls a brighter indigo.
 - Daylight comes in only where it truly can: bright at the mouth's rim,
   gone a few metres in; down the skylight's well a slanting beam and a
   sunlit patch on the water that move with the hour (the moon's, pale, by
@@ -526,7 +563,7 @@ shading toward the water. At anchor out in the bay.
 | Sea, shallow | #2FD1B8 | #1B3C6E with moon streak #E8F1FF |
 | Sea, deep | #1AA6C9 → #0B3D7A | #050B1E |
 | Sand | #EBC48F | #2D53CD (moonlit, `cave entrance 1`) |
-| Foliage | #3FA34D, #8FD16A, #1F6B3A | #051639 → #0E2C72 → #1547B2 (`cave interior 5`) |
+| Foliage | #3FA34D, #8FD16A, #1F6B3A | #08204C, a dark green navy, its lit edges #11387A (`cave interior 5`) |
 | Karst rock | #C9D6D9 | on the night's blue, as the foliage |
 | Thatch / wood | #C9A46A / #8A5A3B | — |
 | Fire light | — | #FFB347 core #FFE58A |
