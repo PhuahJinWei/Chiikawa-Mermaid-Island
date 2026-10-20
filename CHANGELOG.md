@@ -1014,7 +1014,9 @@ outlined is drawn twice, once for its pen line. To get there:
   the bay did. The tufts and the clover along the paths follow their
   edges as trodden; the jungle is planted where it was (every tree and
   palm in its place), but for 112 small plants that would now stand on a
-  path.
+  path. A path stops where it meets the festival's ground or the village's
+  clearing, rather than painting its end over them: the end of the path
+  north from the festival's street had shown as a brown spot on its sand.
 - Evenings and nights lit the film's way, where night had been one flat
   blue wash and the island's lights lit nothing. The tiki torches burn in
   big cartoon flames, a pale yellow heart with tongues of orange licking

@@ -1214,8 +1214,12 @@ def paint(x, z, h, masks, normal_y, shade):
     # The paths: trodden earth, as the film's jungle paths are (`jungle 6`), worn paler down the middle,
     # darker toward the edges, where the grass creeps in over them in tufts. They are trodden only off
     # the sand and the pebbles: where one crosses the beach, the beach stays plain sand, as the film's
-    # beaches are, and the path begins where the grass does.
-    on = masks["path"] * m_grass * (1.0 - pebbles)
+    # beaches are, and the path begins where the grass does. Nor are they painted over the festival's
+    # ground or the village's clearing that they lead into, which meet them with their own: the end of
+    # the path north from the festival's street had lain a metre into it, a brown spot on its sand.
+    cleared = np.maximum.reduce([smoothstep(0.45, 0.8, masks["plaza"]), smoothstep(0.45, 0.8, masks["street"]),
+                                 smoothstep(0.3, 0.75, masks["village"])])
+    on = masks["path"] * m_grass * (1.0 - pebbles) * (1.0 - cleared)
     worn = smoothstep(0.75, 1.0, masks["path"]) * smoothstep(-0.5, 0.5, noise(x, z, 2.2, 69.0))
     trodden = mix(mix(c("pathEdge"), c("path"), smoothstep(0.15, 0.75, masks["path"])), c("pathWorn"), 0.65 * worn)
     on = on * (1.0 - smoothstep(0.2, 0.75, noise(x, z, 0.9, 70.0)) * (1.0 - smoothstep(0.4, 0.75, masks["path"])))
