@@ -32,6 +32,11 @@ export interface TerrainInfo {
   skylight?: { centre: [number, number]; radius: number; lumps: [number, number, number][]; dome: number; floor: number };
   /** The forbidden cave's inside, under the outcrop and the spur (see Cave.ts). */
   cave?: { url: string };
+  /** The bay's quay, if the island has one: the line its water's edge runs along, at the timber wall
+   * and on past its ends (points x, z evenly about a metre apart from west to east, the sea to the
+   * south); where the timber stands (`ends`, x), and how far beyond them the quay eases into the
+   * beach round it. See quayFloor. */
+  quay?: { line: [number, number][]; ends: [number, number]; feather: number };
   /** The rock landmarks, the sea cliffs and the waterfall, built with the ground. */
   landmarks: string;
   /** Each rock's foot: its middle (x, z), and how far it reaches at even angles round it from east toward south. */
@@ -69,7 +74,7 @@ export const WATER_EDGE = '#45DFC8';
 /**
  * GLSL: the ground's height at a point (x, z), from the island's height grid, filtered between
  * its samples (which sit on texel centres). Shaders using it set `uFloor` to the grid's texture
- * and `uMap` to the map's (origin x, origin z, size, samples per side).
+ * (see Terrain.texture) and `uMap` to the map's (origin x, origin z, size, samples per side).
  */
 export const FLOOR_GLSL = /* glsl */ `
 uniform sampler2D uFloor;
@@ -78,18 +83,37 @@ float floorAt(vec2 xz) {
   vec2 g = (xz - uMap.xy) / uMap.z * (uMap.w - 1.0);
   return texture2D(uFloor, (g + 0.5) / uMap.w).r;
 }
-// The same, blended between the samples in full precision: the GPU's own filtering blends in
-// steps of 1/256 of a sample, which would fray a line drawn along the waterline.
-float floorAtExact(vec2 xz) {
-  vec2 g = clamp((xz - uMap.xy) / uMap.z * (uMap.w - 1.0), vec2(0.0), vec2(uMap.w - 1.001));
-  vec2 i = floor(g);
-  vec2 f = g - i;
-  ivec2 c = ivec2(i);
-  float a = texelFetch(uFloor, c, 0).r;
-  float b = texelFetch(uFloor, c + ivec2(1, 0), 0).r;
-  float d = texelFetch(uFloor, c + ivec2(0, 1), 0).r;
-  float e = texelFetch(uFloor, c + ivec2(1, 1), 0).r;
-  return mix(mix(a, b, f.x), mix(d, e, f.x), f.y);
+// The same for the waterline, in full precision (the GPU's own filtering blends in steps of 1/256
+// of a sample, which would fray a line drawn along it) and smooth: blended between the four samples
+// round it, the waterline bends at every sample's edge, which shows along a beach as small corners a
+// metre or so apart; a quadratic B-spline over the nine nearest draws it without them. On steep
+// ground (a cliff's foot) and where the grid's green marks it (the quay's timber, see quayFloor), the
+// four samples' blend is kept, as the line the ground's own edge is drawn to there.
+float floorAtSmooth(vec2 xz) {
+  vec2 g = clamp((xz - uMap.xy) / uMap.z * (uMap.w - 1.0), vec2(1.0), vec2(max(uMap.w - 2.001, 1.0)));
+  ivec2 c = ivec2(floor(g + 0.5));
+  vec2 u = g - vec2(c);
+  vec3 wx = vec3(0.5 * (0.5 - u.x) * (0.5 - u.x), 0.75 - u.x * u.x, 0.5 * (0.5 + u.x) * (0.5 + u.x));
+  vec3 wz = vec3(0.5 * (0.5 - u.y) * (0.5 - u.y), 0.75 - u.y * u.y, 0.5 * (0.5 + u.y) * (0.5 + u.y));
+  vec3 r0 = vec3(texelFetch(uFloor, c + ivec2(-1, -1), 0).r, texelFetch(uFloor, c + ivec2(0, -1), 0).r,
+                 texelFetch(uFloor, c + ivec2(1, -1), 0).r);
+  vec3 r1 = vec3(texelFetch(uFloor, c + ivec2(-1, 0), 0).r, texelFetch(uFloor, c, 0).r,
+                 texelFetch(uFloor, c + ivec2(1, 0), 0).r);
+  vec3 r2 = vec3(texelFetch(uFloor, c + ivec2(-1, 1), 0).r, texelFetch(uFloor, c + ivec2(0, 1), 0).r,
+                 texelFetch(uFloor, c + ivec2(1, 1), 0).r);
+  float curved = dot(wz, vec3(dot(wx, r0), dot(wx, r1), dot(wx, r2)));
+  // The four samples round it, blended plainly.
+  bool east = u.x >= 0.0;
+  bool south = u.y >= 0.0;
+  vec3 rowA = south ? r1 : r0;
+  vec3 rowB = south ? r2 : r1;
+  vec2 a = east ? rowA.yz : rowA.xy;
+  vec2 b = east ? rowB.yz : rowB.xy;
+  vec2 f = vec2(east ? u.x : 1.0 + u.x, south ? u.y : 1.0 + u.y);
+  float plain = mix(mix(a.x, a.y, f.x), mix(b.x, b.y, f.x), f.y);
+  float steep = length(vec2(r1.z - r1.x, r2.y - r0.y)) / (2.0 * uMap.z / (uMap.w - 1.0));
+  float keep = max(texture2D(uFloor, (g + 0.5) / uMap.w).g, smoothstep(0.9, 1.6, steep));
+  return mix(curved, plain, keep);
 }
 `;
 
@@ -111,10 +135,71 @@ const EDGE_MARGIN = 0.3;
 const CAMERA_MARGIN = 0.3;
 /** The highest step a character walks up, onto a deck or a stair. */
 const STEP_UP = 0.35;
+/** How steeply the floor the shaders see falls through the water's surface across the quay's line
+ * (metres per metre): gently enough that every square of the height grid the line crosses lies on
+ * the slope, which then filters into a straight crossing along the line. It meets the sand 1.4 m in
+ * from the line and the sea floor at the timber's foot about 2 m out (less toward its ends, where the
+ * water shallows), well within QUAY_REACH. */
+const QUAY_FALL = 0.6;
+const QUAY_REACH = 5;
+
+/**
+ * The height grid as the ground's and the water's shaders see it: the same, but along the quay (see
+ * TerrainInfo.quay), where the sand drops sheer into the water inside the timber. Filtered between
+ * samples a metre apart, a sheer drop crosses the water's surface in steps from sample to sample:
+ * the water would stop short of the timber in places, leaving holes along it, and paint the sand by
+ * it as water in others, and its surf would zigzag. Here the floor falls through the surface along
+ * the quay's line at an even slope instead, so the water meets the timber in a straight line and its
+ * surf runs along it. Walking keeps the true heights. Also how far the shaders keep the plain blend
+ * between four samples for the waterline there (`plain`, 0 to 1; see floorAtSmooth), which draws the
+ * slope's crossing exactly where the smoother filter would round it off where the slope meets the
+ * sand and the sea floor.
+ */
+function quayFloor(heights: Float32Array, info: TerrainInfo): { floor: Float32Array; plain: Float32Array } {
+  const floor = Float32Array.from(heights);
+  const plain = new Float32Array(heights.length);
+  const quay = info.quay;
+  if (!quay || quay.line.length < 2) return { floor, plain };
+  const { size, origin, water } = info;
+  const n = info.height.grid;
+  const step = size / (n - 1);
+  const { line, ends, feather } = quay;
+  const west = line[0][0];
+  const spacing = (line[line.length - 1][0] - west) / (line.length - 1);
+  const smooth = THREE.MathUtils.smoothstep;
+  for (let i = 0; i < n; i++) {
+    const x = origin[0] + i * step;
+    const at = (x - west) / spacing;
+    if (at < 0 || at > line.length - 1) continue;
+    const full = smooth(x, ends[0] - feather, ends[0]) * (1 - smooth(x, ends[1], ends[1] + feather));
+    if (full <= 0) continue;
+    const k = Math.min(Math.floor(at), line.length - 2);
+    const [x0, z0] = line[k];
+    const [x1, z1] = line[k + 1];
+    const zLine = z0 + (z1 - z0) * (at - k);
+    // Metres across the line for each metre north of it.
+    const across = Math.cos(Math.atan2(z1 - z0, x1 - x0));
+    const j0 = Math.max(0, Math.floor((zLine - QUAY_REACH - origin[1]) / step));
+    const j1 = Math.min(n - 1, Math.ceil((zLine + QUAY_REACH - origin[1]) / step));
+    for (let j = j0; j <= j1; j++) {
+      const inland = (zLine - (origin[1] + j * step)) * across;
+      const fall = water + QUAY_FALL * inland;
+      const k2 = j * n + i;
+      const h = heights[k2];
+      // Down to the surface at the line from the sand, up to it from the sea floor; the sample on
+      // the drop itself, a hair from the line, at the surface.
+      const shaded = inland >= 0 ? Math.min(Math.max(h, water), fall) : Math.max(Math.min(h, water), fall);
+      floor[k2] = h + (shaded - h) * full;
+      plain[k2] = full * (1 - smooth(Math.abs(inland), QUAY_REACH - 2, QUAY_REACH));
+    }
+  }
+  return { floor, plain };
+}
 
 /** The island's ground, built in Blender: heights to walk on, and the mesh to draw. */
 export class Terrain {
-  /** Heights for shaders: the same grid, filtered between samples. */
+  /** Heights for shaders: the same grid, filtered between samples (red; see quayFloor), and where
+   * their waterline keeps the plain filter (green; see floorAtSmooth). */
   readonly texture: THREE.DataTexture;
   /** Each rock's foot, with its furthest reach for a quick first test. */
   private readonly rocks: { x: number; z: number; outline: number[]; reach: number }[];
@@ -125,9 +210,13 @@ export class Terrain {
     readonly mesh: THREE.Mesh,
   ) {
     const n = info.height.grid;
-    const half = new Uint16Array(n * n);
-    for (let i = 0; i < half.length; i++) half[i] = THREE.DataUtils.toHalfFloat(heights[i]);
-    this.texture = new THREE.DataTexture(half, n, n, THREE.RedFormat, THREE.HalfFloatType);
+    const { floor, plain } = quayFloor(heights, info);
+    const half = new Uint16Array(n * n * 2);
+    for (let i = 0; i < n * n; i++) {
+      half[2 * i] = THREE.DataUtils.toHalfFloat(floor[i]);
+      half[2 * i + 1] = THREE.DataUtils.toHalfFloat(plain[i]);
+    }
+    this.texture = new THREE.DataTexture(half, n, n, THREE.RGFormat, THREE.HalfFloatType);
     this.texture.magFilter = THREE.LinearFilter;
     this.texture.minFilter = THREE.LinearFilter;
     this.texture.needsUpdate = true;
@@ -263,7 +352,7 @@ function groundMaterial(colours: THREE.Texture, info: TerrainInfo, floor: THREE.
         float level = distance(vWorld.xz, uPool.xy) < uPool.z ? uPool.w : uSea;
         // Pixels above the waterline, measured across the slope; the pen draws the first few.
         float h = floorAt(vWorld.xz);
-        if (abs(h - level) < 0.6) h = floorAtExact(vWorld.xz);
+        if (abs(h - level) < 0.2) h = floorAtSmooth(vWorld.xz);
         float above = (h - level) / max(fwidth(h), 1e-5);
         // Under the water the ground is hidden, but where the two meet at a glancing angle a
         // sliver of it can show. Painted the colour of the water's edge, it reads as water.
@@ -535,7 +624,7 @@ function filmGroundMaterial(
           // sliver of it can show: painted the colour of the water's edge, it reads as water.
           float level = distance(vGroundWorld.xz, uPool.xy) < uPool.z ? uPool.w : uSea;
           float h = floorAt(vGroundWorld.xz);
-          if (abs(h - level) < 0.6) h = floorAtExact(vGroundWorld.xz);
+          if (abs(h - level) < 0.2) h = floorAtSmooth(vGroundWorld.xz);
           float above = (h - level) / max(fwidth(h), 1e-5);
           diffuseColor.rgb = mix(diffuseColor.rgb, uEdge, 1.0 - step(-0.5, above));
         }`,

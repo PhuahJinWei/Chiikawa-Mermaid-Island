@@ -521,32 +521,37 @@ def build_butterfly(collection):
     return [L.assemble_colored("butterfly", pieces, collection)], {}
 
 
-# The quay's timber, as the pier's.
+# The quay's timber, as the pier's: its planks in three close tones, and which tone each takes along
+# a length of it.
 QUAY_WOOD = {k: L.hex_color(v) for k, v in {"post": "#8A5A3B", "postTop": "#C49A6C", "plank": "#BE8F5C",
-                                            "plankDark": "#9C6E45"}.items()}
+                                            "plankMid": "#AE7F51", "plankDark": "#9C6E45"}.items()}
+QUAY_TONES = ("plank", "plankMid", "plank", "plankDark", "plankMid", "plank", "plankMid", "plankDark", "plank",
+              "plankMid", "plank", "plankDark", "plankMid")
 
 
 def build_quay(collection):
     """A length of the bay's timber quay, after the film's frames of it: round log posts two metres
-    apart, standing a little proud of the sand as weathered stumps, and behind them weathered planks
-    laid flat on edge, holding the sand back over the water. Four metres long, along X, its sea side
-    toward -Y; its origin on the sand's level, at the planks' sea face, in the middle of its length.
-    Laid end to end along the quay (posts every two metres)."""
+    apart, standing a little proud of the sand as weathered stumps, and behind them a wall of upright
+    planks side by side, from under the sea floor to just over the sand's edge, holding the sand back
+    over the water. Four metres long, along X, its sea side toward -Y; its origin on the sand's level,
+    at the planks' sea face, in the middle of its length. Laid end to end along the quay (posts every
+    two metres). The planks are 7 cm thick: the ground drops into the water inside them (see QUAY in
+    build_island.py)."""
     w = QUAY_WOOD
     pieces = []
     for x, top in ((-1.0, 0.27), (1.0, 0.34)):
         pieces.append((segment_bm(Vector((x, -0.1, -2.6)), Vector((x, -0.1, top)), 0.17, 0.16, segments=10), w["post"]))
         # segment_bm overshoots each end by 2% of its length; the cut top sits on its end.
         pieces.append((disc_bm(Vector((x, -0.1, top + 0.02 * (top + 2.6) + 0.003)), UP, 0.13, 12), w["postTop"]))
-    # Planks from under the sea floor up to the sand's edge, a hair apart, alternating in tone.
-    y, k = -2.3, 0
-    while y < -0.05:
-        height = min(0.24, -0.02 - y)
-        tone = w["plank"] if k % 2 else w["plankDark"]
-        pieces.append((box_bm(Vector((0.0, 0.035, y + height / 2)), (3.992, 0.07, height - 0.02)), tone))
-        y += 0.26
-        k += 1
-    quay = L.assemble_colored("quay", pieces, collection)
+    # Upright planks a hair apart, from under the sea floor to a little over the sand, their tops
+    # not quite level.
+    gap = 0.012
+    width = (3.992 - (len(QUAY_TONES) - 1) * gap) / len(QUAY_TONES)
+    for k, tone in enumerate(QUAY_TONES):
+        x = -1.996 + width / 2 + k * (width + gap)
+        top = 0.02 + 0.01 * ((k * 5) % 3 - 1)
+        pieces.append((box_bm(Vector((x, 0.035, (top - 2.3) / 2)), (width, 0.07, top + 2.3)), w[tone]))
+    quay = join("quay", pieces, collection, sharp=SHARP)
     return [quay], {"height": 0.4}
 
 

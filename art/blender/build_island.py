@@ -81,9 +81,11 @@ BEACH = {"base": 3.0, "wider": [(79.9, 9.0, 37.0), (125.4, 6.0, 24.3), (46.1, 18
 # Features, in game coordinates.
 # The festival at the bay, after the film: the beach in front of two long rows of stalls along its
 # back, facing the bay, and through the welcome arch in the opening between them, a street of
-# stalls running inland. PLAZA and STREET are where the sand is, between the stalls.
+# stalls running inland. PLAZA and STREET are where the sand is, between the stalls; the street's
+# runs under its stalls to their backs (x = ±6.9), where its back alleys begin (see BACKS), or a
+# strip of grass shows under the stalls and through the gaps between them.
 PLAZA = {"centre": (0.0, -5.5), "half": (31.0, 8.5), "feather": 3.0}
-STREET = {"centre": (0.0, -29.4), "half": (4.6, 15.6), "feather": 1.5}
+STREET = {"centre": (0.0, -29.4), "half": (6.9, 15.6), "feather": 1.5}
 # Its ground is level, as in the film: a band along the front rows (which follow the back of the
 # beach, z = row[0] + row[1] x^2), from `behind` them to `front` of them, and the street box (centre,
 # half sizes); it eases into the ground round them over `feather` metres, and past the street's far
@@ -366,11 +368,20 @@ SKYLIGHT = {"centre": (-143.0, -142.0), "radius": 6.5, "lumps": ((2, 0.025, 4.1)
 # tableland's north side from the waterfall's lowland. The high ground south of the gorge, the spur
 # with the cave's skylight, has none: only the stepping stones reach it.
 RAMPS = [((-30.0, -238.0), (-68.0, -244.0), 6.0)]
-# The bay is a quay, as in the film's frames of it: between `x` the festival's sand runs level at
-# `top` out to `out` metres past the coast, where a wall of timber (the `quay` props) drops it into
-# water `foot` deep, the sea floor shelving back to its own over `reach`; easing in over `feather`
-# at its ends.
-QUAY = {"x": (-46.0, 46.0), "out": 0.5, "top": 0.5, "foot": -1.6, "reach": 9.0, "feather": 3.0}
+# The bay is a quay, as in the film's frames of it: along its timber wall (the `quay` props, between
+# `x`, their planks' sea face 0.9 m past the coast and 7 cm thick) the festival's sand runs level at
+# `top` out to `out` metres past the coast, then drops within `drop`, inside the planks, into water
+# `foot` deep, the sea floor shelving back to its own over `reach`. Past the timber's ends the drop
+# gives way over `ease` metres to a beach, sloping down to the water's surface where the wall's
+# middle would be from up to `bank` metres in, and on under it to the wall's foot over up to `under`
+# metres, as the raised sand eases into the beach round it over `feather` metres; the water before
+# the timber shallows toward the beach's over its last `shoal` metres and on past its ends, so the
+# depth, and the surf the game draws from it, change gently along the coast. Two rows of the
+# ground's grid bend to run along the drop, the rows round them less over `bend` metres (see
+# quay_rows), and the game draws the water's edge along the wall's middle (see quay_info), so sand,
+# timber and water meet in clean lines rather than stepping from one sample of a grid to the next.
+QUAY = {"x": (-45.85, 45.65), "out": 0.85, "drop": 0.03, "top": 0.5, "foot": -1.6, "reach": 9.0, "ease": 3.0,
+        "bank": 3.0, "under": 2.0, "feather": 6.0, "shoal": 12.0, "bend": 12.0}
 # Short, wide pillars the jungle all but hides, as in the shot: mesas thick with trees on top,
 # swelling into a mound of them (`mound`, 1 for a gentle one). Centre, radii, turn, the top's
 # height, seed, mound, and anything of its build to change. The great dome west of the waterfall is,
@@ -968,14 +979,23 @@ def ground(x, z, natural=False, ramps=True):
     land = land + (cliff_land - land) * m_cliff * hold
     h = np.where(s >= 0.0, land, sea)
 
-    # The bay's quay: the festival's sand level out to the timber wall, deep water at its foot.
+    # The bay's quay: the festival's sand level out to the timber wall, deep water at its foot,
+    # shallowing toward its ends. Past the timber's ends a beach slopes into the water instead, the
+    # slope widening fast so no sheer sand stands bare beside the timber, as the raised sand eases
+    # into the beach round it.
     q = QUAY
-    m_quay = smoothstep(q["x"][0] - q["feather"], q["x"][0], x) * (1.0 - smoothstep(q["x"][1], q["x"][1] + q["feather"], x))
-    m_quay = m_quay * (np.abs(s) < 40.0)
-    top = smoothstep(-q["out"] - 0.35, -q["out"], s)
+    along = np.maximum(q["x"][0] - x, x - q["x"][1])  # metres past the timber's nearer end, less than 0 alongside it
+    beyond = np.maximum(along, 0.0)
+    m_quay = (1.0 - smoothstep(0.0, q["feather"], beyond)) * (np.abs(s) < 40.0)
+    m_deep = (1.0 - smoothstep(-q["shoal"], q["feather"], along)) * (np.abs(s) < 40.0)
+    slope = 1.0 - (1.0 - np.minimum(beyond / q["ease"], 1.0)) ** 2
+    line = -q["out"] - q["drop"] / 2.0
+    bank_top = -q["out"] + q["bank"] * slope
+    foot_at = -q["out"] - q["drop"] - q["under"] * slope
     wall = q["foot"] + (sea - q["foot"]) * smoothstep(-q["out"] - 1.0, -q["out"] - q["reach"], s)
-    quay = np.where(s >= -q["out"], np.maximum(h, q["top"]) * top + wall * (1.0 - top), np.minimum(sea, wall))
-    h = h + (quay - h) * m_quay
+    above = np.minimum(np.maximum(h, q["top"]), WATER + (q["top"] - WATER) * (s - line) / (bank_top - line))
+    below = np.maximum(np.minimum(sea, wall), WATER - (WATER - q["foot"]) * (line - s) / (line - foot_at))
+    h = h + (np.where(s >= line, above, below) - h) * np.where(s >= line, m_quay, m_deep)
 
     # The festival's ground is level; so is the village's clearing; the fields are flat.
     inland = smoothstep(0.0, 6.0, s)
@@ -1034,7 +1054,8 @@ def ground(x, z, natural=False, ramps=True):
     masks = {"s": s, "beach_w": beach_w, "village": m_village, "plaza": m_plaza, "street": m_street,
              "festival": np.maximum(m_plaza, m_street), "fields": m_fields, "path": m_path, "pool": m_pool,
              "bank": m_bank, "cliff": m_cliff, "s_cliff": s_cliff, "phi": phi, "backs": stall_backs(x, z) * inland,
-             "high": np.maximum(d_table, d_spur), "gorge": in_gorge, "quay": m_quay, "skylight": out_sky}
+             "high": np.maximum(d_table, d_spur), "gorge": in_gorge, "quay": m_quay, "timber": m_quay * (beyond <= 0.0),
+             "skylight": out_sky}
     return h, masks
 
 
@@ -1054,10 +1075,14 @@ def paint(x, z, h, masks, normal_y, shade):
         + c("sandPatch") * (0.55 * smoothstep(0.35, 1.1, blob))[..., None]
     kind = sand_k.copy()
     # Wet sand and the sea's floor only down by the water: where the spur steps out into the sea its
-    # top stays green.
+    # top stays green. Along the quay and the beaches past its timber, where the water's edge is well
+    # off the coast's line, the sand runs out to wherever the water is, and a little under it so the
+    # water's edge always lies over it, and the sea floor lies under that.
     low = smoothstep(WATER + 1.2, WATER + 0.4, h)
-    col = mix(col, c("wetSand"), smoothstep(1.8, 0.4, s) * (s > -0.5) * low)
-    col = mix(col, c("seaFloor"), smoothstep(-0.2, -2.0, s) * low)
+    on_quay = masks["quay"] > 0.0
+    dry = np.where(on_quay, h > WATER - 0.15, s > -0.5)
+    col = mix(col, c("wetSand"), smoothstep(1.8, 0.4, s) * dry * low)
+    col = mix(col, c("seaFloor"), smoothstep(-0.2, -2.0, s) * low * np.where(on_quay, ~dry, True))
     # Inland water (the river down the gorge) over the same sandy floor.
     inland_water = smoothstep(WATER + 0.05, WATER - 0.6, h) * (s > 0.0)
 
@@ -1139,7 +1164,8 @@ def paint(x, z, h, masks, normal_y, shade):
     col = mix(col, rubble, t)
     kind = kind * (1.0 - t)[..., None]
     rock = mix(c("rock"), c("rockDark"), smoothstep(0.1, 0.8, noise(x, z, 4.0, 15.0)))
-    t = smoothstep(0.8, 0.62, normal_y) * (s > -1.0) * above
+    # (Not on the quay: its only steep ground is the drop its timber hides, and the sand by its ends.)
+    t = smoothstep(0.8, 0.62, normal_y) * (s > -1.0) * above * (1.0 - masks["quay"])
     col = mix(col, rock, t)
     kind = kind * (1.0 - t)[..., None]
 
@@ -1186,12 +1212,61 @@ def write_png(path, rgb):
         f.write(png)
 
 
+def quay_line(x, at):
+    """Where the line `at` metres from the coast (negative past it) crosses each x along the bay (z),
+    found by halving: the coast runs across the bay from west to east, the sea to the south."""
+    x = np.asarray(x, dtype=float)
+    lo, hi = np.full(x.shape, -30.0), np.full(x.shape, 30.0)
+    for _ in range(40):
+        mid = (lo + hi) / 2.0
+        inland = coast_distance(x, mid)[0] > at
+        lo, hi = np.where(inland, mid, lo), np.where(inland, hi, mid)
+    return (lo + hi) / 2.0
+
+
+def quay_rows(gx, gz):
+    """The ground's grid (see grid) with two of its rows bent along the quay: one along the sand's
+    edge, the next along the foot of its drop (see QUAY), so the ground drops from the one to the
+    other in one clean line along the timber, instead of in steps from row to row of the grid as the
+    coast crosses them. The rows round them bend less the further off they are, over QUAY["bend"]
+    metres, and the bend eases out over 6 m beyond the quay's ends."""
+    q = QUAY
+    xs, zs = gx[0], gz[:, 0]
+    reach = (q["x"][0] - q["feather"], q["x"][1] + q["feather"])
+    w = smoothstep(reach[0] - 6.0, reach[0], xs) * (1.0 - smoothstep(reach[1], reach[1] + 6.0, xs))
+    edge, foot = quay_line(xs, -q["out"]), quay_line(xs, -q["out"] - q["drop"])
+    # The row that runs along the edge: the one that needs bending least to reach it.
+    k = int(np.argmin(np.abs(zs - (edge[w > 0].min() + edge[w > 0].max()) / 2.0)))
+    up, down = (edge - zs[k]) * w, (foot - zs[k + 1]) * w
+    inland = 1.0 - smoothstep(0.0, q["bend"], zs[k] - zs)
+    seaward = 1.0 - smoothstep(0.0, q["bend"], zs - zs[k + 1])
+    bent = gz + np.where((zs <= zs[k])[:, None], inland[:, None] * up, seaward[:, None] * down)
+    assert (np.diff(bent, axis=0) > 0.0).all(), "the quay's rows fold over"
+    return bent
+
+
+def quay_info():
+    """The quay, for the game: the line its water's edge runs along, the middle of the drop inside
+    the timber's planks and on past the timber's ends (points x, z evenly about a metre apart from
+    its west end to its east, the feathers included), where the timber stands (`ends`, x), and how
+    far beyond them the quay eases into the beach round it.
+    The game draws the water's edge and its surf along this line (see quayFloor in Island.ts)."""
+    q = QUAY
+    west, east = q["x"][0] - q["feather"], q["x"][1] + q["feather"]
+    xs = np.linspace(west, east, int(math.ceil(east - west)) + 1)
+    zs = quay_line(xs, -q["out"] - q["drop"] / 2.0)
+    return {"line": [[round(float(x), 3), round(float(z), 4)] for x, z in zip(xs, zs)],
+            "ends": list(q["x"]), "feather": q["feather"]}
+
+
 def build_mesh(collection, air):
-    """The ground as one mesh: a 1 m grid, simplified to the triangle budget, mapped from above; the
-    cave's skylight a hole in it, and none of it inside the cave (`air`, see cave.Air), where it runs
-    under the outcrop and into the spur."""
+    """The ground as one mesh: a 1 m grid, two of its rows bent along the quay's drop (see
+    quay_rows), simplified to the triangle budget, mapped from above; the cave's skylight a hole in
+    it, and none of it inside the cave (`air`, see cave.Air), where it runs under the outcrop and
+    into the spur."""
     n = int(SIZE / STEP) + 1
     gx, gz = grid(n, SIZE)
+    gz = quay_rows(gx, gz)
     h, masks = ground(gx, gz)
     bm = bmesh.new()
     index = bm.verts.layers.int.new("grid")
@@ -1234,7 +1309,9 @@ def build_mesh(collection, air):
     # where the lip of stone follows the ground.
     near_high = 1.0 - smoothstep(3.0, 4.5, np.abs(masks["high"]))
     near_sky = 1.0 - smoothstep(2.5, 3.5, masks["skylight"])
-    weights = np.maximum(np.maximum(np.maximum(near_sea, near_pool), near_high), near_sky).ravel()
+    # And along the quay, where its two rows drop the sand into the water in one clean line.
+    near_quay = (masks["quay"] > 0.0) * (1.0 - smoothstep(1.5, 2.5, np.abs(masks["s"] + QUAY["out"])))
+    weights = np.maximum.reduce([near_sea, near_pool, near_high, near_sky, near_quay]).ravel()
     keep = [float(weights[v[index]]) if v[index] >= 0 else 1.0 for v in bm.verts]
     bm.verts.layers.int.remove(index)
     simplified = L.decimate_bm(bm, TRIANGLES / tris, symmetric=False, keep=keep)
@@ -2365,6 +2442,13 @@ def main():
     # The painted colour map, with soft hill shading from the same heights.
     gx, gz = grid(COLOUR_SIZE, SIZE)
     h, masks = ground(gx, gz)
+    # The quay's drop is hidden by its timber, and the sea floor at its foot by the water: painted as
+    # the sand at the edge for a metre out over them, the drop is not shaded as a rock face and the
+    # sea floor's colour never blends into the sand's edge between the map's texels.
+    out, drop = QUAY["out"], QUAY["drop"]
+    lid = masks["timber"] * ((masks["s"] < -out) & (masks["s"] > -out - drop - 1.0))
+    h = h + (np.maximum(h, QUAY["top"]) - h) * lid
+    masks["s"] = masks["s"] + (-out - masks["s"]) * lid
     masks["rubble"] = rubble(gx, gz, outlines)
     masks["shade"] = canopy_shade(gx, gz, crowns)
     shade, normal_y = hillshade(h, SIZE / (COLOUR_SIZE - 1))
@@ -2389,6 +2473,7 @@ def main():
         "landmarks": "models/island/landmarks.glb",
         "rocks": [{"centre": [round(r.cx, 2), round(r.cz, 2)], "outline": reach} for r, reach in outlines],
         "pool": {"centre": list(POOL["centre"]), "radius": POOL["radius"], "level": POOL["level"]},
+        "quay": quay_info(),
         "cave": {"url": "models/island/cave.glb"},
         "skylight": {"centre": list(SKYLIGHT["centre"]), "radius": SKYLIGHT["radius"],
                      "lumps": [list(w) for w in SKYLIGHT["lumps"]], "dome": SKYLIGHT["dome"], "floor": SKYLIGHT["floor"]},

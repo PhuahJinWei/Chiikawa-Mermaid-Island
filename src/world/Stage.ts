@@ -540,7 +540,11 @@ export class Stage {
           // own (the cave's, under ground the height grid holds over it) is that deep all over.
           vec2 outside = max(uMap.xy - vWorld.xz, vWorld.xz - (uMap.xy + uMap.z));
           float beyond = smoothstep(0.0, 40.0, max(outside.x, outside.y));
-          float depth = uDepth > 0.0 ? uDepth : mix(uLevel - floorAt(vWorld.xz), 30.0, beyond);
+          // By the shore, the floor filtered smoothly, so the water stops along the line the ground's
+          // own waterline is drawn to (see floorAtSmooth).
+          float floorHere = floorAt(vWorld.xz);
+          if (uDepth <= 0.0 && abs(floorHere - uLevel) < 0.2) floorHere = floorAtSmooth(vWorld.xz);
+          float depth = uDepth > 0.0 ? uDepth : mix(uLevel - floorHere, 30.0, beyond);
           if (depth < 0.01) discard;
           // Distance to the shore, from the depth and how steeply the floor rises toward it, so
           // the surf keeps its width on gentle beaches and steep rocks alike.
