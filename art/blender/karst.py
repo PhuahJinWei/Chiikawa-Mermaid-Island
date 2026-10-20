@@ -77,6 +77,7 @@ DEFAULTS = {
     "wet": None,          # the level of the water its foot stands in, for a dark wet band
     "notch": None,        # (angle, half width, depth): a dip in the top's rim for a waterfall
     "cave": None,         # (angle, half width, height, depth): an arched cave mouth at `wet`
+    "tunnel": False,      # the cave mouth opens right through, into a passage built on from its arch
 }
 
 
@@ -114,6 +115,40 @@ def ring_angles(n, focus=None, squeeze=0.75):
     if focus is None:
         return s
     return focus + s - squeeze * np.sin(s)
+
+
+def arch_nearest(u, v, half, height):
+    """The point of an arch (see arch()) nearest (u, v): on one of its upright sides, or on its rounded
+    top."""
+    spring = height * 0.45
+    k = half / (height - spring)
+    side = (math.copysign(half, u), min(max(v, 0.0), spring))
+    t = np.linspace(0.0, math.pi, 181)
+    tu, tv = half * np.cos(t), spring + (half / k) * np.sin(t)
+    i = int(np.argmin((tu - u) ** 2 + (tv - v) ** 2))
+    top = (float(tu[i]), float(tv[i]))
+    return side if math.hypot(side[0] - u, side[1] - v) <= math.hypot(top[0] - u, top[1] - v) else top
+
+
+def boundary_loop(bm):
+    """The edge of a mesh's one hole, as its points in order round it, in game coordinates (x, y, z)."""
+    edges = [e for e in bm.edges if e.is_boundary]
+    assert edges, "no hole"
+    after = {}
+    for e in edges:
+        a, b = e.verts
+        after.setdefault(a, []).append(b)
+        after.setdefault(b, []).append(a)
+    start = edges[0].verts[0]
+    loop, prev, cur = [start], None, start
+    while True:
+        nxt = next(v for v in after[cur] if v is not prev)
+        if nxt is start:
+            break
+        loop.append(nxt)
+        prev, cur = cur, nxt
+    assert len(loop) == len(edges), (len(loop), len(edges))
+    return [(v.co.x, v.co.z, -v.co.y) for v in loop]
 
 
 def arch(u, v, half, height):
@@ -250,6 +285,9 @@ class Rock:
         if cave:
             water = s["wet"]
             spans.append((water - 1.5, water + cave[2] + 1.2, 0.45))
+            if s["tunnel"]:
+                # A ring at the floor's level, for the opening's sill.
+                spans.append((water, water + cave[2] + 1.2, 0.45))
         levels = ring_levels(self.base, self.top, spans)
         theta = ring_angles(s["segments"], cave[0] if cave else None, squeeze=0.85)
         rings, n = len(levels), len(theta)
@@ -303,7 +341,11 @@ class Rock:
                     TH[i, j_in] = ac + sign * w / face
 
         R, groove = self.radius(TH, Y)
-        if cave:
+        if cave and s["tunnel"]:
+            # The opening goes right through: what was inside the arch over its sill is cut away (below),
+            # its edge left on the face for the passage beyond to be built on.
+            inside = inside & (Y - water > 1e-4)
+        elif cave:
             # Inside the arch the face is pushed back into the dark, deepest in the middle.
             R = np.where(inside, R - depth * (1.0 - 0.35 * np.clip(U / half, -1.0, 1.0) ** 2), R)
         if s["notch"]:
@@ -334,7 +376,28 @@ class Rock:
         cols.append(SHARED["foot"])
         bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
 
-        if cave:
+        self.mouth_loop = None
+        if cave and s["tunnel"]:
+            # Cut the opening out (its vertices are kept, unused, so the colours still match them),
+            # and keep the edge it leaves, in order round it, in game coordinates.
+            bm.verts.index_update()
+            cut = [f for f in bm.faces if any(inside.ravel()[v.index] for v in f.verts if v.index < rings * n)]
+            bmesh.ops.delete(bm, geom=cut, context="FACES_ONLY")
+            # The grid leaves the opening's edge ragged where the arch rounds over; every point of it over
+            # the sill goes onto the arch, still on the face.
+            for v in {v for e in bm.edges if e.is_boundary for v in e.verts}:
+                x, y, z = v.co.x, v.co.z, -v.co.y
+                if y - water < 0.01:
+                    continue
+                mx, mz = self.middle(y)
+                u = float(angle_diff(math.atan2(z - mz, x - mx), ac)) * face
+                u, h = arch_nearest(u, y - water, half, tall)
+                th, yy = ac + u / face, water + h
+                r = float(self.radius(np.array([th]), np.array([yy]))[0][0])
+                mx, mz = self.middle(yy)
+                v.co = (float(mx + r * math.cos(th)), float(-(mz + r * math.sin(th))), float(yy))
+            self.mouth_loop = boundary_loop(bm)
+        elif cave:
             # Dark water inside the mouth, over the sea's bright surface, facing up.
             i = int(np.argmin(np.abs(levels - water)))
             idx = np.nonzero(inside[i] | rim[i])[0]
@@ -880,7 +943,7 @@ def skylight_edge(radius, lumps, theta):
     return radius * (1.0 + sum(amp * np.sin(k * theta + phase) for k, amp, phase in lumps))
 
 
-def skylight(centre, radius, lumps, ground, water, floor, seed, shaft=3.8, dome=10.5, segments=96):
+def skylight(centre, radius, lumps, ground, water, floor, seed, shaft=3.8, dome=10.5, segments=96, door=None):
     """The cave's skylight, after the film's frames looking down into it and up out of it and the
     user's sketch of it: a round opening in the jungle floor like a well's mouth, the ground running
     right to its edge (build_island cuts the opening out of the ground at the same `segments`
@@ -890,7 +953,10 @@ def skylight(centre, radius, lumps, ground, water, floor, seed, shaft=3.8, dome=
     `dome` metres from the middle at the water, its floor at `floor` under it. Moss hangs over the
     edge in tongues and vines down the well, some on past its foot into the cave. The lip follows
     the ground round (`ground(x, z)`: its height). A closed solid: the cave's inside, the rest shut
-    away under the ground. Returns (the rock's bmesh, its colours, the vines' bmesh, their colours)."""
+    away under the ground; but for `door` (angle, half width, top), a doorway cut in the dome's wall
+    toward that angle, from under the water up to `top`, for the cave's sea to come in by. Returns
+    (the rock's bmesh, its colours, the vines' bmesh, their colours, the doorway's edge in order round
+    it in game coordinates, or None)."""
     rng = np.random.default_rng(seed)
     C = {**SHARED, **STONES["karst"]}
     cx, cz = centre
@@ -988,21 +1054,33 @@ def skylight(centre, radius, lumps, ground, water, floor, seed, shaft=3.8, dome=
         xs, zs = cx + radii * cos, cz + radii * sin
         rings.append([bm.verts.new((float(xs[j]), -float(zs[j]), float(ys[j]))) for j in range(segments)])
         cols.extend(list(colour(ys, kind, depth)))
-    for lo, hi in zip(rings, rings[1:]):
+    faces = {}
+    for i, (lo, hi) in enumerate(zip(rings, rings[1:])):
         for j in range(segments):
             k = (j + 1) % segments
-            bm.faces.new((lo[j], lo[k], hi[k], hi[j]))
+            faces[i, j] = bm.faces.new((lo[j], lo[k], hi[k], hi[j]))
     bm.faces.new(rings[0])
     bm.faces.new(rings[-1])
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    loop = None
+    if door is not None:
+        # The doorway: the wall's faces toward its angle, from the floor's outer edge under the water
+        # (the fourth row) up to the first of the vault's rows at or over its top.
+        a, half, tall = door
+        cols_in = [j for j in range(segments) if abs(angle_diff(theta[j], a)) * dome <= half]
+        cols_in = [j for j in cols_in if (j + 1) % segments in cols_in]
+        top_row = next(i for i, (_, ys, kind, _) in enumerate(rows) if kind == "cave" and i > 4 and float(np.mean(ys)) >= tall)
+        cut = [faces[i, j] for i in range(3, top_row) for j in cols_in]
+        bmesh.ops.delete(bm, geom=cut, context="FACES_ONLY")
+        loop = boundary_loop(bm)
 
-    # Vines hanging from the lip down the well a hand's breadth off its side, some on past its foot
-    # into the cave, leaves along them in bunches.
+    # Vines hanging from the lip down the well a hand's breadth off its side, none past its foot (from
+    # the water below only their leaves show, round its edge), leaves along them in bunches.
     vb, vine_cols = bmesh.new(), []
     for _ in range(20):
         j = int(rng.integers(0, segments))
         a = float(theta[j])
-        length = rng.uniform(1.2, 5.8)
+        length = rng.uniform(1.0, shaft - 0.4)
         y_top = float(top[j]) + 0.18 + float(bump[j]) - 0.1
         ys = np.linspace(y_top, y_top - length, max(4, int(length / 0.5) + 1))
         sway = rng.uniform(-0.3, 0.3)
@@ -1034,4 +1112,4 @@ def skylight(centre, radius, lumps, ground, water, floor, seed, shaft=3.8, dome=
             L.append_bm(vb, leaf)
             vine_cols.extend([VINE[("leaf", "leafMid", "leafDark")[int(rng.integers(0, 3))]]] * len(leaf.verts))
             leaf.free()
-    return bm, cols, vb, vine_cols
+    return bm, cols, vb, vine_cols, loop

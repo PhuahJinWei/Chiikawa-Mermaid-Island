@@ -26,7 +26,7 @@ export class FreeCamera {
 
   constructor(
     readonly camera: THREE.PerspectiveCamera,
-    private readonly ground: (x: number, z: number) => number,
+    private readonly ground: (x: number, z: number, feet?: number) => number,
   ) {}
 
   /** Takes over from wherever the camera is, looking the same way. */
@@ -64,7 +64,7 @@ export class FreeCamera {
     this.velocity.lerp(this.goal, 1 - Math.exp(-dt * 8));
     this.position.addScaledVector(this.velocity, dt);
     this.position.y -= input.consumeZoom() * CLIMB;
-    this.position.y = Math.max(this.position.y, this.ground(this.position.x, this.position.z) + 0.3);
+    this.position.y = Math.max(this.position.y, this.ground(this.position.x, this.position.z, this.position.y) + 0.3);
 
     this.camera.position.copy(this.position);
     this.camera.lookAt(this.goal.copy(this.position).add(this.forward));

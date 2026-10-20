@@ -4,7 +4,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { sceneryRamp } from '../core/toon';
 import { fireLights } from './Firelight';
 import { SWAY_GLSL, addOutline, windUniforms } from './Ink';
-import type { TerrainInfo } from './Island';
+import { terrainHeight, type TerrainInfo } from './Island';
 import { FILM, LEAF_KEEP_GLSL, moonEdges, paintLeaves, puffShadow, shadeUnderTrees } from './Look';
 import { addCircle, addCrown } from './Obstacles';
 
@@ -196,22 +196,31 @@ export class Vegetation {
       }
     }
 
-    // A trunk keeps the camera out up to where its crown begins, which the crowns cover from there.
-    for (const [x, z, r] of info.plants.trunks) addCircle(x, z, r, -10, 12);
+    // A trunk keeps the camera out up to where its crown begins, which the crowns cover from there; from
+    // a little under its foot, so the forbidden cave under the spur's jungle is clear of them.
+    for (const [x, z, r] of info.plants.trunks) {
+      const foot = terrainHeight(x, z);
+      addCircle(x, z, r, foot - 1.5, foot + 12);
+    }
     for (const [x, y, z, r] of info.plants.crowns) addCrown(x, y, z, r);
     return vegetation;
   }
 
-  update(camera: THREE.Camera): void {
+  /** Each patch near enough the camera drawn whole, the canopy's further off in its far version; and
+   * with `lookout` (from deep in the forbidden cave, see Cave.lookout), only the patches near it. */
+  update(camera: THREE.Camera, lookout: { x: number; z: number; r: number } | null = null): void {
     const p = camera.position;
+    const seen = (patch: { centre: THREE.Vector3; radius: number }) =>
+      !lookout || Math.hypot(patch.centre.x - lookout.x, patch.centre.z - lookout.z) - patch.radius < lookout.r;
     for (const patch of this.understory) {
-      const near = p.distanceTo(patch.centre) - patch.radius < UNDERSTORY_REACH;
+      const near = p.distanceTo(patch.centre) - patch.radius < UNDERSTORY_REACH && seen(patch);
       for (const m of patch.meshes) m.visible = near;
     }
     for (const patch of this.canopy) {
+      const show = seen(patch);
       const near = p.distanceTo(patch.centre) - patch.radius < CANOPY_REACH;
-      for (const m of patch.meshes) m.visible = near;
-      for (const m of patch.far) m.visible = !near;
+      for (const m of patch.meshes) m.visible = near && show;
+      for (const m of patch.far) m.visible = !near && show;
     }
   }
 }

@@ -7,9 +7,11 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, className: string): H
   return node;
 }
 
-/** Title, frame stats, the floating joystick, the jump button and the test toggle. */
+/** Title, frame stats, the floating joystick, the jump button, the action button (shown when there is
+ * something to do, such as getting into the cave's boat) and the test toggle. */
 export class Hud implements JoystickView {
   onJump: () => void = () => {};
+  onAction: () => void = () => {};
   onTest: () => void = () => {};
 
   private readonly title = el('div', 'hud-title');
@@ -18,6 +20,8 @@ export class Hud implements JoystickView {
   private readonly joyBase = el('div', 'joy-base');
   private readonly joyKnob = el('div', 'joy-knob');
   private readonly jumpButton = el('button', 'jump-btn');
+  private readonly actionButton = el('button', 'act-btn');
+  private action: string | null = null;
   private readonly hint = el('div', 'hud-hint');
   private readonly place = el('div', 'hud-place');
   private placeTimer = 0;
@@ -30,7 +34,7 @@ export class Hud implements JoystickView {
     titleBox.append(this.title, this.stats);
     top.append(titleBox, this.testButton);
     this.joyBase.append(this.joyKnob);
-    root.append(top, this.place, this.joyBase, this.jumpButton, this.hint, this.loading);
+    root.append(top, this.place, this.joyBase, this.jumpButton, this.actionButton, this.hint, this.loading);
     ui.append(root);
 
     this.testButton.type = 'button';
@@ -39,6 +43,12 @@ export class Hud implements JoystickView {
     this.jumpButton.addEventListener('pointerdown', (e) => {
       e.preventDefault();
       this.onJump();
+    });
+    this.actionButton.type = 'button';
+    this.actionButton.hidden = true;
+    this.actionButton.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      this.onAction();
     });
     window.addEventListener('resize', () => this.hide());
     this.refresh();
@@ -82,6 +92,14 @@ export class Hud implements JoystickView {
     }
     this.hint.textContent = text;
     this.hint.classList.remove('gone');
+  }
+
+  /** Shows the action button with this label, or hides it (null). */
+  setAction(label: string | null): void {
+    if (label === this.action) return;
+    this.action = label;
+    this.actionButton.hidden = label === null;
+    if (label !== null) this.actionButton.textContent = label;
   }
 
   setControlsVisible(on: boolean): void {

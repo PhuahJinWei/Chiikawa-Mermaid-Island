@@ -17,6 +17,9 @@ Outputs:
                                         waterfall with its spray
     public/models/island/plants.glb     the jungle, the fields' crops and the village's flowers,
                                         joined into a mesh for each patch of the map
+    public/models/island/cave.glb       the forbidden cave's inside (cave.py): its rock, the skylight's
+                                        well and dome, the water, the ledge, the boat and the torch
+    public/models/island/cave_grid.bin  the cave's floor and ceiling on a grid, for walking in it
     art/previews/island_map.png          the colour map with the zones' outlines, for checking the layout
 
 The island is laid out after the film's aerial shot (`mermaid island 1`), seen through a camera
@@ -41,6 +44,7 @@ from mathutils.bvhtree import BVHTree
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import charlib as L  # noqa: E402
 import karst as K  # noqa: E402
+import cave as CV  # noqa: E402
 import plants as PL  # noqa: E402
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -321,8 +325,9 @@ SPUR = {"outline": [(-132.0, -180.0), (-92.0, -168.0), (-100.7, -134.9), (-141.8
 # the foot of its south face close to the sea, over the open beach, facing `facing` (degrees from east
 # toward south): an arched opening (half width, height) into the dark, `depth` metres back, at the
 # beach's height `floor`, in the tier (radii, top) whose middle is `back` metres behind it. Nothing
-# grows within `clear` metres before it (trees and palms, then the plants under them). The cave itself
-# is to come; its sea runs in under the spur to the skylight.
+# grows within `clear` metres before it (trees and palms, then the plants under them). The mouth opens
+# right through into the cave's inside (cave.py), which runs on under the outcrop and the spur to the
+# dome under the skylight; the rock and ground it runs through are cut away inside it.
 CAVE = {"mouth": (-193.0, -111.0), "facing": 85.0, "half": 1.5, "height": 2.8, "depth": 4.0, "floor": 0.35,
         "rock": ((9.5, 7.0), 6.2), "back": 6.5, "clear": (15.0, 12.0), "seed": 85}
 # The outcrop's other tiers, from the sea up to the spur's end, with two lower ones along its back:
@@ -871,7 +876,7 @@ def cave_rocks():
     radii, top = CAVE["rock"]
     rocks = [dict(CAVE_STONE, **CAVE_GREENS, centre=(mx - math.cos(a) * back, mz - math.sin(a) * back), radii=radii,
                   turn=a + math.pi / 2, top=top, seed=CAVE["seed"],
-                  cave=(a, CAVE["half"], CAVE["height"], CAVE["depth"]), wet=CAVE["floor"])]
+                  cave=(a, CAVE["half"], CAVE["height"], CAVE["depth"]), tunnel=True, wet=CAVE["floor"])]
     for centre, radii, turn, top, seed, in_sea, greens in CAVE_ROCKS:
         rocks.append(dict(CAVE_STONE, **(CAVE_GREENS if greens else {}), centre=centre, radii=radii, turn=turn,
                           top=top, seed=seed, wet=WATER if in_sea else None))
@@ -1181,9 +1186,10 @@ def write_png(path, rgb):
         f.write(png)
 
 
-def build_mesh(collection):
+def build_mesh(collection, air):
     """The ground as one mesh: a 1 m grid, simplified to the triangle budget, mapped from above; the
-    cave's skylight a hole in it."""
+    cave's skylight a hole in it, and none of it inside the cave (`air`, see cave.Air), where it runs
+    under the outcrop and into the spur."""
     n = int(SIZE / STEP) + 1
     gx, gz = grid(n, SIZE)
     h, masks = ground(gx, gz)
@@ -1197,6 +1203,9 @@ def build_mesh(collection):
             a, b = j * n + i, j * n + i + 1
             c, d = (j + 1) * n + i + 1, (j + 1) * n + i
             bm.faces.new((verts[a], verts[d], verts[c], verts[b]))
+    # Inside the cave: under the outcrop's rock the ground would show through its floor, and where the
+    # spur rises it would cross the passage.
+    print(f"CAVE cut {air.cut(bm, 0.15, bounds=CV.BOUNDS)} faces of the ground")
     # The cave's skylight: the grid's squares near it give way to a band of ground filled in from
     # their ragged edge to the opening's, a smooth curve at the points round it where the lip of
     # stone round it is built (see karst.skylight), which covers the cut.
@@ -1584,10 +1593,11 @@ def high_edges(step=0.5, column=1.6):
     return runs
 
 
-def build_landmarks(collection):
+def build_landmarks(collection, air):
     """Every rock with its jungle crown, joined into one mesh for each group of rocks (so the game
     can leave out a group it is not looking at), the sea cliffs, the high ground's white cliffs, the
-    cave's skylight, the stepping stones, and the waterfall with its spray. Returns the objects,
+    stepping stones, and the waterfall with its spray; the cave's outcrop and the cliffs by it cut away
+    inside the cave (`air`, see cave.Air). Returns the objects,
     each rock's foot outline (not the tips standing on top of others, nor the stepping stones), where
     the waterfall lands in its pool, and the stepping stones' pads and bodies."""
     # The rocks' jungle crowns go in meshes of their own, so the game can paint their leaves.
@@ -1600,6 +1610,9 @@ def build_landmarks(collection):
         ground = ground_height if stand is None else (lambda x, z, y=stand: np.full_like(np.asarray(x, dtype=float), y))
         rock = K.Rock(spec, ground)
         bm, cols, rim = rock.build()
+        if spec["group"] == "cave":
+            # The mouth's own opening is exact; the rest goes wherever it reaches into the cave.
+            air.cut(bm, 0.0, False) if spec.get("tunnel") else air.cut(bm)
         pieces = groups.setdefault(spec["group"], [])
         pieces.append((bm, cols, not rock.s["flat"]))
         if spec.get("pillar"):
@@ -1647,6 +1660,7 @@ def build_landmarks(collection):
         bm, cols, greens = K.cliff(rp, rn, tops, WATER, TABLELAND["seed"] + k, base=float(low.min()) - 1.5,
                                    column=1.6, stone="karst", stand=0.9, jut=0.45, row=1.0, beds=(1.2, 3.0),
                                    joints=(2.0, 5.0))
+        air.cut(bm, bounds=CV.BOUNDS)
         groups.setdefault("west", []).append((bm, cols, True))
         hanging.setdefault("west", []).append((*greens, True))
     # A few vines hanging down the outcrop's face over the cave's mouth, beside and over its west side,
@@ -1655,13 +1669,7 @@ def build_landmarks(collection):
     face = float(mouth_rock.radius(np.array([ac]), np.array([mouth_rock.top - 1.0]))[0][0])
     bm, cols = K.vines(mouth_rock, (ac + 1.6 / face, 1.1), 3, CAVE["seed"] + 7)
     hanging.setdefault("cave", []).append((bm, cols, True))
-    # The cave's skylight in the spur's top, over its sea: the well and the dome it opens into, and
-    # the vines hanging down it.
-    sky = SKYLIGHT
-    bm, cols, vine_bm, vine_cols = K.skylight(sky["centre"], sky["radius"], sky["lumps"], ground_height, WATER,
-                                              sky["floor"], sky["seed"], sky["shaft"], sky["dome"], sky["segments"])
-    groups.setdefault("west", []).append((bm, cols, True))
-    hanging.setdefault("west", []).append((vine_bm, vine_cols, True))
+    # (The cave's skylight, its well and the dome it opens into, are the cave's: see build_cave.)
     rocks = [join_painted(f"rocks_{name}", pieces, collection) for name, pieces in groups.items()]
     rocks += [join_painted(f"crowns_{name}", pieces, collection) for name, pieces in crowns.items()]
     rocks += [join_painted(f"vines_{name}", pieces, collection) for name, pieces in hanging.items()]
@@ -1670,6 +1678,35 @@ def build_landmarks(collection):
     spray = join_painted("spray", [(*K.spray(POOL["level"]), True)], collection)
     spray.location = (foot[0], -foot[1], POOL["level"])
     return [*rocks, fall, spray], outlines, foot, stones
+
+
+def build_cave(collection):
+    """The forbidden cave's inside (cave.py), from the mouth's arch (the outcrop's mouth tier, opened
+    right through) to the doorway in the skylight's dome. Writes its walk grid, each of the floor's and
+    the ceiling's heights stored as a share of CAVE_RANGE (65535 where there is no cave), less what its
+    neighbours predict (see predicted). Returns its objects, the game's info about it and its Air."""
+    spec = next(s for s in cave_rocks() if s.get("tunnel"))
+    mouth = K.Rock(spec, ground_height)
+    mouth.build()
+    sky = SKYLIGHT
+    dome = K.skylight(sky["centre"], sky["radius"], sky["lumps"], ground_height, WATER, sky["floor"], sky["seed"],
+                      sky["shaft"], sky["dome"], sky["segments"], door=CV.DOOR)
+    parts, extras, info, air, (floor, ceiling) = CV.build(mouth.mouth_loop, dome, sky, ground_height)
+    objects = [CV.join_lit(name, pieces, collection) for name, pieces in parts.items()]
+    objects += [join_painted(name, [(bm, cols, True) for bm, cols in pieces], collection) for name, pieces in extras.items()]
+    lo, hi = CAVE_RANGE
+    with open(os.path.join(OUT_DIR, "cave_grid.bin"), "wb") as f:
+        for h in (floor, ceiling):
+            q = np.where(np.isnan(h), 65535, np.round((np.nan_to_num(h) - lo) / (hi - lo) * 65534.0)).astype(np.int64)
+            f.write(((q - predicted(q)) % 65536).astype("<u2").tobytes())
+    info["grid"].update({"url": "models/island/cave_grid.bin", "range": list(CAVE_RANGE), "predicted": True})
+    info["url"] = "models/island/cave.glb"
+    print(f"BUILT cave: {sum(len(o.data.polygons) for o in objects)} faces, {int(np.isfinite(floor).sum())} floor cells")
+    return objects, info, air
+
+
+# The heights the cave's walk grid spans, floor to the open ceiling (see cave.OPEN).
+CAVE_RANGE = (-5.0, 31.0)
 
 
 # ---------------------------------------------------------------------------- plants
@@ -1871,7 +1908,8 @@ def build_plants(collection, outlines):
             crowns.append([round(cx + lx, 2), round(base + lz, 2), round(cz - ly, 2), round(r, 2)])
 
     # Clumps of trees crowding round the cave's skylight, their crowns over its edge, so it lies
-    # hidden under the jungle; from a generator of their own.
+    # hidden under the jungle; from a generator of their own. The nearest the edge are the lowest, so
+    # from the water under it the sky shows up through it (`cave interior 6`), ringed by leaves.
     count, (near, far), seed = SKYLIGHT["trees"]
     ring = np.random.default_rng(seed)
     sx, sz = SKYLIGHT["centre"]
@@ -1886,7 +1924,7 @@ def build_plants(collection, outlines):
             if grid_at(G, "high", tx, tz) < 4.0 or not stems.free(tx, tz, 3.0):
                 continue
             stems.take(tx, tz)
-            trees.append((tx, tz, ring.uniform(10.0, 14.0)))
+            trees.append((tx, tz, ring.uniform(*((6.0, 8.0), (8.0, 11.0), (10.0, 14.0))[t])))
         if not trees:
             continue
         cx, cz = sum(t[0] for t in trees) / len(trees), sum(t[1] for t in trees) / len(trees)
@@ -2268,8 +2306,9 @@ def canopy_shade(x, z, crowns):
     return out
 
 
-def export_objects(objects, path):
-    """Export several objects into one .glb, each keeping its name and custom attributes."""
+def export_objects(objects, path, extras=False):
+    """Export several objects into one .glb, each keeping its name and custom attributes (and its custom
+    properties, as extras, if `extras`)."""
     view_layer = bpy.context.view_layer
     view_layer.update()
     for o in bpy.data.objects:
@@ -2279,7 +2318,7 @@ def export_objects(objects, path):
         o.select_set(True)
     view_layer.objects.active = objects[0]
     bpy.ops.export_scene.gltf(
-        filepath=path, export_format="GLB", use_selection=True, export_extras=False, export_yup=True,
+        filepath=path, export_format="GLB", use_selection=True, export_extras=extras, export_yup=True,
         export_normals=True, export_texcoords=True, export_vertex_color="ACTIVE", export_materials="NONE",
         export_attributes=True, export_animations=False, export_skins=False, export_morph=False,
         export_cameras=False, export_lights=False, export_apply=False, **L.DRACO,
@@ -2292,7 +2331,17 @@ def main():
     bpy.context.scene.collection.children.link(collection)
     os.makedirs(OUT_DIR, exist_ok=True)
 
-    obj = build_mesh(collection)
+    # The forbidden cave's inside first: the ground and the rocks it runs through are cut away inside it.
+    cave_objects, cave_info, air = build_cave(collection)
+    cave_objects[0]["cave"] = json.dumps(cave_info, separators=(",", ":"))
+    export_objects(cave_objects, os.path.join(OUT_DIR, "cave.glb"), extras=True)
+    if "--cave-only" in sys.argv:
+        # What stands inside the cave changed, not the way it runs: the ground and the rock it runs
+        # through are cut as they were.
+        print("BUILT the cave only")
+        return
+
+    obj = build_mesh(collection, air)
     tris = len(obj.data.polygons)
 
     # Heights the game walks on, sampled from the finished mesh so feet meet the ground. Each is
@@ -2304,7 +2353,7 @@ def main():
         f.write(((q - predicted(q)) % 65536).astype("<u2").tobytes())
 
     # The rocks standing on it, and the waterfall.
-    landmarks, outlines, foot, stones = build_landmarks(collection)
+    landmarks, outlines, foot, stones = build_landmarks(collection, air)
     export_objects(landmarks, os.path.join(OUT_DIR, "landmarks.glb"))
     rock_tris = sum(len(p.vertices) - 2 for o in landmarks if o.name.startswith(("rocks", "crowns", "vines")) for p in o.data.polygons)
 
@@ -2340,6 +2389,7 @@ def main():
         "landmarks": "models/island/landmarks.glb",
         "rocks": [{"centre": [round(r.cx, 2), round(r.cz, 2)], "outline": reach} for r, reach in outlines],
         "pool": {"centre": list(POOL["centre"]), "radius": POOL["radius"], "level": POOL["level"]},
+        "cave": {"url": "models/island/cave.glb"},
         "skylight": {"centre": list(SKYLIGHT["centre"]), "radius": SKYLIGHT["radius"],
                      "lumps": [list(w) for w in SKYLIGHT["lumps"]], "dome": SKYLIGHT["dome"], "floor": SKYLIGHT["floor"]},
         "waterfall": {"foot": [round(foot[0], 2), round(foot[1], 2)], "splash": 3.6},

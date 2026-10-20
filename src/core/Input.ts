@@ -22,6 +22,7 @@ export class Input {
   private readonly look = new THREE.Vector2();
   private zoom = 0;
   private jumpQueued = false;
+  private actionQueued = false;
   private joyId: number | null = null;
   private readonly joyOrigin = new THREE.Vector2();
   private readonly joyVec = new THREE.Vector2();
@@ -102,6 +103,17 @@ export class Input {
     return j;
   }
 
+  /** The action button (or E, or Enter): get into the boat, get out of it. */
+  queueAction(): void {
+    this.actionQueued = true;
+  }
+
+  consumeAction(): boolean {
+    const a = this.actionQueued;
+    this.actionQueued = false;
+    return a;
+  }
+
   private onDown = (e: PointerEvent) => {
     e.preventDefault();
     const rect = this.el.getBoundingClientRect();
@@ -168,6 +180,7 @@ export class Input {
       e.preventDefault();
       if (!e.repeat) this.jumpQueued = true;
     }
+    if ((e.code === 'KeyE' || e.code === 'Enter') && !e.repeat) this.actionQueued = true;
   };
 
   private releaseJoystick(): void {

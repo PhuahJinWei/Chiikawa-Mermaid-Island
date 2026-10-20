@@ -73,8 +73,47 @@ stage, and along every path. Not yet checked on a real phone.
   few vines hanging beside and over it, the No Entry sign (立入禁止) on the
   sand beside it, and nothing grows on the sand before it (no trees or
   palms within 15 metres, no plants within 12); the place is named 西の浜.
-  The cave inside, its sea running in under the spur to the skylight on the
-  spur's top, is to come.
+  Its inside follows.
+- The forbidden cave's inside, built in Blender with the island
+  (`art/blender/cave.py`) after the film's frames of it (`cave interior 1`
+  to `8`), and checked side by side with them from the same views. From
+  the mouth a passage on foot runs back under the outcrop, a tunnel little
+  higher or wider than the mouth, its vault rippled with flowstone and hung
+  with small stalactites, broken stone heaped along its walls and pebbles
+  over its floor. It opens into a cavern where the cave's sea comes in onto
+  a little beach, the rowboat drawn up on its sand, the water glowing a
+  little where it laps at it, heavy rounded rock hanging from the roof. The
+  sea runs on east under the spur, dark, through a doorway in the dome's
+  wall into the round chamber under the skylight: its water glows blue,
+  brightest under the opening, sparkles winking on it and motes drifting
+  over it, a thin mist lying low over it far off; pale columns of rock
+  stand round its edge and boulders break it. Beyond lies a ledge laid with
+  rounded cobbles, crystals at its back and dark rounded rock behind them,
+  and a small fire. The place is named ひみつの洞窟.
+- The cave has its own light, whatever the hour, measured on the film's
+  frames: its walls a near-black navy, its floors and the tops of its
+  stones a royal blue, the rock round the lake a little lighter; the moon's
+  light or the sun's coming in by the skylight and the mouth; the water's
+  glow; and a torch carried through it, a small bright pool of cream light
+  with the dark close round it, the flowstone showing where it falls. The
+  ledge's fire is redder, turning the cobbles round it the film's warm
+  magenta. The night's moonlit colour grade gives way to the cave's own a
+  few steps in from the mouth. The cast in it are a pale glowing cyan, as
+  the film draws them there, a warm cream on the side turned to a torch.
+  Walking in it you hold the torch up, its flame over your head.
+- The cave's rowboat (PLAN.md 6.2). Beside it the action button (乗る) gets
+  you in, and from the beach pushes it off into the water. The stick steers
+  it, as walking is steered, the boat turning gently and pulling ahead at
+  up to 3 metres a second; it keeps to water deep enough to float in,
+  turns only where it has room to, and backs water when steered behind it.
+  At the beach or the ledge the button (降りる) gets you out, and landed at
+  the beach the boat is drawn up onto the sand again, where walkers go
+  round it. In the boat the torch stands at its bow, lighting the way, its
+  flame mirrored in the water ahead as a column of short golden strokes.
+  From deep in the cave the jungle and rocks outside are not drawn but for
+  the jungle round the skylight, which shows up its well: at 1488 x 800 on
+  the dev PC the lake's view takes 21 ms, the ledge's 19 and the passage's
+  16 (the lake's took 24 to 32 drawing them all).
 - The stepping stones across the gorge, after the film's frames of them:
   six tall pillars of the gorge's white rock standing in its river, each
   topped with a flat round mat of grass, 40 to 90 cm apart, from a pillar
@@ -341,12 +380,13 @@ outlined is drawn twice, once for its pen line. To get there:
   rounds over a hand's breadth above it, mossy in patches. Its sides drop
   sheer for nearly four metres, fluted and bedded and leaning in a little,
   so from above they show as a well's do, darker going down, moss hanging
-  over the edge in tongues and vines down them, some on past the well's
-  foot. Below, it opens out into a dome over the cave's water, about 21
-  metres across at the water, still and deep blue (the cave's inside is to
-  come). Trees crowd round the edge, their crowns over it, and ferns and
-  bushes grow along it, so it shows neither from the ground nor from the
-  air but straight down. Walkers stop a step short of the edge and cannot
+  over the edge in tongues and vines down them to the well's foot. Below,
+  it opens out into a dome over the cave's glowing water, about 21 metres
+  across (see the cave's inside). Trees crowd round the edge, their crowns
+  over it, the nearest the edge the lowest, and ferns and bushes grow along
+  it, so it shows neither from the ground nor from the air but straight
+  down, while from the water below the sky shows up through it, ringed by
+  leaves, as in the film. Walkers stop a step short of the edge and cannot
   jump in.
 - The guest houses are closer to the film's frames of them, outside and
   in. Outside, their logs are round where they had been eight-sided, paler

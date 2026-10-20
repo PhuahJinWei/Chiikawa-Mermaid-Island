@@ -5,6 +5,7 @@ import {
   createCharacterMaterials,
   makeCharacterUniforms,
   makeOutfitUniforms,
+  sharedUniforms,
   type CharacterUniforms,
 } from './CharacterMaterial';
 import { Face } from './Face';
@@ -53,6 +54,17 @@ export interface FrameContext {
     out: THREE.Vector4[],
     from: THREE.Vector3,
   ) => number;
+  /** In the forbidden cave, its own light on someone at a point, into `out`; false outside it. In the
+   * film look only. */
+  caveLight?: (x: number, y: number, z: number, out: THREE.Color) => boolean;
+}
+
+/** Where someone riding in something sits (feet, x, y, z) and which way they face. */
+export interface Ride {
+  x: number;
+  y: number;
+  z: number;
+  yaw: number;
 }
 
 const GRAVITY = -24;
@@ -71,6 +83,7 @@ const _q = new THREE.Quaternion();
 const _e = new THREE.Euler();
 const _m = new THREE.Matrix4();
 const _from = new THREE.Vector3();
+const _cave = new THREE.Color();
 const _s = new THREE.Vector3();
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
@@ -175,6 +188,10 @@ export class Character implements EmoteHost {
   private readonly fireSeen = new Map<number, number>();
   private readonly fireFrom = new THREE.Vector3();
   private readonly prop: THREE.Object3D;
+  /** A torch held up in the right hand (in the cave), or none. */
+  private torch: THREE.Object3D | null = null;
+  /** Where they sit while riding in the boat, or null on their own feet. */
+  ride: Ride | null = null;
   private readonly outfit: THREE.Group | null = null;
   /** The skirt's height when seated, as a fraction of standing, so its hem settles on the ground. */
   private readonly skirtSeat: number = 1;
@@ -302,9 +319,11 @@ export class Character implements EmoteHost {
     this.targetFacing = yaw;
   }
 
-  teleport(x: number, z: number, yaw: number): void {
-    this.root.position.set(x, 0, z);
-    this.feet = NaN;
+  /** Puts them at (x, z) facing `yaw`, on the ground there; or, given `feet`, on whatever is within a
+   * step of that height (the cave's floor under the island's ground). */
+  teleport(x: number, z: number, yaw: number, feet = NaN): void {
+    this.root.position.set(x, Number.isNaN(feet) ? 0 : feet, z);
+    this.feet = feet;
     this.shaded = NaN;
     this.airborne = false;
     this.jumpY = 0;
@@ -325,6 +344,18 @@ export class Character implements EmoteHost {
     this.startBlend(ACTIONS[id].fadeIn);
     this.action = { id, t: 0 };
     this.prop.visible = ACTIONS[id].prop === 'onigiri';
+  }
+
+  /** Holds a torch up in the right hand, or puts it away (null). The torch is the caller's to add to
+   * the scene; it is moved with the hand each frame. */
+  holdTorch(torch: THREE.Object3D | null): void {
+    if (this.torch && this.torch !== torch) this.torch.visible = false;
+    this.torch = torch;
+    if (torch) torch.visible = true;
+  }
+
+  get holdsTorch(): boolean {
+    return this.torch !== null;
   }
 
   stopAction(): void {
@@ -382,6 +413,19 @@ export class Character implements EmoteHost {
     this.velocity.add(_v);
 
     const pos = this.root.position;
+    if (this.ride) {
+      // Riding: they sit where the boat carries them.
+      pos.set(this.ride.x, this.ride.y, this.ride.z);
+      this.feet = this.ride.y;
+      this.jumpY = 0;
+      this.vy = 0;
+      this.airborne = false;
+      this.crouch = -1;
+      this.velocity.set(0, 0, 0);
+      this.facing = this.targetFacing = this.ride.yaw;
+      this.root.rotation.y = this.facing;
+      return;
+    }
     if (Number.isNaN(this.feet)) this.feet = ctx.groundHeight(pos.x, pos.z);
     _from.copy(pos);
     _from.y = this.feet;
@@ -663,9 +707,17 @@ export class Character implements EmoteHost {
     if (!ctx.shade) return;
     const pos = this.root.position;
     const y = this.feetY + this.height * 0.55;
-    const shade = ctx.shade(pos.x, y, pos.z);
-    this.shaded = Number.isNaN(this.shaded) ? shade : this.shaded + (shade - this.shaded) * Math.min(1, dt * 5);
-    this.uniforms.uShade.value.setRGB(1, 1, 1).lerp(CANOPY_SHADE, this.shaded);
+    if (ctx.caveLight?.(pos.x, y, pos.z, _cave)) {
+      // In the cave its own light lights them, whatever the hour outside: shade is the share of the
+      // hour's light (uAmbient) that it is.
+      const a = sharedUniforms.uAmbient.value;
+      this.uniforms.uShade.value.setRGB(_cave.r / Math.max(a.r, 0.05), _cave.g / Math.max(a.g, 0.05), _cave.b / Math.max(a.b, 0.05));
+      this.shaded = NaN;
+    } else {
+      const shade = ctx.shade(pos.x, y, pos.z);
+      this.shaded = Number.isNaN(this.shaded) ? shade : this.shaded + (shade - this.shaded) * Math.min(1, dt * 5);
+      this.uniforms.uShade.value.setRGB(1, 1, 1).lerp(CANOPY_SHADE, this.shaded);
+    }
     if (ctx.firelight) {
       this.uniforms.uFireFill.value = ctx.firelight(pos.x, y, pos.z, this.fireSeen, dt, this.uniforms.uFire.value, this.fireFrom);
     }
@@ -681,6 +733,12 @@ export class Character implements EmoteHost {
     (this.shadow.material as THREE.MeshBasicMaterial).opacity = k;
     this.updateFireShadow(ground, k);
 
+    if (this.torch) {
+      // Held up in the right hand, leaning a little forward and out, its flame over their head.
+      this.getAnchor('handR', _v);
+      this.torch.position.copy(_v);
+      this.torch.rotation.set(0.25, this.facing, -0.18, 'YXZ');
+    }
     if (this.prop.visible) {
       // Held up just under the mouth, in front of the face.
       this.getAnchor('mouth', _v);

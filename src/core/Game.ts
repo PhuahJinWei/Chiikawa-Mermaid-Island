@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { Stage } from '../world/Stage';
-import { cameraClear, clampInAir, clampToWalkable, groundHeight, splashDown } from '../world/Island';
+import { cameraClear, cameraLimit, clampInAir, clampToWalkable, groundHeight, splashDown } from '../world/Island';
+import { Boat } from '../world/Boat';
+import { caveFlameMaterial, caveThingMaterial } from '../world/Cave';
 import { Input } from './Input';
 import { CameraRig } from './CameraRig';
 import { FreeCamera } from './FreeCamera';
@@ -16,7 +18,7 @@ import { PlayerController } from '../characters/PlayerController';
 import { createOnigiri } from '../characters/Props';
 import { loadProp } from '../world/PropModels';
 import { sharedUniforms } from '../characters/CharacterMaterial';
-import { updatePen } from '../world/Ink';
+import { addOutline, updatePen } from '../world/Ink';
 import { FILM, FilmPost } from '../world/Look';
 import type { ActionId } from '../characters/Actions';
 import type { DevApi, StagedShot } from '../dev/DevTools';
@@ -66,6 +68,14 @@ const START_PIXELS = 1.5e6;
 const SLOW = 48;
 const FAST = 58;
 const ZERO = new THREE.Vector3();
+const _fwd = new THREE.Vector3();
+const _right = new THREE.Vector3();
+const _want = new THREE.Vector3();
+const _seat = new THREE.Vector3();
+const _flame = new THREE.Vector3();
+const _boatFlame = new THREE.Vector3();
+const _landing = new THREE.Vector3();
+const _from = new THREE.Vector3();
 
 /** The drawing resolution a `width` × `height` window starts at: `best`, or the step below it that keeps it within START_PIXELS. */
 function startRatio(width: number, height: number, best: number): number {
@@ -124,6 +134,12 @@ export class Game {
   private zone: ZoneId | null = null;
   private zoneTimer = 0;
   private running = false;
+  /** In the forbidden cave: its rowboat, the torch carried through it, whether you are rowing, and
+   * where on the shore you would step out of the boat. */
+  private boat: Boat | null = null;
+  private caveTorch: THREE.Group | null = null;
+  private rowing = false;
+  private readonly shoreAt = new THREE.Vector3();
   /** 0..1: how far the view is lifted so characters stay visible above the open test panel. */
   private viewLift = 0;
   private viewLiftTarget = 0;
@@ -143,7 +159,7 @@ export class Game {
     this.stage = new Stage(this.scene);
     this.hud = new Hud(ui);
     this.input = new Input(canvas, this.hud);
-    this.rig = new CameraRig(this.camera, groundHeight, cameraClear);
+    this.rig = new CameraRig(this.camera, cameraLimit, cameraClear);
     this.freeCam = new FreeCamera(this.camera, groundHeight);
     this.player = new PlayerController(this.input, this.rig);
     this.emotes = new EmoteSystem(this.scene);
@@ -171,6 +187,7 @@ export class Game {
       }),
     );
     this.hud.onJump = () => this.input.queueJump();
+    this.hud.onAction = () => this.input.queueAction();
     this.hud.onTest = () => this.panel.toggle();
     this.panel.onToggle = (open) => (this.viewLiftTarget = open ? 1 : 0);
     this.input.onFirstMove = () => this.hud.hideHint();
@@ -183,6 +200,7 @@ export class Game {
       clamp: clampToWalkable,
       air: clampInAir,
       splash: splashDown,
+      caveLight: (x, y, z, out) => this.stage.caveLightAt(x, y, z, out),
     };
     // In the film look, characters walking under the trees go into their shade, and after dark the
     // firelight near them lights them from its side.
@@ -225,6 +243,7 @@ export class Game {
         extra.attach(this.scene, this.emotes);
         this.crowd.push(extra);
       }
+      this.makeCave();
       await this.stage.warmShaders(this.renderer, this.camera);
     } catch (err) {
       console.error(err);
@@ -235,6 +254,85 @@ export class Game {
     this.rig.snapTo(this.focusPoint());
     this.running = true;
     this.renderer.setAnimationLoop(this.frame);
+  }
+
+  /** The forbidden cave's rowboat, moored at its beach, and the torch carried through it. */
+  private makeCave(): void {
+    const cave = this.stage.cave;
+    if (!cave) return;
+    const torch = new THREE.Group();
+    const stick = new THREE.Mesh(cave.torchGeometry, caveThingMaterial());
+    torch.add(stick, new THREE.Mesh(cave.torchFlameGeometry, caveFlameMaterial()));
+    addOutline(stick);
+    // Carried, a long one, its flame up over the bearer's head as the film's.
+    torch.scale.set(1, 1.35, 1);
+    torch.visible = false;
+    this.scene.add(torch);
+    this.caveTorch = torch;
+    // Drawn up on the sand of the cavern's beach, on its north side, its bow along the shore, as the
+    // film's; pushed off, it comes to rest out from the sand where it can be rowed off any way.
+    const [bx, bz] = cave.info.beach?.boat ?? [-179.0, -125.0];
+    const beach = Boat.beached(cave, [bx, bz], [bx, bz - 5]);
+    const dock = (beach && Boat.launch(cave, beach)) || Boat.mooring(cave, [bx, bz], cave.info.dome.centre);
+    this.boat = new Boat(cave, dock);
+    if (beach) this.boat.drawnUp(beach, dock);
+    this.scene.add(this.boat.group);
+  }
+
+  /**
+   * In the forbidden cave: the torch up in your hand while you walk in it (in the boat it stands at the
+   * bow), lighting the way; the boat's button, to get in beside it and out at a shore; and the boat
+   * where it floats. Called after the characters have moved.
+   */
+  private updateCave(): void {
+    const cave = this.stage.cave;
+    const boat = this.boat;
+    if (!cave || !boat) return;
+    const me = this.me();
+    const p = me.position;
+    const inside = !this.staged && !this.lineup && cave.isInside(p.x, me.feetY + 0.3, p.z);
+    if (!this.staged) {
+      const hold = inside && !this.rowing;
+      if (hold !== me.holdsTorch) me.holdTorch(hold ? this.caveTorch : null);
+      for (const ch of this.characters.values()) if (ch !== me && ch.holdsTorch) ch.holdTorch(null);
+    }
+    const held = [...this.characters.values()].some((ch) => ch.holdsTorch);
+    this.caveTorch?.updateMatrixWorld(true);
+    this.stage.caveTorches.carried = held && this.caveTorch ? _flame.set(0, 0.66, 0).applyMatrix4(this.caveTorch.matrixWorld) : null;
+    boat.update(this.time);
+    this.stage.caveTorches.boat = boat.torchFlame(_boatFlame);
+    let label: string | null = null;
+    const standable = (x: number, z: number) => {
+      const k = cave.grid.at(x, z);
+      return k >= 0 && cave.grid.walk[k] === 1;
+    };
+    if (this.staged || boat.sliding) label = null;
+    else if (this.rowing) label = boat.shore(standable, this.shoreAt) ? t('hud.getOut') : null;
+    else if (inside && boat.canBoard(p)) label = t('hud.board');
+    this.hud.setAction(label);
+    if (!this.input.consumeAction() || !label) return;
+    if (this.rowing) {
+      // Out onto the shore beside the boat; at the beach, onto the sand beside where it is drawn up.
+      this.rowing = false;
+      const s = boat.landingBeside(_landing) ?? this.shoreAt;
+      const from = _from.copy(boat.position);
+      boat.leave();
+      me.ride = null;
+      me.stopAction();
+      me.teleport(s.x, s.z, Math.atan2(s.x - from.x, s.z - from.z), cave.grid.floorAt(s.x, s.z));
+    } else {
+      this.rowing = true;
+      boat.board();
+      me.play('sit');
+      this.seatInBoat();
+    }
+  }
+
+  /** Sits you where the boat's rower sits, facing its bow. */
+  private seatInBoat(): void {
+    if (!this.boat) return;
+    const seat = this.boat.seat(_seat);
+    this.me().ride = { x: seat.x, y: seat.y, z: seat.z, yaw: this.boat.heading };
   }
 
   // ------------------------------------------------------------------ test panel actions
@@ -368,7 +466,18 @@ export class Game {
         if (this.lineup) ch.setFacing(0);
       }
     } else {
-      this.player.update(me);
+      if (this.rowing && this.boat) {
+        // Rowing: the stick steers the boat, camera-relative as walking is; you sit in it.
+        this.input.consumeJump();
+        this.rig.forward(_fwd);
+        this.rig.right(_right);
+        _want.set(0, 0, 0).addScaledVector(_right, this.input.move.x).addScaledVector(_fwd, this.input.move.y);
+        this.boat.row(dt, _want);
+        me.setDesiredVelocity(ZERO);
+        this.seatInBoat();
+      } else {
+        this.player.update(me);
+      }
       for (const [id, ch] of this.characters) {
         if (ch === me) continue;
         ch.setDesiredVelocity(ZERO);
@@ -381,6 +490,7 @@ export class Game {
 
     for (const ch of this.characters.values()) ch.update(dt, this.ctx);
     for (const extra of this.crowd) extra.update(dt, this.ctx);
+    this.updateCave();
     this.emotes.update(dt);
     if (this.staged) {
       const c = this.staged.camera;
@@ -447,7 +557,8 @@ export class Game {
     this.zoneTimer = 0.25;
     // Flying, the place named is the one under the camera.
     const p = this.freeCamOn ? this.camera.position : this.me().position;
-    const zone = this.stage.zones.at(p.x, p.z);
+    const y = this.freeCamOn ? p.y : this.me().feetY + 0.3;
+    const zone = this.stage.cave?.isInside(p.x, y, p.z) ? 'cave' : this.stage.zones.at(p.x, p.z);
     if (zone === this.zone) return;
     this.zone = zone;
     this.hud.showPlace(zoneName(zone));
@@ -520,17 +631,41 @@ export class Game {
     return {
       stage: (shot) => {
         this.staged = shot;
+        if (this.rowing) {
+          this.rowing = false;
+          this.boat?.leave();
+        }
+        if (this.boat && shot.boat) {
+          this.boat.dockAt(shot.boat);
+          this.boat.board();
+        } else if (this.boat) {
+          if (this.boat.manned) this.boat.leave();
+          this.boat.toBeach();
+        }
+        let torch = false;
+        for (const ch of this.characters.values()) ch.holdTorch(null);
         for (const [id, ch] of this.characters) {
           const placed = shot.characters[id];
           ch.stopAction();
+          ch.ride = null;
           if (!placed) {
             ch.teleport(40, 40, 0);
             continue;
           }
-          ch.teleport(placed.x, placed.z, placed.yaw);
+          ch.teleport(placed.x, placed.z, placed.yaw, placed.y ?? NaN);
           ch.expressionOverride = placed.expression ?? null;
           if (placed.action) ch.play(placed.action);
+          if (placed.torch && this.caveTorch) {
+            ch.holdTorch(this.caveTorch);
+            torch = true;
+          }
+          if (placed.seat !== undefined && this.boat && shot.boat) {
+            const s = this.boat.seat(_seat, placed.seat);
+            ch.ride = { x: s.x, y: s.y, z: s.z, yaw: shot.boat.heading + placed.yaw };
+            if (!placed.action) ch.play('sit');
+          }
         }
+        this.boat?.showTorch(!!shot.boat && !torch);
         for (const [i, extra] of this.crowd.entries()) {
           const spot = shot.crowd?.[i];
           if (spot) extra.teleport(spot[0], spot[1], spot[2]);
@@ -545,6 +680,12 @@ export class Game {
       },
       release: () => {
         this.staged = null;
+        for (const ch of this.characters.values()) {
+          ch.ride = null;
+          ch.holdTorch(null);
+        }
+        this.boat?.leave();
+        this.boat?.toBeach();
         if (this.hoursBeforeShot !== null) this.clock.set(this.hoursBeforeShot);
         this.hoursBeforeShot = null;
         this.clock.running = true;

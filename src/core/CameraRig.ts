@@ -18,7 +18,10 @@ export class CameraRig {
 
   constructor(
     readonly camera: THREE.PerspectiveCamera,
-    private readonly ground: (x: number, z: number) => number = () => 0,
+    /** Keeps the camera, framing the player at the target, out of the ground (and, in the cave, under its roof). */
+    private readonly limit: (p: THREE.Vector3, target: THREE.Vector3) => void = (p) => {
+      p.y = Math.max(p.y, 0.6);
+    },
     private readonly clear: (x: number, y: number, z: number) => boolean = () => true,
   ) {}
 
@@ -65,7 +68,7 @@ export class CameraRig {
     );
     // Never behind a rock, a hut or a tree, nor inside a hill behind the player.
     this.comeInFront(p);
-    p.y = Math.max(p.y, this.ground(p.x, p.z) + 0.6);
+    this.limit(p, this.target);
     this.camera.lookAt(this.target);
   }
 

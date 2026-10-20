@@ -13,8 +13,14 @@ export interface StagedCharacter {
   x: number;
   z: number;
   yaw: number;
+  /** Their feet's height, for standing on the forbidden cave's floor under the island's ground. */
+  y?: number;
   expression?: ExpressionId | null;
   action?: ActionId;
+  /** Holding the cave's torch up (one of them). */
+  torch?: boolean;
+  /** Sitting in the cave's boat (see StagedShot.boat), at this seat: 0 the stern, 1 the middle, 2 the bow. */
+  seat?: number;
 }
 
 export interface StagedShot {
@@ -24,6 +30,9 @@ export interface StagedShot {
   camera: { position: [number, number, number]; target: [number, number, number]; fov: number };
   /** The time of day, in hours past midnight; late morning when left out. */
   hour?: number;
+  /** The forbidden cave's boat afloat here (x, z, its bow's heading), manned, the torch at its bow
+   * unless a character holds it. */
+  boat?: { x: number; z: number; heading: number };
 }
 
 export interface DevApi {

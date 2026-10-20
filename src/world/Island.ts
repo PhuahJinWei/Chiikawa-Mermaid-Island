@@ -4,6 +4,7 @@ import { sharedUniforms } from '../characters/CharacterMaterial';
 import { fireLights } from './Firelight';
 import { PEN_GLSL, inkUniforms } from './Ink';
 import { FILM, coverTrees, hazeClearing, paintedRamp, shadeUnderTrees } from './Look';
+import type { CaveGrid } from './Cave';
 import { addCircle, addPad, blocked, cameraBlocked, deckUnder, outlineAt } from './Obstacles';
 
 /** What art/blender/build_island.py writes into the ground's glTF extras. */
@@ -29,6 +30,8 @@ export interface TerrainInfo {
    * far as a share of the radius, where each starts; see skylightEdge); about how far the dome
    * reaches from the middle at the water, and its floor under the water. */
   skylight?: { centre: [number, number]; radius: number; lumps: [number, number, number][]; dome: number; floor: number };
+  /** The forbidden cave's inside, under the outcrop and the spur (see Cave.ts). */
+  cave?: { url: string };
   /** The rock landmarks, the sea cliffs and the waterfall, built with the ground. */
   landmarks: string;
   /** Each rock's foot: its middle (x, z), and how far it reaches at even angles round it from east toward south. */
@@ -544,6 +547,35 @@ function filmGroundMaterial(
 }
 
 let terrain: Terrain | null = null;
+/** The forbidden cave's floor and ceiling, once it has loaded: characters in it walk on it, not on the
+ * island's ground over it (see Cave.ts). */
+let cave: CaveGrid | null = null;
+
+export function setCave(grid: CaveGrid | null): void {
+  cave = grid;
+}
+
+/** Whether someone outside the cave could stand at (x, z), their feet at `y`: for finding the cave's
+ * walls (see CaveGrid). */
+export function outsideWalkable(x: number, z: number, y: number): boolean {
+  return terrain ? terrain.walkable(x, z, y) && Math.abs(terrain.height(x, z) - y) < 0.6 : false;
+}
+
+/** Whether someone whose feet were at `feet` can stand at (x, z): in the cave on its floor, kept off its
+ * walls (CaveGrid.walk); outside, on the island's ground (Terrain.walkable). */
+function canStand(x: number, z: number, feet: number): boolean {
+  if (!terrain) return true;
+  if (cave) {
+    if (cave.holds(x, z, feet)) {
+      const k = cave.at(x, z);
+      const floor = cave.floorAt(x, z);
+      if (!cave.walk[k] || floor - feet > STEP_UP + 0.05) return false;
+      return !blocked(x, z, PROP_MARGIN, floor);
+    }
+    if (cave.walled(x, z, feet)) return false;
+  }
+  return terrain.walkable(x, z, feet);
+}
 
 /** Puts back a height grid stored as each sample less what its neighbours west, north and
  * north-west predict, round 65536 (predicted in art/blender/build_island.py), in place. */
@@ -624,7 +656,8 @@ export async function loadTerrain(): Promise<Terrain> {
  * the island has loaded.
  */
 export function groundHeight(x: number, z: number, feet = Infinity): number {
-  const ground = terrain ? terrain.height(x, z) : 0;
+  // In the cave, its own floor, under the island's ground.
+  const ground = cave && cave.holds(x, z, feet) ? cave.floorAt(x, z) : terrain ? terrain.height(x, z) : 0;
   const deck = deckUnder(x, z, feet + STEP_UP);
   return deck === null ? ground : Math.max(ground, deck);
 }
@@ -639,10 +672,37 @@ export function waterLevelAt(x: number, z: number): number {
   return terrain ? terrain.waterLevel(x, z) : -0.32;
 }
 
-/** Whether the camera may be at (x, y, z): not inside a rock, a prop or a tree's crown. */
+/** Whether the camera may be at (x, y, z): not inside a rock, a prop or a tree's crown; in the cave,
+ * between its floor and its ceiling, not in its walls nor the rock over it. */
 export function cameraClear(x: number, y: number, z: number): boolean {
+  if (cave && terrain) {
+    const k = cave.at(x, z);
+    if (k >= 0 && !Number.isNaN(cave.floor[k])) {
+      if (y < cave.ceiling[k] - 0.25) return y > cave.floor[k] + 0.25 && !cameraBlocked(x, y, z, CAMERA_MARGIN);
+      if (y < terrain.height(x, z) + 0.3 || terrain.nearRock(x, z, CAMERA_MARGIN)) return false;
+    } else if (cave.walled(x, z, y)) {
+      return false;
+    }
+  }
   if (terrain && terrain.nearRock(x, z, CAMERA_MARGIN)) return false;
   return !cameraBlocked(x, y, z, CAMERA_MARGIN);
+}
+
+/** Keeps the camera, at p, framing someone at `target` (their middle) out of the ground: over it; in the
+ * cave, between its floor and its ceiling, not up its skylight's well. */
+export function cameraLimit(p: THREE.Vector3, target: THREE.Vector3): void {
+  if (cave && cave.holds(target.x, target.z, target.y - 0.55)) {
+    const k = cave.at(p.x, p.z);
+    if (k >= 0 && !Number.isNaN(cave.floor[k])) {
+      const top = Math.min(cave.ceiling[k], cave.info.dome.top - 1.5) - 0.3;
+      p.y = Math.min(Math.max(p.y, cave.floorAt(p.x, p.z) + 0.5), Math.max(top, cave.floor[k] + 0.6));
+      return;
+    }
+    // Out of the cave from inside it: back toward whoever it frames.
+    p.lerp(target, 0.85);
+    return;
+  }
+  p.y = Math.max(p.y, groundHeight(p.x, p.z) + 0.6);
 }
 
 /**
@@ -652,11 +712,11 @@ export function cameraClear(x: number, y: number, z: number): boolean {
  */
 export function clampToWalkable(p: THREE.Vector3, from: THREE.Vector3): void {
   const feet = from.y;
-  if (!terrain || terrain.walkable(p.x, p.z, feet)) return;
+  if (!terrain || canStand(p.x, p.z, feet)) return;
   // Someone already somewhere they could not walk to (placed there) may walk out of it.
-  if (!terrain.walkable(from.x, from.z, feet)) return;
-  if (terrain.walkable(p.x, from.z, feet)) p.z = from.z;
-  else if (terrain.walkable(from.x, p.z, feet)) p.x = from.x;
+  if (!canStand(from.x, from.z, feet)) return;
+  if (canStand(p.x, from.z, feet)) p.z = from.z;
+  else if (canStand(from.x, p.z, feet)) p.x = from.x;
   else {
     p.x = from.x;
     p.z = from.z;
@@ -668,6 +728,14 @@ export function clampToWalkable(p: THREE.Vector3, from: THREE.Vector3): void {
  * more than a step above their feet. */
 function clearInAir(x: number, z: number, y: number): boolean {
   if (!terrain) return true;
+  if (cave) {
+    // In the cave: over its floor, under its ceiling, clear of what stands in it.
+    if (cave.holds(x, z, y)) {
+      const k = cave.at(x, z);
+      return cave.floor[k] <= y + STEP_UP && y + 0.75 < cave.ceiling[k] && !blocked(x, z, PROP_MARGIN, y);
+    }
+    if (cave.walled(x, z, y)) return false;
+  }
   if (terrain.nearRock(x, z, ROCK_MARGIN) || terrain.nearSkylight(x, z, EDGE_MARGIN) || blocked(x, z, PROP_MARGIN, y)) return false;
   return terrain.height(x, z) <= y + STEP_UP;
 }
@@ -694,6 +762,12 @@ export function clampInAir(p: THREE.Vector3, from: THREE.Vector3, y: number): vo
  */
 export function splashDown(p: THREE.Vector3, y: number): boolean {
   if (!terrain) return false;
+  if (cave && cave.holds(p.x, p.z, y)) {
+    // Into the cave's sea: out again onto the nearest of its floor they can stand on.
+    const surface = cave.info.water;
+    if (y > surface || cave.floorAt(p.x, p.z) >= surface - WADE) return false;
+    return climbOutOfCave(p, cave);
+  }
   const surface = terrain.waterLevel(p.x, p.z);
   if (y > surface || groundHeight(p.x, p.z, y) >= surface - WADE) return false;
   return climbOut(p);
@@ -705,6 +779,24 @@ export function splashDown(p: THREE.Vector3, y: number): boolean {
  * enough to climb onto from it (not a clifftop), looking outward ring by ring up to 30 m; false,
  * and p as it was, if there is none. Out of the gorge's river, that is its riverside path.
  */
+function climbOutOfCave(p: THREE.Vector3, grid: CaveGrid): boolean {
+  for (let r = 0.25; r <= 20; r += 0.25) {
+    const n = Math.ceil((2 * Math.PI * r) / 0.25);
+    for (let i = 0; i < n; i++) {
+      const a = (2 * Math.PI * i) / n;
+      const x = p.x + r * Math.cos(a);
+      const z = p.z + r * Math.sin(a);
+      const k = grid.at(x, z);
+      if (k >= 0 && grid.walk[k] && grid.floor[k] > grid.info.water + 0.05 && !blocked(x, z, PROP_MARGIN, grid.floor[k])) {
+        p.x = x;
+        p.z = z;
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 export function climbOut(p: THREE.Vector3): boolean {
   if (!terrain) return false;
   for (let r = 0.5; r <= 30; r += 0.5) {

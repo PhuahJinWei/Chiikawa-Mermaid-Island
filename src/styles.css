@@ -154,6 +154,28 @@ body {
   cursor: pointer;
 }
 
+.act-btn {
+  pointer-events: auto;
+  position: absolute;
+  right: calc(30px + env(safe-area-inset-right));
+  bottom: calc(140px + env(safe-area-inset-bottom));
+  min-width: 68px;
+  height: 52px;
+  padding: 0 14px;
+  border-radius: 26px;
+  border: 3px solid var(--ink);
+  background: #fff7e8;
+  font-weight: 700;
+  font-size: 15px;
+  box-shadow: var(--shadow);
+  touch-action: none;
+  cursor: pointer;
+}
+
+.act-btn:active {
+  transform: scale(0.94);
+}
+
 .jump-btn:active {
   transform: scale(0.94);
   background: var(--pink-strong);

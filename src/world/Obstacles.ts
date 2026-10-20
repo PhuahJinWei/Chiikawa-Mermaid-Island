@@ -138,6 +138,14 @@ export function addBox(
   });
 }
 
+/** A rectangular block that comes and goes (the cave's boat, drawn up on its beach): as addBox's, for
+ * walkers only, standing while its `walk` is set. */
+export function addSwitchedBox(x: number, z: number, hx: number, hz: number, angle: number, y0: number, y1: number): { walk: boolean } {
+  const block: Block = { x, z, cos: Math.cos(angle), sin: Math.sin(angle), r: 0, hx, hz, y0, y1, walk: false, camera: false };
+  addBlock(block);
+  return block;
+}
+
 /** A walkable rectangle turned by `angle`: flat at `back`, or a ramp from `back` at its back edge to
  * `front` at its front edge (its local +z side). */
 export function addDeck(x: number, z: number, hx: number, hz: number, angle: number, back: number, front = back): void {

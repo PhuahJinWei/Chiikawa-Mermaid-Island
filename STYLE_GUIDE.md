@@ -414,10 +414,23 @@ food and cups on the ground, everyone toasting. This is the festival.
 - Before it on the sand, a weathered grey board on one post, 立入禁止!!
   written on it top to bottom in dark brush strokes.
 
-### The forbidden cave (`cave 1`, `cave 2`, `cave 3`, `chiikawa 17`)
+### The forbidden cave (`cave 1`, `cave 2`, `cave 3`, `chiikawa 17`, `cave interior 1` to `8`)
 
 - Entered on foot through its one mouth on the west beach; a boat crosses
   its sea.
+- Lit by its own dark, not the night's moonlit blues, as measured on the
+  film's frames: walls a near-black navy (about #030F41), floors and the
+  tops of stones a royal blue (about #0528A0), the rock round the glowing
+  water a little lighter (#0A2260). A torch makes a small bright pool of
+  pale cream (about #C8C3B9 on the rock), the dark close round it; on the
+  water it shows as a column of short golden strokes. The cast glow a pale
+  cyan (#9BE3F9), warm on their torch side.
+- The passage: a tunnel little bigger than the mouth, its vault rippled
+  with flowstone that the torch lights a warm beige, broken stone along its
+  walls and pebbles on its floor (`cave interior 1`).
+- The cavern's beach: dark blue sand, the rowboat drawn up on it, the water
+  beyond glowing blue with sparkles, heavy rounded rock round it (`cave
+  interior 2`). The sea on from it is dark (`cave interior 3`).
 - Dark blue rock walls with cyan rim light on the edges.
 - **The heart of the cave:** a round opening in the ceiling, ringed by
   hanging vines, with the full moon directly above. A wide shaft of
@@ -427,9 +440,16 @@ food and cups on the ground, everyone toasting. This is the festival.
   over the cave, trees crowding its edge and ferns along it: the jungle
   floor runs right to a worn lip of stone, the sides drop sheer as a
   well's do, then open out below into the dome over the water. The cave is
-  a secret place, no path leading to it or to its mouth.
-- A flat stone ledge beside the water, lit by a small fire, where the Siren
-  and the mermaids sit.
+  a secret place, no path leading to it or to its mouth. The water glows a
+  bright cyan-blue (about #38AEFE) in a disc under the opening, fading to a
+  deep blue toward its shore, sparkles winking on it, a band of mist low
+  over it far off; pale columns of rock stand round its edge (`cave
+  interior 4`, `5`). From the water the sky shows up the well, ringed by
+  leaves (`cave interior 6`).
+- A flat stone ledge beside the water, laid with rounded cobbles, crystals
+  at its back and dark rounded rock behind, lit by a small fire whose light
+  turns the cobbles a warm magenta against the blue, where the Siren and
+  the mermaids sit (`cave interior 7`, `8`).
 
 ### Arrival ferry (`boat`)
 
@@ -473,10 +493,6 @@ shading toward the water. At anchor out in the bay.
 
 Nothing here blocks Milestone 0. These would sharpen later milestones.
 
-- The forbidden cave's inside between its mouth and the moonlit chamber
-  under its skylight, and the ground beyond it (`cave interior 1` to `8`
-  show it: a passage on foot, the cave's sea crossed by boat, the round
-  chamber, landed ground).
 - A clear look at the food-shop building and its owner.
 - What sits at the top of the karst pillars, if the film ever goes there.
 

@@ -978,6 +978,9 @@ export const nightUniform = { value: 0 };
 /** How golden the hour is, 0 to 1 in the late afternoon (see the grade and the jungle's haze); the
  * stage keeps it with the hour. */
 export const goldenUniform = { value: 0 };
+/** How far into the forbidden cave the camera is, 0 outside to 1 a few steps in: the cave keeps its own
+ * night (see Cave.ts), so the grade's moonlit blues give way to it. The stage keeps it. */
+export const caveUniform = { value: 0 };
 
 /** The moon's light for the moonlit edges (see moonEdges): the way to the moon in the world, and the
  * colour of the light it rims things with, black by day. The stage sets both with the hour. */
@@ -1021,6 +1024,7 @@ const GRADE = {
     tDiffuse: { value: null },
     uNight: nightUniform,
     uGolden: goldenUniform,
+    uCave: caveUniform,
     uSaturation: { value: 1.1 },
     uContrast: { value: 1.2 },
     uShadowTint: { value: new THREE.Vector3(-0.004, 0.008, 0.0) },
@@ -1046,6 +1050,7 @@ const GRADE = {
     uniform float uYellow;
     uniform float uNight;
     uniform float uGolden;
+    uniform float uCave;
     varying vec2 vUv;
     void main() {
       vec4 c = texture2D(tDiffuse, vUv);
@@ -1063,7 +1068,8 @@ const GRADE = {
         g = mix(g, g * vec3(1.07, 1.0, 0.8) + vec3(0.02, 0.015, 0.0), uGolden * 0.75);
         g.r += uGolden * 0.12 * max(g.g - max(g.r, g.b), 0.0);
       }
-      float night = smoothstep(0.4, 1.0, uNight);
+      // (Not in the cave, which is painted in its own dark blues whatever the hour.)
+      float night = smoothstep(0.4, 1.0, uNight) * (1.0 - uCave);
       if (night > 0.0) {
         float n = clamp(dot(g, vec3(0.299, 0.587, 0.114)), 0.0, 1.0);
         // Nothing goes black: the darkest shapes are a deep violet navy, the middle a blue-violet,
@@ -1164,6 +1170,9 @@ export const jungleHaze = {
   uJungleGold: goldenUniform,
   /** How thick the haze is: 1 by day, thinner as the light goes in the evening. */
   uJungleThick: { value: 1 },
+  /** A hole in the jungle's floor where there is no haze: the cave's skylight, down its well (its
+   * middle x, z, its radius and the height of its top); the stage sets it. */
+  uJungleHole: { value: new THREE.Vector4(0, 0, 0, -1e9) },
 };
 
 /**
@@ -1191,6 +1200,7 @@ const FOCUS = {
     uJungleWarm: { value: new THREE.Vector3() },
     uJungleGold: { value: 0 },
     uJungleThick: { value: 1 },
+    uJungleHole: { value: new THREE.Vector4(0, 0, 0, -1e9) },
     uCover: { value: null },
     uCoverMap: { value: new THREE.Vector3(0, 0, 1) },
   },
@@ -1216,6 +1226,7 @@ const FOCUS = {
     uniform vec3 uJungleWarm;
     uniform float uJungleGold;
     uniform float uJungleThick;
+    uniform vec4 uJungleHole;
     varying vec2 vUv;
     ${COVER_GLSL}
     float softness(vec2 uv) {
@@ -1231,6 +1242,8 @@ const FOCUS = {
       if (metres > 450.0) return colour;
       vec3 world = (uCameraWorld * vec4(view, 1.0)).xyz;
       float deep = smoothstep(0.2, 0.8, underTrees(world));
+      // Down the skylight's well there are no trees, only the cave.
+      if (distance(world.xz, uJungleHole.xy) < uJungleHole.z && world.y < uJungleHole.w) deep = 0.0;
       // Only the depth: what is near stays dark and clear, as the film keeps its foreground. In the
       // golden hour it glows gold over more of the way toward the sun, as the film's late afternoon
       // fills its jungle with golden light; through the evening it thins as the light goes.
@@ -1320,6 +1333,7 @@ export class FilmPost {
     // The pass copies its uniforms; the night is the stage's to keep (see nightUniform).
     grade.uniforms.uNight = nightUniform;
     grade.uniforms.uGolden = goldenUniform;
+    grade.uniforms.uCave = caveUniform;
     this.composer.addPass(grade);
     this.setTexel(size.x, size.y);
   }

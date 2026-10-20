@@ -1,17 +1,19 @@
 import * as THREE from 'three';
 import { sharedUniforms } from '../characters/CharacterMaterial';
+import { Cave } from './Cave';
 import { FilmClouds } from './Clouds';
 import { newSkyLook, skyAt } from './DayNight';
 import { Firelight } from './Firelight';
 import { glowUniforms } from './Glow';
 import { inkUniforms, windUniforms } from './Ink';
-import { FLOOR_GLSL, WATER_EDGE, groundHeight, loadTerrain, terrainHeight, type Terrain } from './Island';
+import { FLOOR_GLSL, WATER_EDGE, groundHeight, loadTerrain, outsideWalkable, setCave, terrainHeight, type Terrain } from './Island';
 import { Landmarks } from './Landmarks';
 import {
   FILM,
   coverAt,
   filmLights,
   filmSky,
+  caveUniform,
   goldenUniform,
   jungleHaze,
   lightShafts,
@@ -54,10 +56,6 @@ const COLORS = {
   poolEdge: '#5DA88B',
   pool: '#2C6658',
   poolDeep: '#22554A',
-  // The forbidden cave's water under its skylight: deep blue in the cave's shade.
-  caveEdge: '#3B8DB5',
-  cave: '#1F6CA0',
-  caveDeep: '#18507F',
   cloud: '#FFFFFF',
   cloudShade: '#DCE4EC',
   moon: '#F5F1C9',
@@ -129,6 +127,11 @@ export class Stage {
   private skyEnclosed = -1;
   /** The island's named places, once the layout has loaded. */
   zones: Zones | null = null;
+  /** The forbidden cave's inside, once it has loaded (see Cave.ts). */
+  cave: Cave | null = null;
+  /** Where the torch carried through the cave burns, and the one set up in the boat's bow, this
+   * frame (or null): set by whoever carries them before each update. */
+  readonly caveTorches: { carried: THREE.Vector3 | null; boat: THREE.Vector3 | null } = { carried: null, boat: null };
 
   constructor(scene: THREE.Scene) {
     this.scene = scene;
@@ -188,6 +191,14 @@ export class Stage {
     this.setSeaFloor(terrain);
     this.landmarks = await Landmarks.load(terrain.info);
     this.world.add(this.landmarks.group);
+    if (terrain.info.cave) {
+      // The forbidden cave under the outcrop and the spur: its own floor to walk on, its own light.
+      this.cave = await Cave.load(terrain.info.cave.url, outsideWalkable);
+      setCave(this.cave.grid);
+      this.world.add(this.cave.group);
+      const sky = terrain.info.skylight;
+      if (sky) jungleHaze.uJungleHole.value.set(sky.centre[0], sky.centre[1], sky.radius * 1.15, this.cave.info.dome.top - 0.3);
+    }
     this.vegetation = await Vegetation.load(terrain.info);
     this.world.add(this.vegetation.group);
     this.butterflies = await Butterflies.load(terrain.info.plants.butterflies);
@@ -217,26 +228,7 @@ export class Stage {
     u.uFloor.value = terrain.texture;
     u.uMap.value.set(origin[0], origin[1], size, terrain.info.height.grid);
     u.uLevel.value = terrain.info.water;
-    // The forbidden cave's water, the sea come in under the spur: still, under the dome below its
-    // skylight, where the height grid holds the ground over it, so it is a surface of its own with a
-    // depth of its own.
-    const sky = terrain.info.skylight;
-    if (sky) {
-      const cave = this.water.clone();
-      for (const name of ['uTime', 'uFloor', 'uMap'] as const) cave.uniforms[name] = u[name];
-      Object.assign(cave.uniforms, this.waterLight, {
-        uLevel: { value: terrain.info.water },
-        uDepth: { value: terrain.info.water - sky.floor },
-        uSurf: { value: 0 },
-        uEdge: { value: new THREE.Color(COLORS.caveEdge) },
-        uShallow: { value: new THREE.Color(COLORS.cave) },
-        uMid: { value: new THREE.Color(COLORS.caveDeep) },
-        uDeep: { value: new THREE.Color(COLORS.caveDeep) },
-      });
-      const surface = new THREE.Mesh(new THREE.CircleGeometry(sky.dome * 1.15, 64).rotateX(-Math.PI / 2), cave);
-      surface.position.set(sky.centre[0], terrain.info.water, sky.centre[1]);
-      this.world.add(surface);
-    }
+    // (The forbidden cave's water, the sea come in under the spur, is the cave's own: see Cave.ts.)
     if (!pool) return;
     const water = this.water.clone();
     for (const name of ['uTime', 'uFloor', 'uMap'] as const) water.uniforms[name] = u[name];
@@ -364,6 +356,7 @@ export class Stage {
     this.waterLight.uNight.value = look.night;
     glowUniforms.uGlow.value = look.glow;
     this.confettiMaterial?.color.copy(look.ambient);
+    this.cave?.setHour(look.night);
   }
 
   /** The hour's sky colours onto the sky, the background and the haze, in the film look as seen
@@ -395,9 +388,18 @@ export class Stage {
     out: THREE.Vector4[],
     from: THREE.Vector3,
   ): number {
+    // In the cave, its torches and its fire, by day as by night.
+    if (this.cave?.isInside(x, y, z)) return this.cave.firelightOn(x, y, z, out, from);
     if (this.firelight) return this.firelight.lightsAt(x, y, z, seen, dt, out, from);
     for (const v of out) v.set(0, 0, 0, 0);
     return 0;
+  }
+
+  /** The cave's own light on someone at (x, y, z), into `out`, if they are inside it (see Cave.lightOn). */
+  caveLightAt(x: number, y: number, z: number, out: THREE.Color): boolean {
+    if (!this.cave?.isInside(x, y, z)) return false;
+    this.cave.lightOn(x, y, z, out);
+    return true;
   }
 
   /** Compiles the shaders of everything in the scene ahead of its first frame, so none stalls the
@@ -412,9 +414,22 @@ export class Stage {
     this.skyMaterial.uniforms.uTime.value = time;
     this.landmarks?.update(time);
     this.props?.update(time, camera);
+    caveUniform.value = 0;
+    let lookout: { x: number; z: number; r: number } | null = null;
+    if (this.cave) {
+      this.cave.update(time, camera, this.caveTorches.carried, this.caveTorches.boat);
+      // No jungle haze in the cave: from inside it everything seen is the cave's own dark, and its
+      // own night, not the moonlit grade's.
+      const p = camera.position;
+      if (this.cave.isInside(p.x, p.y, p.z)) jungleHaze.uJungleThick.value = 0;
+      caveUniform.value = this.cave.immersion(p.x, p.y, p.z);
+      // From deep in it, the outside shows only up the skylight's well: the rest is not drawn.
+      lookout = this.cave.lookout(p.x, p.y, p.z);
+    }
+    if (this.landmarks) this.landmarks.group.visible = !lookout;
     this.firelight?.update(glowUniforms.uGlow.value, time);
     windUniforms.uTime.value = time;
-    this.vegetation?.update(camera);
+    this.vegetation?.update(camera, lookout);
     this.butterflies?.update(time);
     this.sky.position.copy(camera.position);
     // The sea's colours come from where each point is in the world, so the disc can travel with
