@@ -195,7 +195,8 @@ Scale unit: **1 = Chiikawa's height.**
   of wide planks on a thick log edge with no railing, chunky log steps,
   and potted plants on the porch: a gnarled succulent in a terracotta pot,
   purple thistles in a round clay pot. A villager's hut has one door of
-  pale planks with dark marks of their grain and a dark C-shaped handle,
+  brown planks, the brown of its posts, with dark marks of their grain and
+  a dark C-shaped handle,
   no window in it, opening outward (to the left, as one looks out).
 - Round beehive thatched huts with a topknot also appear.
 - Inside a villager's hut (`villager hut interior 1` to `10`, the top view

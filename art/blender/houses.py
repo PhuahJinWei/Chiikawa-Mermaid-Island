@@ -84,15 +84,16 @@ C = {k: L.hex_color(v) for k, v in {
     "norenLight": "#F3EAD6",
     "chochin": "#E0503E",
     "chochinBand": "#3A2A22",
-    # The guest houses: pale logs, their cut ends paler round a darker heart; the doors' light
-    # planks and diamond windows; the orange one's grey-green boarded sides; inside, dark logs with
-    # pale cut ends, a floor of light planks and the roof's dark boards on rafters; a red hammock.
+    # The guest houses: pale logs, their cut ends paler round a darker heart; the doors' planks, the
+    # brown of their frames, and diamond windows; the orange one's grey-green boarded sides; inside,
+    # dark logs with pale cut ends, a floor of light planks and the roof's dark boards on rafters; a
+    # red hammock.
     "guestLog": "#E8D0A4",
     "guestLogDark": "#B7976B",
     "guestLogEnd": "#F7EACF",
     "guestLogRing": "#E1CBA3",
-    "guestDoor": "#D7AD74",
-    "guestDoorLine": "#A97B47",
+    "guestDoor": "#B98D5A",
+    "guestDoorLine": "#8A6238",
     "guestDoorFrame": "#B98D5A",
     "guestBoard": "#9CAE95",
     "guestInLog": "#7A5234",
@@ -135,8 +136,8 @@ C = {k: L.hex_color(v) for k, v in {
     "hutScale3": "#678F7D",
     "hutScale4": "#82AC98",
     "shutter": "#86603F",
-    "hutDoor": "#E3D4A2",
-    "hutDoorLine": "#7E6142",
+    "hutDoor": "#9A6A42",
+    "hutDoorLine": "#62402A",
     "shutterLine": "#5C3F28",
     "hutFloor": "#C48A55",
     "hutFloorLine": "#8C5E37",
@@ -1799,13 +1800,13 @@ def furnish_hut(floor, xi, yi, wall_h, window):
 
 
 def villager_door(door, yo, floor, tall, pieces):
-    """A villager's hut's one door of pale planks, no window in it, as the film's (reference images
-    `villager hut exterior 2` and `interior 1`): hung on the right-hand post as one looks in (the
-    doorway `door` either side of the middle, in the front wall's outer face at -`yo`) and swung out
-    (to the left, as one looks out from inside), standing open clear of the post, `tall` high: the
-    lantern's light has the whole doorway. Its planks' joins and a few dark marks of their grain are
-    painted on both its faces, and each has a dark handle. Returns the blocks that keep walkers out of
-    it, as a row of posts along it."""
+    """A villager's hut's one door of planks the brown of its posts, no window in it, as the film's
+    (reference images `villager hut exterior 2` and `interior 1`): hung on the right-hand post as one
+    looks in (the doorway `door` either side of the middle, in the front wall's outer face at -`yo`)
+    and swung out (to the left, as one looks out from inside), standing open clear of the post,
+    `tall` high: the lantern's light has the whole doorway. Its planks' joins and a few dark marks of
+    their grain are painted on both its faces, and each has a dark handle. Returns the blocks that
+    keep walkers out of it, as a row of posts along it."""
     hinge = V(door - 0.08, -yo - 0.05, 0.0)
     door_w, door_t = 2 * door - 0.1, 0.05
     swing = math.radians(120.0)

@@ -407,7 +407,9 @@ outlined is drawn twice, once for its pen line. To get there:
   length, flat face up, their cut ends showing, where they had been planks
   on log rails; the floor's frame is dark wood like the stilts; and the
   orange house's long sides are boarded and painted a grey green, as in
-  the film's frame of it. Inside, the walls are dark round logs, their cut
+  the film's frame of it. Their doors' planks are the brown of the frames
+  round them, where they had been paler. Inside, the walls are dark round
+  logs, their cut
   ends pale down the sides of the windows and the doorway, as in the
   film's frames inside, where they had been pale planks; the floor is
   light planks with staggered joins; overhead are the roof's dark boards
@@ -444,7 +446,8 @@ outlined is drawn twice, once for its pen line. To get there:
   of the porch. The walls, porch and stairs are as they were, but for the
   left wall's window, moved toward the back so the bookshelf stands in the
   middle of that wall as in the film's room, and the door: one door of
-  pale planks with dark marks of their grain, no window in it, as the
+  planks the brown of its posts, with dark marks of their grain, no
+  window in it, as the
   film's, hung on the right-hand post as one looks in and swung out onto
   the porch, where two leaves had folded back inside. Inside, after the
   film's frames of the room (`villager hut interior 1` to `10`, laid out
@@ -481,7 +484,7 @@ outlined is drawn twice, once for its pen line. To get there:
   paper lantern hanging from its hub, furnished as the film's room and
   laid out the same way, fitted to their smaller room (5.2 by 4.2 metres):
   the bookshelf a little narrower, the pans' rail a little lower under the
-  lower walls. Outside, one door of pale planks swings out on the
+  lower walls. Outside, one door of brown planks swings out on the
   right-hand post onto a landing of planks twice as deep as it was, where
   a tall plank door had stood folded back inside, and the left wall's
   window is moved toward the back, as the stilt huts'; their plank walls
