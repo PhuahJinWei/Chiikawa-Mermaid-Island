@@ -189,6 +189,22 @@ def build_palm(collection):
     return [palm, distant], {"footprint": {"circle": 0.28}, "height": 6.0, "sink": 0.05}
 
 
+def paint_auto(bare=(), barks=()):
+    """What a prop's Painter paints (see paintmap.Painter), as 島二郎's wood is painted: a piece of the
+    `barks` colours as bark, one of the `bare` colours (or grained) as wood out in the weather (see
+    houses.wood_auto); the rest (a log's pale cut ends, ropes, leaves) keeps its own colours."""
+    import houses as H
+    wood = H.wood_auto(True, bare=bare, palette=False)
+    bark_c = [tuple(c) for c in barks]
+
+    def auto(piece):
+        colour = piece[1]
+        if not isinstance(colour, list) and any(max(abs(a - b) for a, b in zip(colour, c)) < 0.004 for c in bark_c):
+            return ("bark", {})
+        return wood(piece)
+    return auto
+
+
 def build_log(collection):
     """A fallen log to sit on, lying along X."""
     radius, length = 0.24, 1.8
@@ -217,8 +233,11 @@ def build_log(collection):
             inner = [c + (p - c) * (r / radius) for p in ring] if r > 0.0 else c
             pieces.append((band_bm(outer, inner, n), C[colour]))
             outer = inner
-    log = L.assemble_colored("log", pieces, collection)
-    return [log], {"footprint": {"box": [0.95, 0.26]}, "height": 0.5}
+    # Its bark painted as 島二郎's wood is, its cut ends left as drawn.
+    import paintmap as PM
+    painter = PM.Painter("log")
+    log = painter.join("log", pieces, collection, auto=paint_auto(barks=(C["bark"],)), joiner=L.assemble_colored)
+    return [log], {"footprint": {"box": [0.95, 0.26]}, "height": 0.5, **painter.finish(OUT_MODELS)}
 
 
 def build_starfish(collection):
@@ -412,7 +431,12 @@ def build_sign(collection):
     # The post, set into the plank's back, standing from under the sand to near its top.
     pieces.append((box_bm(Vector((0.0, 0.05, (-0.3 + z0 + h * 0.77) / 2)), (0.075, 0.07, z0 + h * 0.77 + 0.3), bevel=0.006),
                    SIGN["post"]))
-    sign = join("sign", pieces, collection, sharp=SHARP)
+    # Its plank's back and edges and its post painted as 島二郎's weathered wood is (its front is the
+    # user's painting).
+    import paintmap as PM
+    painter = PM.Painter("sign")
+    sign = painter.join("sign", pieces, collection, sharp=SHARP, grained=False,
+                        auto=paint_auto(bare=(SIGN["board"], SIGN["edge"], SIGN["post"])))
     # The words' face: the plank's whole front, a few millimetres in from its uneven edge.
     face, uvs = label_bm(Vector((0.0, yf, z0 + h / 2)), w - 0.012, h - 0.016)
     label = object_with_uv("sign_label", face, uvs, collection)
@@ -421,6 +445,7 @@ def build_sign(collection):
                       # The film shows it close, so its words are painted sharper than other signs' (as
                       # sharp as fits without the other signs' words painted any less sharp).
                       "sharp": 3}}
+    info.update(painter.finish(OUT_MODELS))
     return [sign, label], info
 
 
@@ -613,10 +638,15 @@ def build_sign_hanging(collection):
         face = Vector((math.cos(a), math.sin(a), 0.15))
         leaves.append((heart_card_bm(p + face.normalized() * 0.02 + Vector((0.0, 0.0, 0.03 * (k % 2))), face,
                                      0.065 + 0.012 * (k % 3), tilt=0.6 * math.sin(k * 1.3)), C["leafA"] if k % 2 else C["leafB"]))
-    sign = L.assemble_colored("sign_hanging", pieces + leaves, collection)
+    # Its board painted as 島二郎's weathered wood is (its front is the user's painting), the branch's bark too.
+    import paintmap as PM
+    painter = PM.Painter("sign_hanging")
+    sign = painter.join("sign_hanging", pieces + leaves, collection, auto=paint_auto(bare=(C["board"],), barks=(C["bark"],)),
+                        joiner=L.assemble_colored)
     face, uvs = label_bm(Vector((0.0, -0.03, bz)), fw, fh)
     label = object_with_uv("sign_hanging_label", face, uvs, collection)
     info = {"height": 3.8, "label": {"size": [fw, fh], "colour": "#2B211B"}}
+    info.update(painter.finish(OUT_MODELS))
     return [sign, label], info
 
 
@@ -636,8 +666,11 @@ def build_fence(collection):
         pieces.append((exact(Vector((x, 0.0, -0.3)), Vector((x, 0.0, h - 0.03)), r, r * 0.97), C["bark"]))
         pieces.append((exact(Vector((x, 0.0, h - 0.03)), Vector((x, 0.0, h)), r * 0.93, r * 0.9), C["logEnd"]))
     pieces.append((segment_bm(Vector((-1.2, 0.13, 0.6)), Vector((1.2, 0.13, 0.62)), 0.055, 0.05, segments=7), C["bark"]))
-    fence = L.assemble_colored("fence", pieces, collection)
-    return [fence], {"footprint": {"box": [1.2, 0.18]}, "height": 1.3}
+    # Its posts' and rail's bark painted as 島二郎's wood is, their sawn tops left as drawn.
+    import paintmap as PM
+    painter = PM.Painter("fence")
+    fence = painter.join("fence", pieces, collection, auto=paint_auto(barks=(C["bark"],)), joiner=L.assemble_colored)
+    return [fence], {"footprint": {"box": [1.2, 0.18]}, "height": 1.3, **painter.finish(OUT_MODELS)}
 
 
 def wing_bm(outline, thickness):
@@ -701,8 +734,12 @@ def build_quay(collection):
         x = -1.996 + width / 2 + k * (width + gap)
         top = 0.02 + 0.01 * ((k * 5) % 3 - 1)
         pieces.append((box_bm(Vector((x, 0.035, (top - 2.3) / 2)), (width, 0.07, top + 2.3)), w[tone]))
-    quay = join("quay", pieces, collection, sharp=SHARP)
-    return [quay], {"height": 0.4}
+    # Its planks and posts painted as 島二郎's wood is, the posts' cut tops left pale.
+    import paintmap as PM
+    painter = PM.Painter("quay")
+    quay = painter.join("quay", pieces, collection, sharp=SHARP, grained=False,
+                        auto=paint_auto(bare=(w["post"], w["plank"], w["plankMid"], w["plankDark"])))
+    return [quay], {"height": 0.4, **painter.finish(OUT_MODELS)}
 
 
 BUILDERS = {

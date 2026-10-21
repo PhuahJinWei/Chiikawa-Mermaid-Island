@@ -39,6 +39,18 @@ const islanderFace: FaceStyle = {
 };
 
 export const DEFINITIONS: Record<CharacterId, CharacterDef> = {
+  // You: a nameless islander living on the island, the generic islander with round ears and a grey
+  // flower crown, in the islanders' own grey-mauve (the crowd's light copy: seen only faintly, in the
+  // water, from your own eyes). Choosing your head and your crown's colour is still to come.
+  player: {
+    id: 'player',
+    nameKey: 'char.player',
+    model: 'models/islander_round_crowd.glb',
+    outfit: 'models/outfits/island_islander_round_crowd.glb',
+    face: islanderFace,
+    walkSpeed: 1.7,
+    runSpeed: 3.0,
+  },
   chiikawa: {
     id: 'chiikawa',
     nameKey: 'char.chiikawa',

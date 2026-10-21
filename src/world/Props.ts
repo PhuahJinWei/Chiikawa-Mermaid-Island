@@ -145,17 +145,47 @@ interface Floater {
 }
 
 /** The props' own material: toon-shaded vertex colours, in the film look with the huts' thatch
- * painted the film's way (see paintThatch). */
-function toon(): THREE.MeshToonMaterial {
+ * painted the film's way (see paintThatch); with `paint`, the props' painted textures (see
+ * loadPaintMaps) taking over their colours where a part's aPaintUv points into them. */
+function toon(paint: PaintTextures | null = null): THREE.MeshToonMaterial {
   const material = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: sceneryRamp() });
   if (FILM) {
     material.onBeforeCompile = (shader) => {
+      if (paint) paintFrom(shader, paint);
       paintThatch(shader);
       fireLights(shader);
     };
+    material.customProgramCacheKey = () => (paint ? 'prop-painted' : 'prop');
   }
   return material;
 }
+
+/** Takes a material's colours from the props' painted textures (their light and their colour, see
+ * loadPaintMaps) wherever its part's aPaintUv (the textures' UV and layer) is not below nought: the
+ * two put back together as WebP takes them apart (BT.601), then from sRGB to light. */
+function paintFrom(shader: THREE.WebGLProgramParametersWithUniforms, paint: PaintTextures): void {
+  shader.uniforms.uPaintLight = { value: paint.light };
+  shader.uniforms.uPaintColour = { value: paint.colour };
+  shader.vertexShader = shader.vertexShader
+    .replace('#include <common>', '#include <common>\nattribute vec3 aPaintUv;\nvarying vec3 vPaintUv;')
+    .replace('#include <begin_vertex>', '#include <begin_vertex>\nvPaintUv = aPaintUv;');
+  shader.fragmentShader = shader.fragmentShader
+    .replace(
+      '#include <common>',
+      '#include <common>\nuniform highp sampler2DArray uPaintLight;\nuniform highp sampler2DArray uPaintColour;\nvarying vec3 vPaintUv;',
+    )
+    .replace('#include <color_fragment>', `#include <color_fragment>\n${PAINT_COLOUR}`);
+}
+
+/** GLSL, after the material's own colour: the painted textures' colour where a part has them. */
+const PAINT_COLOUR = /* glsl */ `
+if (vPaintUv.x >= 0.0) {
+  vec2 paintColour = texture(uPaintColour, vPaintUv).rg - 0.5;
+  vec3 painted = texture(uPaintLight, vPaintUv).r
+    + vec3(1.402 * paintColour.y, -0.344136 * paintColour.x - 0.714136 * paintColour.y, 1.772 * paintColour.x);
+  diffuseColor.rgb = sRGBTransferEOTF(vec4(clamp(painted, 0.0, 1.0), 1.0)).rgb;
+}
+`;
 
 /** The houses' night maps (see PropInfo.night) side by side in one texture, and where each map lies
  * in it: its corner and size, in the texture's UVs. */
@@ -205,65 +235,216 @@ async function loadNightMaps(maps: string[]): Promise<NightMaps | null> {
   return { texture, tiles };
 }
 
+/** The props' painted textures (see loadPaintMaps): each map's light (its luma), whole, in layers
+ * PAINT_LAYER square, and its colour (its two chroma), at half its size in layers half as big, as
+ * its WebP file holds them: four texels' worth of light for each texel's worth of colour, where an
+ * RGBA texture would hold sixteen, and the eye sees the light's detail, not the colour's. */
+interface PaintTextures {
+  light: THREE.Texture;
+  colour: THREE.Texture;
+}
+
+/** The props' painted textures, each map's place in them (its corner, width and height in a layer's
+ * UVs, and the layer), and the work of drawing the maps into them, for the renderer to do before the
+ * first frame. */
+interface PaintMaps extends PaintTextures {
+  tiles: Map<string, PaintTile>;
+  upload: (renderer: THREE.WebGLRenderer) => Promise<void>;
+}
+type PaintTile = [number, number, number, number, number];
+type PaintSize = NonNullable<PropInfo['paint']>['size'];
+
+/** A layer of the props' painted textures' light, in texels: as big as a prop's map can be. */
+const PAINT_LAYER = 2048;
+
+/** GLSL, splitting a painted map into its light and its colour (see loadPaintMaps): the map's texels
+ * as its file holds them, sRGB, its corner `uCorner` in the layer drawn to. */
+const SPLIT_VERTEX = /* glsl */ `
+void main() {
+  gl_Position = vec4(position.xy, 0.0, 1.0);
+}
+`;
+const SPLIT_LIGHT = /* glsl */ `
+uniform highp sampler2D uMap;
+uniform vec2 uCorner;
+void main() {
+  vec3 c = texelFetch(uMap, ivec2(gl_FragCoord.xy - uCorner), 0).rgb;
+  gl_FragColor = vec4(dot(c, vec3(0.299, 0.587, 0.114)), 0.0, 0.0, 1.0);
+}
+`;
+/** Each colour texel the mean of the two-by-two of the map's texels it stands for. */
+const SPLIT_COLOUR = /* glsl */ `
+uniform highp sampler2D uMap;
+uniform vec2 uCorner;
+void main() {
+  ivec2 p = ivec2(gl_FragCoord.xy - uCorner) * 2;
+  vec3 c = 0.25 * (texelFetch(uMap, p, 0).rgb + texelFetch(uMap, p + ivec2(1, 0), 0).rgb
+    + texelFetch(uMap, p + ivec2(0, 1), 0).rgb + texelFetch(uMap, p + ivec2(1, 1), 0).rgb);
+  float y = dot(c, vec3(0.299, 0.587, 0.114));
+  gl_FragColor = vec4(0.5 + (c.b - y) / 1.772, 0.5 + (c.r - y) / 1.402, 0.0, 1.0);
+}
+`;
+
+/** One of the painted textures' two halves, drawn into layer by layer: `size` texels square. */
+function paintTarget(size: number, layers: number, format: THREE.PixelFormat): THREE.WebGLArrayRenderTarget {
+  return new THREE.WebGLArrayRenderTarget(size, size, layers, {
+    format,
+    type: THREE.UnsignedByteType,
+    depthBuffer: false,
+    minFilter: THREE.LinearMipmapLinearFilter,
+    magFilter: THREE.LinearFilter,
+    generateMipmaps: false,
+    anisotropy: 4,
+  });
+}
+
 /**
- * Fetches the houses' painted textures (see PropInfo.paint) and lays them side by side in one
- * texture, as the night maps are; their colours sRGB, with smaller copies for far off, which may
- * blend a little of a patch's neighbours at its very edge (the patches lie a few texels apart, kinds
- * together). A 1-texel white map if none loads, every house then keeping its own colours.
+ * Fetches the props' painted textures (see PropInfo.paint), each a power of two wide and as high or
+ * half as high (`maps`: each one's size, as its prop gives it), and lays them out in layers
+ * PAINT_LAYER square, the biggest first, each in the smallest free space that holds it, what is left
+ * of that space split in two beside and under it. Each is drawn into place by the renderer (see
+ * upload), its light and its colour taken apart (see PaintTextures), two decoded at a time and let go
+ * as soon as they are drawn; with smaller copies for far off, which may blend a little of a patch's
+ * neighbours at its very edge (the patches lie a few texels apart). A blank texel of each if none
+ * loads, every prop then keeping its own colours.
  */
-async function loadPaintMaps(maps: string[]): Promise<NightMaps> {
-  const images = new Map<string, ImageBitmap>();
+async function loadPaintMaps(maps: Map<string, PaintSize>): Promise<PaintMaps> {
+  const files = new Map<string, { blob: Blob; w: number; h: number }>();
   await Promise.all(
-    maps.map(async (map) => {
+    [...maps].map(async ([map, size]) => {
       try {
         const response = await fetch(`models/props/${map}`);
         if (!response.ok) throw new Error(`${response.status}`);
-        images.set(map, await createImageBitmap(await response.blob()));
+        const blob = await response.blob();
+        let [w, h] = typeof size === 'number' ? [size, size] : (size ?? [0, 0]);
+        if (!w || !h) {
+          // A prop that does not give its map's size: read it off the map.
+          const image = await createImageBitmap(blob);
+          [w, h] = [image.width, image.height];
+          image.close();
+        }
+        files.set(map, { blob, w: Math.min(w, PAINT_LAYER), h: Math.min(h, PAINT_LAYER) });
       } catch (error) {
         console.warn(`Paint map ${map} did not load`, error);
       }
     }),
   );
-  if (images.size === 0) {
-    const blank = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1);
-    blank.needsUpdate = true;
-    return { texture: blank, tiles: new Map() };
+  if (files.size === 0) {
+    const light = new THREE.DataArrayTexture(new Uint8Array([255, 255, 255, 255]), 1, 1, 1);
+    const colour = new THREE.DataArrayTexture(new Uint8Array([128, 128, 0, 255]), 1, 1, 1);
+    light.needsUpdate = colour.needsUpdate = true;
+    return { light, colour, tiles: new Map(), upload: async () => {} };
   }
-  const size = Math.max(...[...images.values()].map((image) => Math.max(image.width, image.height)));
-  const columns = Math.ceil(Math.sqrt(images.size));
-  const canvas = document.createElement('canvas');
-  canvas.width = columns * size;
-  canvas.height = Math.ceil(images.size / columns) * size;
-  const g = canvas.getContext('2d');
-  const tiles: NightMaps['tiles'] = new Map();
-  [...images].forEach(([map, image], k) => {
-    const x = (k % columns) * size;
-    const y = Math.floor(k / columns) * size;
-    g?.drawImage(image, x, y, size, size);
-    tiles.set(map, [x / canvas.width, y / canvas.height, size / canvas.width, size / canvas.height]);
-  });
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.flipY = false;
-  texture.colorSpace = THREE.SRGBColorSpace;
-  texture.anisotropy = 4;
-  return { texture, tiles };
+  // Free spaces: corner, width, height, layer.
+  const free: [number, number, number, number, number][] = [];
+  let layers = 0;
+  const places: { map: string; blob: Blob; x: number; y: number; w: number; h: number; layer: number }[] = [];
+  const tiles: PaintMaps['tiles'] = new Map();
+  const sorted = [...files].sort((a, b) => b[1].w * b[1].h - a[1].w * a[1].h || b[1].w - a[1].w);
+  for (const [map, { blob, w, h }] of sorted) {
+    let best = -1;
+    for (let k = 0; k < free.length; k++) {
+      const f = free[k];
+      if (f[2] >= w && f[3] >= h && (best < 0 || f[2] * f[3] < free[best][2] * free[best][3])) best = k;
+    }
+    if (best < 0) {
+      free.push([0, 0, PAINT_LAYER, PAINT_LAYER, layers++]);
+      best = free.length - 1;
+    }
+    const [x, y, fw, fh, layer] = free.splice(best, 1)[0];
+    if (fw > w) free.push([x + w, y, fw - w, h, layer]);
+    if (fh > h) free.push([x, y + h, fw, fh - h, layer]);
+    places.push({ map, blob, x, y, w, h, layer });
+    tiles.set(map, [x / PAINT_LAYER, y / PAINT_LAYER, w / PAINT_LAYER, h / PAINT_LAYER, layer]);
+  }
+  const light = paintTarget(PAINT_LAYER, layers, THREE.RedFormat);
+  const colour = paintTarget(PAINT_LAYER / 2, layers, THREE.RGFormat);
+  const upload = async (renderer: THREE.WebGLRenderer): Promise<void> => {
+    const map: { value: THREE.Texture | null } = { value: null };
+    const corner = { value: new THREE.Vector2() };
+    const pass = (fragmentShader: string) =>
+      new THREE.ShaderMaterial({
+        uniforms: { uMap: map, uCorner: corner },
+        vertexShader: SPLIT_VERTEX,
+        fragmentShader,
+        depthTest: false,
+        depthWrite: false,
+        blending: THREE.NoBlending,
+      });
+    const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), pass(SPLIT_LIGHT));
+    quad.frustumCulled = false;
+    const scene = new THREE.Scene().add(quad);
+    const camera = new THREE.OrthographicCamera();
+    const passes: [THREE.WebGLArrayRenderTarget, THREE.ShaderMaterial, number][] = [
+      [light, quad.material, 1],
+      [colour, pass(SPLIT_COLOUR), 0.5],
+    ];
+    // Into `target`'s `layer`, as the rest of the game left the renderer.
+    const draw = (target: THREE.WebGLArrayRenderTarget, layer: number) => {
+      const before = [renderer.getRenderTarget(), renderer.getActiveCubeFace(), renderer.getActiveMipmapLevel()] as const;
+      const autoClear = renderer.autoClear;
+      renderer.autoClear = false;
+      renderer.setRenderTarget(target, layer);
+      renderer.render(scene, camera);
+      renderer.setRenderTarget(...before);
+      renderer.autoClear = autoClear;
+    };
+    const decoding: (Promise<ImageBitmap | null> | null)[] = places.map(() => null);
+    const decode = (k: number) => {
+      if (k >= places.length) return;
+      decoding[k] = createImageBitmap(places[k].blob, { imageOrientation: 'none' }).catch((error) => {
+        console.warn(`Paint map ${places[k].map} did not decode`, error);
+        return null;
+      });
+    };
+    decode(0);
+    decode(1);
+    for (let k = 0; k < places.length; k++) {
+      const image = await decoding[k];
+      decoding[k] = null;
+      decode(k + 2);
+      if (!image) continue;
+      const { x, y, w, h, layer } = places[k];
+      if (image.width !== w || image.height !== h) console.warn(`Paint map ${places[k].map} is ${image.width}×${image.height}, not ${w}×${h}`);
+      const source = new THREE.Texture(image);
+      source.flipY = false;
+      source.generateMipmaps = false;
+      source.minFilter = source.magFilter = THREE.NearestFilter;
+      source.needsUpdate = true;
+      map.value = source;
+      for (const [target, material, scale] of passes) {
+        quad.material = material;
+        corner.value.set(x * scale, y * scale);
+        target.viewport.set(x * scale, y * scale, w * scale, h * scale);
+        draw(target, layer);
+      }
+      source.dispose();
+      image.close();
+    }
+    // The smaller copies, once all are in: made as a frame drawn into each ends, here with nothing in it.
+    map.value = null;
+    quad.visible = false;
+    for (const [target, material] of passes) {
+      target.texture.generateMipmaps = true;
+      draw(target, 0);
+      material.dispose();
+    }
+    quad.geometry.dispose();
+  };
+  return { light: light.texture, colour: colour.texture, tiles, upload };
 }
 
 const NIGHT_VERTEX = /* glsl */ `
 attribute vec2 aNightUv;
 attribute vec2 aNight;
-attribute vec2 aPaintUv;
 varying vec2 vNightUv;
 varying vec2 vNight;
-varying vec2 vPaintUv;
 `;
 
 const NIGHT_PARS = /* glsl */ `
 uniform sampler2D uNightMap;
-uniform sampler2D uPaintMap;
 varying vec2 vNightUv;
 varying vec2 vNight;
-varying vec2 vPaintUv;
 `;
 
 /** GLSL, after three's own lights: the lantern's baked light, the map's (stored as its square root)
@@ -287,21 +468,16 @@ if (uFireOn > 0.5) {
  * (`paint`, see loadPaintMaps) takes its colours from it where its aPaintUv points into it, and its
  * own colours where that is below nought.
  */
-function nightMaterial(map: THREE.Texture, paint: THREE.Texture): THREE.MeshToonMaterial {
+function nightMaterial(map: THREE.Texture, paint: PaintTextures | null): THREE.MeshToonMaterial {
   const material = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: sceneryRamp() });
   material.defines = { NIGHT_MAP: '' };
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uNightMap = { value: map };
-    shader.uniforms.uPaintMap = { value: paint };
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', `#include <common>\n${NIGHT_VERTEX}`)
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvNightUv = aNightUv;\nvNight = aNight;\nvPaintUv = aPaintUv;');
-    shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', `#include <common>\n${NIGHT_PARS}`)
-      .replace(
-        '#include <color_fragment>',
-        '#include <color_fragment>\nif (vPaintUv.x >= 0.0) diffuseColor.rgb = texture2D(uPaintMap, vPaintUv).rgb;',
-      );
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvNightUv = aNightUv;\nvNight = aNight;');
+    shader.fragmentShader = shader.fragmentShader.replace('#include <common>', `#include <common>\n${NIGHT_PARS}`);
+    if (paint) paintFrom(shader, paint);
     paintThatch(shader);
     paintWood(shader);
     fireLights(shader);
@@ -324,22 +500,23 @@ function addNight(geometry: THREE.BufferGeometry, source: THREE.BufferGeometry, 
   geometry.setAttribute('aNight', new THREE.BufferAttribute(night, 2));
 }
 
-/** A house's baked part's way into its painted texture (see nightMaterial): its second UVs moved to
- * its map's place among the maps, or below nought (its own colours) where it has none or a corner of
- * it points nowhere. */
-function addPaint(geometry: THREE.BufferGeometry, source: THREE.BufferGeometry, tile: [number, number, number, number] | undefined): void {
+/** A part's way into the props' painted textures (see paintFrom): its paint UVs (a baked house's
+ * second, `uv1`; a prop with no night's first, `uv`) moved to its map's place among the maps, with
+ * its layer; below nought (its own colours) where it has none or a corner of it points nowhere.
+ * Every part drawn painted has it, so they join into one mesh. */
+function addPaint(geometry: THREE.BufferGeometry, uv: THREE.BufferAttribute | THREE.InterleavedBufferAttribute | undefined,
+  tile: PaintTile | undefined): void {
   const count = geometry.getAttribute('position').count;
-  const at = new Float32Array(count * 2).fill(-1);
-  const uv = source.getAttribute('uv1');
+  const at = new Float32Array(count * 3).fill(-1);
   if (tile && uv) {
     for (let i = 0; i < count; i++) {
       const u = uv.getX(i);
       const v = uv.getY(i);
       if (u < 0 || v < 0) continue;
-      at.set([tile[0] + u * tile[2], tile[1] + v * tile[3]], i * 2);
+      at.set([tile[0] + u * tile[2], tile[1] + v * tile[3], tile[4]], i * 3);
     }
   }
-  geometry.setAttribute('aPaintUv', new THREE.BufferAttribute(at, 2));
+  geometry.setAttribute('aPaintUv', new THREE.BufferAttribute(at, 3));
 }
 
 /**
@@ -649,6 +826,8 @@ export class Props {
   readonly group = new THREE.Group();
   private readonly floaters: Floater[] = [];
   private readonly groups = new Map<string, Group>();
+  /** The rooms' insides drawn however far off they are: for the dev see-through test (see showAll). */
+  private drawAll = false;
   private readonly flames: THREE.Object3D[] = [];
   /** Where each flame, lit window and lantern is, for the firelight (see Firelight), with the room a
    * room's lantern lights, and each house's lantern's light out of its doorways and windows. */
@@ -658,6 +837,15 @@ export class Props {
   readonly mirrored: THREE.Sphere[] = [];
   /** Their pieces, by prop, for the copies (see load). */
   private readonly mirrorPieces = new Map<number, THREE.BufferGeometry[]>();
+  /** The drawing of the painted textures into their layers (see loadPaintMaps), until it is begun. */
+  paintUpload: ((renderer: THREE.WebGLRenderer) => Promise<void>) | null = null;
+
+  /** Draws the props' painted textures into place, once, before they are first drawn. */
+  async uploadPaint(renderer: THREE.WebGLRenderer): Promise<void> {
+    const upload = this.paintUpload;
+    this.paintUpload = null;
+    await upload?.(renderer);
+  }
 
   static async load(layout: Placed[], waterLevel: number): Promise<Props> {
     // A stall's goods stand in it, placed with it (after the layout's own, which keep their places
@@ -673,13 +861,16 @@ export class Props {
     // In the film look, where the lanterns light the island, the houses' lanterns' light baked into them.
     const maps = [...new Set([...models.values()].flatMap((m) => (m.info.night ? [m.info.night.map] : [])))];
     const nights = FILM && maps.length > 0 ? loadNightMaps(maps) : Promise.resolve(null);
-    // And the houses' painted textures, drawn over them in the film look with their night.
-    const paintMaps = [...new Set([...models.values()].flatMap((m) => (m.info.paint ? [m.info.paint.map] : [])))];
-    const paints = FILM && maps.length > 0 ? loadPaintMaps(paintMaps) : Promise.resolve(null);
+    // And the props' painted textures, the houses' and every other wooden thing's, drawn over them in
+    // the film look.
+    const paintMaps = new Map<string, PaintSize>();
+    for (const m of models.values()) if (m.info.paint) paintMaps.set(m.info.paint.map, m.info.paint.size);
+    const paints = FILM && paintMaps.size > 0 ? loadPaintMaps(paintMaps) : Promise.resolve(null);
     const painted = await signs;
     const night = await nights;
     const paint = await paints;
     const props = new Props();
+    props.paintUpload = paint?.upload ?? null;
     const labels: Label[] = [];
     const up = new THREE.Vector3(0, 1, 0);
 
@@ -745,7 +936,12 @@ export class Props {
         if (baked) {
           addNight(geometry, part.geometry, tile, lantern, gain);
           addGrain(geometry, part.geometry, matrix);
-          addPaint(geometry, part.geometry, model.info.paint ? paint?.tiles.get(model.info.paint.map) : undefined);
+        }
+        if (kind === 'baked' || kind === 'body') {
+          // Its painted wood: a baked house's second UVs, another prop's first; nought for the rest.
+          const paintable = part.role === 'body' || part.role === 'inside';
+          const uv = paintable ? (part.geometry.getAttribute('uv1') ?? (bake ? undefined : part.geometry.getAttribute('uv'))) : undefined;
+          addPaint(geometry, uv, model.info.paint ? paint?.tiles.get(model.info.paint.map) : undefined);
         }
         props.collect(key, level, kind, !UNLINED.has(p.kind), geometry);
         if (FILM && MIRRORED.has(p.kind) && kind === 'body' && level !== 'far') {
@@ -760,11 +956,11 @@ export class Props {
         }
       }
     });
-    props.build(night?.texture ?? null, paint?.texture ?? null);
+    props.build(night?.texture ?? null, paint);
     // The pier and the quay once more, a piece for each, drawn by the calm water's mirror alone (see
     // MIRRORED), shaded as they are: each has bounds of its own, so the mirror draws only the pieces
     // whose mirror images it could see.
-    const mirrorMaterial = toon();
+    const mirrorMaterial = toon(paint);
     for (const pieces of props.mirrorPieces.values()) {
       const mirror = new THREE.Mesh(mergeGeometries(pieces), mirrorMaterial);
       mirror.layers.set(MIRROR_LAYER);
@@ -836,10 +1032,10 @@ export class Props {
   /** Joins each group's pieces into a mesh per level and kind, outlined, and finds its bounds; the
    * houses' baked parts with `nights`, their night maps (see loadNightMaps), and `paints`, their
    * painted textures (see loadPaintMaps). */
-  private build(nights: THREE.Texture | null, paints: THREE.Texture | null): void {
+  private build(nights: THREE.Texture | null, paints: PaintTextures | null): void {
     const materials: Record<Kind, THREE.Material> = {
-      body: toon(),
-      baked: nights && paints ? nightMaterial(nights, paints) : toon(),
+      body: toon(paints),
+      baked: nights ? nightMaterial(nights, paints) : toon(paints),
       glow: glowMaterial(),
       pane: paneMaterial(PANE.clear, PANE.lit, PANE.bright),
       flame: flameMaterial(),
@@ -932,6 +1128,14 @@ export class Props {
     this.floaters.push({ object, y, phase: seed * 1.37 });
   }
 
+  /** Draws the rooms' insides however far off they are, from now (on), or as their distance says again
+   * from the next update (off): for the dev see-through test (see Stage.drawAll). */
+  showAll(on: boolean): void {
+    this.drawAll = on;
+    if (!on) return;
+    for (const group of this.groups.values()) for (const o of group.objects.get('inside') ?? []) o.visible = true;
+  }
+
   update(time: number, camera: THREE.Camera): void {
     const night = glowUniforms.uGlow.value > 0.5;
     for (const group of this.groups.values()) {
@@ -943,7 +1147,7 @@ export class Props {
           (level === 'near' && near) ||
           (level === 'far' && !near) ||
           (level === 'small' && d < SMALL_REACH) ||
-          (level === 'inside' && d < INSIDE_REACH) ||
+          (level === 'inside' && (d < INSIDE_REACH || this.drawAll)) ||
           (level === 'night' && night);
         for (const o of objects) o.visible = shown;
       }

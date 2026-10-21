@@ -7,6 +7,7 @@
  *   __dev.release()            return to normal play
  *   __dev.caveDark()           the forbidden cave's dark test: nothing in it lit with its lights out
  *   __dev.islandDark()         the island's dark test: nothing on it lit with all its lights out
+ *   __dev.seeThrough()         the see-through test: nothing drawn only near missing from an opening into it
  */
 import type { ActionId } from '../characters/Actions';
 import type { CharacterId, ExpressionId } from '../characters/types';
@@ -50,6 +51,12 @@ export interface DevApi {
   /** The island's dark test (see Stage.darkTest): every source of the island's light put out, and the
    * cave's (on), or lit again (off). */
   islandDark(on: boolean): void;
+  /** For the see-through test (see seeThrough): what is drawn only near (the forbidden cave's inside, the
+   * houses' rooms) drawn however far off it is (on), or as its distance says again (off). */
+  drawAll(on: boolean): void;
+  /** The houses' doorways and windows: each one's middle on the wall's outer face, the way out of it,
+   * and its half width and half height. */
+  houseOpenings(): { centre: [number, number, number]; out: [number, number, number]; half: [number, number] }[];
   /** The scene drawn again as it stands and read back, before the finishing passes: each pixel's light
    * and where in the world its surface is; and which pixels look out of the forbidden cave. */
   readScene(): SceneRead;
@@ -389,6 +396,61 @@ const litInCave = (read: SceneRead): Lit => litPixels(read, (i) => read.out[i] =
 /** What of the island shows lit: whatever is drawn (the sky is drawn only where nothing else is). */
 const litOnIsland = (read: SceneRead): Lit => litPixels(read, (i) => read.where[i * 4 + 3] > 0);
 
+/** How far off the see-through test looks at each opening: beyond where the houses' rooms are drawn (32 m,
+ * see Props) and beyond where their full models give way to their light ones (75 m); beyond where the
+ * forbidden cave's inside once stopped being drawn (45 m), and well beyond. And how much further than
+ * with everything drawn a pixel has to look to be a hole: further than across any room. */
+const SEE_THROUGH = { houses: [50, 90], cave: [50, 90, 140], hole: 6 };
+
+/**
+ * Views of every opening into something drawn only near, from beyond where it is (see seeThrough): the
+ * forbidden cave's mouth from out on the beach, square on and from either side; its skylight from high
+ * over it and from low on either side; and each house's doorways and windows from straight out of them.
+ */
+export function seeThroughViews(
+  cave: ReturnType<DevApi['cave']>,
+  houses: ReturnType<DevApi['houseOpenings']>,
+): Record<string, StagedShot> {
+  const views: Record<string, StagedShot> = {};
+  const look = (position: [number, number, number], target: [number, number, number]): StagedShot => ({
+    characters: {},
+    camera: { position, target, fov: 30 },
+    hour: 11,
+  });
+  const arch = cave?.info.arch;
+  if (arch) {
+    const [fx, fy, fz] = arch.foot;
+    const target: [number, number, number] = [fx, fy + arch.height / 2, fz];
+    const facing = Math.atan2(arch.facing[1], arch.facing[0]);
+    for (const d of SEE_THROUGH.cave) {
+      for (const side of [-35, 0, 35]) {
+        const a = facing + (side * Math.PI) / 180;
+        views[`mouth ${d}m ${side}deg`] = look([fx + Math.cos(a) * d, target[1] + 2 + d * 0.12, fz + Math.sin(a) * d], target);
+      }
+    }
+  }
+  const well = cave?.info.well;
+  if (well) {
+    const [x, y, z] = well.top;
+    for (const d of SEE_THROUGH.cave) {
+      for (const [up, around] of [[80, 0], [45, 0], [45, 180]]) {
+        const e = (up * Math.PI) / 180;
+        const a = (around * Math.PI) / 180;
+        views[`skylight ${d}m ${up}deg up ${around}deg round`] = look(
+          [x + Math.cos(e) * Math.cos(a) * d, y + Math.sin(e) * d, z + Math.cos(e) * Math.sin(a) * d],
+          [x, y, z],
+        );
+      }
+    }
+  }
+  houses.forEach((h, i) => {
+    const [cx, cy, cz] = h.centre;
+    const [ox, , oz] = h.out;
+    for (const d of SEE_THROUGH.houses) views[`house opening ${i} ${d}m`] = look([cx + ox * d, cy + 1.5 + d * 0.08, cz + oz * d], [cx, cy, cz]);
+  });
+  return views;
+}
+
 export function installDevTools(api: DevApi): void {
   const ui = document.getElementById('ui');
   /** A dark test: each of `views` at each of `hours`, drawn with `dark` on and read back, and what
@@ -485,6 +547,63 @@ export function installDevTools(api: DevApi): void {
      */
     islandDark(hours = [22.5, 11]) {
       return darkTest(ISLAND_VIEWS, hours, api.islandDark, litOnIsland);
+    },
+    /**
+     * The see-through test: whether anything drawn only near leaves a hole where it should show, as the
+     * forbidden cave's mouth and skylight once showed the sky through the island from afar. Each opening
+     * into something drawn only near (seeThroughViews; `only` keeps the views whose names start with it)
+     * is looked at from beyond that distance and drawn twice, as the game draws it and with everything
+     * drawn (DevApi.drawAll), and read back. A pixel that looks more than SEE_THROUGH.hole further as the
+     * game draws it is a hole, onto what lies beyond (`holes`, and where: `box`, in the picture's pixels
+     * from its top left); one that only differs is something left out in front of what is still there
+     * behind it, such as a room's things beyond its doorway (`missing`). Passes when no view has a
+     * hole. Run it after any change to what is drawn only near, or how near.
+     */
+    seeThrough(only = '') {
+      const found: Record<string, { holes: number; missing: number; box: [number, number, number, number] | null }> = {};
+      const views = Object.entries(seeThroughViews(api.cave(), api.houseOpenings())).filter(([name]) => name.startsWith(only));
+      for (const [name, view] of views) {
+        api.stage(view);
+        api.renderNow(0.6);
+        // A step with the camera where the view puts it decides what is drawn, as in play.
+        api.renderNow(1 / 60);
+        const shown = api.readScene();
+        api.drawAll(true);
+        let all: SceneRead;
+        try {
+          all = api.readScene();
+        } finally {
+          api.drawAll(false);
+        }
+        const [cx, cy, cz] = view.camera.position;
+        const far = (where: Float32Array, i: number) =>
+          where[i + 3] === 0 ? Infinity : Math.hypot(where[i] - cx, where[i + 1] - cy, where[i + 2] - cz);
+        const { width, height } = shown;
+        let holes = 0;
+        let missing = 0;
+        let box: [number, number, number, number] | null = null;
+        for (let i = 0; i < shown.colour.length; i += 4) {
+          const beyond = far(shown.where, i) - far(all.where, i);
+          if (beyond > SEE_THROUGH.hole) {
+            holes++;
+            const x = (i / 4) % width;
+            const y = height - 1 - Math.floor(i / 4 / width);
+            box = box ? [Math.min(box[0], x), Math.min(box[1], y), Math.max(box[2], x), Math.max(box[3], y)] : [x, y, x, y];
+          } else if (
+            Math.abs(shown.colour[i] - all.colour[i]) + Math.abs(shown.colour[i + 1] - all.colour[i + 1]) +
+              Math.abs(shown.colour[i + 2] - all.colour[i + 2]) > 0.02
+          ) {
+            missing++;
+          }
+        }
+        found[name] = { holes, missing, box };
+      }
+      api.release();
+      if (ui) ui.style.display = '';
+      const failed = Object.entries(found)
+        .filter(([, v]) => v.holes > 0)
+        .map(([k]) => k);
+      return { pass: failed.length === 0, failed, views: found };
     },
   };
   (window as unknown as { __dev: typeof tools }).__dev = tools;

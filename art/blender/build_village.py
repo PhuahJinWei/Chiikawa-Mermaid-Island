@@ -456,7 +456,15 @@ def make_stall(colour):
             pieces.append((L.ellipsoid_bm(V(x, -d + 0.3, z), (0.075, 0.075, 0.07), u=8, v=5),
                            L.hex_color(LANTERN_COLOURS[k % len(LANTERN_COLOURS)])))
         # Its boxes lit as flat faces, its round posts and lanterns smooth.
-        body = join(f"stall_{colour}", pieces, collection, sharp=P.SHARP)
+        # Its wood painted as 島二郎's is: the posts, the roof, the floor and the counter's top bare;
+        # the stripes, the counter, its frame, the trim and the menu tags painted, worn at their edges.
+        import houses as H
+        import paintmap as PM
+        painter = PM.Painter(f"stall_{colour}")
+        body = painter.join(f"stall_{colour}", pieces, collection, sharp=P.SHARP, grained=False,
+                            auto=H.wood_auto(True, bare=(C["post"], C["plank"], C["plankLight"]),
+                                             painted=(*style["inside"], style["counter"], style["trim"], frame,
+                                                      C["white"]), palette=False))
         board = join(f"stall_{colour}_board", header, collection)
         # Its faces flat, as the sign laid on its front is, so the two are lit alike and a sign
         # painted solid meets the board round it unseen.
@@ -484,6 +492,7 @@ def make_stall(colour):
                 "labels": [{"size": list(STALL_LABEL), "colour": words},
                            {"size": list(STALL_LABEL), "colour": words, "repeat": 0},
                            {"size": list(STALL_LABEL), "colour": words, "repeat": 0}]}
+        info.update(painter.finish(P.OUT_MODELS))
         return [body, board] + faces, info
     return build
 
@@ -523,12 +532,17 @@ def build_pier(collection):
             # segment_bm overshoots each end by 2% of its length; the cut top sits on its end.
             pieces.append((P.disc_bm(V(x, y, top + 0.02 * (top + 4.0) + 0.003), UP, 0.13, 12), C["postTop"]))
         pieces.append((P.box_bm(V(0.0, y, -0.4), (PIER_WIDTH + 0.2, 0.18, 0.18)), C["plankDark"]))
-    body = join("pier", pieces, collection, sharp=P.SHARP)
+    # Its planks, beams and posts painted as 島二郎's wood is, the posts' cut tops left pale.
+    import houses as H
+    import paintmap as PM
+    painter = PM.Painter("pier")
+    body = painter.join("pier", pieces, collection, sharp=P.SHARP, grained=False,
+                        auto=H.wood_auto(True, bare=(C["plank"], C["plankDark"], C["plankLight"], C["post"]), palette=False))
     # The deck to walk on stops a little short of the planks' edges and of the pier's end, so no one
     # stands half off them.
     reach = PIER_LENGTH - 0.35
     info = {"decks": [{"box": [0.0, reach / 2, PIER_WIDTH / 2 - 0.35, reach / 2], "top": 0.0}],
-            "height": 0.5}
+            "height": 0.5, **painter.finish(P.OUT_MODELS)}
     return [body], info
 
 

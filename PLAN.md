@@ -120,7 +120,11 @@ silent, the game will clearly be our own interpretation.
   - 60 fps target, 30 fps floor.
   - ≤ 150 draw calls per frame.
   - ≤ 150k triangles visible.
-  - ≤ 64 MB GPU texture memory.
+  - ≤ 64 MB GPU texture memory. Measured 2026-10-21 at about 150 MB: the painted wood 72 MB
+    (its light whole, its colour at half size), the island's ground map 21 MB, the cast's
+    faces about 22 MB, the signs' words 11 MB. The models' vertices take about 100 MB on the
+    GPU (kept there alone once drawn): 72 MB for everything but the understory, which is put
+    together only near the camera (about 30 MB of it, at most 43, of 176 for all of it).
   - First load about 5 MB compressed, then cached by the service worker: a soft target, judged by
     how long the first visit takes on a real phone over mobile data (M7). Since 2026-10-20 every
     model is compressed and a first visit downloads about 8 MB, mostly the jungle; loading the far
@@ -281,7 +285,7 @@ cheaper bob-only animation so phones stay smooth.
 
 | Character | Role on the island | Build notes |
 |---|---|---|
-| **Player** (nameless islander) | You. Lives here. | Grey-mauve islander body. Player picks the head style (round, cat or bunny ears, or a spike; never leaves, which are Hitoha's and Futaba's alone) and crown colour. |
+| **Player** (nameless islander) | You. Lives here. Seen out of your own eyes, and only in the water. | Grey-mauve islander body. Player picks the head style (round, cat or bunny ears, or a spike; never leaves, which are Hitoha's and Futaba's alone) and crown colour. Until then: round ears and the crowd's grey crown. |
 | **Chiikawa** | Visiting guest. Anxious, kind, cries easily. | Warm white, two small round ears, pink crown. Most expression variants. |
 | **Hachiware** | Visiting guest. Cheerful, curious, talkative. | Warm white, blue cap with pointed cat ears, pale blue crown, blue tail tuft. |
 | **Usagi** | Visiting guest. Chaotic, loud, loves food. | Pale yellow, tall pink-lined ears, yellow crown. Often holds a torch. Appears where food is. |
@@ -383,8 +387,13 @@ with M2.
 
 ### 6.1 Controls (portrait, one thumb)
 
-- **Left half of screen:** virtual joystick appears where you touch. Move.
-- **Right half, drag:** orbit camera.
+- **The view (since 2026-10-21):** out of your own eyes. You see yourself
+  only in the calm water. The follow camera from behind stays in the Test
+  panel, for testing.
+- **Left half of screen:** virtual joystick appears where you touch. Move
+  the way you look.
+- **Right half, drag:** look around; pinch narrows the view toward the
+  film's lens.
 - **Context button (bottom right):** changes meaning by situation — Talk,
   Pick up, Sit, Jump.
 - **Tap an NPC:** walk to them and talk.
@@ -532,9 +541,10 @@ src/
   core/
     Game.ts            * owns scene, loop, resize, visibility handling
     Input.ts           * touch joystick, camera drag, pinch, keyboard
-    CameraRig.ts       * follow and orbit camera
+    FirstPersonCamera.ts* the game's camera: out of your own eyes
+    CameraRig.ts       * follow and orbit camera, for testing (the Test panel's third person, the lineup)
     FreeCamera.ts      * development: a camera that flies anywhere, from the Test panel
-    Settings.ts        * character choice, saved locally
+    Settings.ts        * whose eyes you look out of, saved locally
     toon.ts            * shared toon light ramp
     Save.ts            versioned save game
   i18n/

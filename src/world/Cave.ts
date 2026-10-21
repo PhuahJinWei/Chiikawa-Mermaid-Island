@@ -888,6 +888,12 @@ export class Cave {
   private kept: { ambient: THREE.Color; floor: THREE.Color; lake: THREE.Color } | null = null;
   private readonly motes: THREE.Points;
   private readonly bounds: THREE.Box3;
+  /** Where the cave can be seen into from outside, round each of its openings: its mouth's arch and the
+   * skylight's well (see seen). */
+  private readonly openings: THREE.Sphere[] = [];
+  /** Drawn however far off it is and wherever the camera looks: for the dev see-through test (see
+   * Stage.drawAll). */
+  drawAll = false;
   /** The lights moving or burning in the cave this frame: where each is and how far it reaches. */
   private readonly lights = Array.from({ length: CAVE_LIGHTS }, () => new THREE.Vector4());
   /** The foam whoever wades in the cave's water makes in it, kept by the stage (see Stage.setWaders). */
@@ -962,6 +968,15 @@ export class Cave {
       new THREE.Vector3(origin[0], info.water - 4, origin[1]),
       new THREE.Vector3(origin[0] + cell * size[0], info.dome.top + 1, origin[1] + cell * size[1]),
     );
+    if (info.arch) {
+      const { foot, half, height } = info.arch;
+      this.openings.push(new THREE.Sphere(new THREE.Vector3(foot[0], foot[1] + height / 2, foot[2]), Math.hypot(half, height / 2) + 1));
+    }
+    if (info.well) {
+      const [x, top, z, r] = info.well.top;
+      const foot = info.well.foot[1];
+      this.openings.push(new THREE.Sphere(new THREE.Vector3(x, (top + foot) / 2, z), Math.hypot(r, (top - foot) / 2) + 1));
+    }
     caveLight.uTorchColour.value[1].copy(FIRE_COLOUR);
     caveLight.uLakeAt.value.set(info.dome.centre[0], info.water, info.dome.centre[1]);
   }
@@ -1141,11 +1156,10 @@ export class Cave {
 
   /**
    * Each frame: the torch carried through the cave (where its flame is, or null), the boat's (or
-   * null), the fire's flicker; and whether the camera is near enough to see any of it.
+   * null), the fire's flicker; and whether the camera can see any of it (see seen).
    */
   update(time: number, camera: THREE.Camera, torch: THREE.Vector3 | null, boatTorch: THREE.Vector3 | null): void {
-    const near = this.bounds.distanceToPoint(camera.position) < 45;
-    this.group.visible = near;
+    this.group.visible = this.seen(camera);
     const flicker = (k: number) => 0.9 + 0.06 * Math.sin(time * 9.1 + k) + 0.04 * Math.sin(time * 23.7 + k * 2.3);
     const lights = caveLight.uTorch.value;
     const colours = caveLight.uTorchColour.value;
@@ -1183,6 +1197,20 @@ export class Cave {
     if (Math.hypot(x - mx, z - mz) < LOOK_OUT) return null;
     const [cx, cz] = this.info.dome.centre;
     return { x: cx, z: cz, r: SKYLIGHT_VIEW };
+  }
+
+  /**
+   * Whether the camera can see into the cave: from near it, or through its mouth or the skylight's
+   * opening, wherever they are in its view. From outside it shows only through them, but from any way
+   * off: drawn only within 45 m of it, it had left them open onto the sky through the rock and the
+   * ground beyond that. Drawn from afar it costs little (on the dev PC, 2026-10-21, 0.07 ms from the
+   * beach, 0.11 over the skylight, 0.37 over the whole island, all within the timings' noise).
+   */
+  private seen(camera: THREE.Camera): boolean {
+    if (this.drawAll || this.bounds.distanceToPoint(camera.position) < 45) return true;
+    camera.updateMatrixWorld();
+    _frustum.setFromProjectionMatrix(_view.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
+    return this.openings.some((opening) => _frustum.intersectsSphere(opening));
   }
 
   /** Whether (x, y, z) is in the cave or in the rock round it, under its roof (as the free camera can
@@ -1278,6 +1306,8 @@ export class Cave {
 }
 
 const _fire = new THREE.Vector3();
+const _frustum = new THREE.Frustum();
+const _view = new THREE.Matrix4();
 const _terms = new THREE.Vector3();
 const _bounce = new THREE.Color();
 /** The flames burning in the cave (see caveFlameMaterial). */

@@ -489,9 +489,67 @@ outlined is drawn twice, once for its pen line. To get there:
   timer (the median of about 18 frames drawn back to back): at 1920 x 1200
   a frame takes 26 ms against 45 (the scene alone about 20, so the passes
   went from about 25 ms to 6); at 1105 x 781, 12.5 ms against 18.7.
+- Once the graphics card has the island's shapes, the page lets go of its
+  own copy of them: the plants, the props, the rocks and the cave, some
+  240 MB of vertices that had been held twice (`releaseOnUpload` in
+  `src/world/Stage.ts`). Nothing reads them after the island is built;
+  each mesh's bounds are worked out first, and a mesh first drawn later
+  lets go of its copy then. Once the island had been looked round, the
+  page's memory was about 120 MB where it had been about 290, and the
+  views drawn before and after are the same to the pixel. As the
+  graphics card's copy is then all there is, a lost GPU context (a phone
+  taking the graphics back) starts the game again, rather than going on
+  without the island's shapes and the painted wood.
+- The understory is put together only near the camera. Its 11,549 plants
+  are copies of 58 shapes, and joined into their patches all at once they
+  were 3.7 million vertices, 176 MB on the graphics card, of which the
+  camera only ever draws a few patches (within 34 m). Each patch is now
+  put together from the shapes once the camera comes within 6 m of its
+  reach, a few thousand vertices a frame (about a third of a millisecond
+  on the dev PC), and let go of again 12 m beyond it: running through the
+  village, the jungle, the waterfall's clearing and along the river and
+  back held 29 MB of it on average and 43 MB at most, with nothing to put
+  together all at once after the first frame. The patches are joined
+  exactly as before, to the bit, so they draw the same and cost the same
+  to draw: eight views of the plants by day, dusk and night match those
+  from before to the pixel, but for a few pixels of the noise between page
+  loads. The plants load in 0.74 s, against 0.90. Drawing every copy from its shape in one batch (three's
+  BatchedMesh) was tried first: 2 MB, but on the festival street each
+  frame took 2 to 3 ms more of the graphics card, the browser drawing each
+  copy on its own.
 
 **Changed**
 
+- The game is seen out of your own eyes (the user, 2026-10-21): you are a
+  nameless islander, as the plan has it, standing on the pier as the game
+  starts, the cast gathered under the welcome arch before you, where you
+  had played Chiikawa from behind. You see yourself only in the calm
+  water's mirror, faintly as it mirrors everything; looking down while you
+  wade, that is a smear of your skirt from below, as real water would show
+  it. Your shadow stays on the ground under you, and what you hold, an
+  onigiri as you eat, shows before you. Your eyes go with your jumps and
+  falls exactly and ease up and down steps and over your walk's bob; they
+  keep under the forbidden cave's roof where it hangs low over a jump.
+  - The lens is wider than the film's: 78° tall on an upright phone (41°
+    across, as much as its own camera shows), 60° on a wide screen (85°
+    across); the film's 30° on an upright phone sees 14° across, too little
+    to walk by. Pinching or the wheel narrows it toward the film's lens and
+    back; a drag turns the view less the narrower it is. The Test panel's
+    カメラをもどす levels your gaze and opens the lens again.
+  - The depth of field softens only what is within about half a metre of
+    your eyes, so the ground at your feet stays sharp; the pen is at its
+    sharpest 3 metres ahead, about where those you meet stand.
+  - You stop a little short of touching anyone you walk up to, and slide
+    round them, where you had walked through them: your eyes would have
+    passed into their heads. The follow camera's character stops the same
+    way.
+  - Measured against the follow camera from the same spots (the pier, the
+    festival street, the village, the jungle path): 5 to 10% more
+    triangles drawn and up to 14 more draw calls, 143 at the pier.
+  - The follow camera from behind stays for testing, as 三人称カメラ in the
+    Test panel; the lineup, the free camera and the staged film shots use
+    it as before. The panel's character chips put you in anyone's eyes,
+    じぶん (you) among them.
 - The forbidden cave is a hidden place, as in the film. Its skylight, the
   round opening in the spur's top over the cave's sea, is smaller (13
   metres across where it was 21) and lies deep in the spur's jungle, about
@@ -1713,6 +1771,43 @@ outlined is drawn twice, once for its pen line. To get there:
   19:36 and out from 4:36 to 5:36. The waterfall's clearing stays darker
   than the film's moonlit pond at 22:30: the moon, high in the south,
   only grazes its cliff.
+- Every wooden thing on the island is painted as 島二郎's wood is (the user,
+  2026-10-21), where it had been a flat colour with a faint streak: the
+  guest houses and the villagers' huts inside and out, the village's stage,
+  its torches and palisade, the fallen logs, the festival's arch and its
+  stalls, the pier, the bay's quay, the cave's sign and the sign hung over
+  島二郎's path. Bare wood has its grain, knots, nails with rust under them,
+  darker edges and ends; out in the weather greyer patches, damp at its foot
+  and, on logs, cracks where they dried. Painted wood (the boarded sides,
+  the gables and their chevrons, the orange shingles, the stalls' stripes,
+  counters and trim, the cream boards) has its paint worn through to the
+  wood at its edges and corners; bark is furrowed plates with moss and
+  lichen. The logs' sawn ends, the pen's lines along the planks, thatch,
+  cloth and metal keep their own colours.
+  - `art/blender/paintmap.py` now fits a patch to any piece of wood a
+    builder makes: a box for a plank, post or board, its grain along it; a
+    log unrolled round its length, bent ones along their middles. Only what
+    shows is painted: a face pressed to another (a plank's back on the wall,
+    the half of a log inside the room's own logs) takes no room in the map.
+    The houses' palette names which colours are wood, bare or painted
+    (`wood_auto` in `art/blender/houses.py`). Each prop's map is the smallest
+    that holds its wood at 90 texels a metre (the houses' at 80 to 85, which
+    is as much as fits a 2048 map); the two stilt huts share theirs.
+  - The game holds each map as its light, whole, and its colour at half
+    its size, as its WebP file stores it: two textures of layers, 2048 and
+    1024 texels square, which the graphics card fills from each map as it
+    is decoded, two at a time, before the first frame (`loadPaintMaps` in
+    `src/world/Props.ts`). It paints the props that are not baked houses
+    with them too.
+  - 20 maps, 1.8 MB in all, about 1.5 MB more to download than before (the
+    shop's was there). On the graphics card they take 72 MB with their
+    smaller copies, where whole colour would take 192 MB, against a phone
+    budget of 64 MB for every texture in the game. To the eye they are the
+    same: the maps' texels differ from their files by 0.4 in 255 on
+    average, and the game's views by under half a step. Loading peaks at
+    about 120 MB for them, where decoding every map at once took about
+    340 MB, in about the same time (0.3 s on the dev PC).
+  - No faces flicker in any of them; the island's dark test passes.
 
 **Removed**
 
@@ -1854,6 +1949,21 @@ outlined is drawn twice, once for its pen line. To get there:
   river's deep turquoise fades into the shallows as at a river's mouth
   onto a beach, and the shelf can still be waded across, the only way on
   foot to 島二郎 since the rockfall. The jungle stands as it was.
+- The forbidden cave's mouth and skylight no longer open onto the sky
+  through the island from afar. The cave's inside was drawn only within
+  45 metres of it, while the openings into it, cut through the outcrop's
+  rock and the spur's ground, are drawn from anywhere: from further off,
+  the mouth showed the pale rock beyond it and the skylight a disc of sky.
+  The cave is now drawn whenever its mouth or its skylight is in the
+  camera's view, however far off, and not otherwise; from afar it costs a
+  few tenths of a millisecond at most on the dev PC, within the timings'
+  noise. A new dev test, `__dev.seeThrough()`, looks into every opening
+  into something drawn only near (the cave's mouth and skylight, every
+  house's doorways and windows, 120 views) from beyond where its inside
+  stops being drawn, and fails on any hole onto what lies beyond: with the
+  old rule it found the cave's, and now finds none. Through one open
+  doorway a room's things still show only within 32 metres, as every
+  room's do, the room behind them empty from further off.
 - Every beach's waterline is drawn smooth. Seen from above, the sand met
   the shallows in short straight pieces with a corner about every metre,
   where the heights between the grid's points were blended four at a time.

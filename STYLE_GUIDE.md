@@ -142,6 +142,15 @@ never pushed, because it is other people's artwork.
   nothing still lit in its views by night and by day, and
   `__dev.caveDark()` does the same in the cave; run both after any change
   to how anything is drawn or lit.
+- **What an opening shows is there from any way off.** Whatever is drawn
+  only near (the forbidden cave's inside, the houses' rooms) is drawn
+  whenever an opening into it can be seen, or stands behind something that
+  hides it from there (a window's pane, which turns opaque beyond the rooms'
+  reach): never a hole through the rock or the ground onto what lies
+  beyond, as the cave's mouth and skylight once showed from afar. In
+  development `__dev.seeThrough()` looks into every such opening from
+  beyond where its inside stops being drawn and fails on any hole; run it
+  after any change to what is drawn only near, or how near.
 - **Everyone is a round blob.** Head and body are one soft shape, wider at
   the head, with tiny stub arms and almost invisible feet. Heights are close
   to one head tall. This is a gift for procedural modelling.
@@ -355,9 +364,18 @@ Scale unit: **1 = Chiikawa's height.**
   room from hooks, before the window opposite the door. The film lays
   white futons out on the floor at night; the game's rooms are left empty
   but for the hammock.
-- The wood is painted with its grain: streaks along each log, board and
-  plank, a few lighter ones and the odd small knot; plain on the pale
-  logs outside but for a faint streak, clear on the dark wood inside.
+- The wood is painted as 島二郎's is, all over the island: grain streaking
+  along each log, board and plank, finer lines among them and a few
+  lighter ones, knots with the grain swirling round them, nail heads with
+  rust under them on the planks, darker long edges and ends; out in the
+  weather greyer, paler patches, damp toward its foot and cracks along the
+  logs where they dried. Painted wood (the boarded sides, the gables, the
+  stalls' stripes and counters, the cream sign boards) has its paint worn
+  through to the wood along its edges, at its corners and here and there,
+  a dark rim round each bare patch. Bark (the fallen logs, the stage's
+  palisade, the branch the sign hangs from) is long ridged plates split by
+  dark furrows, moss and pale lichen on it. The logs' sawn ends stay pale
+  and ringed, as drawn. Never a flat colour on anything made of wood.
 - Lots of greenery right round them: banana plants, flowering bushes
   (pink, purple, red), monstera, ferns, palms over them; a path of packed
   earth past their doors.

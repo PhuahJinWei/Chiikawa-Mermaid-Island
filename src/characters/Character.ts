@@ -176,10 +176,18 @@ export class Character implements EmoteHost {
   facing = 0;
   /** The face shown when no action is playing (the Test panel's choice); null for neutral. */
   expressionOverride: ExpressionId | null = null;
+  /** The way they face whichever way they walk: where you look, out of their eyes (see
+   * FirstPersonCamera); null to face the way they walk. */
+  look: number | null = null;
 
   private readonly model: CharacterModel;
   private readonly poseGroup = new THREE.Group();
   private readonly mesh: THREE.Mesh;
+  /** The pen's hull round the body. */
+  private readonly outline: THREE.Mesh;
+  /** Whether the camera looks out of their eyes, so that they show only in the calm water's mirror
+   * (see setUnseen). */
+  private unseen = false;
   private readonly uniforms: CharacterUniforms;
   private readonly parts: THREE.Matrix4[];
   private readonly shadow: THREE.Mesh;
@@ -236,9 +244,14 @@ export class Character implements EmoteHost {
   private readonly base = restPose();
   private readonly target = restPose();
 
+  // Out of their own eyes no one sees the marks and words over their own head.
   private readonly actionCtx: ActionContext = {
-    emote: (kind, side) => this.emotes?.spawn(kind, this, side ?? 1),
-    say: (key) => this.emotes?.say(this, t(key)),
+    emote: (kind, side) => {
+      if (!this.unseen) this.emotes?.spawn(kind, this, side ?? 1);
+    },
+    say: (key) => {
+      if (!this.unseen) this.emotes?.say(this, t(key));
+    },
   };
 
   /** `prop` is the hand-held item shown by actions that use one (the onigiri). */
@@ -258,8 +271,8 @@ export class Character implements EmoteHost {
     }
     const { body, outline } = createCharacterMaterials(this.uniforms);
     this.mesh = new THREE.Mesh(model.geometry, body);
-    const outlineMesh = new THREE.Mesh(model.geometry, outline);
-    this.poseGroup.add(this.mesh, outlineMesh);
+    this.outline = new THREE.Mesh(model.geometry, outline);
+    this.poseGroup.add(this.mesh, this.outline);
     if (options.outfit) {
       // A separate asset, drawn with the wearer's own deformation so it moves with them.
       const mats = createCharacterMaterials(makeOutfitUniforms(this.uniforms, options.outfit.info), {
@@ -322,6 +335,21 @@ export class Character implements EmoteHost {
         const m = o as THREE.Mesh;
         if (m.isMesh && (m.material as THREE.Material).side !== THREE.BackSide) m.layers.enable(MIRROR_LAYER);
       });
+    }
+  }
+
+  /**
+   * Whether the camera looks out of their eyes. Then it draws none of them (layer 0 is the camera's):
+   * not their body, their lines nor their outfit, which only the calm water's mirror shows
+   * (MIRROR_LAYER); nor the marks and words over their head. Their shadows stay on the ground under
+   * them, and what they hold in their hands, in view.
+   */
+  setUnseen(on: boolean): void {
+    if (on === this.unseen) return;
+    this.unseen = on;
+    for (const o of [this.mesh, this.outline, ...(this.outfit?.children ?? [])]) {
+      if (on) o.layers.disable(0);
+      else o.layers.enable(0);
     }
   }
 
@@ -462,7 +490,8 @@ export class Character implements EmoteHost {
     this.accel.z += ((this.velocity.z - prevZ) * inv - this.accel.z) * k;
 
     const speed = this.speed();
-    if (speed > 0.15) this.targetFacing = Math.atan2(this.velocity.x, this.velocity.z);
+    if (this.look !== null) this.targetFacing = this.look;
+    else if (speed > 0.15) this.targetFacing = Math.atan2(this.velocity.x, this.velocity.z);
     this.facing += wrapAngle(this.targetFacing - this.facing) * Math.min(1, dt * 10);
 
     const run = smoothstep(this.def.walkSpeed * 0.95, this.def.runSpeed * 0.9, speed);

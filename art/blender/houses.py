@@ -2030,10 +2030,14 @@ def build_stilt_hut(name, pattern, collection):
     far += [w.far(pattern[0]) for w in walls]
     far.append((P.box_bm(V(0.0, (porch + yo) / 2, floor / 2 - 0.1), (2 * xo, yo - porch, floor + 0.2)), C["logDark"]))
 
-    body = join_grained(name, pieces, collection, sharp=P.SHARP)
+    # Its wood painted as 島二郎's is (see wood_auto); the stilt huts' wood is all alike, whatever their
+    # walls' colours, so they share one painted map.
+    import paintmap as PM
+    painter = PM.Painter("hut_stilt")
+    body = painter.join(name, pieces, collection, sharp=P.SHARP, auto=wood_auto(True))
     lights = P.join(f"{name}_lamp", glow, collection)
     glass = P.join(f"{name}_pane", panes, collection)
-    room = join_grained(f"{name}_inside", inside, collection, sharp=P.SHARP)
+    room = painter.join(f"{name}_inside", inside, collection, sharp=P.SHARP, auto=wood_auto(False))
     distant = P.join(f"{name}_far", far, collection, sharp=P.SHARP)
     under = floor - 0.25
     blocks = [
@@ -2056,6 +2060,7 @@ def build_stilt_hut(name, pattern, collection):
     decks = [deck_box(-xo + 0.1, xo - 0.1, porch, yi, floor), deck_box(-0.62, 0.62, stairs_end, porch, floor, 0.02)]
     info = {"blocks": blocks, "decks": decks, "height": round(eave + 5.3, 3), "openings": openings_of(walls)}
     info.update(bake_night(name, [body, room], lights, info["openings"]))
+    info.update(painter.finish(P.OUT_MODELS))
     return [body, lights, glass, room, distant], info
 
 
@@ -2105,10 +2110,13 @@ def build_plank_hut(name, collection):
     pieces.append(hip_roof(*roof, hole=((-xo + t / 2, xo - t / 2), (-yo + t / 2, yo - t / 2))))
     far = [hip_roof(*roof, subdivide=False)]
     far += [w.far(C["plank"]) for w in walls]
-    body = join_grained(name, pieces, collection, sharp=P.SHARP)
+    # Its wood painted as 島二郎's is (see wood_auto).
+    import paintmap as PM
+    painter = PM.Painter(name)
+    body = painter.join(name, pieces, collection, sharp=P.SHARP, auto=wood_auto(True))
     lights = P.join(f"{name}_lamp", glow, collection)
     glass = P.join(f"{name}_pane", panes, collection)
-    room = join_grained(f"{name}_inside", inside, collection, sharp=P.SHARP)
+    room = painter.join(f"{name}_inside", inside, collection, sharp=P.SHARP, auto=wood_auto(False))
     distant = P.join(f"{name}_far", far, collection, sharp=P.SHARP)
     blocks = [
         block_box(-xo, xo, yi, yo, -10, eave), block_box(-xo, -door, -yo, -yi, -10, eave),
@@ -2121,6 +2129,7 @@ def build_plank_hut(name, collection):
     decks = [deck_box(-xo + 0.1, xo - 0.1, step, yi, floor), deck_box(-0.8, 0.8, ramp_end, step, floor, 0.02)]
     info = {"blocks": blocks, "decks": decks, "height": roof[6], "openings": openings_of(walls)}
     info.update(bake_night(name, [body, room], lights, info["openings"]))
+    info.update(painter.finish(P.OUT_MODELS))
     return [body, lights, glass, room, distant], info
 
 
@@ -2129,7 +2138,7 @@ def build_plank_hut(name, collection):
 # its long sides boarded and painted a grey green, and a tan-shingled one with a pale green gable and
 # log sides; each gable patterned with chevrons.
 GUEST_STYLES = {
-    "orange": {"roof": "#D98A4B", "gable": "#F4E4B4", "chevron": "#FFF8E2", "sides": "boards"},
+    "orange": {"roof": "#D98A4B", "gable": "#F4E4B4", "chevron": "#FFF8E2", "sides": "boards", "roof_paint": True},
     "tan": {"roof": "#B39469", "gable": "#DCEBC0", "chevron": "#F2F8E2", "sides": "logs"},
 }
 
@@ -2145,6 +2154,54 @@ def gltf_axis(v):
     """A direction in Blender's frame as the glTF file holds it, y up: the exporter turns positions and
     normals into that frame but writes custom attributes as they are."""
     return (float(v.x), float(v.z), -float(v.y))
+
+
+# The palette's wood, for the painted textures (see paintmap.Painter and wood_auto), as the film paints
+# 島二郎's: bare wood with its grain, knots, nails and weather; painted wood with its paint worn
+# through to the wood. Not the pen's lines drawn along the planks, nor the logs' pale cut ends, which
+# keep their own colours.
+BARE_WOOD = ("log", "logDark", "plank", "inside", "floor", "frame", "torch", "guestLog", "guestLogDark", "guestDoor",
+             "guestDoorFrame", "guestInLog", "guestFloor", "guestRoofIn", "guestRafter", "shutter", "hutDoor", "hutLog",
+             "hutFloor", "hutCeiling", "hutRafter", "bedFrame", "stump", "counterTop", "cuttingBoard", "spoon", "shelf",
+             "shelfDark", "chest", "chestTop")
+PAINTED_WOOD = ("board", "boardEdge", "guestBoard", "cabinet", "cabinetPanel", "cabinetLight")
+# How wood out in the weather is painted, and in a room.
+OUT_WOOD = {"weather": 0.45, "damp": 0.5, "checks": 0.25}
+IN_WOOD = {"knots": 2}
+
+
+def wood_auto(outside, bare=(), painted=(), coarse=(), palette=True):
+    """What a Painter's join paints (see paintmap.Painter): a piece of the palette's painted wood
+    (PAINTED_WOOD, and `painted`, colours of a house's own) as painted wood; any other grained piece,
+    and one of its bare wood (BARE_WOOD, `bare`), as wood; each a little lighter or darker as `tone`
+    makes each log and board; out in the weather if `outside`. What is of the `coarse` colours (a
+    roof, seen from below and afar) is painted at 0.6 of the map's density. Without `palette`, only
+    the colours given (for a prop of another palette, whose colours may happen to be like these)."""
+    params = OUT_WOOD if outside else IN_WOOD
+    bare_c = [np.array(C[n]) for n in BARE_WOOD if palette] + [np.array(c) for c in bare]
+    paint_c = [np.array(C[n]) for n in PAINTED_WOOD if palette] + [np.array(c) for c in painted]
+    coarse_c = [np.array(c) for c in coarse]
+
+    def like(colour, palette):
+        x = np.asarray(colour, dtype=float)
+        for c in palette:
+            f = float(x.dot(c) / max(c.dot(c), 1e-9))
+            if 0.85 <= f <= 1.15 and np.abs(x / f - c).max() < 0.008:
+                return True
+        return False
+
+    def auto(piece):
+        colour = piece[1]
+        grained = len(piece) > 2 and piece[2] is not None
+        if isinstance(colour, list):
+            return ("wood", dict(params)) if grained else None
+        texel = {"texel": 0.6} if coarse_c and like(colour, coarse_c) else {}
+        if like(colour, paint_c):
+            return ("painted", {"weather": 0.3 if outside else 0.0, "stain": 0.3 if outside else 0.0, **texel})
+        if grained or like(colour, bare_c):
+            return ("wood", {**params, **texel})
+        return None
+    return auto
 
 
 def join_grained(name, pieces, collection, sharp=None):
@@ -2656,10 +2713,16 @@ def build_guest_house(name, style, collection):
         far.append((gable_bm(sign * (yo + 0.1) - (0.2 if sign > 0 else 0.0), xo, eave - 0.02, ridge - 0.04, 0.2), gable_colour))
     far.append((P.box_bm(V(0.0, 0.0, (floor - 0.3) / 2), (2 * xo, 2 * yo, floor + 0.3)), C["logDark"]))
 
-    body = join_grained(name, pieces, collection, sharp=P.SHARP)
+    # Its wood painted as 島二郎's is: the logs, the boards, the shingles (painted where the roof is a
+    # colour of its own), the gables' paint and their chevrons.
+    import paintmap as PM
+    painter = PM.Painter(name)
+    roofed = {"painted": (roof_colour, gable_colour, chevron)} if s.get("roof_paint") else \
+        {"bare": (roof_colour,), "painted": (gable_colour, chevron)}
+    body = painter.join(name, pieces, collection, sharp=P.SHARP, auto=wood_auto(True, coarse=(roof_colour,), **roofed))
     lights = P.join(f"{name}_lamp", glow, collection)
     glass = P.join(f"{name}_pane", panes, collection)
-    room = join_grained(f"{name}_inside", inside, collection, sharp=P.SHARP)
+    room = painter.join(f"{name}_inside", inside, collection, sharp=P.SHARP, auto=wood_auto(False))
     distant = P.join(f"{name}_far", far, collection, sharp=P.SHARP)
     blocks = [
         block_box(-xo, xo, yi, yo, -10, eave), block_box(-xo, -door, -yo, -yi, -10, eave),
@@ -2674,6 +2737,7 @@ def build_guest_house(name, style, collection):
     decks = [deck_box(-xi, xi, -yo - 0.02, yi, floor), deck_box(-0.6, 0.6, steps_end, -yo - 0.02, floor, 0.02)]
     info = {"blocks": blocks, "decks": decks, "height": ridge + 0.2, "openings": openings_of(walls)}
     info.update(bake_night(name, [body, room], lights, info["openings"]))
+    info.update(painter.finish(P.OUT_MODELS))
     return [body, lights, glass, room, distant], info
 
 
@@ -2746,7 +2810,10 @@ def build_stage(collection):
     pieces.append(lathe_roof([(0.0, eave), (2.8, eave), (3.25, eave - 0.1), (3.4, eave + 0.08), (3.25, eave + 0.28),
                               (2.4, eave + 1.1), (1.5, eave + 1.95), (0.6, eave + 2.65), (0.0, eave + 2.95)],
                              V(0.0, 0.0, 0.0), samples=14, seed=1.3))
-    body = P.join("stage", pieces, collection, sharp=P.SHARP)
+    # Its wood painted as 島二郎's is (see wood_auto).
+    import paintmap as PM
+    painter = PM.Painter("stage")
+    body = painter.join("stage", pieces, collection, sharp=P.SHARP, grained=False, auto=wood_auto(True))
     blocks = [{"circle": [*g(sx * leg_foot, sy * leg_foot), 0.22], "y": [-10, top], "walk": True, "camera": True}
               for sx, sy in corners]
     blocks += [{"circle": [*g(sx * 1.55, sy * 1.55), 0.15], "y": [top, eave], "walk": True, "camera": True}
@@ -2770,7 +2837,7 @@ def build_stage(collection):
     # there is no gap between them.
     stairs = deck_box(0.35, 1.25, y0 - 0.15, y1, 0.02, top)
     decks = [deck_box(-deck, deck, -deck, deck, top), stairs]
-    return [body], {"blocks": blocks, "decks": decks, "height": eave + 2.95}
+    return [body], {"blocks": blocks, "decks": decks, "height": eave + 2.95, **painter.finish(P.OUT_MODELS)}
 
 
 def flame_pieces(foot, height, width, tongues=4):
@@ -2819,9 +2886,11 @@ def build_torch(collection):
     pieces = [(log(V(0.0, 0.0, -0.2), V(0.0, 0.0, 1.85), 0.05, segments=6), C["torch"])]
     cup = L.Profile([(0.0, 1.78), (0.1, 1.8), (0.16, 2.0), (0.15, 2.05), (0.0, 2.0)], samples=6)
     pieces.append((L.lathe_bm(cup.samples, segments=8), C["basket"]))
-    body = P.join("torch", pieces, collection, sharp=P.SHARP)
+    import paintmap as PM
+    painter = PM.Painter("torch")
+    body = painter.join("torch", pieces, collection, sharp=P.SHARP, grained=False, auto=wood_auto(True))
     fire = P.join("torch_flame", flame_pieces(V(0.0, 0.0, 1.98), 1.0, 0.56), collection)  # lit at night
-    return [body, fire], {"footprint": {"circle": 0.15}, "height": 3.0}
+    return [body, fire], {"footprint": {"circle": 0.15}, "height": 3.0, **painter.finish(P.OUT_MODELS)}
 
 
 # ---------------------------------------------------------------------------- the festival street
@@ -2970,14 +3039,18 @@ def build_arch(collection):
         for corner, tied in ((banner_end + banner_h / 2 - 0.05, banner_end + banner_h / 2 + 0.2),
                              (banner_end - banner_h / 2 + 0.05, banner_end - banner_h / 2 - 0.15)):
             tie_rope(V(s * banner_half, 0.05, corner), V(s * half, 0.0, tied), 0.1, pieces)
-    body = P.join("arch", pieces, collection, sharp=P.SHARP)
+    # Its poles bare wood, its board painted, as 島二郎's are (see wood_auto).
+    import paintmap as PM
+    painter = PM.Painter("arch")
+    body = painter.join("arch", pieces, collection, sharp=P.SHARP, grained=False, auto=wood_auto(True))
     lights = P.join("arch_glow", glow, collection)
     board_label = arc_label(board_half, board_z, 1.1, -0.06, "arch_label", collection)
     banner_label = arc_label(banner_half, banner_z, 0.95, 0.03, "arch_label1", collection)
     labels = [{"size": [round(2 * board_half * 0.92, 2), 1.1], "colour": "#5A3A2E"},
               {"size": [round(2 * banner_half * 0.92, 2), 0.95], "colour": "#E8679A"}]
     blocks = [{"circle": [*g(s * half, 0.0), 0.2], "y": [-10, pole_h], "walk": True, "camera": True} for s in (-1, 1)]
-    return [body, lights, board_label, banner_label], {"blocks": blocks, "labels": labels, "height": pole_h + 0.3}
+    return [body, lights, board_label, banner_label], {"blocks": blocks, "labels": labels, "height": pole_h + 0.3,
+                                                       **painter.finish(P.OUT_MODELS)}
 
 
 def build_banner(collection):

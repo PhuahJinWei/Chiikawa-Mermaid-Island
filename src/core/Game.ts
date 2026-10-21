@@ -1,10 +1,11 @@
 import * as THREE from 'three';
 import { Stage } from '../world/Stage';
-import { cameraClear, cameraLimit, caveStandable, clampInAir, clampToWalkable, groundHeight, splashDown } from '../world/Island';
+import { cameraClear, cameraLimit, caveStandable, clampInAir, clampToWalkable, eyeLimit, groundHeight, splashDown } from '../world/Island';
 import { Boat } from '../world/Boat';
 import { caveFlameMaterial, caveInkMaterial, caveThingMaterial } from '../world/Cave';
 import { Input } from './Input';
 import { CameraRig } from './CameraRig';
+import { FirstPersonCamera } from './FirstPersonCamera';
 import { FreeCamera } from './FreeCamera';
 import { loadSettings, saveSettings, type Settings } from './Settings';
 import { Hud } from '../ui/Hud';
@@ -14,7 +15,7 @@ import { CROWD_KINDS, DEFINITIONS } from '../characters/definitions';
 import { CHARACTER_IDS, type CharacterId, type ExpressionId } from '../characters/types';
 import { loadCharacterModel, loadOutfitModel, type OutfitModel } from '../characters/Model';
 import { EmoteSystem } from '../characters/Emotes';
-import { PlayerController } from '../characters/PlayerController';
+import { PlayerController, type Heading } from '../characters/PlayerController';
 import { createOnigiri } from '../characters/Props';
 import { loadProp } from '../world/PropModels';
 import { sharedUniforms } from '../characters/CharacterMaterial';
@@ -28,6 +29,8 @@ import { Clock } from '../world/DayNight';
 
 /** Where each character stands when you are not controlling it: x, z, facing. */
 const HOMES: Record<CharacterId, [number, number, number]> = {
+  // You, on the pier, looking up the beach at the cast gathered under the welcome arch.
+  player: [0, 3.2, Math.PI],
   chiikawa: [0, 0, 0],
   hachiware: [-1.7, -1.3, 0.35],
   usagi: [1.8, -1.1, -0.3],
@@ -52,8 +55,21 @@ const LINEUP_SPACING = 1.0;
 const LINEUP_PITCH = 0.04;
 const FOLLOW_PITCH = 0.16;
 const FOLLOW_DISTANCE = 7;
+/** The follow camera's lens (the lineup's, the third person's): a narrow one flattens perspective, like
+ * the film's framing. Out of the eyes the lens is wider (see FirstPersonCamera). */
+const FOLLOW_FOV = 30;
 /** Where the pen is sharpest while the free camera flies: this far ahead of it. */
 const FREE_FOCUS = 12;
+/** Out of the eyes, where the pen is sharpest: this far ahead, about where those you meet stand. */
+const EYE_FOCUS = 3;
+/** Where the film look's depth of field turns sharp, in metres from the camera (see Look.ts FOCUS):
+ * past the leaves between the follow camera and the one it follows; out of the eyes, past what brushes
+ * your face, so the ground at your feet stays sharp. */
+const FOLLOW_SHARP = 3.5;
+const EYE_SHARP = 0.6;
+/** How near anyone you walk up to you come, between your middles, as a share of your widths: just short
+ * of touching (0.5), as you stop in front of someone, their face not filling your eyes. */
+const APART = 0.6;
 /**
  * The drawing resolution, in device pixels per CSS pixel, adapts to keep the game smooth: it steps
  * down when the frame rate stays under SLOW for a few seconds, and back up when it stays over FAST
@@ -78,6 +94,8 @@ const _seen = new THREE.Vector3();
 const _boatFlame = new THREE.Vector3();
 const _landing = new THREE.Vector3();
 const _from = new THREE.Vector3();
+const _to = new THREE.Vector3();
+const _look = new THREE.Vector3();
 
 /** The drawing resolution a `width` × `height` window starts at: `best`, or the step below it that keeps it within START_PIXELS. */
 function startRatio(width: number, height: number, best: number): number {
@@ -96,12 +114,16 @@ export class Game {
   /** The film look's finishing passes, when it is on. */
   private post: FilmPost | null = null;
   private readonly scene = new THREE.Scene();
-  // A narrow lens flattens perspective, like the film's framing.
-  private readonly camera = new THREE.PerspectiveCamera(30, 1, 0.1, 1200);
+  private readonly camera = new THREE.PerspectiveCamera(FOLLOW_FOV, 1, 0.1, 1200);
   private readonly timer = new THREE.Timer();
   private readonly stage: Stage;
   private readonly hud: Hud;
   private readonly input: Input;
+  /** The game's camera: out of the eyes of the character you control. */
+  private readonly eyes: FirstPersonCamera;
+  /** Testing: the follow camera from behind them instead (third person), from the Test panel. The
+   * lineup frames with it too. */
+  private thirdPerson = false;
   private readonly rig: CameraRig;
   /** Development: a camera that flies anywhere, while the character waits where it is. */
   private readonly freeCam: FreeCamera;
@@ -154,6 +176,10 @@ export class Game {
     this.controlled = this.settings.character;
 
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+    // What the GPU holds is all there is of the island's shapes and the props' painted wood once drawn
+    // (see releaseOnUpload in Stage, and loadPaintMaps in Props): if the browser takes the GPU away and
+    // gives it back, the game starts again rather than going on without them.
+    canvas.addEventListener('webglcontextrestored', () => location.reload());
     if (FILM) {
       // The film look: soft shadows cast by the sun, and the finishing passes.
       this.renderer.shadowMap.enabled = true;
@@ -163,9 +189,10 @@ export class Game {
     this.stage = new Stage(this.scene);
     this.hud = new Hud(ui);
     this.input = new Input(canvas, this.hud);
+    this.eyes = new FirstPersonCamera(this.camera, eyeLimit);
     this.rig = new CameraRig(this.camera, cameraLimit, cameraClear);
     this.freeCam = new FreeCamera(this.camera, groundHeight);
-    this.player = new PlayerController(this.input, this.rig);
+    this.player = new PlayerController(this.input);
     this.emotes = new EmoteSystem(this.scene);
     this.panel = new TestPanel(
       ui,
@@ -174,6 +201,7 @@ export class Game {
         toggleLineup: () => this.setLineup(!this.lineup),
         toggleOutfit: () => this.setOutfit(!this.outfitOn),
         resetCamera: () => this.resetCamera(),
+        toggleThirdPerson: () => this.setThirdPerson(!this.thirdPerson),
         action: (id) => this.playAction(id),
         expression: (e) => this.setExpression(e),
         setTime: (hours) => this.clock.set(hours),
@@ -186,6 +214,7 @@ export class Game {
         character: this.controlled,
         lineup: this.lineup,
         outfit: this.outfitOn,
+        thirdPerson: this.thirdPerson,
         expression: this.expression,
         clockRunning: this.clock.running,
         freeCamera: this.freeCamOn,
@@ -259,6 +288,7 @@ export class Game {
     }
     this.hud.doneLoading();
     this.rig.snapTo(this.focusPoint());
+    this.eyes.lookFrom(this.me());
     this.running = true;
     this.renderer.setAnimationLoop(this.frame);
   }
@@ -363,7 +393,9 @@ export class Game {
     this.settings.character = id;
     saveSettings(this.settings);
     this.applyExpression();
-    if (!this.lineup) this.rig.frame(this.rig.yaw, FOLLOW_PITCH, FOLLOW_DISTANCE);
+    if (this.lineup) return;
+    this.eyes.lookFrom(this.me());
+    this.rig.frame(this.rig.yaw, FOLLOW_PITCH, FOLLOW_DISTANCE);
   }
 
   private setLineup(on: boolean): void {
@@ -378,11 +410,29 @@ export class Game {
         ch.stopAction();
         ch.teleport((i - (n - 1) / 2) * LINEUP_SPACING, 0, 0);
       });
-      this.rig.frame(0, LINEUP_PITCH, this.lineupDistance());
+      // Out of the eyes, the follow camera is still where it was last used: it starts on the lineup.
+      if (this.thirdPerson) this.rig.frame(0, LINEUP_PITCH, this.lineupDistance());
+      else this.rig.cut(0, LINEUP_PITCH, this.lineupDistance(), this.focusPoint());
     } else {
+      this.eyes.lookFrom(this.me());
       this.rig.frame(this.rig.yaw, FOLLOW_PITCH, FOLLOW_DISTANCE);
     }
     this.applyExpression();
+  }
+
+  /** Testing: the follow camera behind the character you control (on), or their eyes again (off),
+   * either looking the way the other looked. */
+  private setThirdPerson(on: boolean): void {
+    this.thirdPerson = on;
+    // The lineup and the free camera hand back to whichever it is when they end.
+    if (this.lineup || this.freeCamOn) return;
+    if (on) {
+      this.rig.cut(this.eyes.yaw, FOLLOW_PITCH, FOLLOW_DISTANCE, this.focusPoint());
+    } else {
+      this.eyes.yaw = this.rig.yaw;
+      this.eyes.pitch = 0;
+      this.eyes.snap();
+    }
   }
 
   private setFreeCamera(on: boolean): void {
@@ -391,14 +441,23 @@ export class Game {
     this.hud.setControlsVisible(!on);
     this.hud.showHint(on ? t('hud.freeHint') : null);
     this.input.setMoveEnabled(true);
-    if (on) this.freeCam.begin();
-    else this.rig.snapTo(this.focusPoint());
+    if (on) {
+      this.freeCam.begin();
+    } else {
+      this.rig.snapTo(this.focusPoint());
+      this.eyes.snap();
+    }
   }
 
-  /** Puts the character you control on the ground under the free camera, and follows it again. */
+  /** Puts the character you control on the ground under the free camera, facing the way it looks, and
+   * follows it again. */
   private moveHere(): void {
     const p = this.camera.position;
-    this.me().teleport(p.x, p.z, this.rig.yaw);
+    this.camera.getWorldDirection(_look);
+    const yaw = Math.atan2(-_look.x, -_look.z);
+    this.me().teleport(p.x, p.z, yaw + Math.PI);
+    this.rig.yaw = yaw;
+    this.eyes.lookFrom(this.me());
     this.setFreeCamera(false);
   }
 
@@ -409,7 +468,8 @@ export class Game {
 
   private resetCamera(): void {
     if (this.lineup) this.rig.frame(0, LINEUP_PITCH, this.lineupDistance());
-    else this.rig.frame(this.me().facing, FOLLOW_PITCH, FOLLOW_DISTANCE);
+    else if (this.thirdPerson) this.rig.frame(this.me().facing, FOLLOW_PITCH, FOLLOW_DISTANCE);
+    else this.eyes.reset();
   }
 
   private playAction(id: ActionId | 'jump'): void {
@@ -431,7 +491,7 @@ export class Game {
 
   private lineupDistance(): number {
     const halfWidth = (CHARACTER_IDS.length * LINEUP_SPACING) / 2 + 0.25;
-    const vfov = THREE.MathUtils.degToRad(this.camera.fov);
+    const vfov = THREE.MathUtils.degToRad(FOLLOW_FOV);
     const hfov = 2 * Math.atan(Math.tan(vfov / 2) * this.camera.aspect);
     const fitWidth = halfWidth / Math.tan(hfov / 2);
     const fitHeight = 0.75 / Math.tan(vfov / 2);
@@ -443,6 +503,47 @@ export class Game {
     const me = this.me();
     const p = me.position;
     return this.focus.set(p.x, me.feetY + 0.55, p.z);
+  }
+
+  /** Whether the camera looks out of the eyes of the character you control: unless the Test panel's
+   * third person, the lineup, the free camera or a staged shot has it. */
+  private get lookingOut(): boolean {
+    return !this.thirdPerson && !this.lineup && !this.freeCamOn && !this.staged;
+  }
+
+  /** The camera the stick walks (and rows) by: the eyes, or the follow camera. */
+  private heading(): Heading {
+    return this.lookingOut ? this.eyes : this.rig;
+  }
+
+  /**
+   * Keeps the character you control from walking into anyone else: they stop just short of touching
+   * (APART) and slide round them. Out of their eyes, the camera would otherwise pass into the other's
+   * head. Called after everyone has moved.
+   */
+  private keepApart(me: Character): void {
+    for (const ch of this.characters.values()) this.stepAside(me, ch);
+    for (const extra of this.crowd) this.stepAside(me, extra);
+  }
+
+  /** Moves `me` out of `other` if the two stand in each other, as far as the ground lets them. */
+  private stepAside(me: Character, other: Character): void {
+    if (other === me) return;
+    const p = me.position;
+    const q = other.position;
+    const reach = (me.width + other.width) * APART;
+    const dx = p.x - q.x;
+    const dz = p.z - q.z;
+    const d = Math.hypot(dx, dz);
+    if (d >= reach || Math.abs(p.y - q.y) > 0.8) return;
+    // Straight out from their middle; from right on it, back the way you face.
+    const ux = d > 1e-4 ? dx / d : -Math.sin(me.facing);
+    const uz = d > 1e-4 ? dz / d : -Math.cos(me.facing);
+    _from.set(p.x, me.feetY, p.z);
+    _to.set(q.x + ux * reach, me.feetY, q.z + uz * reach);
+    clampToWalkable(_to, _from);
+    p.x = _to.x;
+    p.z = _to.z;
   }
 
   // ------------------------------------------------------------------ loop
@@ -470,6 +571,9 @@ export class Game {
     this.time += dt;
     this.input.update();
     const me = this.me();
+    const lookingOut = this.lookingOut;
+    // Out of their eyes, the one you control faces the way you look; the rest face the way they walk.
+    for (const ch of this.characters.values()) ch.look = lookingOut && ch === me ? this.eyes.facing : null;
 
     if (this.staged) {
       for (const [id, ch] of this.characters) {
@@ -482,17 +586,18 @@ export class Game {
         if (this.lineup) ch.setFacing(0);
       }
     } else {
+      const view = this.heading();
       if (this.rowing && this.boat) {
         // Rowing: the stick steers the boat, camera-relative as walking is; you sit in it.
         this.input.consumeJump();
-        this.rig.forward(_fwd);
-        this.rig.right(_right);
+        view.forward(_fwd);
+        view.right(_right);
         _want.set(0, 0, 0).addScaledVector(_right, this.input.move.x).addScaledVector(_fwd, this.input.move.y);
         this.boat.row(dt, _want);
         me.setDesiredVelocity(ZERO);
         this.seatInBoat();
       } else {
-        this.player.update(me);
+        this.player.update(me, view);
       }
       for (const [id, ch] of this.characters) {
         if (ch === me) continue;
@@ -506,6 +611,7 @@ export class Game {
 
     for (const ch of this.characters.values()) ch.update(dt, this.ctx);
     for (const extra of this.crowd) extra.update(dt, this.ctx);
+    if (!this.staged && !this.lineup && !this.freeCamOn && !this.rowing) this.keepApart(me);
     this.updateCave();
     this.emotes.update(dt);
     if (this.staged) {
@@ -514,9 +620,19 @@ export class Game {
       this.camera.lookAt(...c.target);
     } else if (this.freeCamOn) {
       this.freeCam.update(dt, this.input);
+    } else if (lookingOut) {
+      this.eyes.update(dt, this.input, me);
     } else {
+      if (this.camera.fov !== FOLLOW_FOV) {
+        this.camera.fov = FOLLOW_FOV;
+        this.camera.updateProjectionMatrix();
+      }
       this.rig.update(dt, this.input, this.focusPoint());
     }
+    // Out of their eyes you see the one you control only in the calm water; the film look's depth of
+    // field leaves the ground at their feet sharp.
+    for (const ch of this.characters.values()) ch.setUnseen(lookingOut && ch === me);
+    if (this.post) this.post.focus.uniforms.uSharp.value = lookingOut ? EYE_SHARP : FOLLOW_SHARP;
     this.updateViewLift(dt);
     this.updateZone(dt);
     this.clock.advance(dt);
@@ -544,7 +660,13 @@ export class Game {
   private updateInk(): void {
     this.camera.updateMatrixWorld();
     const focus = this.staged ? _focus.set(...this.staged.camera.target) : this.rig.focus;
-    const distance = this.freeCamOn && !this.staged ? FREE_FOCUS : this.camera.position.distanceTo(focus);
+    const distance = this.staged
+      ? this.camera.position.distanceTo(focus)
+      : this.freeCamOn
+        ? FREE_FOCUS
+        : this.lookingOut
+          ? EYE_FOCUS
+          : this.camera.position.distanceTo(focus);
     updatePen(this.camera, distance, this.ctx.viewHeight, this.ctx.pixelRatio);
     for (const ch of this.characters.values()) ch.updateOutline(this.ctx);
     for (const extra of this.crowd) extra.updateOutline(this.ctx);
@@ -707,7 +829,7 @@ export class Game {
         if (this.hoursBeforeShot !== null) this.clock.set(this.hoursBeforeShot);
         this.hoursBeforeShot = null;
         this.clock.running = true;
-        this.camera.fov = 30;
+        this.camera.fov = FOLLOW_FOV;
         this.camera.updateProjectionMatrix();
         for (const [id, ch] of this.characters) {
           const [x, z, yaw] = HOMES[id];
@@ -718,6 +840,7 @@ export class Game {
           const [x, z, yaw] = CROWD[i];
           extra.teleport(x, z, yaw);
         }
+        this.eyes.lookFrom(this.me());
       },
       setOutfit: (on) => this.setOutfit(on),
       /**
@@ -741,6 +864,8 @@ export class Game {
         // test ran. It looks again.
         if (!on) this.reflectedHour = Number.NaN;
       },
+      drawAll: (on) => this.stage.drawAll(on),
+      houseOpenings: () => this.stage.houseOpenings(),
       readScene: () => {
         const cave = this.stage.cave;
         const { x: width, y: height } = this.renderer.getDrawingBufferSize(new THREE.Vector2());

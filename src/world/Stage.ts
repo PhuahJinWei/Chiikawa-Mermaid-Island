@@ -131,6 +131,31 @@ const SHAFT_COLOUR = '#FFF3CF';
 const SHAFT_STRENGTH = 0.14;
 const CONFETTI = ['#F0C866', '#F4A9B8', '#9FD3F0', '#F29E6B', '#FFFFFF', '#B9E58C'];
 
+/**
+ * Has `root`'s meshes let go of their vertices once the GPU holds them: nothing reads them after the
+ * island is built, and the browser would otherwise keep every shape twice, once for the GPU and once
+ * for itself (the plants, props, rocks and cave hold some 240 MB of them). Each mesh's bounds are
+ * worked out first, for the culling and whatever else asks after them. Only what is never changed;
+ * a mesh first drawn later lets go of its own when it is (the understory's patches, put together as
+ * the camera comes near, do the same: see Vegetation.build). A lost GPU context then cannot be put
+ * back from them, so the game starts again (see Game).
+ */
+function releaseOnUpload(root: THREE.Object3D): void {
+  root.traverse((o) => {
+    const geometry = (o as THREE.Mesh).geometry as THREE.BufferGeometry | undefined;
+    if (!geometry?.isBufferGeometry || !geometry.getAttribute('position')) return;
+    if (!geometry.boundingSphere) geometry.computeBoundingSphere();
+    if (!geometry.boundingBox) geometry.computeBoundingBox();
+    for (const attribute of [...Object.values(geometry.attributes), geometry.index]) {
+      if (attribute instanceof THREE.BufferAttribute && attribute.usage === THREE.StaticDrawUsage) attribute.onUpload(release);
+    }
+  });
+}
+
+/** An attribute's array let go of, once it has gone to the GPU (see releaseOnUpload). */
+function release(this: THREE.BufferAttribute): void {
+  (this as { array: unknown }).array = null;
+}
 
 export class Stage {
   private readonly water: THREE.ShaderMaterial;
@@ -482,6 +507,32 @@ export class Stage {
   }
 
   /**
+   * For proving that nothing hidden by distance leaves a hole where it should show (the dev tools'
+   * seeThrough): with `on`, the forbidden cave's inside and the houses' rooms are drawn however far off
+   * they are and wherever the camera looks, until it is called off.
+   */
+  drawAll(on: boolean): void {
+    if (this.cave) {
+      this.cave.drawAll = on;
+      if (on) this.cave.group.visible = true;
+    }
+    this.props?.showAll(on);
+  }
+
+  /** The houses' doorways and windows, each once: its middle on the wall's outer face, the way out of
+   * it, and its half width and half height (see Firelight's Opening). For the dev tools' seeThrough. */
+  houseOpenings(): { centre: [number, number, number]; out: [number, number, number]; half: [number, number] }[] {
+    const found = new Map<string, { centre: [number, number, number]; out: [number, number, number]; half: [number, number] }>();
+    for (const fire of this.props?.fires ?? []) {
+      const o = fire.opening;
+      if (!o) continue;
+      const key = `${o.centre.x.toFixed(2)},${o.centre.y.toFixed(2)},${o.centre.z.toFixed(2)}`;
+      if (!found.has(key)) found.set(key, { centre: [o.centre.x, o.centre.y, o.centre.z], out: [o.out.x, o.out.y, o.out.z], half: o.half });
+    }
+    return [...found.values()];
+  }
+
+  /**
    * For proving that nothing on the island gives light of its own: with `on`, every source of its
    * light is put out (see putOut), and the forbidden cave's with them (Cave.darkTest), until it is
    * called off; whatever still shows lit then is light from nowhere (the dev tools' islandDark renders
@@ -713,9 +764,14 @@ export class Stage {
   }
 
   /** Compiles the shaders of everything in the scene ahead of its first frame, so none stalls the
-   * game as it first comes into view. Called once everything is in the scene. */
+   * game as it first comes into view, the props' painted textures drawn into place meanwhile; and has
+   * the island's shapes let go of their vertices once they are on the GPU (see releaseOnUpload).
+   * Called once everything is in the scene. */
   async warmShaders(renderer: THREE.WebGLRenderer, camera: THREE.Camera): Promise<void> {
-    await renderer.compileAsync(this.scene, camera);
+    for (const group of [this.vegetation?.group, this.props?.group, this.landmarks?.group, this.cave?.group]) {
+      if (group) releaseOnUpload(group);
+    }
+    await Promise.all([this.props?.uploadPaint(renderer), renderer.compileAsync(this.scene, camera)]);
   }
 
   update(camera: THREE.Camera, time: number): void {

@@ -44,13 +44,15 @@ To install it like an app, open the page and use **Add to Home Screen**
 
 ## Controls
 
+You see the island out of your own eyes, as a nameless islander.
+
 | Phone | Desktop | Action |
 |---|---|---|
-| Drag on the left half | WASD or arrow keys (Shift to walk) | Move; push the stick to its edge to run |
-| Drag on the right half | Drag with the mouse | Turn the camera |
-| Pinch on the right half | Mouse wheel | Zoom |
+| Drag on the left half | WASD or arrow keys (Shift to walk) | Move the way you look; push the stick to its edge to run |
+| Drag on the right half | Drag with the mouse | Look around |
+| Pinch on the right half | Mouse wheel | Narrow the view toward the film's lens, and back |
 | Jump button | Space | Jump |
-| Test (テスト) button | Test (テスト) button | Test panel: actions, expressions, lineup |
+| Test (テスト) button | Test (テスト) button | Test panel: actions, expressions, lineup, whose eyes, the follow camera from behind (三人称カメラ) |
 
 ## Rebuild the models
 

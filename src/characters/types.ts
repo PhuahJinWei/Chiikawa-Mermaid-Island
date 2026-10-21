@@ -1,7 +1,8 @@
 import type { StringKey } from '../i18n/I18n';
 
-export type CharacterId = 'chiikawa' | 'hachiware' | 'usagi' | 'momonga' | 'hitoha' | 'futaba';
-export const CHARACTER_IDS: readonly CharacterId[] = ['chiikawa', 'hachiware', 'usagi', 'momonga', 'hitoha', 'futaba'];
+/** 'player' is you: a nameless islander, seen out of their own eyes. */
+export type CharacterId = 'player' | 'chiikawa' | 'hachiware' | 'usagi' | 'momonga' | 'hitoha' | 'futaba';
+export const CHARACTER_IDS: readonly CharacterId[] = ['player', 'chiikawa', 'hachiware', 'usagi', 'momonga', 'hitoha', 'futaba'];
 
 export type EyeKind = 'open' | 'happy' | 'closed' | 'squeeze' | 'teary';
 export type BrowKind = 'none' | 'default' | 'worried' | 'angry';

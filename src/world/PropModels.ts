@@ -45,10 +45,11 @@ export interface PropInfo {
    * models/props) on the parts' UVs, each texel the square root of its light's share of `scale`,
    * for a lantern of `power` watts (see bake_night in art/blender/houses.py). */
   night?: { map: string; scale: number; power: number };
-  /** A house's painted texture (in models/props): its wood's grain, knots and weather, its signs'
-   * peeling paint, rust, laid on its body's and room's second UVs (`uv1`, below 0 where a small thing
-   * keeps its own colour; see paintmap.py in art/blender). */
-  paint?: { map: string };
+  /** A prop's painted texture (in models/props), `size` texels wide and high: its wood's grain, knots
+   * and weather, its painted wood's paint worn through, its signs' peeling paint, rust, laid on its
+   * body's and room's paint UVs (a baked house's second, `uv1`, a prop with no night its first,
+   * `uv`; below 0 where a small thing keeps its own colour; see paintmap.py in art/blender). */
+  paint?: { map: string; size?: number | [number, number] };
   /** A house's doorways and windows: each one's middle on the wall's outer face, the way out of it,
    * its width and height, and whether it is a doorway; its lantern's light spills out of them, as
    * its `mask` (base64) says it passes (see Opening in Firelight). */

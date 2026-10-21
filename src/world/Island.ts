@@ -977,6 +977,13 @@ export function cameraLimit(p: THREE.Vector3, target: THREE.Vector3): void {
   p.y = Math.max(p.y, groundHeight(p.x, p.z) + 0.6);
 }
 
+/** Keeps the eyes at p, of someone whose feet are at `feet`, under the forbidden cave's roof while they
+ * are in the cave: in places it hangs lower than a jump takes them. */
+export function eyeLimit(p: THREE.Vector3, feet: number): void {
+  if (!cave || !cave.holds(p.x, p.z, feet)) return;
+  p.y = Math.min(p.y, cave.ceiling[cave.at(p.x, p.z)] - 0.15);
+}
+
 /**
  * Keeps a character who moved from `from` to `p` on ground they can stand on (`from.y` is where
  * their feet were): if `p` is in deep water, up a cliff, too high a step or inside something, they

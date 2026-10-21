@@ -36,6 +36,15 @@ export class CameraRig {
     this.goal = { yaw, pitch, distance };
   }
 
+  /** Cut straight to a framing round `focus`, as when it takes over from another camera. */
+  cut(yaw: number, pitch: number, distance: number, focus: THREE.Vector3): void {
+    this.yaw = yaw;
+    this.pitch = pitch;
+    this.distance = distance;
+    this.goal = null;
+    this.target.copy(focus);
+  }
+
   /** The point the camera looks at. */
   get focus(): THREE.Vector3 {
     return this.target;

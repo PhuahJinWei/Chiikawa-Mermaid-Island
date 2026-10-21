@@ -7,6 +7,8 @@ export interface TestPanelState {
   character: CharacterId;
   lineup: boolean;
   outfit: boolean;
+  /** Whether the follow camera looks on from behind instead of out of the character's eyes. */
+  thirdPerson: boolean;
   expression: ExpressionId | null;
   clockRunning: boolean;
   freeCamera: boolean;
@@ -27,6 +29,7 @@ export interface TestPanelHandlers {
   toggleLineup(): void;
   toggleOutfit(): void;
   resetCamera(): void;
+  toggleThirdPerson(): void;
   action(id: ActionId | 'jump'): void;
   expression(id: ExpressionId | null): void;
   setTime(hours: number): void;
@@ -92,6 +95,7 @@ export class TestPanel {
         chip('lineup', '1', t('panel.lineup'), s.lineup) +
           chip('outfit', '1', t('panel.outfit'), s.outfit) +
           chip('reset', '1', t('panel.resetCamera')) +
+          chip('third', '1', t('panel.thirdPerson'), s.thirdPerson) +
           chip('freecam', '1', t('panel.freeCamera'), s.freeCamera) +
           (s.freeCamera ? chip('movehere', '1', t('panel.moveHere')) : '') +
           (s.reflections !== null ? chip('reflect', '1', t('panel.reflections'), s.reflections) : ''),
@@ -127,6 +131,7 @@ export class TestPanel {
     else if (d.lineup) this.handlers.toggleLineup();
     else if (d.outfit) this.handlers.toggleOutfit();
     else if (d.reset) this.handlers.resetCamera();
+    else if (d.third) this.handlers.toggleThirdPerson();
     else if (d.freecam) this.handlers.toggleFreeCamera();
     else if (d.movehere) this.handlers.moveHere();
     else if (d.reflect) this.handlers.toggleReflections();

@@ -143,14 +143,28 @@ class BoxPatch(Patch):
                 t += size
         return out
 
+    def set_faces(self, faces):
+        """Paints only these faces (see FACES), the patch laid out afresh for them."""
+        self.faces = set(faces)
+        self.ends = [f for f in ("+a", "-a") if f in self.faces]
+        bands = self._bands()
+        self.w = self.L + self.T * len(self.ends)
+        self.h = max(bands[-1][2] if bands else 0.0, self.W if self.ends else 0.0)
+
+    def side_of(self, nrm):
+        """Which of the box's faces (see FACES) a face of this normal is."""
+        side = max((("a", nrm.dot(self.a)), ("b", nrm.dot(self.b)), ("n", nrm.dot(self.n))), key=lambda x: abs(x[1]))
+        return ("+" if side[1] > 0 else "-") + side[0]
+
     def loop_coords(self, face):
         """The patch coordinates (s, t) of each corner of one of the box's faces; None for a face
         not painted."""
-        local = [((v.co - self.c).dot(self.a), (v.co - self.c).dot(self.b), (v.co - self.c).dot(self.n))
-                 for v in (loop.vert for loop in face.loops)]
-        nrm = face.normal
-        side = max((("a", nrm.dot(self.a)), ("b", nrm.dot(self.b)), ("n", nrm.dot(self.n))), key=lambda x: abs(x[1]))
-        name = ("+" if side[1] > 0 else "-") + side[0]
+        return self.coords(face.normal, [loop.vert.co for loop in face.loops])
+
+    def coords(self, nrm, corners):
+        """As loop_coords, for a face given as its normal and its corners (world points)."""
+        local = [((v - self.c).dot(self.a), (v - self.c).dot(self.b), (v - self.c).dot(self.n)) for v in corners]
+        name = self.side_of(nrm)
         L, W, T = self.L, self.W, self.T
         if name not in self.faces:
             return None
@@ -231,8 +245,10 @@ class SheetPatch(Patch):
         self.h = max(p[1] for p in pts) - self.t0
 
     def loop_coords(self, face):
-        return [((loop.vert.co - self.o).dot(self.u) - self.s0, (loop.vert.co - self.o).dot(self.v) - self.t0)
-                for loop in face.loops]
+        return self.coords(face.normal, [loop.vert.co for loop in face.loops])
+
+    def coords(self, nrm, corners):
+        return [((c - self.o).dot(self.u) - self.s0, (c - self.o).dot(self.v) - self.t0) for c in corners]
 
     def surface(self, s, t):
         o, u, v = (np.array(x, dtype=np.float32) for x in (self.o, self.u, self.v))
@@ -241,6 +257,242 @@ class SheetPatch(Patch):
         return {"face": np.zeros(s.shape, dtype=np.int8), "world": world, "along": s - self.w / 2,
                 "across": t - self.h / 2, "xb": t, "xn": np.zeros_like(s), "normal": normal,
                 "length": self.w, "width": self.h, "thick": 0.0}
+
+
+class LogPatch(Patch):
+    """A round piece's side unrolled: along its middle (s, metres) and round it (t, metres round at
+    its mean radius), for a straight log (its middle a line) or a bent one (its middle through its
+    rings' middles, each ring's way round carried along it so it does not twist). Only the stretch
+    round it that shows is painted (see crop); where the whole of it shows, a strip past its seam
+    as wide as its widest face is painted on round, so the faces across the seam lie whole."""
+
+    def __init__(self, kind, colour, seed, params, middle, radius):
+        super().__init__(kind, colour, seed, params)
+        self.r = max(radius, 1e-3)
+        self.C = np.array([p[:] for p, _ in middle], dtype=np.float64)
+        T = np.array([t.normalized()[:] for _, t in middle], dtype=np.float64)
+        N = np.zeros_like(T)
+        ref = np.array([0.0, 0.0, 1.0]) if abs(T[0][2]) < 0.9 else np.array([1.0, 0.0, 0.0])
+        n = ref - T[0] * ref.dot(T[0])
+        N[0] = n / np.linalg.norm(n)
+        for k in range(1, len(T)):
+            n = N[k - 1] - T[k] * N[k - 1].dot(T[k])
+            N[k] = n / max(np.linalg.norm(n), 1e-9)
+        self.T, self.N, self.B = T, N, np.cross(T, N)
+        steps = np.linalg.norm(np.diff(self.C, axis=0), axis=1)
+        self.S = np.concatenate([[0.0], np.cumsum(steps)])
+        self.L = float(self.S[-1])
+        self.start, self.span = 0.0, 2.0 * math.pi
+        self.w, self.h = self.L, 2.0 * math.pi * self.r
+
+    def _frame(self, s):
+        """The middle, its way round (N, B) at each s along it (arrays)."""
+        s = np.clip(s, 0.0, self.L)
+        k = np.clip(np.searchsorted(self.S, s, side="right") - 1, 0, len(self.S) - 2)
+        seg = np.maximum(self.S[k + 1] - self.S[k], 1e-9)
+        f = ((s - self.S[k]) / seg)[..., None]
+        c = self.C[k] * (1.0 - f) + self.C[k + 1] * f
+        n = self.N[k] * (1.0 - f) + self.N[k + 1] * f
+        b = self.B[k] * (1.0 - f) + self.B[k + 1] * f
+        return c, n / np.linalg.norm(n, axis=-1, keepdims=True), b / np.linalg.norm(b, axis=-1, keepdims=True)
+
+    def place(self, p):
+        """How far along the middle a world point lies (s) and its angle round it (0 to 2 pi)."""
+        p = np.array(p[:], dtype=np.float64)
+        best = None
+        for k in range(len(self.C) - 1):
+            seg = self.C[k + 1] - self.C[k]
+            length = np.linalg.norm(seg)
+            f = float(np.clip((p - self.C[k]).dot(seg) / max(length * length, 1e-12), 0.0, 1.0))
+            q = self.C[k] + seg * f
+            d = np.linalg.norm(p - q)
+            if best is None or d < best[0]:
+                best = (d, self.S[k] + f * length)
+        s = best[1]
+        c, n, b = self._frame(np.array([s]))
+        v = p - c[0]
+        theta = math.atan2(v.dot(b[0]), v.dot(n[0])) % (2.0 * math.pi)
+        return s, theta
+
+    def angles(self, corners):
+        """The face's corners' (s, angle), the angles unwound round its first corner."""
+        out = [self.place(c) for c in corners]
+        a0 = out[0][1]
+        return [(s, a0 + ((a - a0 + math.pi) % (2.0 * math.pi)) - math.pi) for s, a in out]
+
+    def crop(self, faces):
+        """Paints only the stretch round it that these faces (each its corners' (s, angle)) cover:
+        the circle less its widest gap; all round, with a strip past the seam, if there is none."""
+        spans = []
+        widest = 0.0
+        for corners in faces:
+            a = [x for _, x in corners]
+            lo, hi = min(a) % (2.0 * math.pi), None
+            hi = lo + (max(a) - min(a))
+            widest = max(widest, hi - lo)
+            spans.append((lo, hi))
+        if not spans:
+            return
+        spans.sort()
+        # The gaps between what is covered, round the circle.
+        covered = [list(spans[0])]
+        for lo, hi in spans[1:]:
+            if lo <= covered[-1][1] + 1e-6:
+                covered[-1][1] = max(covered[-1][1], hi)
+            else:
+                covered.append([lo, hi])
+        gaps = [(covered[(i + 1) % len(covered)][0] + (2.0 * math.pi if i == len(covered) - 1 else 0.0) - covered[i][1],
+                 covered[i][1]) for i in range(len(covered))]
+        gap, gap_start = max(gaps)
+        if gap > 0.15:
+            self.start = (gap_start + gap) % (2.0 * math.pi)
+            self.span = 2.0 * math.pi - gap
+        else:
+            self.start, self.span = 0.0, 2.0 * math.pi + widest
+        self.h = self.span * self.r
+
+    def coords(self, nrm, corners):
+        out = []
+        for s, a in self.angles(corners):
+            d = (a - self.start) % (2.0 * math.pi)
+            out.append((s, d))
+        # Keep the face whole: its corners within half a turn of its first.
+        d0 = out[0][1]
+        fixed = []
+        for s, d in out:
+            if d - d0 > math.pi:
+                d -= 2.0 * math.pi
+            elif d0 - d > math.pi:
+                d += 2.0 * math.pi
+            fixed.append((s, d))
+        if min(d for _, d in fixed) < -1e-6:
+            fixed = [(s, d + 2.0 * math.pi) for s, d in fixed]
+        return [(s, d * self.r) for s, d in fixed]
+
+    def surface(self, s, t):
+        c, n, b = self._frame(s.astype(np.float64))
+        theta = (self.start + t / self.r)[..., None]
+        normal = np.cos(theta) * n + np.sin(theta) * b
+        world = c + normal * self.r
+        return {"face": np.zeros(s.shape, dtype=np.int8), "world": world.astype(np.float32), "along": s - self.L / 2,
+                "across": t - self.h / 2, "xb": t, "xn": np.zeros_like(s), "normal": normal.astype(np.float32),
+                "length": self.L, "width": self.h, "thick": 0.0}
+
+
+def _grains(bm, grain):
+    """The grain at each of a piece's vertices (a vector or None), from one for all or a list."""
+    if isinstance(grain, list):
+        return grain
+    return [grain] * len(bm.verts)
+
+
+def fit(bm, colours, grain, kind, seed, params):
+    """A patch fitted to a piece made otherwise (houses.cut_log, a box, a post), painted `kind`, and
+    which of its faces it paints (those whose every corner has a grain, where the grain is given a
+    vertex at a time: a log's sides, not its pale cut ends): a log patch for one that is round (its
+    sides many narrow faces round its length), a box patch for one with four broad sides (a plank, a
+    post, a board, bevelled or not). Its grain runs along `grain` (one way for all its vertices, a
+    vertex at a time, or None: its longest way). None if nothing of it is to be painted."""
+    bm.verts.ensure_lookup_table()
+    bm.verts.index_update()
+    bm.normal_update()
+    per = _grains(bm, grain)
+    has = [g is not None and g.length > 1e-6 for g in per]
+    if grain is not None and not any(has):
+        return None, None
+    painted = [all(has[v.index] for v in f.verts) if grain is not None else True for f in bm.faces]
+    verts = [v for v in bm.verts if has[v.index]] if grain is not None else list(bm.verts)
+    if not verts:
+        return None, None
+    pts = np.array([v.co[:] for v in verts], dtype=np.float64)
+    if isinstance(colours, list):
+        colour = np.mean([colours[v.index] for v in verts], axis=0)
+    else:
+        colour = np.asarray(colours, dtype=np.float32)
+    ways = [per[v.index] for v in verts] if grain is not None else []
+    if ways:
+        a = Vector(np.mean([w.normalized()[:] for w in ways], axis=0))
+        if a.length < 0.5:
+            a = ways[0].normalized()
+        a.normalize()
+        bent = any(w.normalized().dot(a) < 0.985 for w in ways)
+    else:
+        centred = pts - pts.mean(axis=0)
+        _, _, vt = np.linalg.svd(centred, full_matrices=False)
+        a, bent = Vector(vt[0]), False
+    # Its sides: the faces lying along its grain.
+    sides = [(f.normal.copy(), f.calc_area()) for f, p in zip(bm.faces, painted) if p and abs(f.normal.dot(a)) < 0.5]
+    total = sum(area for _, area in sides) or 1.0
+    big = sorted(sides, key=lambda x: -x[1])
+    clusters = []
+    for nrm, area in big:
+        for c in clusters:
+            if nrm.dot(c[0]) > 0.97:
+                c[1] += area
+                break
+        else:
+            clusters.append([nrm, area])
+    four = sum(area for _, area in sorted(clusters, key=lambda c: -c[1])[:4])
+    round_ = bent or (len(clusters) > 4 and four < 0.8 * total)
+    if round_:
+        if bent:
+            # Its rings: runs of vertices with one grain, in the order they were made, each run split
+            # where its vertices step on along that grain (a straight stretch of rings shares one).
+            runs, run, last = [], [], None
+            for v in verts:
+                w = per[v.index]
+                if last is not None and (w - last).length > 1e-6:
+                    runs.append(run)
+                    run = []
+                run.append(v)
+                last = w
+            runs.append(run)
+            rings = []
+            for run in runs:
+                if not run:
+                    continue
+                w = per[run[0].index].normalized()
+                levels = sorted(run, key=lambda v: v.co.dot(w))
+                ring = [levels[0]]
+                for v in levels[1:]:
+                    if v.co.dot(w) - ring[-1].co.dot(w) > 0.01:
+                        rings.append(ring)
+                        ring = []
+                    ring.append(v)
+                rings.append(ring)
+            middle = [(Vector(np.mean([v.co[:] for v in ring], axis=0)), per[ring[0].index]) for ring in rings]
+            radius = float(np.mean([np.linalg.norm(np.array(v.co[:]) - np.array(m[:]))
+                                    for ring, (m, _) in zip(rings, middle) for v in ring]))
+        else:
+            centre = pts.mean(axis=0)
+            along = (pts - centre) @ np.array(a[:])
+            c = Vector(centre)
+            middle = [(c + a * float(along.min()), a), (c + a * float(along.max()), a)]
+            off = (pts - centre) - np.outer(along, np.array(a[:]))
+            radius = float(np.linalg.norm(off, axis=1).mean())
+        if len(middle) < 2:
+            return None, None
+        # A log has no nails nor long edges to darken; its grain runs long and wide and shows strongly,
+        # knots here and there, cracks along it where it dried.
+        params = {"nails": False, "edge": 0.0, "knots": 4, "grain_lines": 20.0, "grain_dark": 0.36, "checks": 0.5,
+                  **params} if kind == "wood" else params
+        return LogPatch(kind, colour, seed, params, middle, radius), painted
+    # A box: its broadest side's way out is its front.
+    front = max(clusters, key=lambda c: c[1])[0] if clusters else (a.orthogonal())
+    n = (front - a * front.dot(a)).normalized()
+    b = n.cross(a).normalized()
+    xa, xb, xn = (pts @ np.array(v[:]) for v in (a, b, n))
+    mid = Vector(np.array(a[:]) * (xa.min() + xa.max()) / 2 + np.array(b[:]) * (xb.min() + xb.max()) / 2
+                 + np.array(n[:]) * (xn.min() + xn.max()) / 2)
+    size = (float(xa.max() - xa.min()), float(xb.max() - xb.min()), float(xn.max() - xn.min()))
+    if size[0] < 1e-4 or size[1] < 1e-4:
+        return None, None
+    # Running up a face is up its patch (a board's stains run down it).
+    if a.z < -0.5:
+        a, b = -a, -b
+    if abs(a.z) < 0.5 and b.z < -0.5:
+        b, n = -b, -n
+    return BoxPatch(kind, colour, seed, params, mid, a, b, n, size), painted
 
 
 # ---------------------------------------------------------------------------- painters
@@ -364,6 +616,72 @@ def painted_board(d, p, *, paint="#EAE5D3", under="#8C6A48", peel=0.45, stain=0.
     return col
 
 
+def painted(d, p, *, under="#8C6A48", peel=0.3, stain=0.3, stain_colour="#7E5A3A", weather=0.3):
+    """Wood painted a colour of its own (the piece's): its brushwork a little uneven, the paint worn
+    through along stretches of its edges and at its corners and here and there on a face, the wood
+    showing where it has gone and a darker rim round each bare patch; stains running down from its top
+    and grime at its foot, paler where the weather has had it. Every face of it (where a sign's board
+    paints only its front)."""
+    s, t = d["along"], d["across"]
+    seed = p.seed
+    L, W, T = d["length"], d["width"], max(d["thick"], 1e-3)
+    face = d["face"]
+    half = np.where((face == 1) | (face == 3), T / 2, W / 2)
+    paint_c = p.colour * (0.95 + 0.08 * fbm(s * 3.0, t * 3.0, seed=seed, octaves=3))[..., None]
+    paint_c = paint_c * (1.0 - 0.06 * smoothstep(0.55, 0.8, fbm(s * 0.6, t * 9.0, seed=seed + 2, octaves=2)))[..., None]
+    bare = wood(d, Patch("w", hexc(under), seed + 7, {}), grain_lines=24.0, knots=1, nails=False, edge=0.0)
+    edge = np.minimum(L / 2 - np.abs(s), half - np.abs(t))
+    near = 1.0 - smoothstep(0.0, 0.05 + 0.08 * min(W, 0.6), edge)
+    stretch = smoothstep(0.45, 0.7, fbm(s * 2.4 + 3.1, t * 2.4 + 7.7, seed=seed + 9, octaves=3))
+    corner = np.exp(-np.hypot(L / 2 - np.abs(s), half - np.abs(t)) / 0.05)
+    worn = fbm(s * 5.0, t * 5.0, seed=seed + 3, octaves=5) + near * (0.1 + 0.5 * stretch) + 0.45 * corner
+    spots = smoothstep(0.72, 0.78, fbm(s * 8.0 + 11.0, t * 8.0, seed=seed + 4, octaves=4)) * peel
+    worn = np.maximum(worn, 0.95 * spots + 0.3)
+    thresh = 1.0 - peel * 0.22
+    gone = smoothstep(thresh, thresh + 0.035, worn)
+    rim = smoothstep(thresh - 0.05, thresh, worn) * (1.0 - gone)
+    col = mix(paint_c, bare, gone)
+    col = col * (1.0 - 0.3 * rim)[..., None]
+    world = d["world"]
+    if weather > 0.0:
+        w = fbm(world[..., 0] * 1.4, world[..., 1] * 1.4, world[..., 2] * 1.4, seed=95, octaves=4)
+        col = mix(col, col * 1.08 + 0.02, smoothstep(0.45, 0.75, w) * weather * 0.6)
+    if stain > 0.0:
+        top = float(world[..., 2].max()) if world.size else 0.0
+        down = top - world[..., 2]
+        runs = smoothstep(0.5, 0.8, fbm(s * 20.0, np.zeros_like(s), seed=seed + 11, octaves=2)) * np.exp(-down / 0.25)
+        col = mix(col, np.broadcast_to(hexc(stain_colour), col.shape), np.clip(runs, 0.0, 1.0) * stain * 0.5)
+    foot = 1.0 - smoothstep(0.05, 0.6, world[..., 2])
+    col = col * (1.0 - 0.25 * foot)[..., None]
+    return col
+
+
+def bark(d, p, *, furrows=24.0, depth=0.42, moss=0.3, lichen=0.25):
+    """Bark, as on the film's fallen logs, posts and branches: long ridged plates split by dark furrows
+    running along it, wandering and joining, broken across here and there, each plate a little
+    lighter along its ridge; moss in patches over what faces up, pale lichen in spots, darker
+    underneath."""
+    s, t = d["along"], d["across"]
+    seed = p.seed
+    base = p.colour * _tone(seed, 0.08)
+    wander = (fbm(s * 0.9, t * 2.0, seed=seed + 5, octaves=3) - 0.5) * 0.08
+    g = (t + wander) * furrows
+    ridge = np.abs(np.sin(math.pi * (g + 0.35 * fbm(s * 2.5, g * 0.5, seed=seed + 6, octaves=2))))
+    cross = smoothstep(0.82, 0.95, noise(s * 3.0, g * 0.5, seed=seed + 7))
+    furrow = np.maximum(1.0 - smoothstep(0.0, 0.35, ridge), cross * 0.7)
+    col = base * (1.0 - depth * furrow)[..., None]
+    col = col * (1.0 + 0.12 * smoothstep(0.55, 1.0, ridge) * (1.0 - cross))[..., None]
+    col = col * (0.9 + 0.2 * fbm(s * 1.5, t * 1.5, seed=seed + 8, octaves=3))[..., None]
+    up = d["normal"][..., 2]
+    world = d["world"]
+    patch = fbm(world[..., 0] * 2.0, world[..., 1] * 2.0, world[..., 2] * 2.0, seed=97, octaves=4)
+    m = smoothstep(0.55, 0.75, patch) * smoothstep(-0.2, 0.6, up) * moss
+    col = mix(col, np.broadcast_to(hexc("#6E8A45"), col.shape), m * 0.6)
+    spots = smoothstep(0.74, 0.8, fbm(s * 6.0, t * 6.0, seed=seed + 9, octaves=3)) * lichen
+    col = mix(col, np.broadcast_to(hexc("#B9B79A"), col.shape), spots * 0.5)
+    return col * (1.0 - 0.25 * smoothstep(0.0, -0.8, up))[..., None]
+
+
 def metal(d, p, *, rust=0.5, rivets=(), rivet_r=0.012):
     """A steel plate, grey, mottled, rusting at its edges and round its rivets, rust running down
     from each."""
@@ -452,7 +770,7 @@ def plain(d, p):
     return p.colour * (0.95 + 0.08 * fbm(s * 6.0, t * 6.0, seed=p.seed, octaves=3))[..., None]
 
 
-PAINTERS = {"wood": wood, "board": painted_board, "metal": metal, "tin": tin, "enamel": enamel, "plastic": plastic,
+PAINTERS = {"wood": wood, "board": painted_board, "painted": painted, "bark": bark, "metal": metal, "tin": tin, "enamel": enamel, "plastic": plastic,
             "paper": paper, "cloth": cloth, "plain": plain}
 
 
@@ -470,72 +788,153 @@ def _sliding_max(a, w):
 
 
 class Painter:
-    """Collects a house's painted pieces as they are joined (see join), packs their patches into one
-    map, gives the joined objects their `paint` UVs, paints the map and saves it (see finish)."""
+    """Collects a house's or a prop's painted pieces as they are joined (see join), packs their
+    patches into one map, gives the joined objects their `paint` UVs, paints the map and saves it
+    (see finish).
 
-    def __init__(self, name, size=2048, margin=4, density=(170, 50)):
+    A piece painted by a patch of its own (see box, SheetPatch) is painted as given. Any other piece
+    `auto` names a kind for (by default every piece with a wood grain, as wood) is fitted with a
+    patch (see fit), and only what of it shows is painted: a face with another piece's face pressed
+    to it or lying just before it (a plank's back on the wall, its ends butted into a post, the half
+    of a log inside the room's own logs) keeps its own colour and takes no room in the map."""
+
+    def __init__(self, name, size=2048, margin=4, density=(90, 50), sizes=(256, 512, 1024, 2048)):
         self.name, self.size, self.margin, self.density = name, size, margin, density
+        self.sizes = [s for s in sizes if s <= size]
         self.patches = []
-        self.objects = []  # (object, [(patch or None, [(s, t)...] per loop or None)...])
+        self.objects = []  # (object, [(patch or None, [(normal, corners) per face], fitted, painted)...])
+        self.seed = 7000
 
-    def join(self, name, pieces, collection, sharp=P.SHARP, grained=True):
-        """Join (bmesh, colour[, grain[, paint]]) pieces as houses.join_grained does, noting each
-        painted piece's patch and the patch coordinates of every corner of its faces first."""
+    def join(self, name, pieces, collection, sharp=P.SHARP, grained=True, auto=None, wood=None, joiner=None):
+        """Join (bmesh, colour[, grain[, paint]]) pieces as houses.join_grained does (or P.join, not
+        `grained`, or `joiner(name, pieces, collection)`), noting each painted piece's patch and its
+        faces (their normals and corners) first. `auto(piece)` gives the kind and the painter's params
+        for a piece with no patch of its own, or None to leave it its own colours; by default a grained
+        piece is wood, painted with `wood`'s params."""
         import houses as H
-        loops = []
+        records = []
         for piece in pieces:
             bm = piece[0]
             spec = piece[3] if len(piece) > 3 else None
             patch = spec(bm) if callable(spec) else spec
+            bm.normal_update()
+            faces = [(f.normal.copy(), [loop.vert.co.copy() for loop in f.loops]) for f in bm.faces]
+            fitted, painted = False, None
+            if patch is None:
+                choice = auto(piece) if auto is not None else (
+                    ("wood", dict(wood or {})) if len(piece) > 2 and piece[2] is not None else None)
+                if choice is not None:
+                    kind, params = choice
+                    self.seed += 1
+                    patch, painted = fit(bm, piece[1], piece[2] if len(piece) > 2 else None, kind, self.seed, params)
+                    fitted = patch is not None
             if patch is not None:
                 self.patches.append(patch)
-                bm.normal_update()
-                coords = []
-                for face in bm.faces:
-                    c = patch.loop_coords(face)
-                    coords.extend(c if c is not None else [None] * len(face.loops))
-                loops.append((patch, coords))
-            else:
-                loops.append((None, [None] * sum(len(f.loops) for f in bm.faces)))
+            records.append((patch, faces, fitted, painted))
         plain = [p[:3] if len(p) > 3 else p for p in pieces]
-        obj = H.join_grained(name, plain, collection, sharp=sharp) if grained else P.join(name, [p[:2] for p in plain],
-                                                                                           collection, sharp=sharp)
-        assert sum(len(c) for _, c in loops) == len(obj.data.loops), (name, sum(len(c) for _, c in loops), len(obj.data.loops))
-        self.objects.append((obj, loops))
+        if joiner is not None:
+            obj = joiner(name, [p[:2] for p in plain], collection)
+        elif grained:
+            obj = H.join_grained(name, plain, collection, sharp=sharp)
+        else:
+            obj = P.join(name, [p[:2] for p in plain], collection, sharp=sharp)
+        assert sum(sum(len(c) for _, c in f) for _, f, _, _ in records) == len(obj.data.loops), name
+        self.objects.append((obj, records))
         return obj
 
-    def pack(self):
-        """Patches into the map, as densely as they fit (texels a metre): tallest first, each laid
-        where it rests lowest on those already in (a skyline), so short patches fill in beside the
-        tall ones."""
-        hi, lo = self.density
+    def _hide(self):
+        """Leaves out of the fitted patches what never shows: faces with another face within 3 cm
+        before them (pressed to the wall, butted in, inside the room's own logs)."""
+        from mathutils.bvhtree import BVHTree
+        verts, polys = [], []
+        for obj, _ in self.objects:
+            base = len(verts)
+            mw = obj.matrix_world
+            verts.extend(mw @ v.co for v in obj.data.vertices)
+            polys.extend([base + i for i in p.vertices] for p in obj.data.polygons)
+        if not polys:
+            return
+        tree = BVHTree.FromPolygons(verts, polys, all_triangles=False, epsilon=0.0)
+        for _, records in self.objects:
+            for k, (patch, faces, fitted, painted) in enumerate(records):
+                if not fitted:
+                    continue
+                shown = []
+                for j, (nrm, corners) in enumerate(faces):
+                    if painted is not None and not painted[j]:
+                        shown.append(False)
+                        continue
+                    centre = sum(corners, Vector()) / len(corners)
+                    hit = tree.ray_cast(centre + nrm * 0.002, nrm, 0.03)
+                    shown.append(hit[0] is None)
+                records[k] = (patch, faces, fitted, shown)
+                if isinstance(patch, BoxPatch):
+                    sides = {patch.side_of(nrm) for (nrm, _), s in zip(faces, shown) if s}
+                    patch.set_faces([f for f in FACES if f in sides])
+                elif isinstance(patch, LogPatch):
+                    patch.crop([patch.angles(c) for (_, c), s in zip(faces, shown) if s])
+        # A patch with nothing of it shown takes no room.
+        keep = set()
+        for _, records in self.objects:
+            for patch, faces, fitted, shown in records:
+                if patch is not None and (not fitted or any(shown)):
+                    keep.add(id(patch))
+        self.patches = [p for p in self.patches if id(p) in keep]
+
+    def _fits(self, shape, density):
+        """Where each patch lies in a map `shape` (wide, high) at `density` texels a metre, laid
+        tallest first where it rests lowest on those already in (a skyline); None if they do not all
+        fit."""
+        width, height = shape
         m = self.margin
-        for density in range(hi, lo - 1, -5):
-            sizes = [(max(2, math.ceil(p.w * density * p.scale)), max(2, math.ceil(p.h * density * p.scale)))
-                     for p in self.patches]
-            order = sorted(range(len(sizes)), key=lambda i: (-sizes[i][1], -sizes[i][0]))
-            sky = np.zeros(self.size, dtype=np.int64)
-            places = [None] * len(sizes)
-            fits = True
-            for i in order:
-                w, h = sizes[i][0] + 2 * m, sizes[i][1] + 2 * m
-                if w > self.size:
-                    fits = False
+        sizes = [(max(2, math.ceil(p.w * density * p.scale)), max(2, math.ceil(p.h * density * p.scale)))
+                 for p in self.patches]
+        order = sorted(range(len(sizes)), key=lambda i: (-sizes[i][1], -sizes[i][0]))
+        sky = np.zeros(width, dtype=np.int64)
+        places = [None] * len(sizes)
+        for i in order:
+            w, h = sizes[i][0] + 2 * m, sizes[i][1] + 2 * m
+            if w > width:
+                return None
+            rest = _sliding_max(sky, w)
+            x = int(np.argmin(rest))
+            y = int(rest[x])
+            if y + h > height:
+                return None
+            sky[x:x + w] = y + h
+            places[i] = (x + m, y + m)
+        return places, sizes, int(sky.max())
+
+    def pack(self):
+        """Patches into the smallest map that holds them at the densest texels a metre (`density`'s
+        first), or a hair less dense (5 texels a metre) rather than a map twice the size: square, or
+        half as high as it is wide, a power of two across, as the game lays them out in its layers
+        (see loadPaintMaps in Props.ts). If even the largest does not hold them, as densely as they
+        fit it."""
+        hi, lo = self.density
+        shapes = []
+        for size in self.sizes:
+            if size // 2 >= 128:
+                shapes.append((size, size // 2))
+            shapes.append((size, size))
+        found = None
+        for shape in shapes:
+            for density in ((hi, hi - 5) if shape != shapes[-1] else (hi,)):
+                got = self._fits(shape, density)
+                if got is not None:
+                    found = (shape, density, got)
                     break
-                rest = _sliding_max(sky, w)
-                x = int(np.argmin(rest))
-                y = int(rest[x])
-                if y + h > self.size:
-                    fits = False
-                    break
-                sky[x:x + w] = y + h
-                places[i] = (x + m, y + m)
-            if fits:
+            if found is not None:
                 break
         else:
-            raise RuntimeError(f"{self.name}: the painted patches do not fit a {self.size} map")
-        y, shelf = int(sky.max()), 0
-        self.texels = density
+            for density in range(hi - 5, lo - 1, -5):
+                got = self._fits(shapes[-1], density)
+                if got is not None:
+                    found = (shapes[-1], density, got)
+                    break
+        if found is None:
+            raise RuntimeError(f"{self.name}: the painted patches do not fit a {shapes[-1]} map")
+        self.shape, self.texels, (places, sizes, rows) = found
         for p, at, sz in zip(self.patches, places, sizes):
             p.at, p.size_px = at, sz
         used = sum((w + 2 * self.margin) * (h + 2 * self.margin) for w, h in sizes)
@@ -546,33 +945,39 @@ class Painter:
             print("PAINT area by kind (m2):", {k: round(v, 1) for k, v in sorted(area.items(), key=lambda x: -x[1])})
             for patch in sorted(self.patches, key=lambda q: -q.w * q.h)[:25]:
                 print(f"  {patch.kind} seed {patch.seed}: {patch.w:.2f} x {patch.h:.2f} m")
-            content = sum(w * h for w, h in sizes)
-            print(f"PAINT content {content} px, with margins {used} px")
-        print(f"PAINT {self.name}: {len(self.patches)} patches at {density} texels a metre, "
-              f"{100.0 * used / self.size ** 2:.0f}% of the map, {y + shelf} rows")
+        w, h = self.shape
+        print(f"PAINT {self.name}: {len(self.patches)} patches at {self.texels} texels a metre in a {w} x {h} map, "
+              f"{100.0 * used / (w * h):.0f}% of it, {rows} rows")
 
     def finish(self, out_dir, quality=88):
-        """Pack, give every joined object its `paint` UVs (after its other maps, so the night map stays
-        first), paint the map and save it as WebP; returns what the game needs to read it."""
+        """Leave out what never shows, pack, give every joined object its `paint` UVs (after its other
+        maps, so a house's night map stays first), paint the map and save it as WebP; returns what the
+        game needs to read it."""
+        self._hide()
         self.pack()
-        n = self.size
-        for obj, loops in self.objects:
+        mw, mh = self.shape
+        kept = {id(p) for p in self.patches}
+        for obj, records in self.objects:
             uvs = []
-            for patch, coords in loops:
-                for c in coords:
-                    if patch is None or c is None:
-                        uvs.extend((-1.0, -1.0))
+            for patch, faces, fitted, shown in records:
+                for j, (nrm, corners) in enumerate(faces):
+                    c = None
+                    if patch is not None and id(patch) in kept and (shown is None or shown[j]):
+                        c = patch.coords(nrm, corners)
+                    if c is None:
+                        uvs.extend((-1.0, -1.0) * len(corners))
                         continue
                     k = self.texels * patch.scale
-                    sx = (patch.at[0] + c[0] * k) / n
-                    ty = (patch.at[1] + (patch.h - c[1]) * k) / n
-                    # Blender's V runs up from the map's foot; the exporter flips it back.
-                    uvs.extend((sx, 1.0 - ty))
+                    for s, t in c:
+                        sx = (patch.at[0] + s * k) / mw
+                        ty = (patch.at[1] + (patch.h - t) * k) / mh
+                        # Blender's V runs up from the map's foot; the exporter flips it back.
+                        uvs.extend((sx, 1.0 - ty))
             layer = obj.data.uv_layers.new(name="paint")
             layer.data.foreach_set("uv", uvs)
             if "night" in obj.data.uv_layers:
                 obj.data.uv_layers.active = obj.data.uv_layers["night"]
-        image = np.zeros((n, n, 3), dtype=np.float32)
+        image = np.zeros((mh, mw, 3), dtype=np.float32)
         image[:] = hexc("#7F6A55")
         for p in self.patches:
             self._paint_patch(p, image)
@@ -580,7 +985,7 @@ class Painter:
         path = os.path.join(out_dir, f"{self.name}_paint.webp")
         _write_webp(path, np.clip(srgb, 0.0, 1.0), quality)
         print(f"PAINT {self.name} -> {path} ({os.path.getsize(path) // 1024} KB)")
-        return {"paint": {"map": f"{self.name}_paint.webp"}}
+        return {"paint": {"map": f"{self.name}_paint.webp", "size": [mw, mh]}}
 
     def _paint_patch(self, p, image):
         """Paints one patch and the margin round it (its edge carried out, so the map's smaller copies
