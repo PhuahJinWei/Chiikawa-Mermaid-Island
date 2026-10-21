@@ -792,8 +792,14 @@ def convert(cfg, source):
     for side, idx in ((-1, L.EAR_L), (1, L.EAR_R)):
         if side in ears:
             parts[idx]["pivot"] = ears[side]
+            parts[idx]["parent"] = L.HEAD
     if tails:
         parts[L.TAIL]["pivot"] = tails[0]
+    # The head turns on its own about its neck, in its middle where it grows wider than the body under it,
+    # to keep the eyes on you (the user, 2026-10-22); the ears and leaves go with it.
+    body_src = [src[o] for o, k in body_objs.items() if k == "Body"]
+    join = head_join(src[head_obj], body_src, eye_z)
+    parts[L.HEAD]["pivot"] = Vector((0.0, 0.0, join))
 
     # ------------------------------------------------------------------ film proportions
     # The downloaded models stand taller than the film's characters: a round head on a long
@@ -801,8 +807,6 @@ def convert(cfg, source):
     # the join to fit, so the face, ears and arms keep their shapes and the feet stay put.
     drop = cfg.get("shorten", 0.0)
     if drop > 0.0:
-        body_src = [src[o] for o, k in body_objs.items() if k == "Body"]
-        join = head_join(src[head_obj], body_src, eye_z)
         squeeze = vertical_squeeze(join, drop)
         shifts = {}
         for o, k in body_objs.items():
@@ -863,7 +867,7 @@ def convert(cfg, source):
         if k == "Head":
             def attr(co, i, col=col, get_mask=get_mask):
                 uv = (0.5 + co.x / (2.0 * rf), 0.5 + (co.z - eye_z) / (2.0 * rf))
-                return L.attrs(col, L.BODY, paint=L.PAINT_BODY, uv=uv, mask=get_mask(i))
+                return L.attrs(col, L.HEAD, paint=L.PAINT_BODY, uv=uv, mask=get_mask(i))
         elif k == "Body":
             def attr(co, i, col=col):
                 return L.attrs(col, L.BODY)
@@ -926,6 +930,7 @@ def convert(cfg, source):
             pieces.append(L.Piece(L.transformed(L.leaf_bm(length, width, 0.05 * rf), m), leaf_attr))
             top = max(top, (m @ Vector((0.0, 0.0, length))).z)
         parts[L.SPROUT]["pivot"] = Vector((0.0, 0.0, head_top - 0.03 * rf))
+        parts[L.SPROUT]["parent"] = L.HEAD
 
     # ------------------------------------------------------------------ anchors
     head_bvh = BVHTree.FromBMesh(head_bm)
@@ -1117,4 +1122,6 @@ def main():
         render_previews(results)
 
 
-main()
+# Run by Blender; build_siren.py imports its helpers without converting anything.
+if __name__ == "__main__":
+    main()

@@ -1130,24 +1130,40 @@ def oar():
     return bm, np.array(cols)
 
 
+# The torch's size to the cast's (about 0.9 m tall): as first made, carried stretched half as long
+# again, it stood 1.75 m, twice Chiikawa's height, its flame half a metre tall (user, 2026-10-21: "way
+# too big"). Its flame's middle is TORCH_FLAME_UP over the hand in the game (src/world/Cave.ts).
+TORCH_SIZE = 0.75
+
+
 def torch():
     """The torch carried through the cave, as the film's (`cave interior 1`, `2`): a stick with a head of
-    bound straw, and its flame. In its own frame: the stick along +y from the hand (the origin). Returns
-    ((bmesh, colours) of the stick, the flame's pieces)."""
+    bound straw, and its flame, at TORCH_SIZE. In its own frame: the stick along +y from the hand (the
+    origin). Returns ((bmesh, colours) of the stick, the flame's pieces)."""
     import build_props as P
     import houses as H
     W = palette(WOOD)
+    k = TORCH_SIZE
     bm = bmesh.new()
     cols = []
-    parts = [(P.segment_bm(Vector((0.0, 0.0, -0.12)), Vector((0.0, 0.0, 0.5)), 0.024, 0.03, 7), W["stick"]),
-             (P.segment_bm(Vector((0.0, 0.0, 0.46)), Vector((0.0, 0.0, 0.64)), 0.055, 0.05, 9), W["wrap"])]
+    parts = [(P.segment_bm(Vector((0.0, 0.0, -0.12 * k)), Vector((0.0, 0.0, 0.5 * k)), 0.024 * k, 0.03 * k, 7), W["stick"]),
+             (P.segment_bm(Vector((0.0, 0.0, 0.46 * k)), Vector((0.0, 0.0, 0.64 * k)), 0.055 * k, 0.05 * k, 9), W["wrap"])]
     for z in (0.5, 0.57):
-        parts.append((P.segment_bm(Vector((0.0, 0.0, z)), Vector((0.0, 0.0, z + 0.022)), 0.058, 0.058, 9), W["wrapDark"]))
+        parts.append((P.segment_bm(Vector((0.0, 0.0, z * k)), Vector((0.0, 0.0, (z + 0.022) * k)), 0.058 * k, 0.058 * k, 9),
+                      W["wrapDark"]))
     for b, c in parts:
         cols.extend([c] * len(b.verts))
         L.append_bm(bm, b)
         b.free()
-    flame = list(H.flame_pieces(Vector((0.0, 0.0, 0.6)), 0.38, 0.22))
+    # Its flame shaped as the island's torches' (a metre tall, its heart 0.58 of that) and scaled down to
+    # the torch, heart and all: flame_pieces keeps its heart that tall whatever the flame's height, and on
+    # a flame this small the heart had dwarfed its tongues.
+    tall = 0.38 * k
+    flame = []
+    for piece, colours in H.flame_pieces(Vector((0.0, 0.0, 0.0)), 1.0, 0.22 / 0.38):
+        bmesh.ops.scale(piece, vec=Vector((tall, tall, tall)), verts=piece.verts)
+        bmesh.ops.translate(piece, vec=Vector((0.0, 0.0, 0.6 * k)), verts=piece.verts)
+        flame.append((piece, colours))
     return (bm, np.array(cols)), flame
 
 

@@ -1,0 +1,13 @@
+# The Siren: which layers make up each expression (see ../README.md).
+# cheeks.png (her whiskers) shows on every face. The first layers were drawn by art/blender/build_siren.py
+# as templates to paint over: from the film where it shows her face (Neutral, Happy, Teary, Angry), the
+# rest after the cast's own sets. It never overwrites them.
+Neutral: brows 1 + eyes open + mouth closed  # [anime] siren 2, the plush
+Smile: brows 1 + eyes open + mouth half-open
+Happy: brows 1 + eyes happy + mouth open  # cave interior 7: singing
+Determined: brows 2 + eyes open + mouth closed
+Worried: brows 3 + eyes open + mouth half-open + sweat
+Teary: brows 3 + eyes sad + mouth closed + tears  # cave interior 8
+Sobbing: brows 4 + eyes open + mouth half-open 2 + tears
+Shocked: brows 4 + eyes open + mouth half-open 2
+Angry: brows 1 + eyes red + mouth teeth  # roused: [anime] siren 3, the angry plush

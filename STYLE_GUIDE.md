@@ -85,7 +85,9 @@ never pushed, because it is other people's artwork.
   in it or by it, the pier and the ferry show in it faintly, as real water
   shows them: broken by the ripples into drifting strokes, most where the
   water is seen across, much of the water's colour in them. Never a flat
-  colour, never a crisp mirror. The sea
+  colour, never a crisp mirror. Only you, bent over the water to look into
+  it out of your own eyes, show clearly in it, as a face bent over calm
+  water does, the ripples still waving you a little. The sea
   cliffs are pale cream sandstone in long beds, tufts of leaves on their
   ledges and creepers hanging over their lip. Grass is clumps, light
   yellow-green patches with sharp blade tips along their tops over a plain
@@ -184,6 +186,14 @@ skirt, Chiikawa with a pink bear pouch, weapons strapped on. That could be a
 
 Scale unit: **1 = Chiikawa's height.**
 
+In the game Chiikawa is 0.91 m tall and the villagers about a metre, their
+eyes about 0.6 m up, and what is made for them is their size, not a
+person's: a villager's kitchen counter about half as high as they are, a
+stall's counter at their chest, a stool's seat about a third. 島二郎's shop
+is his size, a big man's, so its door, stove, table and chair stand over
+the cast, as the film's do. The understory's small plants come up to about
+a villager's height, the big-leaved ones over them.
+
 | Character | Height | Body | Head features | Crown | Notes |
 |---|---|---|---|---|---|
 | **Chiikawa** | 1.0 | Warm white #FBF7EE | Two small round ears on top | Pink #F9DCE1 / #FFF1F3 | Most expressive face; often teary or anxious. |
@@ -196,7 +206,7 @@ Scale unit: **1 = Chiikawa's height.**
 | **Furuhonya** (crab) | 1.0 | Soft pink #F6CFCF | Coral crab claws on top of head #F28B8B, two tiny antennae, pink cap | White with pale blue | Present at the beach at night. |
 | **Islanders** (incl. Hitoha, Futaba) | 1.1 | Grey-mauve #988584 (sampled from the film) | Leaf sprout on top of head (same grey, dark vein lines). No eyes, brows or mouth: only cheek marks, four bold hatch strokes a side | Grey crown of the same flowers in daily scenes | Shaped like Chiikawa: a round head on a fringed grass skirt of the same grey, stub arms at the waist. About 2.5 head radii tall, like the official plush. **Hitoha has one leaf, Futaba has two, and they are the only islanders with leaves.** Generic islanders vary: some have rabbit-like ears, cat ears, round ears or a small spike instead. |
 | **Small mermaids** | 0.6 | White round head #FFFFFF | Rust-red cap patch on top #C8462E with two tiny black antennae; startled "O" mouth; small dot eyes | None | White fin-hands with three lines, pink waist band #F5B3BE, rust scaled tail #C2553E with a curled fin. There are at least two; they ride on the Siren's head. |
-| **Siren** | ~2.5 | White #FFFFFF | Black hair cap with a widow's peak down the forehead #141214; two black fluffy bun-ears with red fan inserts #C8361F; whiskers; big round eyes, red irises when angry | None | White body, broad white fin-hands, pink waist band, coral scaled fish tail #C8584A. Looks cute when calm, menacing when angry: red eyes, open toothy mouth. |
+| **Siren** | 3.6 | White #FFFFFF | Black hair cap with a widow's peak down the forehead #141214; two black fluffy bun-ears with red fan inserts #C8361F; whiskers; big round eyes, red irises when angry | None | White body, broad white fin-hands, pink waist band, coral scaled fish tail #C8584A. Looks cute when calm, menacing when angry: red eyes, open toothy mouth. 3.6 times Chiikawa to the tops of her bun-ears (about 3.3 m), as `cave interior 7` and `8` both measure her beside the cast on the ledge. Her shape is the user's own drawings of her from the front, the back and the side: Chiikawa's round head (the cast's own), her eyes 1.95 head radii over her base, a short white torso under it running on into the tail in one smooth shape (her tail is part of her, never a second layer she wears), the band flush round her waist, a round bowl of tail leaning back into its curl, simple round fin-hands spread out and down with two lines on each, and her tail curling under her and up behind to a heart-shaped fin. Modelled by `art/blender/build_siren.py`. |
 | **Big mustached man** | ~2.0 | Peach/orange, human-like large body | Mustache, lightning-bolt scar, small topknot | None | Wears a dark loincloth printed 味自慢 ("proud of our flavour"). Sits at the night feast toasting. Very likely the island's food-shop owner (島二郎); I'll confirm before naming him in game. |
 
 ### Faces (all cute characters)
@@ -249,7 +259,9 @@ Scale unit: **1 = Chiikawa's height.**
   panel shingled with overlapping round scales: greens (light green, sage,
   olive, yellow-green) with now and then an orange one, or warm colours,
   teal, orange and red. Tall windows in heavy board frames with deep
-  sills, green panes with two thin bars and a double white zigzag. Porches
+  sills, green panes with two thin bars and a double white zigzag, their
+  sills at a villager's eyes (`villager hut exterior 2`), so the band of
+  scales under them is short and the villagers see out of them. Porches
   of wide planks on a thick log edge with no railing, chunky log steps,
   and potted plants on the porch: a gnarled succulent in a terracotta pot,
   purple thistles in a round clay pot. A villager's hut has one door of
@@ -278,7 +290,11 @@ Scale unit: **1 = Chiikawa's height.**
   bookshelf tapering as it rises, white pegs down its sides, on round
   feet, and toward the door a potted monstera on a little table and two
   brown woven vases; before the door a round cream rug patterned in blue
-  round a white flower, two domed straw cushions on it.
+  round a white flower, two domed straw cushions on it. The furniture is
+  the villagers' size: the counter's top about half as high as they are,
+  the stool's seat about a third, the bed about one and a half villagers
+  long, the bookshelf a little taller than they are; the rug and its
+  cushions, the doors and the windows are as wide as the film's.
 - The plank huts, on the ground under wide thatched hip roofs, are
   villagers' huts too: inside, the same room as the stilt huts', laid out
   the same way, and the same one plank door, opening outward onto a
@@ -304,11 +320,11 @@ Scale unit: **1 = Chiikawa's height.**
   sides repeat the front's), with a scalloped trim in white, yellow or
   blue along their bottoms and paper lanterns hanging under the front; a
   back wall of upright stripes in warm red-orange shades with a work table
-  along it, and a counter as tall as the cast, framed in pale grey with
-  white menu tags hanging off it. The booth is wide, so the tall counter
-  reads long and low: about two and a half times as wide as the counter is
-  tall. The islander keeping a stall stands on a raised floor behind its
-  counter, their head showing over it, the board above them.
+  along it, and a counter at the chest of the cast standing at it, framed
+  in pale grey with white menu tags hanging off it. The booth is wide, so
+  the counter reads long and low: about four times as wide as it is tall.
+  The islander keeping a stall stands on a low floor behind its counter,
+  showing over it from the chest up, the board above them.
 - Each stall has its own things on its counter and work table, after what
   it sells: a kebab stall's two tall doner spits on the table behind its
   counter with their heaters glowing behind them; a candy-floss stall's
@@ -596,6 +612,10 @@ food and cups on the ground, everyone toasting. This is the festival.
   ring where it goes in and comes out. Every ring stays where it was made.
   They are only as pale as the light that falls on them: bright on the glow
   and in a torch's pool, faint in the dark, never glowing of their own.
+- The boat is dry inside: its floor, never the water over it, from in it
+  or looking into it. The torch is the cast's size, a short stick held at
+  the side with a small flame whose tip reaches the top of the bearer's
+  head (Chiikawa stands 0.9 m), never a pole twice their height.
 - Its rock is never smooth plaster anywhere: heavy rounded masses up the
   walls of its wide places, flowstone in runs down the passage, rounded
   masses piled up the chamber, darker in their hollows and paler on their
@@ -634,7 +654,10 @@ food and cups on the ground, everyone toasting. This is the festival.
   on it apart like a prop. A small fire lights it, turning the cobbles a
   warm magenta against the blue, where the Siren and the mermaids sit
   (`cave interior 7`, `8`). In the film the Siren's own glow lights it,
-  its walls a brighter indigo.
+  its walls a brighter indigo. In the game she is no light: the cave's
+  own light, the fire and the torch light her as they light the cast. She
+  rests on the ledge south of the fire, facing the water, so that seen from
+  it she sits to the fire's right and the cast to its left, as in the film.
 - Daylight comes in only where it truly can: bright at the mouth's rim,
   gone a few metres in; down the skylight's well a slanting beam and a
   sunlit patch on the water that move with the hour (the moon's, pale, by

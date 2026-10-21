@@ -437,6 +437,72 @@ stage, and along every path. Not yet checked on a real phone.
   banner, the street's いらっしゃいませ!! and たのしんでね, and 味じまん
   お好み焼き on a red board at the street's far end, as the film has it
   there, in place of トロピカルジュース.
+- Everyone keeps their eyes on you (the user, 2026-10-22). Before, those
+  within 4 m of you turned their whole bodies to face you.
+  - Within 4 m, the cast, Hitoha and Futaba, the crowd and the Siren turn
+    their heads to you: to the sides, and up and down too, as when you
+    stand somewhere high.
+  - A body turns only once its head has turned as far as it goes, about
+    29°. Then it turns after the head, unhurried, and the head straightens
+    as the body comes round. When you go, they turn back.
+  - Looking up or down is a gentle nod, half of the way to your eyes and
+    at most 14°: all the way looked weird.
+  - Every head is now a part of its own (HEAD, a thirteenth part in every
+    rig) that turns about its neck, where it grows wider than the body.
+    Its ears, leaves and flower crown go with it.
+  - Every character and outfit was rebuilt. Models built before this turn
+    only their bodies.
+- The Siren, the giant mermaid of the forbidden cave, resting on the
+  chamber's ledge past the skylight's dome (the user, 2026-10-21).
+  `art/blender/build_siren.py` builds her in the cast's own form: their
+  vertex format and rig, their pen and their flat shading, and a face
+  painted in layers in `art/faces/siren/`.
+  - Her shape is the user's own drawings of her from the front, the back
+    and the side, and her head is the cast's: Chiikawa's head from the
+    downloaded models, as round as every other Chiikawa model's, at her
+    size.
+  - She is 3.6 times Chiikawa's height to the tops of her bun-ears, about
+    3.3 m, as `cave interior 7` and `8` both measure her beside the cast.
+  - Her body is one smooth shape, her tail part of her and never a second
+    layer she wears (the user, 2026-10-22). Her eyes are 1.95 head radii
+    over her base, and a short white torso shows under the head, running
+    on into her coral tail. A pink band lies flush round her waist, inked
+    along both edges. The tail's round bowl is rowed with scales and leans
+    back under her into its curl, as the drawing from the side has it.
+  - A black hair cap covers the top and back of the head. Its edge is the
+    curve the user drew over her from the front and the side: a
+    round-footed widow's peak hanging down between her eyes, flaring into
+    the two round humps of her white face, then sweeping down behind her
+    eyes.
+  - Two fluffy black bun-ears sit at the head's top corners, each with a
+    red fan in front. Simple round fin-hands spread out and down from her
+    sides, two lines on each. Her tail curls round under her and up behind
+    her to a heart-shaped fin.
+  - Her face's first layers are templates for the user to draw over (never
+    overwritten), the cast's whole set of layers and all nine expressions:
+    from the film where it shows her face (calm, after `[anime] siren 2`
+    and the plush; singing, after `cave interior 7`; teary, after `cave
+    interior 8`; angry, red-eyed with a toothy mouth, after `[anime] siren
+    3` and the angry plush), the rest after the cast's own sets, her
+    whiskers on every face. Angry is a ninth expression (怒り, the user's
+    choice); the rest of the cast show their neutral face for it until it
+    is painted.
+  - The Test panel's セイレーン section calms her (おだやか) or rouses her
+    (おこる: her fin-hands spread out wide and held, her angry face), and
+    takes you onto the ledge before her (会いに行く). She sits south of the
+    fire, facing the water, so that from the water she is to the fire's
+    right and the cast to its left, as in the film; walkers go round her.
+  - She keeps her eyes on you within 6 m, as everyone does (below), more
+    slowly. As tall as she is, up close you saw only her chin, so her head
+    bows to you in a gentle nod (the user, 2026-10-22). Her body turns
+    after her head as everyone's does, and what keeps walkers off her
+    fin-hands and tail fin turns with her. When you go, she turns back to
+    the water.
+  - She is no light: the cave's own light, the fire and the torch light her
+    as they light the cast (the user, 2026-10-21). The small mermaids are
+    for later.
+  - She costs about 0.4 ms a frame at 1280 × 720 in the chamber, two draw
+    calls and 67,000 triangles with her pen; she is drawn with the cave.
 
 **Performance**
 
@@ -520,13 +586,58 @@ outlined is drawn twice, once for its pen line. To get there:
 
 **Changed**
 
+- What is made for the villagers is their size (the user, 2026-10-21):
+  out of a villager's own eyes, 0.63 m up, the huts' furniture, the
+  festival's counters and the small plants had stood a person's size over
+  them. The cast are about a metre tall, Chiikawa 0.91 m.
+  - The villagers' furniture is 0.68 as big, each piece made smaller about
+    where it stands against its wall or in its corner (FURNITURE in
+    `art/blender/houses.py`): the kitchen counter's top at 0.49 m, about
+    half a villager, as the film's (`villager hut interior 2`, `4`), where
+    it was 0.72 m, over their eyes; the sink, the stove, the pans' rail and
+    the fruit with it; the stump stool's seat 0.29 m (0.42); the bed 1.47 m
+    long (2.16); the bookshelf 1.21 m, still a little taller than a
+    villager (1.78); the little tables, the monstera and the vases. The
+    rooms, the rug and its cushions and the doors are as they were. In the
+    stilt huts and the plank huts alike.
+  - The villagers' windows' sills stand at their eyes, 0.6 m over the floor
+    (WINDOW_SILL), where they had stood over their heads (0.92 m in the
+    stilt huts, 0.85 in the plank huts): a villager sees out of them, and
+    from the porch the band of scales under each is as short as the film's
+    (`villager hut exterior 2`), the pots before them reaching up to their
+    sills. The stilt huts' windows' tops are level with the door's (2.05 m,
+    from 2.3), so they keep about their shape; the plank huts' are as they
+    were (1.85). Inside, the logs along the walls at the sills' height stop
+    at the counter, its tap and its cutting board standing up past them.
+  - A stall's counter stands at the chest of an islander at it, 0.58 m
+    where it was 0.9 (as tall as a customer, after the user's wish of
+    2026-10-19), its keeper on a floor 0.12 m up (0.66), so they show over
+    it from the chest up, as in the film's stall frames; the work table at
+    0.5 m (0.98); the header boards, and so the arch, the banners and the
+    bunting, where they were. The goods stand on the new counter and table.
+  - The understory's small plants, up to a villager's height and a half,
+    are drawn 0.62 as big, the taller ones less smaller and the tallest
+    (over 3.4 m: the banana plants and elephant ears) as they were, so the
+    big leaves still stand over the villagers as the film's do
+    (`underScale` in `src/world/Vegetation.ts`): half of them had stood
+    over 1.3 m, two in three over a villager's head. They are drawn at
+    their places, so the jungle is planted as it was, a little sparser
+    near the ground; the understory's memory on the graphics card is as it
+    was.
+  - Kept as the film's: 島二郎's shop and its furniture, his size, a big
+    man's (his stove stands over Chiikawa in `shimajiro interior 2`); the
+    guest houses' hammock, slung high over the floor as in `guesthouse
+    interior 2`; the porch pots, the palisade, the torches, the cave's sign,
+    the fallen logs and the stalls' goods.
+  - No faces flicker in the huts, the stalls or the goods; the island's dark
+    test and the see-through test pass; a walk test reaches every piece of
+    furniture in the rooms, and each stall's keeper's spot, its steps and
+    its customer's spot.
 - The game is seen out of your own eyes (the user, 2026-10-21): you are a
   nameless islander, as the plan has it, standing on the pier as the game
   starts, the cast gathered under the welcome arch before you, where you
   had played Chiikawa from behind. You see yourself only in the calm
-  water's mirror, faintly as it mirrors everything; looking down while you
-  wade, that is a smear of your skirt from below, as real water would show
-  it. Your shadow stays on the ground under you, and what you hold, an
+  water's mirror (see below). Your shadow stays on the ground under you, and what you hold, an
   onigiri as you eat, shows before you. Your eyes go with your jumps and
   falls exactly and ease up and down steps and over your walk's bob; they
   keep under the forbidden cave's roof where it hangs low over a jump.
@@ -550,6 +661,24 @@ outlined is drawn twice, once for its pen line. To get there:
     Test panel; the lineup, the free camera and the staged film shots use
     it as before. The panel's character chips put you in anyone's eyes,
     じぶん (you) among them.
+  - You can see yourself in the water. Looking down into calm water you
+    stand in or beside, you bend over it to look, as you would over a
+    pond: your face, crown and ears look back up at you from just where you
+    look, clearly, the ripples waving them a little and the sun's glints
+    on them, in the light there (golden in the golden hour, the night's
+    blue by night). At first the water could show you only the underside
+    of your skirt, right under your eyes and as faint as everything it
+    mirrors, so you saw nothing of yourself (the user noticed). Everyone
+    else's reflections stay as faint as before. The waterfall's pool, calm,
+    waves you and everything in it less than the sea does. At a deck's
+    edge over the water, the pier's end or the quay, your eyes lean out
+    over it as you look down, or the deck would hide the water under it.
+    The foam round your own legs is fainter out of your eyes, where its
+    ring framed the water you look into, and your face in it. Only the
+    water shows you bending, and what you hold and your eyes stay as they
+    were; seen from behind (三人称カメラ) you stand as before. The dark
+    tests pass, and by night and by day with you bent over the shallows,
+    the pool and the pier's end.
 - The forbidden cave is a hidden place, as in the film. Its skylight, the
   round opening in the spur's top over the cave's sea, is smaller (13
   metres across where it was 21) and lies deep in the spur's jungle, about
@@ -1838,6 +1967,26 @@ outlined is drawn twice, once for its pen line. To get there:
 
 **Fixed**
 
+- A character's shadow on the ground no longer glows in the forbidden cave.
+  It took the island's fog, which lit it faintly with the fog's colour when
+  it was far off in the cave: the cave's dark test found the Siren's,
+  looking at her on the ledge from the lake 30 m away. A shadow now takes
+  the fog only where the open air reaches the character, as their body does.
+- The forbidden cave's water no longer shows in the boat. The boat sits
+  with its keel 12 centimetres under the water, its floor below the water's
+  surface, and the water was drawn over it, in the hull, from in it and
+  looking into it. The water now leaves out whatever of it lies inside the
+  hull, the boat's own shape taken from its build however it rocks, pitches
+  and bobs, so the hull shows its floor; round it the water runs right up
+  to its sides as before.
+- The cave's torch is the cast's size. Carried, it stood 1.75 metres, twice
+  Chiikawa's height, its stick reaching the ground and its flame half a
+  metre tall; set up at the boat's bow, 1.3. It is three quarters of its
+  old length, no longer stretched when carried, its flame scaled down with
+  it, heart and all (the island's flames keep a heart of a fixed height,
+  which on a flame this small had dwarfed its tongues): a short stick held
+  at the side, its flame's tip at the top of the bearer's head, its light
+  where its flame now burns. The cave's and the island's dark tests pass.
 - Pale slits no longer stand up the face of the riverside path's wall, and
   no white eggs up the steep bank behind 島二郎. They were the stones painted
   on the ground at the rocks' feet, laid on steep ground (between the wall's

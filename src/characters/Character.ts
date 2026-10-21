@@ -3,6 +3,7 @@ import type { CharacterDef, ExpressionId } from './types';
 import { MAX_PARTS, PART, type AnchorName, type CharacterModel, type OutfitModel } from './Model';
 import {
   createCharacterMaterials,
+  FOG_FRAGMENT,
   makeCharacterUniforms,
   makeOutfitUniforms,
   sharedUniforms,
@@ -77,6 +78,27 @@ const DROP = 0.6;
  * them a third of the way (see FrameContext.firelight). */
 const FIRE_SHADOW = 3;
 
+/**
+ * How someone's head turns to keep their eyes on what they watch (see Character.watch), in radians: up to
+ * `yaw` to either side, `up` and `down`, looking up or down only `share` of the way there (a gentle nod:
+ * all the way looked weird to the user, 2026-10-22), easing to it at `rate` a second. Past `turn` to one
+ * side their body turns to face it too, until it nearly does (the user: the head first, the body only once
+ * the head has turned past a point). With `turn` null the body never turns, and the head gives up on what
+ * is too far round to one side.
+ */
+export interface HeadLook {
+  yaw: number;
+  up: number;
+  down: number;
+  share: number;
+  rate: number;
+  turn: number | null;
+}
+export const HEAD_LOOK: HeadLook = { yaw: 0.5, up: 0.25, down: 0.25, share: 0.5, rate: 5, turn: 0.5 };
+/** Turning to face what they watch, the body stops this near it (radians) and turns this fast (a second). */
+const TURN_DONE = 0.08;
+const TURN_RATE = 4;
+
 const _v = new THREE.Vector3();
 const _w = new THREE.Vector3();
 const _p = new THREE.Vector3();
@@ -87,6 +109,10 @@ const _from = new THREE.Vector3();
 const _cave = new THREE.Color();
 const _tint = new THREE.Color();
 const _s = new THREE.Vector3();
+const _eyes = new THREE.Vector3();
+const _way = new THREE.Vector3();
+const _toLocal = new THREE.Matrix4();
+const UP = new THREE.Vector3(0, 1, 0);
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 const smoothstep = (a: number, b: number, x: number) => {
@@ -162,6 +188,19 @@ function makeCastShadow(): THREE.Mesh {
 }
 
 /**
+ * A character's shadow takes the scene's fog only where the open air's light reaches them (`openAir`, their
+ * uOpenAir), as their own body does: none in the forbidden cave, which has its own light. With the island's
+ * fog, a shadow far off in the cave glowed faintly with its colour (found by the cave's dark test from the
+ * lake, looking at the Siren on the ledge 30 m away, 2026-10-21).
+ */
+function fogInOpenAir(mesh: THREE.Mesh, openAir: THREE.IUniform<number>): void {
+  (mesh.material as THREE.Material).onBeforeCompile = (shader) => {
+    shader.uniforms.uOpenAir = openAir;
+    shader.fragmentShader = `uniform float uOpenAir;\n${shader.fragmentShader.replace('#include <fog_fragment>', FOG_FRAGMENT)}`;
+  };
+}
+
+/**
  * One character: the Blender model, a soft-body shader, springs for
  * follow-through, procedural actions and a drawn face.
  */
@@ -179,6 +218,15 @@ export class Character implements EmoteHost {
   /** The way they face whichever way they walk: where you look, out of their eyes (see
    * FirstPersonCamera); null to face the way they walk. */
   look: number | null = null;
+  /** How far they are bent over to look into the water, 0 to 1, and where their eyes are carried to
+   * then (see setBow). */
+  bowAmount = 0;
+  readonly bowAt = new THREE.Vector3();
+  /** How far the head is bowed forward about its neck (radians, up negative) and turned to their right
+   * (the model's +x side), as they watch something (see watch). Models built before the head was a part
+   * of its own keep it still. */
+  headPitch = 0;
+  headYaw = 0;
 
   private readonly model: CharacterModel;
   private readonly poseGroup = new THREE.Group();
@@ -211,6 +259,12 @@ export class Character implements EmoteHost {
 
   private readonly desired = new THREE.Vector3();
   private readonly accel = new THREE.Vector3();
+  /** What they keep their eyes on (see watch), and how. */
+  private watching = false;
+  private readonly watchAt = new THREE.Vector3();
+  private watchLook: HeadLook = HEAD_LOOK;
+  /** Turning their body to face what they watch, their head having turned past where it turns. */
+  private turningToWatch = false;
   private targetFacing = 0;
   private phase = 0;
   private time = Math.random() * 10;
@@ -295,6 +349,8 @@ export class Character implements EmoteHost {
     this.root.add(this.poseGroup);
     this.shadow = makeShadow();
     this.fireShadow = makeCastShadow();
+    fogInOpenAir(this.shadow, this.uniforms.uOpenAir);
+    fogInOpenAir(this.fireShadow, this.uniforms.uOpenAir);
     this.prop = prop;
     this.prop.visible = false;
     // What they hold is lit as their hand is.
@@ -318,12 +374,17 @@ export class Character implements EmoteHost {
     return this.outfit !== null;
   }
 
+  /** Whether the camera looks out of their eyes (see setUnseen). */
+  get lookedOutOf(): boolean {
+    return this.unseen;
+  }
+
   /** Put the outfit on or take it off. Characters without one ignore this. */
   setOutfitVisible(on: boolean): void {
     if (this.outfit) this.outfit.visible = on;
   }
 
-  attach(scene: THREE.Scene, emotes: EmoteSystem): void {
+  attach(scene: THREE.Object3D, emotes: EmoteSystem): void {
     scene.add(this.root, this.shadow, this.fireShadow, this.prop);
     this.emotes = emotes;
     if (FILM) {
@@ -341,8 +402,9 @@ export class Character implements EmoteHost {
   /**
    * Whether the camera looks out of their eyes. Then it draws none of them (layer 0 is the camera's):
    * not their body, their lines nor their outfit, which only the calm water's mirror shows
-   * (MIRROR_LAYER); nor the marks and words over their head. Their shadows stay on the ground under
-   * them, and what they hold in their hands, in view.
+   * (MIRROR_LAYER), marked so the water knows them for your own reflection (uMark) and shows it
+   * clearly; nor the marks and words over their head. Their shadows stay on the ground under them, and
+   * what they hold in their hands, in view.
    */
   setUnseen(on: boolean): void {
     if (on === this.unseen) return;
@@ -351,6 +413,44 @@ export class Character implements EmoteHost {
       if (on) o.layers.disable(0);
       else o.layers.enable(0);
     }
+    this.uniforms.uMark.value = on ? 2 : 0.5;
+    if (!on) this.setBow(null);
+  }
+
+  /**
+   * Out of their own eyes, bent over to look into the water (see Game.lookIntoWater): the middle of
+   * their eyes carried to `at` and their face turned the way `toward` points (both in the world), `amount`
+   * of the way (0 or null: standing as they are). Only the body is bent, in its shader, and only the
+   * water's mirror shows it: their anchors, what they hold and the camera at their eyes stay where they
+   * are.
+   */
+  setBow(at: THREE.Vector3 | null, toward: THREE.Vector3 | null = null, amount = 0): void {
+    const bow = this.uniforms.uBow.value;
+    const standing = !at || !toward || amount <= 1e-3;
+    // Bent, the body is carried out past the bounds it is culled by (which the shader cannot move).
+    this.mesh.frustumCulled = standing;
+    for (const o of this.outfit?.children ?? []) o.frustumCulled = standing;
+    if (standing) {
+      bow.set(0, 1, 0, 0);
+      this.bowAmount = 0;
+      return;
+    }
+    this.bowAt.copy(at);
+    this.bowAmount = amount;
+    // In the body's own frame (as its shader bends it): its front +z, up +y.
+    this.mesh.updateWorldMatrix(true, false);
+    _toLocal.copy(this.mesh.matrixWorld).invert();
+    const eyes = this.anchorLocal('eyeL', _eyes).add(this.anchorLocal('eyeR', _v)).multiplyScalar(0.5);
+    const to = _v.copy(at).applyMatrix4(_toLocal);
+    const way = _way.copy(toward).transformDirection(_toLocal);
+    // Turned about their own x so that their front faces that way, as far as `amount` goes.
+    const turn = Math.atan2(-way.y, way.z) * amount;
+    const s = Math.sin(turn);
+    const c = Math.cos(turn);
+    // Their eyes carried along the straight way to `at` as they bend.
+    const y = eyes.y + (to.y - eyes.y) * amount;
+    const z = eyes.z + (to.z - eyes.z) * amount;
+    bow.set(s, c, y - (eyes.y * c - eyes.z * s), z - (eyes.y * s + eyes.z * c));
   }
 
   setDesiredVelocity(v: THREE.Vector3): void {
@@ -367,6 +467,14 @@ export class Character implements EmoteHost {
     this.targetFacing = yaw;
   }
 
+  /** Keeps their eyes on `at` (a point, as someone's eyes), as `look` says: their head turns to it and,
+   * past where it turns, their body. Null: they look ahead again. Call before update. */
+  watch(at: THREE.Vector3 | null, look: HeadLook = HEAD_LOOK): void {
+    this.watching = at !== null;
+    if (at) this.watchAt.copy(at);
+    this.watchLook = look;
+  }
+
   /** Puts them at (x, z) facing `yaw`, on the ground there; or, given `feet`, on whatever is within a
    * step of that height (the cave's floor under the island's ground). */
   teleport(x: number, z: number, yaw: number, feet = NaN): void {
@@ -380,6 +488,8 @@ export class Character implements EmoteHost {
     this.velocity.set(0, 0, 0);
     this.desired.set(0, 0, 0);
     this.facing = this.targetFacing = yaw;
+    this.headPitch = this.headYaw = 0;
+    this.turningToWatch = false;
   }
 
   jump(): void {
@@ -416,6 +526,7 @@ export class Character implements EmoteHost {
   update(dt: number, ctx: FrameContext): void {
     this.time += dt;
     this.updateLocomotion(dt, ctx);
+    this.updateHead(dt);
     this.updatePose(dt);
     this.updateSprings(dt);
     this.updateParts();
@@ -427,7 +538,14 @@ export class Character implements EmoteHost {
 
   /** World position of a rig anchor, following the current pose and squash. */
   getAnchor(name: AnchorName, out: THREE.Vector3): THREE.Vector3 {
-    const part = name === 'handL' ? PART.ARM_L : name === 'handR' ? PART.ARM_R : PART.BODY;
+    return this.mesh.localToWorld(this.anchorLocal(name, out));
+  }
+
+  /** A rig anchor in the body's own frame (its mesh's), following the current pose and squash as its
+   * shader does, but not its bow (see setBow). */
+  private anchorLocal(name: AnchorName, out: THREE.Vector3): THREE.Vector3 {
+    // The rest are on the head, which is the body but for a head of its own (see headPitch).
+    const part = name === 'handL' ? PART.ARM_L : name === 'handR' ? PART.ARM_R : PART.HEAD;
     out.copy(this.model.anchors[name]).applyMatrix4(this.parts[part]);
     const s = this.uniforms.uSquash.value;
     const k = 1 / Math.sqrt(s);
@@ -436,7 +554,7 @@ export class Character implements EmoteHost {
     out.y *= s;
     out.x = out.x * k + lean.x * h * h * this.height;
     out.z = out.z * k + lean.y * h * h * this.height;
-    return this.mesh.localToWorld(out);
+    return out;
   }
 
   // ------------------------------------------------------------------ internals
@@ -492,7 +610,8 @@ export class Character implements EmoteHost {
     const speed = this.speed();
     if (this.look !== null) this.targetFacing = this.look;
     else if (speed > 0.15) this.targetFacing = Math.atan2(this.velocity.x, this.velocity.z);
-    this.facing += wrapAngle(this.targetFacing - this.facing) * Math.min(1, dt * 10);
+    // Turning after their head to what they watch, unhurried.
+    this.facing += wrapAngle(this.targetFacing - this.facing) * Math.min(1, dt * (this.turningToWatch ? TURN_RATE : 10));
 
     const run = smoothstep(this.def.walkSpeed * 0.95, this.def.runSpeed * 0.9, speed);
     this.phase += (speed / (0.62 + 0.43 * run)) * Math.PI * 2 * dt;
@@ -645,6 +764,43 @@ export class Character implements EmoteHost {
     this.uniforms.uLean.value.set(lx, lz);
   }
 
+  /** Their head toward what they watch (see watch), and their body after it once the head has turned past
+   * where it turns; their head back to looking ahead when they watch nothing. */
+  private updateHead(dt: number): void {
+    const look = this.watchLook;
+    let yaw = 0;
+    let pitch = 0;
+    if (this.watching) {
+      const pos = this.root.position;
+      const at = this.watchAt;
+      const way = Math.atan2(at.x - pos.x, at.z - pos.z);
+      const off = wrapAngle(way - this.facing);
+      if (look.turn !== null) {
+        // Only once the head has turned that far itself.
+        if (Math.abs(off) > look.turn && Math.abs(this.headYaw) > 0.9 * Math.min(look.turn, look.yaw)) this.turningToWatch = true;
+        if (this.turningToWatch) {
+          this.targetFacing = way;
+          if (Math.abs(off) < TURN_DONE) this.turningToWatch = false;
+        }
+      }
+      // Up or down from their eyes, by how far off it is from them.
+      const ahead = this.model.anchors.eyeL.z;
+      const flat = Math.hypot(at.x - pos.x - Math.sin(this.facing) * ahead, at.z - pos.z - Math.cos(this.facing) * ahead);
+      const rise = this.feetY + this.model.rig.eyeY - at.y;
+      // A head whose body never turns gives up on what is too far round to one side.
+      const keep = look.turn === null ? 1 - smoothstep(look.yaw, look.yaw + 0.7, Math.abs(off)) : 1;
+      yaw = clamp(off, -look.yaw, look.yaw) * keep;
+      pitch = clamp(Math.atan2(rise, Math.max(flat, 0.1)) * look.share, -look.up, look.down) * keep;
+    } else {
+      this.turningToWatch = false;
+    }
+    // A model built before its head turned on its own turns only its body.
+    if (!this.model.hasHead) yaw = pitch = 0;
+    const k = 1 - Math.exp(-look.rate * dt);
+    this.headYaw += (yaw - this.headYaw) * k;
+    this.headPitch += (pitch - this.headPitch) * k;
+  }
+
   /** Turns part i about its pivot, moves it by (ox, oy, oz) and scales its height by sy. */
   private setPart(i: number, rx: number, ry: number, rz: number, ox = 0, oy = 0, oz = 0, sy = 1): void {
     const pivot = this.model.pivots[i];
@@ -696,6 +852,8 @@ export class Character implements EmoteHost {
   private updateParts(): void {
     const p = this.pose;
     this.parts[PART.BODY].identity();
+    // Before the parts that hang from it (the ears, the leaves).
+    this.setPart(PART.HEAD, this.headPitch, this.headYaw, 0);
     // Left is the model's -x side. Raise lifts the arm sideways, swing moves it forward.
     const [raiseL, swingL] = this.armAngles(p.armLRaise, p.armLSwing);
     const [raiseR, swingR] = this.armAngles(p.armRRaise, p.armRSwing);
@@ -727,8 +885,9 @@ export class Character implements EmoteHost {
     this.face.eyesClosed = !!(a && def?.eyesClosed?.(a.t));
     this.face.asleep = !!def?.asleep;
 
-    // Glance at the camera when it is in front.
+    // Glance at the camera when it is in front of the face, wherever their head has turned.
     this.root.worldToLocal(_v.copy(ctx.camera.position));
+    _v.applyAxisAngle(UP, -this.headYaw);
     _v.y -= this.height * 0.6;
     let gx = 0;
     let gy = 0;

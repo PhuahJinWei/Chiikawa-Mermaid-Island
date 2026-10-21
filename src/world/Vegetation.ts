@@ -186,7 +186,8 @@ export class Vegetation {
       const distant = far === undefined ? null : place(far, x, y, z, turn, s);
       if (distant) add(`palmfar:${key}`, distant);
     }
-    // The understory's plants only listed, each patch's put together when the camera comes near it.
+    // The understory's plants only listed, each patch's put together when the camera comes near it, each
+    // plant made smaller by its height (see underScale).
     const under = new Map<string, [THREE.BufferGeometry, THREE.Matrix4][]>();
     for (const [index, x, y, z, turn, s] of info.plants.placed.under ?? []) {
       const shape = shapes.get(index);
@@ -194,7 +195,10 @@ export class Vegetation {
       const key = patchOf(x, z, underPatches);
       const list = under.get(key) ?? [];
       under.set(key, list);
-      list.push([shape, new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromAxisAngle(up, turn), new THREE.Vector3(s, s, s))]);
+      if (!shape.boundingBox) shape.computeBoundingBox();
+      const box = shape.boundingBox as THREE.Box3;
+      const k = s * underScale((box.max.y - box.min.y) * s);
+      list.push([shape, new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromAxisAngle(up, turn), new THREE.Vector3(k, k, k))]);
     }
     for (const copies of under.values()) vegetation.understory.push(underPatch(copies));
     vegetation.underMaterial = material;
@@ -359,6 +363,18 @@ export class Vegetation {
     patch.work = null;
     this.building = this.building.filter((b) => b !== patch);
   }
+}
+
+/**
+ * How much smaller an understory plant is drawn than its shape and its copy's scale make it, by how
+ * tall that is (`height`, in metres): the villagers are about a metre tall, their eyes 0.6 m up, and
+ * the plants had been drawn to a person's size, half of them over 1.3 m. The small ones, up to a
+ * villager's height and a half, are drawn 0.62 as big; taller ones less smaller, and the tallest,
+ * the banana plants and elephant ears over 3.4 m, as they were, their big leaves standing over the
+ * villagers as the film's do.
+ */
+function underScale(height: number): number {
+  return 0.62 + 0.38 * THREE.MathUtils.smoothstep(height, 1.6, 3.4);
 }
 
 /**

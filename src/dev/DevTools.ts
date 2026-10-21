@@ -11,6 +11,7 @@
  */
 import type { ActionId } from '../characters/Actions';
 import type { CharacterId, ExpressionId } from '../characters/types';
+import type { SirenMood } from '../characters/Siren';
 import type { CaveInfo } from '../world/Cave';
 
 export interface StagedCharacter {
@@ -37,6 +38,8 @@ export interface StagedShot {
   /** The forbidden cave's boat afloat here (x, z, its bow's heading), manned, the torch at its bow
    * unless a character holds it. */
   boat?: { x: number; z: number; heading: number };
+  /** The Siren's mood, resting on the cave's ledge; calm when left out. */
+  siren?: SirenMood;
 }
 
 export interface DevApi {

@@ -16,8 +16,11 @@ export const PART = {
   SKIRT: 9,
   TAIL: 10,
   SPROUT: 11,
+  /** A head that turns on its own about its neck (the Siren's, see Character.headPitch); the cast's heads
+   * are their bodies. */
+  HEAD: 12,
 } as const;
-export const MAX_PARTS = 12;
+export const MAX_PARTS = 13;
 
 export type AnchorName = 'head' | 'top' | 'eyeL' | 'eyeR' | 'mouth' | 'sideL' | 'sideR' | 'handL' | 'handR';
 type Vec3Tuple = [number, number, number];
@@ -109,6 +112,9 @@ export interface CharacterModel {
   rig: Rig;
   pivots: THREE.Vector3[];
   parents: number[];
+  /** Whether its head is a part of its own (PART.HEAD), which turns about its neck: not in models built
+   * before it was. */
+  hasHead: boolean;
   anchors: Record<AnchorName, THREE.Vector3>;
   faceLayers: FaceLayers | null;
   maskTexture: THREE.Texture | null;
@@ -251,11 +257,14 @@ async function load(url: string): Promise<CharacterModel> {
     maskTexture.colorSpace = THREE.NoColorSpace;
     maskTexture.needsUpdate = true;
   }
+  // A rig written before a part was added has fewer parts: the rest stay where they are.
+  const parts = Array.from({ length: MAX_PARTS }, (_, i) => rig.parts[i] ?? { pivot: [0, 0, 0] as Vec3Tuple, parent: -1 });
   return {
     geometry,
     rig,
-    pivots: rig.parts.map((p) => new THREE.Vector3(...p.pivot)),
-    parents: rig.parts.map((p) => p.parent),
+    pivots: parts.map((p) => new THREE.Vector3(...p.pivot)),
+    parents: parts.map((p) => p.parent),
+    hasHead: rig.parts.length > PART.HEAD,
     anchors,
     faceLayers,
     maskTexture,
@@ -285,7 +294,8 @@ function measureSeat(geometry: THREE.BufferGeometry): Seat {
   let drop = Infinity;
   for (let i = 0; i < pos.count; i++) {
     const k = Math.round(part.getX(i));
-    if (k === PART.BODY) drop = Math.min(drop, pos.getY(i));
+    // The head, a part of its own, is the body here too, as it was before it was.
+    if (k === PART.BODY || k === PART.HEAD) drop = Math.min(drop, pos.getY(i));
     else if (k === PART.FOOT_L || k === PART.FOOT_R) boxes[k - PART.FOOT_L].expandByPoint(p.fromBufferAttribute(pos, i));
   }
   if (!Number.isFinite(drop)) drop = 0;
@@ -298,7 +308,8 @@ function measureSeat(geometry: THREE.BufferGeometry): Seat {
     // The belly's front, in line with the foot, over the height the seated foot covers.
     let front = 0;
     for (let j = 0; j < pos.count; j++) {
-      if (Math.round(part.getX(j)) !== PART.BODY) continue;
+      const kj = Math.round(part.getX(j));
+      if (kj !== PART.BODY && kj !== PART.HEAD) continue;
       const y = pos.getY(j);
       if (y >= drop && y <= drop + 2 * r && Math.abs(pos.getX(j) - x) <= r) front = Math.max(front, pos.getZ(j));
     }

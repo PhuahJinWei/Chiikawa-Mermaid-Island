@@ -62,8 +62,9 @@ def crown_pieces(bvh, height_at, count, size, thickness, colors, arc=None, push=
         col = cols[k % len(cols)]
         bill = size * push + (1.5 * thickness if k % 2 == 0 else 0.0)
         c3 = L.to_three(center)
+        # On the head, which turns on its own (charlib.HEAD).
         pieces.append(L.Piece(flower, lambda co, col=col, c3=c3, bill=bill:
-                              L.attrs(col, L.BODY, outline=outline, center=c3, bill=bill)))
+                              L.attrs(col, L.HEAD, outline=outline, center=c3, bill=bill)))
     return pieces
 
 

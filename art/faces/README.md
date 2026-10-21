@@ -1,7 +1,10 @@
 # Painting the faces
 
-Each character has a folder here: `chiikawa`, `hachiware`, `usagi` and
-`momonga`. A folder holds that character's face as layers, each one a
+Each character has a folder here: `chiikawa`, `hachiware`, `usagi`,
+`momonga` and `siren`, the giant mermaid of the forbidden cave, whose first
+layers `art/blender/build_siren.py` drew as templates to draw over: the cast's
+whole set of layers and all nine expressions, on Chiikawa's head, which is
+hers too. A folder holds that character's face as layers, each one a
 transparent PNG painted in place on a 1536 × 1536 canvas. The canvas covers the
 game's face area: two head radii wide, centred on the eye line. `_guide.png`
 shows the bare head to paint over; the game never shows it.
@@ -33,7 +36,8 @@ Worried: brows 3 + eyes open + mouth half-open + sweat
 ```
 
 - **The expressions** are Neutral, Smile, Happy, Determined, Worried, Teary,
-  Sobbing and Shocked. An expression without a line shows the neutral face.
+  Sobbing, Shocked and Angry. An expression without a line shows the neutral
+  face.
 - **Names** ignore capital letters and extra spaces. Anything after a `#` is a
   note and is ignored.
 - **`tears`** stands for `tears eyes open`.
@@ -49,6 +53,7 @@ Where the game uses each expression:
 | Shocked | The first moment of being startled |
 | Worried | After being startled |
 | Sobbing | Crying |
+| Angry | The Siren roused (the Test panel's セイレーン: おこる); the others show it only from the Test panel, as their neutral face until it has a line |
 | Smile, Determined, Teary | Only from the Test panel, for now |
 
 Each action always shows its own expression. An expression chosen in the Test
@@ -80,7 +85,15 @@ panel shows when no action is playing.
    - The whole 1536 × 1536 canvas. Don't trim or crop on export, because the
      position on the canvas is the position on the face.
 4. If you added a layer, use it in `expressions.txt`.
-5. Rebuild the models from the project folder, then reload the game:
+5. Rebuild the models from the project folder, then reload the game. In
+   PowerShell (Windows' own terminal), the `&` at the start runs the quoted
+   program:
+
+```powershell
+& "C:\Program Files\Blender Foundation\Blender 5.2\blender.exe" --background --factory-startup --disable-autoexec --python art/blender/import_characters.py -- --no-previews
+```
+
+In Git Bash the same command is:
 
 ```bash
 "/c/Program Files/Blender Foundation/Blender 5.2/blender.exe" --background --factory-startup --disable-autoexec --python art/blender/import_characters.py -- --no-previews
@@ -89,12 +102,30 @@ panel shows when no action is playing.
 Add `--only chiikawa` (or another name) to rebuild just one character. It
 takes a minute or two. The Test panel lists every expression for checking.
 
+The Siren is built by a script of her own, which takes about half a minute;
+the Test panel's セイレーン section calms or rouses her and takes you to her.
+In PowerShell:
+
+```powershell
+& "C:\Program Files\Blender Foundation\Blender 5.2\blender.exe" --background --factory-startup --disable-autoexec --python art/blender/build_siren.py -- --no-previews
+```
+
+In Git Bash:
+
+```bash
+"/c/Program Files/Blender Foundation/Blender 5.2/blender.exe" --background --factory-startup --disable-autoexec --python art/blender/build_siren.py -- --no-previews
+```
+
+A rebuild that worked ends with `BUILT` and `SAVED` lines naming the model.
+
 ## Good to know
 
 - **Line colour:** face lines in the film are dark brown, `#3B2620`. Anything
   you paint in black or dark grey becomes that brown automatically.
 - **Line weight:** about 24 px thick on this canvas, the weight of the
-  eyebrows, so every face looks drawn with the same pen.
+  eyebrows, so every face looks drawn with the same pen. The Siren's head is
+  nearly three times the cast's, so the same pen is thinner on her canvas: her
+  first layers draw it about 14 px.
 - **Your files are never overwritten:** rebuilding reads the layers and
   `expressions.txt` and changes neither. Only `_guide.png` is redrawn, so don't
   paint on it.

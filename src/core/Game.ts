@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import { Stage } from '../world/Stage';
-import { cameraClear, cameraLimit, caveStandable, clampInAir, clampToWalkable, eyeLimit, groundHeight, splashDown } from '../world/Island';
+import { cameraClear, cameraLimit, caveStandable, clampInAir, clampToWalkable, eyeLimit, groundHeight, splashDown, terrainHeight } from '../world/Island';
 import { Boat } from '../world/Boat';
-import { caveFlameMaterial, caveInkMaterial, caveThingMaterial } from '../world/Cave';
+import { TORCH_FLAME_UP, caveFlameMaterial, caveInkMaterial, caveThingMaterial } from '../world/Cave';
 import { Input } from './Input';
 import { CameraRig } from './CameraRig';
 import { FirstPersonCamera } from './FirstPersonCamera';
@@ -15,6 +15,7 @@ import { CROWD_KINDS, DEFINITIONS } from '../characters/definitions';
 import { CHARACTER_IDS, type CharacterId, type ExpressionId } from '../characters/types';
 import { loadCharacterModel, loadOutfitModel, type OutfitModel } from '../characters/Model';
 import { EmoteSystem } from '../characters/Emotes';
+import { Siren } from '../characters/Siren';
 import { PlayerController, type Heading } from '../characters/PlayerController';
 import { createOnigiri } from '../characters/Props';
 import { loadProp } from '../world/PropModels';
@@ -51,6 +52,11 @@ const CROWD: [number, number, number][] = [
   [2.3, -6.3, 2.7],
 ];
 const CROWD_COLOR = '#6E8783';
+/** Everyone keeps their eyes on you within this many metres (see Character.watch): their head turns to you,
+ * and their body after it once the head has turned as far as it goes; past it, they turn back home. */
+const WATCH_FROM = 4;
+/** How far out from the Siren toward the water the Test panel's visit puts you, between your middles. */
+const SIREN_VISIT = 2.4;
 const LINEUP_SPACING = 1.0;
 const LINEUP_PITCH = 0.04;
 const FOLLOW_PITCH = 0.16;
@@ -70,6 +76,30 @@ const EYE_SHARP = 0.6;
 /** How near anyone you walk up to you come, between your middles, as a share of your widths: just short
  * of touching (0.5), as you stop in front of someone, their face not filling your eyes. */
 const APART = 0.6;
+/**
+ * Out of the eyes, looking down into the calm water you stand in or beside, you bend over it to see
+ * yourself (see lookIntoWater): from looking this far down (radians) to this far, all the way; your face
+ * kept this far over the water at the least, and carried out no further than this from your middle (from
+ * the pier's end, far enough for the water to give it back past the deck's edge); and how quickly you
+ * bend and straighten again, per second.
+ */
+const BOW_FROM = 0.45;
+const BOW_FULL = 0.8;
+const BOW_OVER_WATER = 0.15;
+const BOW_REACH = 3;
+const BOW_EASE = 6;
+/**
+ * At the edge of a deck over the water (the pier's end, the quay), looking down you lean out over it so
+ * you can see the water under its edge, and yourself in it (see lookIntoWater): your eyes carried this
+ * far out and this far down, from looking this far down (radians) to this far; an edge is a drop of
+ * this much from your feet within this far ahead of you.
+ */
+const PEEK = 0.65;
+const PEEK_DOWN = 0.12;
+const PEEK_FROM = 0.6;
+const PEEK_FULL = 1.0;
+const PEEK_DROP = 0.4;
+const PEEK_AHEAD = [0.3, 0.55, 0.8, 1.05];
 /**
  * The drawing resolution, in device pixels per CSS pixel, adapts to keep the game smooth: it steps
  * down when the frame rate stays under SLOW for a few seconds, and back up when it stays over FAST
@@ -96,6 +126,8 @@ const _landing = new THREE.Vector3();
 const _from = new THREE.Vector3();
 const _to = new THREE.Vector3();
 const _look = new THREE.Vector3();
+const _myEyes = new THREE.Vector3();
+const _myEyeR = new THREE.Vector3();
 
 /** The drawing resolution a `width` × `height` window starts at: `best`, or the step below it that keeps it within START_PIXELS. */
 function startRatio(width: number, height: number, best: number): number {
@@ -121,6 +153,13 @@ export class Game {
   private readonly input: Input;
   /** The game's camera: out of the eyes of the character you control. */
   private readonly eyes: FirstPersonCamera;
+  /** How far you are bent over the water to see yourself in it, 0 to 1; where your eyes are carried to
+   * then and the way your face turns (see lookIntoWater). */
+  private bow = 0;
+  private readonly bowAt = new THREE.Vector3();
+  private readonly bowToward = new THREE.Vector3();
+  /** How far your eyes lean out over a deck's edge to look down into the water, 0 to 1 (see PEEK). */
+  private peek = 0;
   /** Testing: the follow camera from behind them instead (third person), from the Test panel. The
    * lineup frames with it too. */
   private thirdPerson = false;
@@ -133,6 +172,8 @@ export class Game {
   private readonly panel: TestPanel;
   private readonly characters = new Map<CharacterId, Character>();
   private readonly crowd: Character[] = [];
+  /** The Siren, resting on the forbidden cave's ledge, once she has loaded. */
+  private siren: Siren | null = null;
   private staged: StagedShot | null = null;
   private readonly settings: Settings;
   private readonly focus = new THREE.Vector3();
@@ -209,6 +250,8 @@ export class Game {
         toggleFreeCamera: () => this.setFreeCamera(!this.freeCamOn),
         moveHere: () => this.moveHere(),
         toggleReflections: () => (this.stage.reflections = !this.stage.reflections),
+        sirenMood: (mood) => this.siren?.setMood(mood),
+        visitSiren: () => this.visitSiren(),
       },
       () => ({
         character: this.controlled,
@@ -219,6 +262,7 @@ export class Game {
         clockRunning: this.clock.running,
         freeCamera: this.freeCamOn,
         reflections: FILM ? this.stage.reflections : null,
+        siren: this.siren?.currentMood ?? null,
       }),
     );
     this.hud.onJump = () => this.input.queueJump();
@@ -280,6 +324,7 @@ export class Game {
       }
       this.stage.setCast([...this.characters.values(), ...this.crowd]);
       this.makeCave();
+      if (this.stage.cave) this.siren = await Siren.load(this.stage.cave, this.emotes);
       await this.stage.warmShaders(this.renderer, this.camera);
     } catch (err) {
       console.error(err);
@@ -304,8 +349,6 @@ export class Game {
     const stick = new THREE.Mesh(cave.torchGeometry, wood);
     torch.add(stick, new THREE.Mesh(cave.torchFlameGeometry, caveFlameMaterial()));
     addOutline(stick, 'still', false, caveInkMaterial(lit));
-    // Carried, a long one, its flame up over the bearer's head as the film's.
-    torch.scale.set(1, 1.35, 1);
     torch.visible = false;
     this.scene.add(torch);
     this.caveTorch = torch;
@@ -338,7 +381,7 @@ export class Game {
     }
     const held = [...this.characters.values()].some((ch) => ch.holdsTorch);
     this.caveTorch?.updateMatrixWorld(true);
-    this.stage.caveTorches.carried = held && this.caveTorch ? _flame.set(0, 0.66, 0).applyMatrix4(this.caveTorch.matrixWorld) : null;
+    this.stage.caveTorches.carried = held && this.caveTorch ? _flame.set(0, TORCH_FLAME_UP, 0).applyMatrix4(this.caveTorch.matrixWorld) : null;
     // Its stick lit as the cast are where it is, a little dimmer, as wood is (as the boat is).
     if (held && this.caveTorch && this.caveTorchLit) {
       const at = _stick.setFromMatrixPosition(this.caveTorch.matrixWorld);
@@ -461,6 +504,30 @@ export class Game {
     this.setFreeCamera(false);
   }
 
+  /** Testing: puts the character you control on the forbidden cave's ledge, a couple of steps out from the
+   * Siren toward the water, facing her. */
+  private visitSiren(): void {
+    const siren = this.siren;
+    const cave = this.stage.cave;
+    if (!siren || !cave) return;
+    if (this.lineup) this.setLineup(false);
+    const me = this.me();
+    if (this.rowing) {
+      this.rowing = false;
+      this.boat?.leave();
+      me.ride = null;
+    }
+    me.stopAction();
+    const { x, z, yaw } = siren.spot;
+    const px = x + Math.sin(yaw) * SIREN_VISIT;
+    const pz = z + Math.cos(yaw) * SIREN_VISIT;
+    me.teleport(px, pz, yaw + Math.PI, cave.grid.floorAt(px, pz));
+    this.rig.yaw = yaw;
+    this.eyes.lookFrom(me);
+    if (this.freeCamOn) this.setFreeCamera(false);
+    else this.rig.snapTo(this.focusPoint());
+  }
+
   private setOutfit(on: boolean): void {
     this.outfitOn = on;
     for (const ch of this.characters.values()) ch.setOutfitVisible(on);
@@ -514,6 +581,52 @@ export class Game {
   /** The camera the stick walks (and rows) by: the eyes, or the follow camera. */
   private heading(): Heading {
     return this.lookingOut ? this.eyes : this.rig;
+  }
+
+  /**
+   * Out of the eyes, looking down into the calm water you stand in or beside, you bend over it as you
+   * would to see yourself in it: your face carried out over the water so that the water gives it back to
+   * you just where you look (or as near as you can reach), turned up toward your eyes. Only the water's
+   * mirror shows you (see Character.setBow, Stage.drawMirror). Not where nothing is mirrored (the
+   * forbidden cave, the boat), nor with dry ground under your face. At a deck's edge your eyes lean out
+   * over it too (PEEK), or the deck would hide the water under it.
+   */
+  private lookIntoWater(me: Character, lookingOut: boolean, dt: number): void {
+    for (const ch of this.characters.values()) if (ch !== me) ch.setBow(null);
+    const eye = this.camera.position;
+    const h = lookingOut && !me.ride ? this.stage.mirrorLevel(eye) : null;
+    if (h === null) {
+      this.bow = 0;
+      this.peek = 0;
+      me.setBow(null);
+      return;
+    }
+    const down = -this.eyes.pitch;
+    this.eyes.forward(_fwd);
+    const p = me.position;
+    const feet = me.feetY;
+    // (Standing over the water, not in it: wading, the floor falling away ahead is no edge to lean over.)
+    const edge = feet > h + 0.1 && PEEK_AHEAD.some((d) => {
+      const x = p.x + _fwd.x * d;
+      const z = p.z + _fwd.z * d;
+      return groundHeight(x, z, feet) < feet - PEEK_DROP && terrainHeight(x, z) < h;
+    });
+    const lean = edge ? THREE.MathUtils.smoothstep(down, PEEK_FROM, PEEK_FULL) : 0;
+    this.peek += (lean - this.peek) * (1 - Math.exp(-dt * BOW_EASE));
+    eye.addScaledVector(_fwd, PEEK * this.peek);
+    eye.y -= PEEK_DOWN * this.peek;
+    me.getAnchor('eyeL', _from);
+    me.getAnchor('eyeR', _to);
+    const top = Math.max(h + BOW_OVER_WATER, (_from.y + _to.y) / 2 - 0.08);
+    // The water gives a face back where the line from the eyes to its mirror image (as deep under the
+    // water as the face is over it) meets the water: for that to be where you look, the face must be
+    // out past that spot by as far again as it is high over the water, for as far as your eyes are.
+    const reach = clamp((eye.y - h + (top - h)) / Math.tan(Math.max(down, 0.05)), 0.25, BOW_REACH);
+    this.bowAt.set(eye.x + _fwd.x * reach, top, eye.z + _fwd.z * reach);
+    this.bowToward.set(eye.x, 2 * h - eye.y, eye.z).sub(this.bowAt).normalize();
+    const want = terrainHeight(this.bowAt.x, this.bowAt.z) < h ? THREE.MathUtils.smoothstep(down, BOW_FROM, BOW_FULL) : 0;
+    this.bow += (want - this.bow) * (1 - Math.exp(-dt * BOW_EASE));
+    me.setBow(this.bowAt, this.bowToward, this.bow);
   }
 
   /**
@@ -575,6 +688,10 @@ export class Game {
     // Out of their eyes, the one you control faces the way you look; the rest face the way they walk.
     for (const ch of this.characters.values()) ch.look = lookingOut && ch === me ? this.eyes.facing : null;
 
+    if (this.staged || this.lineup || this.freeCamOn) {
+      for (const ch of this.characters.values()) ch.watch(null);
+      for (const extra of this.crowd) extra.watch(null);
+    }
     if (this.staged) {
       for (const [id, ch] of this.characters) {
         ch.setDesiredVelocity(ZERO);
@@ -599,18 +716,29 @@ export class Game {
       } else {
         this.player.update(me, view);
       }
+      // Everyone near keeps their eyes on yours.
+      me.getAnchor('eyeL', _myEyes);
+      me.getAnchor('eyeR', _myEyeR);
+      _myEyes.add(_myEyeR).multiplyScalar(0.5);
+      const watch = (ch: Character, home: number) => {
+        const near = Math.hypot(me.position.x - ch.position.x, me.position.z - ch.position.z) < WATCH_FROM;
+        ch.watch(near ? _myEyes : null);
+        if (!near) ch.setFacing(home);
+      };
       for (const [id, ch] of this.characters) {
-        if (ch === me) continue;
+        if (ch === me) {
+          ch.watch(null);
+          continue;
+        }
         ch.setDesiredVelocity(ZERO);
-        const dx = me.position.x - ch.position.x;
-        const dz = me.position.z - ch.position.z;
-        if (dx * dx + dz * dz < 16) ch.faceToward(me.position.x, me.position.z);
-        else ch.setFacing(HOMES[id][2]);
+        watch(ch, HOMES[id][2]);
       }
+      for (const [i, extra] of this.crowd.entries()) watch(extra, CROWD[i][2]);
     }
 
     for (const ch of this.characters.values()) ch.update(dt, this.ctx);
     for (const extra of this.crowd) extra.update(dt, this.ctx);
+    this.siren?.update(dt, this.ctx, this.staged || this.lineup || this.freeCamOn ? null : me);
     if (!this.staged && !this.lineup && !this.freeCamOn && !this.rowing) this.keepApart(me);
     this.updateCave();
     this.emotes.update(dt);
@@ -632,6 +760,7 @@ export class Game {
     // Out of their eyes you see the one you control only in the calm water; the film look's depth of
     // field leaves the ground at their feet sharp.
     for (const ch of this.characters.values()) ch.setUnseen(lookingOut && ch === me);
+    this.lookIntoWater(me, lookingOut, dt);
     if (this.post) this.post.focus.uniforms.uSharp.value = lookingOut ? EYE_SHARP : FOLLOW_SHARP;
     this.updateViewLift(dt);
     this.updateZone(dt);
@@ -670,6 +799,7 @@ export class Game {
     updatePen(this.camera, distance, this.ctx.viewHeight, this.ctx.pixelRatio);
     for (const ch of this.characters.values()) ch.updateOutline(this.ctx);
     for (const extra of this.crowd) extra.updateOutline(this.ctx);
+    this.siren?.updateOutline(this.ctx);
   }
 
   private updateViewLift(dt: number): void {
@@ -806,6 +936,8 @@ export class Game {
           }
         }
         this.boat?.showTorch(!!shot.boat && !torch);
+        this.siren?.rest();
+        this.siren?.setMood(shot.siren ?? 'calm');
         for (const [i, extra] of this.crowd.entries()) {
           const spot = shot.crowd?.[i];
           if (spot) extra.teleport(spot[0], spot[1], spot[2]);

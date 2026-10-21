@@ -2,6 +2,7 @@ import { t, type StringKey } from '../i18n/I18n';
 import { CHARACTER_IDS, EXPRESSION_IDS, type CharacterId, type ExpressionId } from '../characters/types';
 import { ACTION_IDS, type ActionId } from '../characters/Actions';
 import { DEFINITIONS } from '../characters/definitions';
+import { SIREN_MOODS, type SirenMood } from '../characters/Siren';
 
 export interface TestPanelState {
   character: CharacterId;
@@ -14,6 +15,8 @@ export interface TestPanelState {
   freeCamera: boolean;
   /** Whether the calm water mirrors what stands by it; null where it cannot (the toon look). */
   reflections: boolean | null;
+  /** The Siren's mood in the forbidden cave; null until she has loaded (or where there is no cave). */
+  siren: SirenMood | null;
 }
 
 /** The test panel's times of day: dawn, midday, dusk and night, in hours past midnight. */
@@ -37,6 +40,10 @@ export interface TestPanelHandlers {
   toggleFreeCamera(): void;
   moveHere(): void;
   toggleReflections(): void;
+  /** Calms the Siren or rouses her. */
+  sirenMood(mood: SirenMood): void;
+  /** Takes you to the forbidden cave's ledge, before the Siren. */
+  visitSiren(): void;
 }
 
 const escapeHtml = (s: string) =>
@@ -115,6 +122,13 @@ export class TestPanel {
         chip('expr', 'auto', t('expr.auto'), s.expression === null) +
           EXPRESSION_IDS.map((e) => chip('expr', e, t(`expr.${e}` as StringKey), s.expression === e)).join(''),
       ),
+      s.siren === null
+        ? ''
+        : section(
+            'panel.siren',
+            SIREN_MOODS.map((m) => chip('siren', m, t(`siren.${m}` as StringKey), s.siren === m)).join('') +
+              chip('visit', '1', t('siren.visit')),
+          ),
       `<section><h3>${escapeHtml(t('panel.info'))}</h3><div class="info" data-info></div></section>`,
     ].join('');
     this.info = this.el.querySelector('[data-info]');
@@ -139,6 +153,8 @@ export class TestPanel {
     else if (d.clock) this.handlers.toggleClock();
     else if (d.action) this.handlers.action(d.action as ActionId | 'jump');
     else if (d.expr) this.handlers.expression(d.expr === 'auto' ? null : (d.expr as ExpressionId));
+    else if (d.siren) this.handlers.sirenMood(d.siren as SirenMood);
+    else if (d.visit) this.handlers.visitSiren();
     if (!d.close) this.render();
   };
 }

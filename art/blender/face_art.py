@@ -24,7 +24,7 @@ PAINT_SIZE = 1536  # twice the game's face canvas, for comfortable painting
 RECIPE_FILE = "expressions.txt"
 # The expressions, in the order the game lists them; keep in step with ExpressionId in
 # src/characters/types.ts.
-EXPRESSIONS = ("neutral", "smile", "happy", "determined", "worried", "teary", "sobbing", "shocked")
+EXPRESSIONS = ("neutral", "smile", "happy", "determined", "worried", "teary", "sobbing", "shocked", "angry")
 # Layers that show on every expression, when a folder has them.
 ALWAYS = ("skin", "cheeks")
 # Layers the game swaps in by itself: blinking, dozing, talking, chewing.

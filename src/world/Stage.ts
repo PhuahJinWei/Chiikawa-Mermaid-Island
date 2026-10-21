@@ -51,8 +51,11 @@ const FOG_FAR = FILM ? 320 : 900;
  * more a frame at 1920 x 1200 on the dev PC, for shadows hardly sharper under the soft filter). */
 const SHADOW_REACH = 42;
 const SHADOW_MAP = 1536;
-/** In the film look, how many of those wading in the water it rings round at once (see setWaders). */
+/** In the film look, how many of those wading in the water it rings round at once (see setWaders); and
+ * out of your own eyes, how much of the foam hugging your own legs shows, the ring round your feet that
+ * would otherwise frame the water you look into, and your face in it. */
 const WADERS = 6;
+const OWN_COLLAR = 0.35;
 /** In the film look, how far from the camera what stands by the calm water is mirrored in it (see
  * drawMirror), how high over the water (from their feet), and how big its mirror is drawn, as a share
  * of the frame each way. */
@@ -615,7 +618,8 @@ export class Stage {
       const deep = (cave && inCave ? cave.info.water : waterLevelAt(p.x, p.z)) - p.y;
       if (deep <= 0.01 || deep > 1.2) continue;
       const radius = ch.width * 0.44 * THREE.MathUtils.smoothstep(deep, 0.03, 0.14) + 0.06;
-      (cave && inCave ? cave.waders : island).wade(ch, p.x, p.z, radius, Math.min(1, deep / 0.06), time);
+      const collar = ch.lookedOutOf ? OWN_COLLAR : 1;
+      (cave && inCave ? cave.waders : island).wade(ch, p.x, p.z, radius, Math.min(1, deep / 0.06), time, collar);
     }
     island.end(time);
     cave?.waders.end(time);
@@ -634,12 +638,9 @@ export class Stage {
   drawMirror(renderer: THREE.WebGLRenderer, camera: THREE.PerspectiveCamera): void {
     const level = this.mirror.uniforms.uMirrorLevel;
     level.value = -1e4;
-    if (!FILM || !this.reflections) return;
     const p = camera.position;
-    const pool = this.poolAt;
-    const nearPool = pool !== null && Math.hypot(p.x - pool.x, p.z - pool.z) < pool.radius + POOL_MIRROR_REACH && p.y > pool.level;
-    const h = pool && nearPool ? pool.level : this.seaLevel;
-    if (p.y < h + 0.05 || this.cave?.encloses(p.x, p.y, p.z)) return;
+    const h = this.mirrorLevel(p);
+    if (h === null) return;
     camera.updateMatrixWorld();
     _frustum.setFromProjectionMatrix(_viewProjection.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
     const away = this.offWater;
@@ -655,6 +656,11 @@ export class Stage {
       _sphere.center.set(at.x, 2 * h - (at.y + ch.height / 2), at.z);
       _sphere.radius = 0.6 * Math.max(ch.height, ch.width);
       seen ||= _frustum.intersectsSphere(_sphere);
+      // Bent over the water to look into it, their face is carried out over it (see Character.setBow).
+      if (ch.bowAmount > 0) {
+        _sphere.center.set(ch.bowAt.x, 2 * h - ch.bowAt.y, ch.bowAt.z);
+        seen ||= _frustum.intersectsSphere(_sphere);
+      }
     }
     for (const s of this.props?.mirrored ?? []) {
       if (seen) break;
@@ -688,6 +694,18 @@ export class Stage {
     this.scene.background = background;
     for (const ch of away) ch.root.visible = true;
     level.value = h;
+  }
+
+  /** In the film look, the level of the calm water mirrored for a camera at p (see drawMirror): the
+   * waterfall's pool's round its clearing, the sea's elsewhere; null where none is (reflections turned
+   * off, in the forbidden cave, under the water). */
+  mirrorLevel(p: THREE.Vector3): number | null {
+    if (!FILM || !this.reflections) return null;
+    const pool = this.poolAt;
+    const nearPool = pool !== null && Math.hypot(p.x - pool.x, p.z - pool.z) < pool.radius + POOL_MIRROR_REACH && p.y > pool.level;
+    const h = pool && nearPool ? pool.level : this.seaLevel;
+    if (p.y < h + 0.05 || this.cave?.encloses(p.x, p.y, p.z)) return null;
+    return h;
   }
 
   /** Whether someone standing at `at` is by the water at height h, near enough to the camera (at p) for
@@ -1088,11 +1106,14 @@ export class Stage {
           // What stands by it mirrored in it, when it is the water mirrored this frame (see drawMirror),
           // as real water mirrors it: faint seen from above, more the further across the water it is
           // seen (as the sky's light on it gives way to what it mirrors), shifted about and smeared
-          // toward the eye by the ripples, broken by them into drifting strokes, with much of the
-          // water's own colour in it. Never a crisp mirror.
+          // toward the eye by the ripples (less on the calm pool), broken by them into drifting strokes,
+          // with much of the water's own colour in it. Never a crisp mirror. But yourself, bent over
+          // the water to look into it out of your own eyes (marked in the picture's alpha with a 2,
+          // beyond anything else: see Character.setUnseen), clearly, as calm water gives back a face
+          // bent over it: the ripples still wave it and break it a little.
           if (abs(uLevel - uMirrorLevel) < 0.01) {
             vec2 wob = vec2(sin(vWorld.x * 3.1 + uTime * 1.6) + sin(vWorld.z * 4.3 - uTime * 1.2),
-                            sin(vWorld.z * 2.7 + uTime * 1.4) + sin(vWorld.x * 3.7 - uTime * 1.9)) * 0.05;
+                            sin(vWorld.z * 2.7 + uTime * 1.4) + sin(vWorld.x * 3.7 - uTime * 1.9)) * 0.05 * mix(0.35, 1.0, uRipples);
             vec4 at = uMirrorMatrix * vec4(vWorld.x + wob.x, uLevel, vWorld.z + wob.y, 1.0);
             vec2 uv = at.xy / at.w;
             vec2 smear = vec2(0.0, 3.0 / float(textureSize(uMirror, 0).y));
@@ -1108,7 +1129,8 @@ export class Stage {
               vec2 sq = vec2(length(vWorld.xz - cameraPosition.xz) * 5.0, (vWorld.x - vWorld.z) * 0.8) + uTime * vec2(-0.9, 0.2);
               float strokes = smoothstep(0.3, 0.55, valueNoise(sq) * 0.65 + valueNoise(sq * 2.3 + 4.7) * 0.35);
               float fresnel = 0.07 + 0.7 * pow(1.0 - down, 5.0);
-              col = mix(col, mix(seen, col, 0.4), cover * strokes * fresnel);
+              float own = smoothstep(1.1, 1.6, (m0.a * 2.0 + m1.a + m2.a) * 0.25);
+              col = mix(col, mix(seen, col, mix(0.4, 0.2, own)), cover * mix(strokes * fresnel, 0.72 * mix(0.8, 1.0, strokes), own));
             }
           }
           // Paling into the distance toward the horizon's haze, as the film's sea does.

@@ -15,12 +15,15 @@ import numpy as np
 from mathutils import Matrix, Vector
 from mathutils.bvhtree import BVHTree
 
-# Part indices, shared with src/characters/Model.ts
-BODY, ARM_L, ARM_R, FOOT_L, FOOT_R, EAR_L, EAR_R, EAR_L2, EAR_R2, SKIRT, TAIL, SPROUT = range(12)
-MAX_PARTS = 12
+# Part indices, shared with src/characters/Model.ts. HEAD is a head that turns on its own about its neck
+# (the Siren's); the cast's heads are their bodies.
+BODY, ARM_L, ARM_R, FOOT_L, FOOT_R, EAR_L, EAR_R, EAR_L2, EAR_R2, SKIRT, TAIL, SPROUT, HEAD = range(13)
+MAX_PARTS = 13
 
 # Paint codes, shared with src/characters/CharacterMaterial.ts
 PAINT_PLAIN, PAINT_BODY, PAINT_LEAF, PAINT_SKIRT = 0.0, 1.0, 2.0, 3.0
+# A mermaid's scaled tail, the lines on her fin-hands and her band, inked along its edges (build_siren.py).
+PAINT_SCALES, PAINT_FIN, PAINT_BAND = 4.0, 5.0, 6.0
 
 UP = Vector((0.0, 0.0, 1.0))
 

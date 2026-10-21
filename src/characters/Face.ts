@@ -23,6 +23,7 @@ const EXPRESSIONS: Record<ExpressionId, ExpressionSpec> = {
   teary: { eyes: 'teary', brows: 'worried', mouth: 'neutral', blush: 1.06 },
   sobbing: { eyes: 'squeeze', brows: 'worried', mouth: 'wail', blush: 1.1 },
   shocked: { eyes: 'open', brows: 'none', mouth: 'neutral', blush: 1 },
+  angry: { eyes: 'open', brows: 'angry', mouth: 'neutral', blush: 1 },
 };
 
 /**

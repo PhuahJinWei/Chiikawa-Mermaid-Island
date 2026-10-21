@@ -15,8 +15,10 @@ export type ActionId =
   | 'look'
   | 'startled'
   | 'cry'
-  | 'hula';
+  | 'hula'
+  | 'menace';
 
+/** The actions the Test panel offers the cast. The Siren's own ('menace') is not one of them. */
 export const ACTION_IDS: readonly ActionId[] = [
   'wave',
   'hop',
@@ -304,6 +306,23 @@ export const ACTIONS: Record<ActionId, ActionDef> = {
     },
     tick(t, prev, ctx) {
       if (every(prev, t, 0.75, 0.2)) ctx.emote('note', Math.random() < 0.5 ? -1 : 1);
+    },
+  },
+
+  // The Siren roused (`[anime] siren 3`, the angry plush): her fin-hands, spread a little down at rest,
+  // raised out level either side and held there, her red eyes and toothy mouth, until she calms (see
+  // Siren.ts).
+  menace: {
+    duration: Infinity,
+    fadeIn: 0.4,
+    fadeOut: 0.7,
+    expression: () => 'angry',
+    pose(t, p) {
+      const up = smooth(t / 0.45);
+      const breath = Math.sin(t * 2.1);
+      p.armLRaise = p.armRRaise = up * (0.42 + 0.04 * breath);
+      p.squash = 1 + up * (0.015 + 0.008 * breath);
+      p.leanZ = 0.012 * up;
     },
   },
 };

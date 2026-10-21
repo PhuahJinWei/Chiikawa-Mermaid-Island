@@ -310,6 +310,9 @@ export const caveLight = {
 export const TORCH_COLOUR = new THREE.Color(0.8, 0.72, 0.56);
 /** How far a torch's light reaches, and the fire's: a small bright pool round it, the dark beyond. */
 export const TORCH_REACH = 3.2;
+/** Where the cave torch's flame burns in its own frame: this far up the stick from the hand (art/blender/
+ * cave.py's torch, 0.66 at its TORCH_SIZE 0.75). */
+export const TORCH_FLAME_UP = 0.5;
 export const FIRE_REACH = 2.6;
 /** The fire's light: redder than a torch's, low on the cobbles round it, which it turns the film's warm
  * magenta against the cave's blue (`cave interior 7`). */
@@ -502,10 +505,29 @@ function waterMaterial(ripples: Cave['ripples']): THREE.ShaderMaterial {
       uniform vec4 uSternRings[${STERN_RINGS}];
       uniform vec4 uOarRings[${OAR_RINGS}];
       uniform vec4 uBoatReach;
+      uniform mat4 uBoatFrame;
       varying vec3 vInfo;
       varying vec3 vWorld;
       float hash2(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+      // Whether a point of the water is inside the boat's hull, over its floor, which lies below the water
+      // (its keel 0.12 under it): uBoatFrame takes it into the hull's own frame, as art/blender/cave.py's
+      // boat() builds it (its length, 2.5, along x with the bow toward +x; its keel's lowest at y 0; its
+      // beam 1.12, its sides 0.42 high, its planks 0.035 thick), however it rocks, pitches and bobs; and
+      // its inside's shape there is boat()'s, from the inner shell's stations.
+      bool inBoat(vec3 w) {
+        vec3 q = (uBoatFrame * vec4(w, 1.0)).xyz;
+        float s = q.x / 1.25;
+        if (s < -0.972 || s > 0.936) return false;
+        float half_ = s >= -0.2 ? 0.56 * max(1.0 - pow((s + 0.2) / 1.2, 2.2), 0.0) : 0.56 * (1.0 - 0.22 * pow((-0.2 - s) / 0.8, 1.5));
+        float h = max(half_ - 0.035, 0.004);
+        float k = 0.16 * pow(max(s, 0.0), 2.5) + 0.035;
+        float g = 0.42 + 0.13 * max(s, 0.0) * max(s, 0.0) + 0.05 * max(-s, 0.0) * max(-s, 0.0);
+        if (q.y < k || q.y > g) return false;
+        return abs(q.z) < h * pow((q.y - k) / (g - k), 1.0 / 2.4);
+      }
       void main() {
+        // None in the boat: from in it, or looking into it, its floor and not the water over it.
+        if (uBoat.w > 0.0 && inBoat(vWorld)) discard;
         // The lake's glow, a disc bright out to about half its way to the wall, faded toward its shore.
         float glow = smoothstep(0.62, 0.98, clamp(vInfo.x, 0.0, 1.0));
         float sky = clamp(vInfo.y, 0.0, 2.0);
@@ -919,6 +941,8 @@ export class Cave {
     uSternRings: { value: Array.from({ length: STERN_RINGS }, () => new THREE.Vector4(0, 0, -1e9, 0)) },
     uOarRings: { value: Array.from({ length: OAR_RINGS }, () => new THREE.Vector4(0, 0, -1e9, 0)) },
     uBoatReach: { value: new THREE.Vector4(0, 0, -1, 0) },
+    /** From the world into the boat's hull's own frame (see the water's inBoat). */
+    uBoatFrame: { value: new THREE.Matrix4() },
   };
 
   private constructor(

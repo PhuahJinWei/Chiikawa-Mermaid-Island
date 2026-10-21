@@ -107,6 +107,20 @@ export const DEFINITIONS: Record<CharacterId, CharacterDef> = {
   },
 };
 
+/**
+ * The Siren, the giant mermaid of the forbidden cave, modelled by art/blender/build_siren.py: 3.6 times
+ * Chiikawa's height, as the film shows her on the cave's ledge. Her face is painted (art/faces/siren/), so
+ * its style here is only a fallback. She rests where she is (see Siren.ts); her pace is never used.
+ */
+export const SIREN: CharacterDef = {
+  id: 'siren',
+  nameKey: 'char.siren',
+  model: 'models/siren.glb',
+  face: { ...roundFace },
+  walkSpeed: 1.0,
+  runSpeed: 2.0,
+};
+
 /** An islander in the background crowd: its model, and the outfit it wears, if any. */
 export interface CrowdKind {
   model: string;

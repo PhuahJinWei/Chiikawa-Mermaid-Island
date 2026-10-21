@@ -8,7 +8,8 @@ export type EyeKind = 'open' | 'happy' | 'closed' | 'squeeze' | 'teary';
 export type BrowKind = 'none' | 'default' | 'worried' | 'angry';
 export type MouthKind = 'none' | 'cat' | 'catOpen' | 'grin' | 'o' | 'wail';
 
-/** The cast's faces for these are painted by hand: art/faces/<id>/expressions.txt. */
+/** The cast's faces for these are painted by hand: art/faces/<id>/expressions.txt. 'angry' is the
+ * Siren's roused face (the user, 2026-10-21); the rest show their neutral face for it until it is painted. */
 export type ExpressionId =
   | 'neutral'
   | 'smile'
@@ -17,7 +18,8 @@ export type ExpressionId =
   | 'worried'
   | 'teary'
   | 'sobbing'
-  | 'shocked';
+  | 'shocked'
+  | 'angry';
 
 export const EXPRESSION_IDS: readonly ExpressionId[] = [
   'neutral',
@@ -28,6 +30,7 @@ export const EXPRESSION_IDS: readonly ExpressionId[] = [
   'teary',
   'sobbing',
   'shocked',
+  'angry',
 ];
 
 /** How to draw a face in code, for characters without a painted face. Head radii, from the eye line. */
@@ -52,8 +55,12 @@ export interface FaceStyle {
   neutralMouth: MouthKind;
 }
 
+/** Who lives on the island apart from the cast the Test panel lets you play: the Siren, resting in the
+ * forbidden cave (see Siren.ts). */
+export type ResidentId = 'siren';
+
 export interface CharacterDef {
-  id: CharacterId;
+  id: CharacterId | ResidentId;
   nameKey: StringKey;
   /** Path under public/, produced by art/blender/import_characters.py. */
   model: string;

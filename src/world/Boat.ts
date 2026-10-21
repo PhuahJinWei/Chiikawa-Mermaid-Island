@@ -9,6 +9,7 @@ import {
   STERN_LIFE,
   STERN_RINGS,
   STERN_SPREAD,
+  TORCH_FLAME_UP,
   WAKE_OPEN,
   WAKE_POINTS,
   type Cave,
@@ -357,7 +358,7 @@ export class Boat {
 
   torchFlame(out: THREE.Vector3): THREE.Vector3 | null {
     if (!this.torch.visible) return null;
-    return out.set(0, 0.66, 0).applyMatrix4(this.torch.matrixWorld);
+    return out.set(0, TORCH_FLAME_UP, 0).applyMatrix4(this.torch.matrixWorld);
   }
 
   /** Whether someone on foot at p is near enough to get in. */
@@ -524,6 +525,8 @@ export class Boat {
     const ripples = this.cave.ripples;
     ripples.uBoat.value.set(this.position.x, this.position.z, this.heading, afloat);
     ripples.uBoatWay.value.set(this.speed, HALF_LENGTH, HALF_BEAM, 0);
+    // Its hull as it lies, so the water is not drawn in it.
+    ripples.uBoatFrame.value.copy(this.hull.matrixWorld).invert();
     this.wake(afloat);
     const sternEvery = STERN_LIFE / STERN_RINGS;
     if (afloat > 0 && (time >= this.sternNext || this.sternNext - time > sternEvery)) {

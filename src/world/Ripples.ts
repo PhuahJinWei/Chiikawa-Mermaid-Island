@@ -53,18 +53,19 @@ export class WadeRings {
 
   /**
    * `who` wades at (x, z) this frame, the water meeting them `radius` round them, `much` of their foam
-   * (0 to 1, by how deep in it they are), at `time` by the water's own clock (its shader's uTime). They
-   * keep a slot of their own while they wade and while their rings are out; with none free, they leave
-   * none. Every so often a ring where they are now, at once if the clock has been put back.
+   * (0 to 1, by how deep in it they are; `collar` of that hugging them), at `time` by the water's own
+   * clock (its shader's uTime). They keep a slot of their own while they wade and while their rings are
+   * out; with none free, they leave none. Every so often a ring where they are now, at once if the clock
+   * has been put back.
    */
-  wade(who: object, x: number, z: number, radius: number, much: number, time: number): void {
+  wade(who: object, x: number, z: number, radius: number, much: number, time: number, collar = 1): void {
     let i = this.slots.findIndex((s) => s.who === who);
     if (i < 0) i = this.slots.findIndex((s) => s.who === null);
     if (i < 0) return;
     const s = this.slots[i];
     s.who = who;
     s.wading = true;
-    this.uniforms.uWaders.value[i].set(x, z, radius, much);
+    this.uniforms.uWaders.value[i].set(x, z, radius, much * collar);
     this.uniforms.uWaderWays.value[i].w = radius + 0.08;
     if (time >= s.next || s.next - time > WADE_EVERY) {
       this.uniforms.uWaderRings.value[i * 3 + s.ring].set(x, z, time, much);

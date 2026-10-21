@@ -34,6 +34,14 @@ export interface CharacterUniforms {
   /** How much of the open air's light reaches them, 1 or 0: the sky's in the air (the scene's fog) and
    * the island's lights; none in the forbidden cave, lit by its own. Shared with their outfit. */
   uOpenAir: THREE.IUniform<number>;
+  /** Bent over to look into the water (see Character.setBow): turned forward about their own x axis
+   * (the sine and cosine of how far) and carried up and forward (z, w), in their own frame. Shared
+   * with their outfit. */
+  uBow: THREE.IUniform<THREE.Vector4>;
+  /** What they mark themselves with in the film look's picture (its alpha): a half, as every one of the
+   * cast; 2, beyond anything else, for the one whose eyes the camera looks out of, so the water knows
+   * their own mirror image from the rest (see Character.setUnseen). Shared with their outfit. */
+  uMark: THREE.IUniform<number>;
 }
 
 const NO_TEXTURE = new THREE.Texture();
@@ -66,6 +74,8 @@ export function makeCharacterUniforms(
     uFire: { value: Array.from({ length: CHARACTER_LIGHTS }, () => new THREE.Vector4()) },
     uFireFill: { value: 0 },
     uOpenAir: { value: 1 },
+    uBow: { value: new THREE.Vector4(0, 1, 0, 0) },
+    uMark: { value: 0.5 },
     uMaskOn: { value: mask ? 1 : 0 },
     uMaskColor: { value: new THREE.Color(mask ?? '#ffffff') },
     uMaskTex: { value: maskTexture ?? NO_TEXTURE },
@@ -110,6 +120,7 @@ const float CROWN_ARCH = 0.15; // how far the crown's ends dip, in ring radii
 uniform mat4 uParts[MAX_PARTS];
 uniform float uSquash;
 uniform vec2 uLean;
+uniform vec4 uBow;
 uniform float uHeight;
 uniform float uOutlineWidth;
 uniform float uLineBias;
@@ -135,14 +146,23 @@ vec3 softBody(vec3 p) {
   return p;
 }
 
+// Bent over to look into the water (see Character.setBow): turned forward about their own x axis, the
+// face down, and carried up and forward. Standing as they are, nothing changes.
+vec3 bowed(vec3 p) {
+  return vec3(p.x, p.y * uBow.y - p.z * uBow.x + uBow.z, p.y * uBow.x + p.z * uBow.y + uBow.w);
+}
+vec3 bowedNormal(vec3 n) {
+  return vec3(n.x, n.y * uBow.y - n.z * uBow.x, n.y * uBow.x + n.z * uBow.y);
+}
+
 void main() {
   // Two-bone blend: each vertex follows up to two parts (head + ear, ear + ear tip...).
   mat4 m = uParts[int(aPart0 + 0.5)] * (1.0 - aWeight) + uParts[int(aPart1 + 0.5)] * aWeight;
-  vec3 p = softBody((m * vec4(position, 1.0)).xyz);
+  vec3 p = bowed(softBody((m * vec4(position, 1.0)).xyz));
   vec3 n = normalize(mat3(m) * normal);
   float s = max(uSquash, 0.3);
   float k = inversesqrt(s);
-  n = normalize(vec3(n.x / k, n.y / s, n.z / k));
+  n = bowedNormal(normalize(vec3(n.x / k, n.y / s, n.z / k)));
 
   vec4 mvPosition = modelViewMatrix * vec4(p, 1.0);
   vec3 nV = normalize(normalMatrix * n);
@@ -153,10 +173,10 @@ void main() {
     // Pulling them toward the camera along the view ray keeps them where they are on screen
     // but draws them over the curve of the head.
     float scale = length(modelViewMatrix[0].xyz);
-    vec4 c = modelViewMatrix * vec4(softBody((m * vec4(aCenter, 1.0)).xyz), 1.0);
+    vec4 c = modelViewMatrix * vec4(bowed(softBody((m * vec4(aCenter, 1.0)).xyz)), 1.0);
     // The film draws a crown arching over the head from whichever side it is seen: flowers
     // toward the edges of the head, as the camera sees it, sit lower.
-    vec4 axis = modelViewMatrix * vec4(softBody((m * vec4(0.0, aCenter.y, 0.0, 1.0)).xyz), 1.0);
+    vec4 axis = modelViewMatrix * vec4(bowed(softBody((m * vec4(0.0, aCenter.y, 0.0, 1.0)).xyz)), 1.0);
     float ring = length(aCenter.xz) * scale;
     float side = (c.x - axis.x) / max(ring, 1e-4);
     c.y -= CROWN_ARCH * ring * side * side;
@@ -246,6 +266,7 @@ const FRAG = /* glsl */ `
 #include <fog_pars_fragment>
 ${FIRE_GLSL}
 uniform float uOpenAir;
+uniform float uMark;
 
 uniform vec3 uAmbient;
 uniform vec3 uShade;
@@ -339,11 +360,45 @@ void main() {
     float edge = smoothstep(0.05, 0.3, vFacing);
     float strokes = fringeStrokes(around, uSkirt.z, hf, halfPx * edge, 0.1) * step(0.05, vFacing);
     col = mix(col, uLineColor, max(topLine, strokes));
+  } else if (paint == 4) {
+    // A mermaid's scales, as the film draws them on the Siren's tail: rows of scallops round it, each
+    // hanging from two points like a wave's trough, every other row offset by half a scale, in the pen.
+    // vUv.y counts the rows down the tail from the band; vUv.x counts the scales round it, or, negative,
+    // how many go round the tail's bulb, measured here by the angle round her, which has no seam.
+    const float SCALE_DEPTH = 0.6;
+    float spin = vUv.x < 0.0 ? -vUv.x : 1.0;
+    float scaleX = vUv.x < 0.0 ? around * spin : vUv.x;
+    float fwS = vUv.x < 0.0 ? min(fwidth(around), fwidth(fract(around + 0.5))) * spin : fwidth(vUv.x);
+    float row = floor(vUv.y);
+    float sx = fract(scaleX + 0.5 * mod(row, 2.0)) * 2.0 - 1.0;
+    float root = sqrt(max(1.0 - sx * sx, 0.0));
+    float slope = SCALE_DEPTH * sx / max(root, 0.2);
+    float px = abs(fract(vUv.y) - SCALE_DEPTH * root) / max(length(vec2(slope * 2.0 * fwS, fwidth(vUv.y))), 1e-5);
+    col = mix(col, uLineColor, (1.0 - smoothstep(halfPx, halfPx + 1.0, px)) * step(0.0, vUv.y));
+  } else if (paint == 5) {
+    // The lines on the Siren's fin-hands, as the user's drawings of her have them: two strokes in from the
+    // tip of each fin's faces, with rounded ends. vUv.x runs across the fin's end, the lines at -0.5 and
+    // +0.5; vUv.y in from its tip.
+    float fwX = max(fwidth(vUv.x), 1e-5);
+    float fwY = max(fwidth(vUv.y), 1e-5);
+    float lines = 0.0;
+    for (int i = 0; i < 2; i++) {
+      float dx = (vUv.x - (float(i) - 0.5)) / fwX;
+      float dy = max(max(0.07 - vUv.y, vUv.y - 0.3), 0.0) / fwY;
+      lines = max(lines, 1.0 - smoothstep(halfPx, halfPx + 1.0, length(vec2(dx, dy))));
+    }
+    col = mix(col, uLineColor, lines);
+  } else if (paint == 6) {
+    // The band round the Siren's waist, flush with her body as the user's drawings have it: inked along
+    // both its edges from inside it, a whole pen wide, as nothing over its edges draws the other half (as
+    // the grass skirt's top line). vUv.y runs from its bottom edge (0) to its top (1).
+    float fwY = max(fwidth(vUv.y), 1e-5);
+    col = mix(col, uLineColor, max(lineMask(vUv.y, halfPx * 2.0, fwY), lineMask(1.0 - vUv.y, halfPx * 2.0, fwY)));
   }
 
   gl_FragColor = vec4(col * uAmbient * uShade * fireTint(), 1.0);
   #ifdef FILM_MASK
-  gl_FragColor.a = 0.5;
+  gl_FragColor.a = uMark;
   #endif
   #include <tonemapping_fragment>
   #include <colorspace_fragment>

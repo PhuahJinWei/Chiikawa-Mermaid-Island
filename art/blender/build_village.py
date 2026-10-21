@@ -318,18 +318,19 @@ STALL_STYLES = {
     "red": {"trim": "#F2D04E", "inside": ("#E0603E", "#CC4E33"), "counter": "#F2A055", "words": "#FFFFFF"},
     "white": {"trim": "#4E8FCF", "inside": ("#E9845A", "#D96E47"), "counter": "#F4F1E8", "words": "#2F6FB5"},
 }
-# A stall's size, after the film's: its counter as tall as a customer standing at it, and its keeper
-# on a raised floor behind it, two steps up from the ground (a step at each open side), so they show
-# over it from the shoulders up, the header board above their head. How wide and how deep the booth
-# is: square and roomy, as the film's, wide enough that its tall counter is long and low, and as
-# deep as it is wide, so its sign, repeated on its side boards, fits them as it fits the front; the
-# counter's top; the floor behind it and the step up to it, each no higher than a walker steps up;
-# the work table along its back wall, as high above the floor as the counter is; and the header
-# boards' bottom and top (the roof just under their top), their faces in the proportions the
-# hand-lettered signs are painted in (1440 x 496), so a sign fills each edge to edge. About a metre
-# and a half clear between the counter and the work table for its keeper, and a metre between
-# neighbouring booths (3.42 m apart along their rows) for them to come in by.
-STALL = {"width": 2.4, "depth": 2.4, "counter": 0.9, "floor": 0.66, "step": 0.33, "table": 0.32, "board": (1.9, 2.76)}
+# A stall's size, after the film's: its counter at the chest of an islander standing at it (about
+# a metre tall, their eyes 0.6 m up), and its keeper on a low floor behind it, a small step up from
+# the ground (a step at each open side), so they show over it from the chest up, the header board
+# above their head. How wide and how deep the booth is: square and roomy, as the film's, wide
+# enough that its counter is long and low, and as deep as it is wide, so its sign, repeated on its
+# side boards, fits them as it fits the front; the counter's top; the floor behind it and the step up
+# to it, each no higher than a walker steps up; the work table along its back wall, at the keeper's
+# middle; and the header boards' bottom and top (the roof just under their top), their faces in the
+# proportions the hand-lettered signs are painted in (1440 x 496), so a sign fills each edge to edge.
+# About a metre and a half clear between the counter and the work table for its keeper, and a metre
+# between neighbouring booths (3.42 m apart along their rows) for them to come in by. (The counter
+# had been 0.9 m, as tall as a customer, over the eyes of a villager seeing out of their own.)
+STALL = {"width": 2.4, "depth": 2.4, "counter": 0.58, "floor": 0.12, "step": 0.06, "table": 0.38, "board": (1.9, 2.76)}
 # The stall's name over the whole face of each header board, which runs a little wider than the
 # booth: how wide and how high.
 STALL_LABEL = (STALL["width"] + 0.1, round(STALL["board"][1] - STALL["board"][0], 3))

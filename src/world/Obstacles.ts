@@ -138,6 +138,14 @@ export function addBox(
   });
 }
 
+/** A round block of radius r that moves about within `reach` of (cx, cz) (the Siren's fin-hands and tail
+ * fin, as she turns): as addCircle's, put where it is by setting its x and z. */
+export function addMovingCircle(cx: number, cz: number, reach: number, r: number, y0: number, y1: number): { x: number; z: number } {
+  const block: Block = { x: cx, z: cz, cos: 1, sin: 0, r, hx: 0, hz: 0, y0, y1, walk: true, camera: true };
+  blocks.add(block, cx, cz, reach + r);
+  return block;
+}
+
 /** A rectangular block that comes and goes (the cave's boat, drawn up on its beach): as addBox's, for
  * walkers only, standing while its `walk` is set. */
 export function addSwitchedBox(x: number, z: number, hx: number, hz: number, angle: number, y0: number, y1: number): { walk: boolean } {
