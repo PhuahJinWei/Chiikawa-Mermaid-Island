@@ -297,9 +297,12 @@ TABLELAND = {"outline": [(-260.0, -210.0), (-150.0, -193.0), (-142.0, -183.0), (
 # over a bed `bed` deep; a narrow ledge (height, width) runs along the foot of its south wall, the
 # path from the stones down to the restaurant, its rounded pebbles and boulders as in the film's
 # frames of it. East of there its floor is a dry ravine climbing to the lowland's level by `head`.
+# Since the rockfall (see ROCKFALL) the river runs on to `reach`, its bed shelving up under the
+# rockfall's foot, so the water meets the rocks (user, 2026-10-21); the jungle was planted with it
+# ending at `from` (see ground's `planted`).
 GORGE = {"line": [(-25.0, -200.0), (-52.0, -201.0), (-80.0, -199.0), (-110.0, -193.0), (-140.0, -186.0),
                   (-165.0, -181.0), (-240.0, -177.0)],
-         "half": 13.5, "water": 10.0, "from": -75.0, "head": -52.0, "ledge": (0.6, 3.0), "bed": -2.8}
+         "half": 13.5, "water": 10.0, "from": -75.0, "reach": -69.0, "head": -52.0, "ledge": (0.6, 3.0), "bed": -2.8}
 # The stepping-stone pillars across the gorge's river, after the film's frames of them: tall thin
 # pillars of the gorge's white rock standing in the water, each topped with a flat round mat of grass
 # a short jump from the next, from a pillar standing against the north rim's cliff, its top level
@@ -320,6 +323,20 @@ GORGE_FOOT = {"from": -77.0, "to": -142.0, "gap": (1.4, 2.6), "in": 1.45, "kinds
 # radii and heights over the path (ranges), clear of the stones' crossing by `clear` metres.
 BOULDERS = {"from": -78.0, "to": -146.0, "gap": (4.5, 9.0), "radius": (0.55, 0.95), "height": (0.5, 1.2),
             "across": 9.7, "clear": 7.0, "seed": 111}
+# A rockfall chokes the gorge's dry head between the river's end and its mouth onto the lowland, so
+# no one walks into the gorge that way (user, 2026-10-21): blocks of its white limestone fallen from
+# its walls, tumbled wall to wall in three layers, a few smaller ones at its foot and spilling out of
+# the mouth. It lies back from the river's end, clear of the stepping stones (user, 2026-10-21), a
+# strip of the ravine's dry floor before it. The ground layer in rows across the gorge at `rows` (x),
+# the first and the last packed `seal` metres apart (closing the way), those between `gap` and
+# staggered; `across` metres either side of the gorge's line. Each layer's blocks' radii across (a
+# range) and up (as a share of it), `big` of them half as big again; how many lie on the ground
+# layer, and on those, within `on` (x and across ranges), none higher than `cap`; the smaller blocks
+# at its foot (x, count).
+ROCKFALL = {"rows": [-70.5, -66.0, -61.5, -57.0], "across": 12.4, "seal": 3.9, "gap": 4.8,
+            "radius": [((2.6, 3.6), (0.55, 0.85)), ((2.2, 3.1), (0.55, 0.85)), ((1.6, 2.5), (0.6, 0.9))],
+            "big": 0.2, "layers": (12, 5), "on": [((-69.0, -58.5), 11.0), ((-67.0, -60.5), 8.5)], "cap": 9.6,
+            "toe": [(-73.6, 2), (-53.6, 3)], "seed": 141}
 # From the tableland's south-west corner a spur of it runs out toward the west coast: inside `outline`
 # (x, z; its root reaches into the tableland), its top falling from `top` (at `root`) to `top`'s
 # second (at `tip`, its west end), where the cave's heap of rock stands against it.
@@ -388,8 +405,10 @@ RAMPS = [((-30.0, -238.0), (-68.0, -244.0), 6.0)]
 # ground's grid bend to run along the drop, the rows round them less over `bend` metres (see
 # quay_rows), and the game draws the water's edge along the wall's middle (see quay_info), so sand,
 # timber and water meet in clean lines rather than stepping from one sample of a grid to the next.
+# All this only on the bay's own side of the island (`side`: its middle's direction from the coast's
+# centre and how far either way, degrees from east toward south).
 QUAY = {"x": (-45.85, 45.65), "out": 0.85, "drop": 0.03, "top": 0.5, "foot": -1.6, "reach": 9.0, "ease": 3.0,
-        "bank": 3.0, "under": 2.0, "feather": 6.0, "shoal": 12.0, "bend": 12.0}
+        "bank": 3.0, "under": 2.0, "feather": 6.0, "shoal": 12.0, "bend": 12.0, "side": (79.5, 35.0)}
 # Short, wide pillars the jungle all but hides, as in the shot: mesas thick with trees on top,
 # swelling into a mound of them (`mound`, 1 for a gentle one). Centre, radii, turn, the top's
 # height, seed, mound, and anything of its build to change. The great dome west of the waterfall is,
@@ -508,6 +527,16 @@ PATHS = [
     ([(-30.0, -238.0), (-68.0, -244.0), (-72.0, -226.0), (-84.0, -217.5), (-102.6, -210.0)], 2.2),
                                                                                         # up onto the tableland, to the stones
 ]
+# Paths trodden since the jungle was planted, painted and kept clear as PATHS are (see walked_paths),
+# but not among them, whose lines the planting keeps to (a line added there would move every plant):
+# 島二郎's, the way on from the end of the path down the gorge to the shop's step, as the film's frame
+# of it through the jungle (`shimajiro exterior 2`), narrowing to its door, and the earth worn bare
+# along its front, from the bench to the standing sign (`shimajiro exterior 1`). All of it inside the
+# ground cleared round the shop, where nothing was planted.
+TRODDEN = [
+    ([(-167.5, -162.0), (-171.5, -159.0), (-173.45, -158.1)], 2.0),                    # on to 島二郎's step
+    ([(-172.6, -154.8), (-172.55, -158.2), (-172.5, -162.0)], 4.2),                   # along its front
+]
 # The paths as trodden, not ruled, as the film's jungle paths are (`jungle 6`): each of PATHS rounded
 # at its corners and wandering a little from side to side (`wander`: how far, a share of its width, in
 # waves about `wander_len` metres long), swelling and narrowing (`swell`: its width's range, over about
@@ -600,12 +629,12 @@ _WALKED = []
 
 
 def walked_paths():
-    """The paths as trodden (see PATH_WALK): for each of PATHS, the points of its line (x and z arrays),
-    rounded at its corners, every half metre along it and moved across it as it wanders, and its half
-    width at each."""
+    """The paths as trodden (see PATH_WALK): for each of PATHS and TRODDEN, the points of its line (x
+    and z arrays), rounded at its corners, every half metre along it and moved across it as it wanders,
+    and its half width at each."""
     if not _WALKED:
         w = PATH_WALK
-        for n, (points, width) in enumerate(PATHS):
+        for n, (points, width) in enumerate(PATHS + TRODDEN):
             p = np.asarray(points, dtype=float)
             for _ in range(3):
                 cut = [p[0]]
@@ -628,18 +657,19 @@ def walked_paths():
     return _WALKED
 
 
-_PATH_FIELD = []
+_PATH_FIELD = {}
 
 
-def path_field(x, z):
+def path_field(x, z, trodden=True):
     """How far (x, z) lies outside the edge of the nearest path as trodden, in metres (less than 0 on
     it), its edge a little ragged: from the distances worked out once every PATH_RASTER metres over the
-    map, near the paths (see walked_paths)."""
-    if not _PATH_FIELD:
+    map, near the paths (see walked_paths); without TRODDEN's unless `trodden`, as the jungle's edge
+    tufts and clover were planted along the paths (see plant_ground)."""
+    if trodden not in _PATH_FIELD:
         n = int(round(SIZE / PATH_RASTER)) + 1
         x0, z0 = CENTRE[0] - SIZE / 2, CENTRE[1] - SIZE / 2
         field = np.full((n, n), 50.0)
-        for px, pz, half in walked_paths():
+        for px, pz, half in walked_paths()[:None if trodden else len(PATHS)]:
             for k in range(len(px) - 1):
                 ax, az, bx, bz, h0, h1 = px[k], pz[k], px[k + 1], pz[k + 1], half[k], half[k + 1]
                 reach = max(h0, h1) + 6.0
@@ -654,8 +684,8 @@ def path_field(x, z):
                 t = np.clip(((gx - ax) * vx + (gz - az) * vz) / max(vx * vx + vz * vz, 1e-9), 0.0, 1.0)
                 d = np.hypot(gx - ax - t * vx, gz - az - t * vz) - (h0 + (h1 - h0) * t)
                 field[j0:j1, i0:i1] = np.minimum(field[j0:j1, i0:i1], d)
-        _PATH_FIELD.append((field, x0, z0, n))
-    field, x0, z0, n = _PATH_FIELD[0]
+        _PATH_FIELD[trodden] = (field, x0, z0, n)
+    field, x0, z0, n = _PATH_FIELD[trodden]
     x, z = np.asarray(x, dtype=float), np.asarray(z, dtype=float)
     fx = np.clip((x - x0) / PATH_RASTER, 0.0, n - 1.001)
     fz = np.clip((z - z0) / PATH_RASTER, 0.0, n - 1.001)
@@ -841,11 +871,13 @@ def gorge_across(x, z):
     return u, d - GORGE["half"]
 
 
-def gorge_floor(x, u):
-    """The gorge's floor at x and u metres south of its line: west of the water's end the river's
-    bed, deepest in its middle, shelving to the ledge along the south wall's foot and to the north
-    wall's foot under the water; east of it the dry ravine, climbing to the lowland's level."""
+def gorge_floor(x, u, end=None):
+    """The gorge's floor at x and u metres south of its line: west of the water's end (`end`, the
+    river's `from` unless given) the river's bed, deepest in its middle, shelving to the ledge along
+    the south wall's foot and to the north wall's foot under the water; east of it the dry ravine,
+    climbing to the lowland's level."""
     g = GORGE
+    end = g["from"] if end is None else end
     w = g["water"]
     ledge, _ = g["ledge"]
     south = g["bed"] + (WATER - 0.7 - g["bed"]) * smoothstep(0.3 * w, w - 0.6, u)
@@ -853,7 +885,7 @@ def gorge_floor(x, u):
     north = g["bed"] + (WATER - 1.2 - g["bed"]) * smoothstep(0.3 * w, g["half"], -u)
     river = np.where(u >= 0.0, south, north)
     ravine = ledge + (LOWLAND["height"] - ledge) * smoothstep(g["from"], g["head"], x)
-    wet = 1.0 - smoothstep(g["from"] - 6.0, g["from"], x)
+    wet = 1.0 - smoothstep(end - 6.0, end, x)
     return ravine + (river - ravine) * wet
 
 
@@ -947,6 +979,75 @@ def boulder_specs():
     return specs
 
 
+def rockfall():
+    """The rockfall in the gorge's head (see ROCKFALL): each block as (bmesh, colours, karst.Block),
+    the ground layer's and the toe's with their feet's reach for walkers to keep clear of, and each
+    one's `top` as high as the blocks lying on it reach."""
+    f = ROCKFALL
+    rng = np.random.default_rng(f["seed"])
+    # How mossy each block is, some bare, from a generator of its own so the heap lies as it does.
+    mossy = np.random.default_rng(f["seed"] + 1)
+    blocks = []
+
+    def floor_at(x, z):
+        return float(ground_height(np.array([x]), np.array([z]))[0])
+
+    def lay(x, u, radii, layer):
+        (px, pz), _, n = gorge_point(x)
+        cx, cz = px + n[0] * u, pz + n[1] * u
+        ra = rng.uniform(*radii[0]) * (1.5 if layer < 2 and rng.random() < f["big"] else 1.0)
+        rb = ra * rng.uniform(0.75, 0.95)
+        rc = ra * rng.uniform(*radii[1])
+        # The gorge's floor in its middle there, not up a wall's foot; a little under the river.
+        floor = max(floor_at(px, pz), WATER - 1.2)
+        if layer == 0:
+            bottom = floor - rc * rng.uniform(0.25, 0.45)
+        else:
+            # Down among the blocks under its middle, as high as they reach there.
+            under = [g[np.hypot(g[:, 0] - cx, g[:, 2] - cz) < 0.6 * ra][:, 1] for _, _, _, g in blocks]
+            under = [h.max() for h in under if len(h)]
+            bottom = (max(under) if under else floor) - rc * rng.uniform(0.3, 0.55)
+            bottom = min(bottom, f["cap"] - 2.0 * rc)
+        bm, cols, game = K.fallen_block(rng, (cx, bottom + rc, cz), (ra, rb, rc), ground_height,
+                                        moss=float(mossy.uniform(0.0, 0.32)), wet=WATER if bottom < WATER + 0.6 else None)
+        reach = K.footprint(game, cx, cz, floor - 0.5, floor + 2.5) if layer == 0 else None
+        block = K.Block(cx, cz, float(game[:, 1].max()), reach, {"notch": None, "crown": False, "rockfall": True})
+        blocks.append((bm, cols, block, game))
+
+    rows = f["rows"]
+    for i, x0 in enumerate(rows):
+        seal = i in (0, len(rows) - 1)
+        gap = f["seal"] if seal else f["gap"]
+        count = int(math.ceil(2.0 * f["across"] / gap)) + 1
+        shift = 0.0 if seal or i % 2 == 0 else 0.5
+        for j in range(count - (1 if shift else 0)):
+            u = -f["across"] + 2.0 * f["across"] * (j + shift) / (count - 1) + rng.uniform(-0.35, 0.35)
+            lay(x0 + rng.uniform(-0.5, 0.5), u, f["radius"][0], 0)
+    # Smaller blocks at its foot, and spilling out of the mouth.
+    for x0, count in f["toe"]:
+        for j in range(count):
+            u = f["across"] * (-0.8 + 1.6 * (j + rng.uniform(0.25, 0.75)) / count)
+            lay(x0 + rng.uniform(-0.8, 0.8), u, f["radius"][2], 0)
+    # The upper layers, each block kept a little apart from the others in its layer.
+    for layer, (count, ((x0, x1), half)) in enumerate(zip(f["layers"], f["on"]), start=1):
+        taken = []
+        for _ in range(count * 30):
+            if len(taken) >= count:
+                break
+            x, u = rng.uniform(x0, x1), rng.uniform(-half, half)
+            if any(math.hypot(x - tx, u - tu) < 3.4 for tx, tu in taken):
+                continue
+            taken.append((x, u))
+            lay(x, u, f["radius"][layer], layer)
+    # How high each block and whatever lies on it reach, over its feet.
+    for _, _, block, _ in blocks:
+        for _, _, other, g in blocks:
+            near = np.hypot(g[:, 0] - block.cx, g[:, 2] - block.cz) < (max(block.reach) if block.reach else 2.0) + 0.3
+            if near.any():
+                block.top = max(block.top, float(g[near, 1].max()))
+    return [(bm, cols, block) for bm, cols, block, _ in blocks]
+
+
 def village_mask(x, z):
     """1 on the village's sand (its plaza, its lane, its yard; see VILLAGE), easing to 0 round it."""
     v = VILLAGE
@@ -1035,10 +1136,11 @@ def ramp_height(x, z, h):
     return h
 
 
-def ground(x, z, natural=False, ramps=True, mouth=True):
+def ground(x, z, natural=False, ramps=True, mouth=True, planted=False):
     """Height of the ground (y) and the masks the painting needs. `natural` leaves out what the
     festival street and the village do to it, `ramps` the ramps up onto the high ground, `mouth` the
-    sand levelled before the cave's mouth (see mouth_apron), which the rocks are not built on."""
+    sand levelled before the cave's mouth (see mouth_apron), which the rocks are not built on;
+    `planted` gives the ground as the jungle was planted on it (see plant_ground)."""
     x, z = np.asarray(x, dtype=float), np.asarray(z, dtype=float)
     s, phi = coast_distance(x, z)
     m_cliff = cliff_profile(phi)[0]
@@ -1077,12 +1179,17 @@ def ground(x, z, natural=False, ramps=True, mouth=True):
     # The bay's quay: the festival's sand level out to the timber wall, deep water at its foot,
     # shallowing toward its ends. Past the timber's ends a beach slopes into the water instead, the
     # slope widening fast so no sheer sand stands bare beside the timber, as the raised sand eases
-    # into the beach round it.
+    # into the beach round it. Only along the bay's own coast: chosen by x alone, it had reached the
+    # sea cliffs on the north coast too and pulled their top down into a notch past the timber's east
+    # end. (`planted`: as it stood when the jungle was planted, see plant_ground.)
     q = QUAY
     along = np.maximum(q["x"][0] - x, x - q["x"][1])  # metres past the timber's nearer end, less than 0 alongside it
     beyond = np.maximum(along, 0.0)
-    m_quay = (1.0 - smoothstep(0.0, q["feather"], beyond)) * (np.abs(s) < 40.0)
-    m_deep = (1.0 - smoothstep(-q["shoal"], q["feather"], along)) * (np.abs(s) < 40.0)
+    bay = np.abs(s) < 40.0
+    if not planted:
+        bay = bay & (np.abs(np.degrees(angle_diff(phi, math.radians(q["side"][0])))) < q["side"][1])
+    m_quay = (1.0 - smoothstep(0.0, q["feather"], beyond)) * bay
+    m_deep = (1.0 - smoothstep(-q["shoal"], q["feather"], along)) * bay
     slope = 1.0 - (1.0 - np.minimum(beyond / q["ease"], 1.0)) ** 2
     line = -q["out"] - q["drop"] / 2.0
     bank_top = -q["out"] + q["bank"] * slope
@@ -1108,7 +1215,7 @@ def ground(x, z, natural=False, ramps=True, mouth=True):
     # The gorge's floor, between its walls: the river and its ledge, the ravine at its head.
     across, outside = gorge_across(x, z)
     in_gorge = (1.0 - smoothstep(-1.5, 0.0, outside)) * smoothstep(-2.0, 0.5, s)
-    h = h + (gorge_floor(x, across) - h) * in_gorge
+    h = h + (gorge_floor(x, across, GORGE["from"] if planted else GORGE["reach"]) - h) * in_gorge
 
     # The high ground: the tableland and the spur standing sheer out of the low ground, climbing to
     # their tops just inside their edges (under the cliff faces built over them).
@@ -1912,6 +2019,12 @@ def build_landmarks(collection, air):
             mouth_rock = rock
         if stand is None:
             outlines.append((rock, rock.outline()))
+    # The rockfall choking the gorge's head: its blocks with the gorge's rocks, those on the ground
+    # kept clear by walkers.
+    for bm, cols, block in rockfall():
+        groups.setdefault("gorge", []).append((bm, cols, True))
+        if block.reach:
+            outlines.append((block, block.reach))
     # The waterfall's wall: vines hanging down its face either side of the water, the water itself
     # and the spray where it lands in the pool.
     wall = next(r for r, _ in outlines if r.s["notch"])
@@ -1920,20 +2033,25 @@ def build_landmarks(collection, air):
     hanging = {wall.s["group"]: [(bm, cols, True)]}
     # The sea cliffs along the north-east coast.
     pts, normals, tops = cliff_line()
-    bm, cols, greens = K.cliff(pts, normals, tops, WATER, CLIFFS["seed"], base=WATER - CLIFFS["deep"] - 1.0)
+    bm, cols, greens, tufts, ledges = K.cliff(pts, normals, tops, WATER, CLIFFS["seed"], base=WATER - CLIFFS["deep"] - 1.0)
     groups.setdefault("cliffs", []).append((bm, cols, True))
-    # The greenery growing down their face, painted as leaves.
+    # The greenery growing down their face, painted as leaves; the bushes along their top, painted as
+    # the jungle on the rocks' tops is; and the clumps on their ledges, in smaller puffs.
     hanging.setdefault("cliffs", []).append((*greens, True))
+    crowns.setdefault("cliffs", []).append((*tufts, True))
+    on_ledges = {"cliffs": [(*ledges, True)]}
     # The high ground's white limestone cliffs, round the tableland, down both sides of its gorge and
     # round the spur, as the film's frames of the stepping-stone pillars draw them: sheer, pale, cut
     # by upright cracks more than by beds, with greenery spilling over their tops.
     for k, (rp, rn, tops, low) in enumerate(high_edges()):
-        bm, cols, greens = K.cliff(rp, rn, tops, WATER, TABLELAND["seed"] + k, base=float(low.min()) - 1.5,
-                                   column=1.6, stone="karst", stand=0.9, jut=0.45, row=1.0, beds=(1.2, 3.0),
-                                   joints=(2.0, 5.0))
+        bm, cols, greens, tufts, ledges = K.cliff(rp, rn, tops, WATER, TABLELAND["seed"] + k, base=float(low.min()) - 1.5,
+                                                  column=1.6, stone="karst", stand=0.9, jut=0.45, row=1.0,
+                                                  beds=(1.2, 3.0), joints=(2.0, 5.0))
         air.cut(bm, bounds=CV.BOUNDS)
         groups.setdefault("west", []).append((bm, cols, True))
         hanging.setdefault("west", []).append((*greens, True))
+        crowns.setdefault("west", []).append((*tufts, True))
+        on_ledges.setdefault("west", []).append((*ledges, True))
     # A few vines hanging down the outcrop's face over the cave's mouth, beside and over its west side,
     # as in the sketch.
     ac = mouth_rock.s["cave"][0]
@@ -1944,6 +2062,7 @@ def build_landmarks(collection, air):
     rocks = [join_painted(f"rocks_{name}", pieces, collection) for name, pieces in groups.items()]
     rocks += [join_painted(f"crowns_{name}", pieces, collection) for name, pieces in crowns.items()]
     rocks += [join_painted(f"vines_{name}", pieces, collection) for name, pieces in hanging.items()]
+    rocks += [join_painted(f"tufts_{name}", pieces, collection) for name, pieces in on_ledges.items()]
     bm, uvs, foot = K.waterfall(wall, POOL["level"], out=FALL["pour"])
     fall = object_with_uv("waterfall", bm, uvs, collection)
     spray = join_painted("spray", [(*K.spray(POOL["level"]), True)], collection)
@@ -1986,10 +2105,13 @@ CAVE_RANGE = (-5.0, 31.0)
 def plant_ground(outlines, props):
     """Where plants may grow, on a 1 m grid over the map: the ground's height, how far past the
     beach each point is, how far it is from paths, rocks, props, the high ground's edge, the cave's
-    skylight and the waterfall's pool, which way round the pool from its bank, and how steep."""
+    skylight and the waterfall's pool, which way round the pool from its bank, and how steep. All on
+    the ground as the jungle was planted on it (`planted`, see ground): the plants are drawn from
+    which places are open, so the north cove's cliff top, made whole since, would move them all; a
+    plant's height is the ground's as it is (see build_plants' `at`)."""
     n = int(SIZE) + 1
     gx, gz = grid(n, SIZE)
-    h, masks = ground(gx, gz)
+    h, masks = ground(gx, gz, planted=True)
     d_path = np.full_like(gx, 1e9)
     for points, width in PATHS:
         d_path = np.minimum(d_path, polyline_distance(gx, gz, points) - width / 2)
@@ -2010,7 +2132,9 @@ def plant_ground(outlines, props):
     gzr, gxr = np.gradient(h, 1.0)
     return {
         "x": gx, "z": gz, "h": h, "inland": masks["s"] - masks["beach_w"], "village": masks["village"],
-        "festival": masks["festival"], "fields": masks["fields"], "path": d_path, "walked": path_field(gx, gz),
+        # The edge tufts and clover keep to the paths as they were when the jungle was planted, so their
+        # own generator draws them where it did; TRODDEN's paths are only kept clear (see keep_out).
+        "festival": masks["festival"], "fields": masks["fields"], "path": d_path, "walked": path_field(gx, gz, trodden=False),
         "rock": d_rock, "prop": d_prop,
         "pool": np.hypot(gx - POOL["centre"][0], gz - POOL["centre"][1]) - POOL["radius"],
         "pool_side": angle_diff(np.arctan2(gz - POOL["centre"][1], gx - POOL["centre"][0]),
@@ -2088,11 +2212,20 @@ def build_plants(collection, outlines):
     each crown (x, y, z, radius) and each butterfly's bush (x, y, z), in game coordinates."""
     rng = np.random.default_rng(17)
     props = [p for p in layout_props() if not p[0].startswith(PLANTED_KINDS)] + PLANTED_ROUND
+    # The rockfall in the gorge's head came after the jungle was planted: the plants are drawn round
+    # the rocks as they stood before it, so the jungle stands as it did, and those that would grow in
+    # it are left out (see in_rockfall).
+    outlines = [(rock, reach) for rock, reach in outlines if not rock.s.get("rockfall")]
     G = plant_ground(outlines, props)
     x0, z0 = CENTRE[0] - SIZE / 2, CENTRE[1] - SIZE / 2
     canopy = PL.Patchwork(x0, z0, SIZE, CANOPY_PATCHES)
     canopy_far = PL.Patchwork(x0, z0, SIZE, CANOPY_PATCHES)
     trunks, crowns = [], []
+    # What the rockfall left out, as it was drawn: the trunks and crowns of trees and palms that
+    # stood in it, and the crowns its clumps grew to without them. The plants grown after them
+    # (their mix under the crowns, the clover's spacing by the trunks, the butterflies' bushes) are
+    # grown as round the jungle as drawn, so the rest of the island stands as it did.
+    left_out = {"trunks": [], "crowns": [], "regrown": []}
     stems = Spacing(4.0)
     variants = PL.Variants()
     # Nothing grows on the festival's back alleys, or so near them its leaves reach over (see BACKS);
@@ -2104,9 +2237,27 @@ def build_plants(collection, outlines):
     beehives = [(x, z) for kind, x, z, _ in props if kind == "beehive"]
     stalls = [(x, z, math.radians(turn)) for kind, x, z, turn in layout_props() if kind.startswith("stall_")]
 
-    def keep_out(x, z):
+    def in_rockfall(x, z):
+        # In the gorge's head where the rockfall lies, wall to wall, the blocks at its foot too (see
+        # ROCKFALL).
+        ends = [*ROCKFALL["rows"], *(x0 for x0, _ in ROCKFALL["toe"])]
+        return (min(ends) - 3.0 <= x <= max(ends) + 3.0
+                and float(gorge_across(np.array([x]), np.array([z]))[1][0]) < 1.0)
+
+    def in_run_on(x, z):
+        # Where the river now runs on over what was the ravine's dry floor when the jungle was planted
+        # (see GORGE's `reach`).
+        return (GORGE["from"] - 6.0 <= x <= GORGE["reach"]
+                and float(gorge_across(np.array([x]), np.array([z]))[1][0]) < 1.0)
+
+    def kept_out(x, z, sea=True):
         # Nor on a path as trodden (see PATH_WALK): the jungle was planted round PATHS' own lines.
         if float(path_field(np.array([x]), np.array([z]))[0]) < -0.3:
+            return True
+        # Nor in the water where it was planted on dry ground: the bay quay's shaping had raised the
+        # sand along the north coast's beach too, and the gorge's river now runs on further (see
+        # ground's `planted`).
+        if sea and at(x, z) < WATER + 0.1 <= float(ground(np.array([x]), np.array([z]), mouth=False, planted=True)[0][0]):
             return True
         if any(math.hypot(x - bx, z - bz) < BEEHIVE_CLEAR for bx, bz in beehives):
             return True
@@ -2116,6 +2267,14 @@ def build_plants(collection, outlines):
             if abs(dx * math.cos(turn) - dz * math.sin(turn)) < reach and abs(dx * math.sin(turn) + dz * math.cos(turn)) < reach:
                 return True
         return float(stall_backs(np.array([x]), np.array([z]), BACKS["room"])[0]) > 0.02
+
+    def keep_out(x, z):
+        return in_rockfall(x, z) or kept_out(x, z)
+
+    def since_planted(x, z):
+        # Left out only by what came to the gorge's head after the jungle was planted, the rockfall and
+        # the river running on: it would have grown before, when the water never reached there.
+        return (in_rockfall(x, z) or in_run_on(x, z)) and not kept_out(x, z, sea=False)
 
     variants.keep_out = keep_out
 
@@ -2145,8 +2304,13 @@ def build_plants(collection, outlines):
     # A few big trees deep in the jungle, with buttress roots and hanging vines.
     deep = jungle & (G["inland"] > 22.0) & (G["path"] > 5.0)
     for x, z in scatter(rng, G, deep, JUNGLE["big_spacing"], taken=stems, limit=JUNGLE["big_trees"]):
+        grow = np.random.default_rng(int(rng.integers(1 << 31)))
         y = at(x, z)
-        built, tops = PL.big_tree(np.random.default_rng(int(rng.integers(1 << 31))), lambda dx, dy, x=x, z=z, y=y: at(x + dx, z - dy) - y)
+        built, tops = PL.big_tree(grow, lambda dx, dy, x=x, z=z, y=y: at(x + dx, z - dy) - y)
+        if in_rockfall(x, z):
+            left_out["trunks"].append([round(x, 2), round(z, 2), 1.9])
+            left_out["crowns"] += [[round(x + lx, 2), round(y + lz, 2), round(z - ly, 2), round(r, 2)] for lx, ly, lz, r in tops]
+            continue
         canopy.add(PL.to_arrays(built), x, z, y)
         far = L.fuse([L.ellipsoid_bm(Vector((cx, cy, cz)), (r, r, r * 0.8), u=8, v=5) for cx, cy, cz, r in tops],
                      voxel=0.7, smooth_iterations=3, smooth_lambda=0.8, target_tris=40)
@@ -2239,15 +2403,30 @@ def build_plants(collection, outlines):
             trees.append((tx, tz, rng.uniform(*JUNGLE["tree_height"]) * near_rock))
         if not trees:
             continue
+        seed = int(rng.integers(1 << 31))
         base = at(cx, cz)
-        local = [(tx - cx, -(tz - cz), height, at(tx, tz) - base) for tx, tz, height in trees]
-        built, tops, far = PL.clump(np.random.default_rng(int(rng.integers(1 << 31))), local)
+        # None in the rockfall: their places are still drawn and taken, so the jungle round them
+        # stands as it did.
+        kept = [t for t in trees if not in_rockfall(t[0], t[1])]
+        if len(kept) < len(trees):
+            _, drawn, _ = PL.clump(np.random.default_rng(seed), [(tx - cx, -(tz - cz), height, at(tx, tz) - base)
+                                                                 for tx, tz, height in trees])
+            left_out["trunks"] += [[round(tx, 2), round(tz, 2), round(0.32 * height / 8.0 + 0.2, 2)]
+                                   for tx, tz, height in trees if (tx, tz, height) not in kept]
+            left_out["crowns"] += [[round(cx + lx, 2), round(base + lz, 2), round(cz - ly, 2), round(r, 2)]
+                                   for lx, ly, lz, r in drawn]
+            if not kept:
+                continue
+        local = [(tx - cx, -(tz - cz), height, at(tx, tz) - base) for tx, tz, height in kept]
+        built, tops, far = PL.clump(np.random.default_rng(seed), local)
         canopy.add(PL.to_arrays(built), cx, cz, base)
         canopy_far.add(PL.to_arrays(far), cx, cz, base)
-        for (tx, tz, height) in trees:
+        for (tx, tz, height) in kept:
             trunks.append([round(tx, 2), round(tz, 2), round(0.32 * height / 8.0 + 0.2, 2)])
-        for lx, ly, lz, r in tops:
-            crowns.append([round(cx + lx, 2), round(base + lz, 2), round(cz - ly, 2), round(r, 2)])
+        heads = [[round(cx + lx, 2), round(base + lz, 2), round(cz - ly, 2), round(r, 2)] for lx, ly, lz, r in tops]
+        crowns += heads
+        if len(kept) < len(trees):
+            left_out["regrown"] += heads
 
     # Palms: thick along the jungle's edge by the beaches, and here and there among the trees, in the
     # gaps the canopy leaves (it is planted first), kept apart from each other but standing as near
@@ -2271,6 +2450,8 @@ def build_plants(collection, outlines):
         near, far = palms[int(rng.integers(0, len(palms)))]
         if variants.plant("palms", near, x, at(x, z) - 0.05, z, rng.uniform(0, 2 * math.pi), rng.uniform(0.9, 1.25), far):
             trunks.append([round(x, 2), round(z, 2), 0.3])
+        elif since_planted(x, z):
+            left_out["trunks"].append([round(x, 2), round(z, 2), 0.3])
 
     # The understory: thick everywhere under the trees, and along the paths and the jungle's edges.
     # The understory's shapes grow from a generator of their own, so changing them never moves the
@@ -2298,10 +2479,13 @@ def build_plants(collection, outlines):
                 & (G["skylight"] > 0.3) & (G["cave"] > CAVE["clear"][1]))
     gap = np.where(near_edge, JUNGLE["understory"][0], JUNGLE["understory"][1])
     crown_hash = Spacing(8.0)
-    for x, _, z, r in crowns:
+    regrown = {tuple(c) for c in left_out["regrown"]}
+    for x, _, z, r in [c for c in crowns if tuple(c) not in regrown] + left_out["crowns"]:
         crown_hash.take(x, z)
     count = {k: 0 for k in kinds}
-    flowers = []
+    # The flowering bushes, with those left out since the jungle was planted (see since_planted), so
+    # the butterflies are drawn as before; none settles on one of those.
+    flowers, unplanted = [], set()
     for x, z in scatter(rng, G, under_ok, gap, taken=None, stride=1):
         if not stems.free(x, z, 1.0):
             continue
@@ -2316,8 +2500,10 @@ def build_plants(collection, outlines):
         grown = variants.plant("under", kinds[kind][int(rng.integers(0, len(kinds[kind])))], x, y, z,
                                  rng.uniform(0, 2 * math.pi), rng.uniform(0.95, 1.5))
         count[kind] += 1
-        if kind == "bush" and grown:
+        if kind == "bush" and (grown or since_planted(x, z)):
             flowers.append((x, y, z))
+            if not grown:
+                unplanted.add((x, y, z))
 
     # Ferns and bushes crowding the cave skylight's edge, their leaves over it, as round the opening in
     # the film's frame looking up out of the cave; from a generator of their own.
@@ -2434,7 +2620,7 @@ def build_plants(collection, outlines):
                        edging.uniform(0, 2 * math.pi), edging.uniform(0.75, 1.25))
     clovers = [variants.shape("clover", PL.to_arrays(PL.clover(edging))) for _ in range(3)]
     trunk_near = np.zeros_like(G["x"], dtype=bool)
-    for tx, tz, tr in trunks:
+    for tx, tz, tr in trunks + left_out["trunks"]:
         i, j = int(round(tx - G["x"][0, 0])), int(round(tz - G["z"][0, 0]))
         trunk_near[max(j - 3, 0):j + 4, max(i - 3, 0):i + 4] = True
     clover_ok = ((((G["walked"] > 0.8) & (G["walked"] < 5.0)) | ((G["village"] > 0.03) & (G["village"] < 0.4)))
@@ -2551,6 +2737,8 @@ def build_plants(collection, outlines):
                                    math.hypot(p[0] - 21.0, p[2] + 112.0)) * rng.uniform(0.6, 1.4))
     homes, spaced = [], Spacing(8.0)
     for x, y, z in flowers:
+        if (x, y, z) in unplanted:
+            continue
         if spaced.free(x, z, 14.0):
             spaced.take(x, z)
             homes.append([round(x, 2), round(y, 2), round(z, 2)])
@@ -2632,7 +2820,8 @@ def main():
     # The rocks standing on it, and the waterfall.
     landmarks, outlines, foot, stones = build_landmarks(collection, air)
     export_objects(landmarks, os.path.join(OUT_DIR, "landmarks.glb"))
-    rock_tris = sum(len(p.vertices) - 2 for o in landmarks if o.name.startswith(("rocks", "crowns", "vines")) for p in o.data.polygons)
+    rock_tris = sum(len(p.vertices) - 2 for o in landmarks if o.name.startswith(("rocks", "crowns", "tufts", "vines"))
+                    for p in o.data.polygons)
 
     # The jungle, the crops and the village's flowers.
     plant_objects, trunks, crowns, butterflies, placed = build_plants(collection, outlines)
@@ -2675,7 +2864,9 @@ def main():
         "kinds": "models/island/terrain_kinds.webp",
         "scree": "models/island/terrain_scree.webp",
         "landmarks": "models/island/landmarks.glb",
-        "rocks": [{"centre": [round(r.cx, 2), round(r.cz, 2)], "outline": reach} for r, reach in outlines],
+        # A bare rock's top too (none with jungle on it), which the camera may pass over.
+        "rocks": [{"centre": [round(r.cx, 2), round(r.cz, 2)], "outline": reach,
+                   **({} if r.s["crown"] else {"top": round(float(r.top), 2)})} for r, reach in outlines],
         "pool": {"centre": list(POOL["centre"]), "radius": POOL["radius"], "level": POOL["level"]},
         "quay": quay_info(),
         "cave": {"url": "models/island/cave.glb"},

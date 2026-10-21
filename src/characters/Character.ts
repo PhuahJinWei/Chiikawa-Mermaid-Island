@@ -16,7 +16,7 @@ import type { EmoteHost, EmoteSystem } from './Emotes';
 import { t } from '../i18n/I18n';
 import { penAt } from '../world/Ink';
 import type { HeldLight } from './Props';
-import { CANOPY_SHADE } from '../world/Look';
+import { CANOPY_SHADE, FILM, MIRROR_LAYER } from '../world/Look';
 
 export interface CharacterOptions {
   /** Background extra: flat tint, and a drawn face on a small canvas (the islanders' cheek marks). */
@@ -313,6 +313,16 @@ export class Character implements EmoteHost {
   attach(scene: THREE.Scene, emotes: EmoteSystem): void {
     scene.add(this.root, this.shadow, this.fireShadow, this.prop);
     this.emotes = emotes;
+    if (FILM) {
+      // The calm water mirrors them (see MIRROR_LAYER): their body, their outfit and what they hold,
+      // not their lines (the pen's hulls, drawn by their back faces) nor their shadows.
+      this.mesh.layers.enable(MIRROR_LAYER);
+      this.outfit?.children[0].layers.enable(MIRROR_LAYER);
+      this.prop.traverse((o) => {
+        const m = o as THREE.Mesh;
+        if (m.isMesh && (m.material as THREE.Material).side !== THREE.BackSide) m.layers.enable(MIRROR_LAYER);
+      });
+    }
   }
 
   setDesiredVelocity(v: THREE.Vector3): void {

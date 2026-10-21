@@ -1,18 +1,28 @@
 import * as THREE from 'three';
+import type { Character } from '../characters/Character';
 import { sharedUniforms } from '../characters/CharacterMaterial';
 import { Cave } from './Cave';
 import { FilmClouds } from './Clouds';
-import { newSkyLook, skyAt } from './DayNight';
+import { MOON_RADIUS, newSkyLook, skyAt, SUN_RADIUS } from './DayNight';
 import { Firelight } from './Firelight';
 import { glowUniforms } from './Glow';
 import { inkUniforms, windUniforms } from './Ink';
-import { FLOOR_GLSL, WATER_EDGE, groundHeight, loadTerrain, outsideWalkable, setCave, terrainHeight, type Terrain } from './Island';
+import {
+  FLOOR_GLSL,
+  WATER_EDGE,
+  groundHeight,
+  loadTerrain,
+  outsideWalkable,
+  setCave,
+  terrainHeight,
+  waterLevelAt,
+  type Terrain,
+} from './Island';
 import { Landmarks } from './Landmarks';
 import {
   FILM,
-  coverAt,
+  MIRROR_LAYER,
   filmLights,
-  filmSky,
   caveUniform,
   goldenUniform,
   jungleHaze,
@@ -24,6 +34,7 @@ import {
 import { canopyShade } from './Obstacles';
 import { Butterflies } from './Butterflies';
 import { Props, type Placed } from './Props';
+import { WadeRings, wadeGlsl } from './Ripples';
 import { Zones, type ZoneDef } from './Zones';
 import { Vegetation } from './Vegetation';
 
@@ -40,6 +51,41 @@ const FOG_FAR = FILM ? 320 : 900;
  * more a frame at 1920 x 1200 on the dev PC, for shadows hardly sharper under the soft filter). */
 const SHADOW_REACH = 42;
 const SHADOW_MAP = 1536;
+/** In the film look, how many of those wading in the water it rings round at once (see setWaders). */
+const WADERS = 6;
+/** In the film look, how far from the camera what stands by the calm water is mirrored in it (see
+ * drawMirror), how high over the water (from their feet), and how big its mirror is drawn, as a share
+ * of the frame each way. */
+const MIRROR_REACH = 40;
+const MIRROR_HEIGHT = 3;
+const MIRROR_SCALE = 0.5;
+/** Where round someone to look for the water that would mirror them (see byWater), in metres. */
+const BY_WATER: [number, number][] = [
+  [0, 0],
+  [2, 0],
+  [-2, 0],
+  [0, 2],
+  [0, -2],
+];
+/** In the film look, how near the waterfall's pool the camera comes before what the pool mirrors is
+ * captured again (see reflectPool), and how far round the pool its water is the one mirrored. */
+const POOL_REACH = 120;
+const POOL_MIRROR_REACH = 30;
+const _frustum = new THREE.Frustum();
+const _viewProjection = new THREE.Matrix4();
+const _sphere = new THREE.Sphere();
+const _size = new THREE.Vector2();
+const _clear = new THREE.Color();
+const _up = new THREE.Vector3(0, 1, 0);
+const _onWater = new THREE.Vector3();
+const _eye = new THREE.Vector3();
+const _ahead = new THREE.Vector3();
+const _turn = new THREE.Matrix4();
+const _waterPlane = new THREE.Plane();
+const _clip = new THREE.Vector4();
+const _q = new THREE.Vector4();
+/** From a camera's clip space to the picture's 0..1. */
+const TO_PICTURE = new THREE.Matrix4().set(0.5, 0, 0, 0.5, 0, 0.5, 0, 0.5, 0, 0, 0.5, 0.5, 0, 0, 0, 1);
 
 // Sampled from the film's beach frames.
 const COLORS = {
@@ -51,6 +97,12 @@ const COLORS = {
   shallow: '#1BC4B3',
   mid: '#1590C2',
   deep: '#1A6FB2',
+  /** In the film look, its water as the film paints it, measured on its aerial shot of the lagoon and
+   * its beach seen from above (2026-10-21): pale and clear at the edge (WATER_EDGE), a richer
+   * turquoise over the lagoon, azure where it deepens. */
+  filmShallow: '#2BC9B4',
+  filmMid: '#1F95D6',
+  filmDeep: '#2474D6',
   foam: '#F4FFFC',
   // The jungle waterfall's pool: deep green under the trees, as in the film's frame.
   poolEdge: '#5DA88B',
@@ -60,21 +112,23 @@ const COLORS = {
   cloudShade: '#DCE4EC',
   moon: '#F5F1C9',
   star: '#FFFBE8',
-  /** In the film look the moon is whiter and the stars pale cyan, as its night jungle paints them. */
-  filmMoon: '#EAF8FF',
+  /** In the film look the moon is a pale yellow, as the film paints its full moon (the user's frame
+   * of it, 2026-10-20), and the stars pale cyan, as its night jungle paints them. */
+  filmMoon: '#E6E8C8',
   filmStar: '#B8F0FF',
 };
 const _haze = new THREE.Color();
 const _hazeLight = new THREE.Color();
 const _hazeSky = new THREE.Color();
-/** The sky's glow seen from under the trees by day, and how it turns in the golden hour. */
+/** The sky's soft glow round the sun by day, and how it turns in the golden hour. */
 const GLOW_TINT = new THREE.Color(1.0, 0.97, 0.88);
 const GOLDEN_GLOW = new THREE.Color(1.0, 0.8, 0.46);
 /** The cool cyan the moon rims things with at the height of the night (see moonEdges). */
 const MOON_RIM = new THREE.Color(0.12, 0.36, 0.5);
-/** The sunlight slanting into the waterfall's clearing: its colour by day and its strength. */
+/** The sunlight slanting into the waterfall's clearing: its colour by day and its strength (screened,
+ * see lightShafts: as bright on the clearing, on the whole, as 0.11 added). */
 const SHAFT_COLOUR = '#FFF3CF';
-const SHAFT_STRENGTH = 0.11;
+const SHAFT_STRENGTH = 0.14;
 const CONFETTI = ['#F0C866', '#F4A9B8', '#9FD3F0', '#F29E6B', '#FFFFFF', '#B9E58C'];
 
 
@@ -99,7 +153,37 @@ export class Stage {
     uMoon: { value: new THREE.Color(COLORS.moon) },
     /** In the film look, the haze the sea pales into toward the horizon (see setHour). */
     uSeaHaze: { value: new THREE.Color(COLORS.skyHorizon) },
+    /** In the film look, the sky as its ripples catch it (see paintSky), and the way to the sun, whose
+     * glitter it throws back. */
+    uSeaSky: { value: new THREE.Color(COLORS.skyHorizon) },
+    uSunDir: { value: new THREE.Vector3(0, 1, 0) },
   };
+  /** In the film look, the foam whoever wades in the island's water makes in it (see setWaders): round
+   * them, and the rings they leave, each where it was made. */
+  private readonly waders = new WadeRings(WADERS);
+  /** Who stands on the island (see setCast): for the rings round who wades, the calm water's mirror,
+   * and what the pool's mirror leaves out. */
+  private cast: Character[] = [];
+  /** In the film look, the calm water's mirror of what stands by it (see drawMirror): the camera
+   * under the water that sees it, the picture it draws, and what the water reads it by: the picture,
+   * from where on the water to where in the picture, and the level of the water it mirrors (far
+   * under everything when there is nothing to mirror). */
+  private readonly mirror = {
+    camera: new THREE.PerspectiveCamera(),
+    picture: new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType }),
+    uniforms: {
+      uMirror: { value: null as THREE.Texture | null },
+      uMirrorMatrix: { value: new THREE.Matrix4() },
+      uMirrorLevel: { value: -1e4 },
+    },
+  };
+  /** In the film look, whether the calm water mirrors what stands by it (a graphics setting), and who
+   * of the cast it leaves out this frame, away from the water (see drawMirror). */
+  reflections = true;
+  private readonly offWater: Character[] = [];
+  /** The sea's level and, once the island has loaded, the waterfall pool's middle, reach and level. */
+  private seaLevel = WATER_LEVEL;
+  private poolAt: { x: number; z: number; radius: number; level: number } | null = null;
   private readonly look = newSkyLook();
   /** Toward the sun (or the moon), for keeping the film look's shadows round the camera. */
   private readonly lightDir = new THREE.Vector3(0, 1, 0);
@@ -110,20 +194,14 @@ export class Stage {
   private firelight: Firelight | null = null;
   private vegetation: Vegetation | null = null;
   private butterflies: Butterflies | null = null;
-  /** In the film look, the waterfall's pool and the camera that captures what it mirrors. */
-  private pool: { surface: THREE.Mesh; probe: THREE.CubeCamera } | null = null;
+  /** In the film look, the waterfall's pool and the camera that captures what it mirrors, and the
+   * face of its cube it captures next (6: none wanted, see recapturePool). */
+  private pool: { surface: THREE.Mesh; probe: THREE.CubeCamera; face: number } | null = null;
   /** In the film look, the sunlight slanting into the waterfall's clearing. */
   private shafts: THREE.Mesh | null = null;
-  /** In the film look, how far in under the trees the camera is, eased as it goes (see update),
-   * and where and when it was last looked at. */
-  private enclosed = 0;
-  private readonly enclosedAt = new THREE.Vector3();
-  private enclosedTime = 0;
-  /** The hour's sky before the film look paints it (see paintSky), and how enclosed it was painted. */
+  /** The hour's sky colours, overhead and at the horizon (see paintSky). */
   private readonly skyTop = new THREE.Color();
   private readonly skyHorizon = new THREE.Color();
-  private skyNight = 0;
-  private skyEnclosed = -1;
   /** The hour and the moment last set (see setHour, update), and whether the dark test is on (see
    * darkTest). */
   private hours = 10;
@@ -149,6 +227,11 @@ export class Stage {
     this.light.position.set(20, 40, 14);
     scene.add(this.hemi, this.light);
     if (FILM) {
+      // What the calm water mirrors is lit as it stands (see drawMirror).
+      this.hemi.layers.enable(MIRROR_LAYER);
+      this.light.layers.enable(MIRROR_LAYER);
+      this.mirror.camera.layers.set(MIRROR_LAYER);
+      this.mirror.uniforms.uMirror.value = this.mirror.picture.texture;
       // Rocks, trees and houses cast soft shadows round wherever the camera is looking.
       const shadow = this.light.shadow;
       this.light.castShadow = true;
@@ -173,11 +256,13 @@ export class Stage {
     this.water = this.makeWaterMaterial();
     const waterGeo = new THREE.CircleGeometry(SEA_RADIUS, 128).rotateX(-Math.PI / 2).translate(0, WATER_LEVEL, 0);
     this.sea = new THREE.Mesh(waterGeo, this.water);
+    // In the film look, what stands between the water and the sun shades it.
+    this.sea.receiveShadow = FILM;
     world.add(this.sea);
     this.cloudMaterial = this.makeCloudMaterial();
     if (FILM) {
       // The film look's clouds, many of their own shapes round the sky (see Clouds.ts).
-      this.filmClouds = new FilmClouds(this.skyMaterial.uniforms.uHorizon, this.skyMaterial.uniforms.uEnclosed, this.waterLight.uTint);
+      this.filmClouds = new FilmClouds(this.skyMaterial.uniforms.uHorizon, this.waterLight.uTint);
       this.clouds = new THREE.Group().add(this.filmClouds.mesh);
       world.add(this.filmClouds.aerial);
     } else {
@@ -224,7 +309,8 @@ export class Stage {
   /**
    * The sea's colours and surf follow the real sea floor once it has loaded. The waterfall's pool
    * is the same water at its own level, deep green and without surf, churned white where the
-   * waterfall lands.
+   * waterfall lands; still, as the film paints it, its ripples catching hardly any of the sky and
+   * the sun glittering on it only where it falls through the trees.
    */
   private setSeaFloor(terrain: Terrain): void {
     const u = this.water.uniforms;
@@ -232,21 +318,31 @@ export class Stage {
     u.uFloor.value = terrain.texture;
     u.uMap.value.set(origin[0], origin[1], size, terrain.info.height.grid);
     u.uLevel.value = terrain.info.water;
+    this.seaLevel = terrain.info.water;
     // (The forbidden cave's water, the sea come in under the spur, is the cave's own: see Cave.ts.)
     if (!pool) return;
+    this.poolAt = { x: pool.centre[0], z: pool.centre[1], radius: pool.radius, level: pool.level };
     const water = this.water.clone();
     for (const name of ['uTime', 'uFloor', 'uMap'] as const) water.uniforms[name] = u[name];
-    Object.assign(water.uniforms, this.waterLight, {
+    Object.assign(water.uniforms, this.waterLight, this.waders.uniforms, this.mirror.uniforms, {
       uLevel: { value: pool.level },
       uSurf: { value: 0 },
       uEdge: { value: new THREE.Color(COLORS.poolEdge) },
       uShallow: { value: new THREE.Color(COLORS.pool) },
       uMid: { value: new THREE.Color(COLORS.poolDeep) },
       uDeep: { value: new THREE.Color(COLORS.poolDeep) },
+      uRipples: { value: 0.12 },
+      uGlitter: { value: 0.5 },
+      // (Its colours by depth as they were matched with the film's frame of it.)
+      uShallowAt: { value: new THREE.Vector2(0.1, 1.2) },
+      uMidAt: { value: new THREE.Vector2(2.6, 6.0) },
+      uDeepAt: { value: new THREE.Vector2(8.0, 16.0) },
+      uFromAbove: { value: 1 },
     });
     if (waterfall) water.uniforms.uSplash.value.set(waterfall.foot[0], waterfall.foot[1], waterfall.splash, 0);
     const surface = new THREE.Mesh(new THREE.CircleGeometry(pool.radius + 4, 64).rotateX(-Math.PI / 2), water);
     surface.position.set(pool.centre[0], pool.level, pool.centre[1]);
+    surface.receiveShadow = FILM;
     this.world.add(surface);
     if (FILM) {
       // In the film look the pool mirrors the rock, the waterfall and the trees round it.
@@ -256,7 +352,7 @@ export class Stage {
       this.scene.add(probe);
       water.uniforms.uReflect = { value: target.texture };
       water.uniforms.uReflectOn = { value: 1 };
-      this.pool = { surface, probe };
+      this.pool = { surface, probe, face: 6 };
       // Sunlight slanting down into the clearing through the haze, over the water and the bank.
       const [px, pz] = pool.centre;
       const y = pool.level;
@@ -274,16 +370,26 @@ export class Stage {
     }
   }
 
+  /** In the film look, has what the waterfall's pool mirrors captured again (see reflectPool), as the
+   * light changes. */
+  recapturePool(): void {
+    if (this.pool) this.pool.face = 0;
+  }
+
   /**
-   * In the film look, captures what the waterfall's pool mirrors: everything round it but the pool
-   * itself and `hide` (the characters, who move on), seen from the pool's middle with the plants
-   * near it drawn in full and the last frame's shadows. Kept until the light changes.
+   * In the film look, captures what the waterfall's pool mirrors, a face of its cube each call while
+   * a capture is wanted (see recapturePool), and only with the camera near enough to see the pool
+   * (until then the capture waits): everything round it but the pool itself and the cast (who move
+   * on), seen from the pool's middle with the plants near it drawn in full and the last frame's
+   * shadows. Kept until the light changes. (All six faces at once, wherever the camera was, had cost
+   * about 12.6 ms in one frame on the dev PC every half an hour of the island's day.)
    */
-  reflectPool(renderer: THREE.WebGLRenderer, hide: THREE.Object3D[], camera: THREE.Camera): void {
-    if (!this.pool) return;
-    const { surface, probe } = this.pool;
-    const shown = hide.map((o) => o.visible);
-    for (const o of hide) o.visible = false;
+  reflectPool(renderer: THREE.WebGLRenderer, camera: THREE.Camera): void {
+    const pool = this.pool;
+    if (!pool || pool.face >= 6 || camera.position.distanceTo(pool.surface.position) > POOL_REACH) return;
+    const { surface, probe } = pool;
+    const shown = this.cast.map((ch) => ch.root.visible);
+    for (const ch of this.cast) ch.root.visible = false;
     surface.visible = false;
     this.vegetation?.update(probe as unknown as THREE.Camera);
     this.sky.position.copy(probe.position);
@@ -291,12 +397,21 @@ export class Stage {
     // drawn them, draws its own, or everything lit would be left out of the mirror.
     const auto = renderer.shadowMap.autoUpdate;
     if (this.light.shadow.map) renderer.shadowMap.autoUpdate = false;
-    probe.update(renderer, this.scene);
+    // One face, as the probe's own update draws all six.
+    if (probe.coordinateSystem !== renderer.coordinateSystem) {
+      probe.coordinateSystem = renderer.coordinateSystem;
+      probe.updateCoordinateSystem();
+    }
+    const before = renderer.getRenderTarget();
+    renderer.setRenderTarget(probe.renderTarget, pool.face);
+    renderer.render(this.scene, probe.children[pool.face] as THREE.Camera);
+    renderer.setRenderTarget(before);
+    pool.face++;
     renderer.shadowMap.autoUpdate = auto;
     this.sky.position.copy(camera.position);
     this.vegetation?.update(camera);
     surface.visible = true;
-    hide.forEach((o, i) => (o.visible = shown[i]));
+    this.cast.forEach((ch, i) => (ch.root.visible = shown[i]));
   }
 
   /** Lights the island for `hours` past midnight: the sky, the sun or the moon, the sea, the
@@ -307,9 +422,10 @@ export class Stage {
     const u = this.skyMaterial.uniforms;
     this.skyTop.copy(look.top);
     this.skyHorizon.copy(look.horizon);
-    this.skyNight = look.night;
     this.paintSky();
     u.uSunDir.value.copy(look.sunDir);
+    // The sun is the colour of its light: white by day, gold in the golden hour, orange as it sets.
+    u.uSunColor.value.copy(look.light);
     u.uMoonDir.value.copy(look.moonDir);
     u.uNight.value = look.night;
     nightUniform.value = look.night;
@@ -332,7 +448,7 @@ export class Stage {
     const golden = THREE.MathUtils.smoothstep(hours, 15.2, 16.6) * (1 - THREE.MathUtils.smoothstep(hours, 17.4, 18.2));
     const evening = THREE.MathUtils.smoothstep(hours, 16.6, 18.2) * (1 - THREE.MathUtils.smoothstep(hours, 19.6, 20.6));
     goldenUniform.value = golden;
-    // Seen from under the trees, the sky glows gold too.
+    // The glow round the sun turns gold too.
     u.uGlowTint.value.copy(GLOW_TINT).lerp(GOLDEN_GLOW, golden);
     _haze.set(0.06 + 0.18 * golden, 0.26 - 0.08 * golden, 0.22 - 0.15 * golden).multiply(_hazeLight.copy(a));
     _haze.lerp(_hazeSky.copy(look.horizon).multiplyScalar(0.4), evening);
@@ -358,6 +474,7 @@ export class Stage {
     // The sea's distance haze: between its deep blue at the hour and the open sky's horizon.
     this.waterLight.uSeaHaze.value.set(COLORS.deep).multiply(look.sea).lerp(look.horizon, 0.55);
     this.waterLight.uMoonDir.value.copy(look.moonDir);
+    this.waterLight.uSunDir.value.copy(look.sunDir);
     this.waterLight.uNight.value = look.night;
     glowUniforms.uGlow.value = look.glow;
     this.cave?.setLight(look);
@@ -397,9 +514,10 @@ export class Stage {
     // The moon's cool rim on leaves, trunks and rock, and its road on the sea.
     moonUniforms.uMoonRim.value.setRGB(0, 0, 0);
     this.waterLight.uMoon.value.setRGB(0, 0, 0);
-    // The sky's light in the air, which far things fade into; on the sea, and its haze.
+    // The sky's light in the air, which far things fade into; on the sea, in its ripples, and its haze.
     (this.scene.fog as THREE.Fog).color.setRGB(0, 0, 0);
     this.waterLight.uTint.value.setRGB(0, 0, 0);
+    this.waterLight.uSeaSky.value.setRGB(0, 0, 0);
     this.waterLight.uSeaHaze.value.setRGB(0, 0, 0);
     // The clouds' light (seen from high up, they float over the island) and the sun's shafts into the
     // waterfall's clearing.
@@ -411,16 +529,156 @@ export class Stage {
     this.firelight?.update(0, this.time);
   }
 
-  /** The hour's sky colours onto the sky, the background and the haze, in the film look as seen
-   * from where the camera is (see update). */
+  /** The hour's sky colours onto the sky, the background and the haze, the same wherever the camera
+   * is; and onto the sea's ripples, which catch the sky low over the horizon. */
   private paintSky(): void {
     const u = this.skyMaterial.uniforms;
     u.uTop.value.copy(this.skyTop);
     u.uHorizon.value.copy(this.skyHorizon);
-    if (FILM) filmSky(u.uTop.value, u.uHorizon.value, this.skyNight, this.enclosed);
     (this.scene.background as THREE.Color).copy(u.uHorizon.value);
     (this.scene.fog as THREE.Fog).color.copy(u.uHorizon.value);
-    this.skyEnclosed = this.enclosed;
+    this.waterLight.uSeaSky.value.copy(u.uHorizon.value).lerp(u.uTop.value, 0.25);
+  }
+
+  /** Who stands on the island: the cast and the crowd. Called once they have been placed. */
+  setCast(cast: Character[]): void {
+    this.cast = cast;
+  }
+
+  /**
+   * In the film look, who of the cast wades in water (not riding in the boat), for the foam their legs
+   * make in it and the rings they leave (see WadeRings): in the island's sea or the pool, or in the
+   * forbidden cave's (Cave.waders); as far round them as the water meets them, deeper the higher up them
+   * (their skirts flare out). `time` is the water's clock (update's). Called each frame before update.
+   */
+  setWaders(time: number): void {
+    if (!FILM) return;
+    const island = this.waders;
+    const cave = this.cave;
+    island.begin();
+    cave?.waders.begin();
+    for (const ch of this.cast) {
+      if (ch.ride || !ch.root.visible) continue;
+      const p = ch.root.position;
+      const inCave = cave?.isInside(p.x, p.y + 0.3, p.z) ?? false;
+      const deep = (cave && inCave ? cave.info.water : waterLevelAt(p.x, p.z)) - p.y;
+      if (deep <= 0.01 || deep > 1.2) continue;
+      const radius = ch.width * 0.44 * THREE.MathUtils.smoothstep(deep, 0.03, 0.14) + 0.06;
+      (cave && inCave ? cave.waders : island).wade(ch, p.x, p.z, radius, Math.min(1, deep / 0.06), time);
+    }
+    island.end(time);
+    cave?.waders.end(time);
+  }
+
+  /**
+   * In the film look, draws the calm water's mirror of what stands by it, as this frame's camera
+   * sees it (MIRROR_LAYER: the cast, the pier and the quay, the ferry), in the water nearest the
+   * camera (the waterfall's pool round its clearing, the sea elsewhere), into a picture half the
+   * frame's width and height that the water reads (see makeWaterMaterial). Nothing else is drawn in
+   * it (no sky, no land, no lines), with the last frame's shadows, and of the cast only those by the
+   * water (see byWater: the rest could only be mirrored under the land); and none of it at all unless
+   * the mirror image of something in it could be in the camera's view. Called just before the frame
+   * is drawn.
+   */
+  drawMirror(renderer: THREE.WebGLRenderer, camera: THREE.PerspectiveCamera): void {
+    const level = this.mirror.uniforms.uMirrorLevel;
+    level.value = -1e4;
+    if (!FILM || !this.reflections) return;
+    const p = camera.position;
+    const pool = this.poolAt;
+    const nearPool = pool !== null && Math.hypot(p.x - pool.x, p.z - pool.z) < pool.radius + POOL_MIRROR_REACH && p.y > pool.level;
+    const h = pool && nearPool ? pool.level : this.seaLevel;
+    if (p.y < h + 0.05 || this.cave?.encloses(p.x, p.y, p.z)) return;
+    camera.updateMatrixWorld();
+    _frustum.setFromProjectionMatrix(_viewProjection.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
+    const away = this.offWater;
+    away.length = 0;
+    let seen = false;
+    for (const ch of this.cast) {
+      if (!ch.root.visible) continue;
+      const at = ch.root.position;
+      if (!this.byWater(at, h, p)) {
+        away.push(ch);
+        continue;
+      }
+      _sphere.center.set(at.x, 2 * h - (at.y + ch.height / 2), at.z);
+      _sphere.radius = 0.6 * Math.max(ch.height, ch.width);
+      seen ||= _frustum.intersectsSphere(_sphere);
+    }
+    for (const s of this.props?.mirrored ?? []) {
+      if (seen) break;
+      if (p.distanceTo(s.center) - s.radius > MIRROR_REACH) continue;
+      _sphere.center.set(s.center.x, 2 * h - s.center.y, s.center.z);
+      _sphere.radius = s.radius;
+      seen = _frustum.intersectsSphere(_sphere);
+    }
+    if (!seen) return;
+    for (const ch of away) ch.root.visible = false;
+    renderer.getDrawingBufferSize(_size);
+    const picture = this.mirror.picture;
+    const wide = Math.max(1, Math.round(_size.x * MIRROR_SCALE));
+    const tall = Math.max(1, Math.round(_size.y * MIRROR_SCALE));
+    if (picture.width !== wide || picture.height !== tall) picture.setSize(wide, tall);
+    const mirror = this.aimMirror(camera, h);
+    const background = this.scene.background;
+    this.scene.background = null;
+    renderer.getClearColor(_clear);
+    const alpha = renderer.getClearAlpha();
+    renderer.setClearColor(0x000000, 0);
+    const auto = renderer.shadowMap.autoUpdate;
+    renderer.shadowMap.autoUpdate = false;
+    const before = renderer.getRenderTarget();
+    renderer.setRenderTarget(picture);
+    renderer.clear();
+    renderer.render(this.scene, mirror);
+    renderer.setRenderTarget(before);
+    renderer.shadowMap.autoUpdate = auto;
+    renderer.setClearColor(_clear, alpha);
+    this.scene.background = background;
+    for (const ch of away) ch.root.visible = true;
+    level.value = h;
+  }
+
+  /** Whether someone standing at `at` is by the water at height h, near enough to the camera (at p) for
+   * the calm water to mirror them: their feet over it or not far above it, and the water within a
+   * couple of metres of them. */
+  private byWater(at: THREE.Vector3, h: number, p: THREE.Vector3): boolean {
+    if (at.y - h > MIRROR_HEIGHT || at.y < h - 1.5 || p.distanceTo(at) > MIRROR_REACH) return false;
+    for (const [dx, dz] of BY_WATER) if (terrainHeight(at.x + dx, at.z + dz) < h) return true;
+    return false;
+  }
+
+  /**
+   * The mirror's camera for `camera` over water at height h: under the water, as far below it as the
+   * camera is above, looking up the way the camera looks down, its near plane laid on the water (so
+   * nothing under the water is drawn: Lengyel's oblique clipping, as three's Reflector does it); and,
+   * into the water's uniforms, from where on the water to where in the mirror's picture.
+   */
+  private aimMirror(camera: THREE.PerspectiveCamera, h: number): THREE.PerspectiveCamera {
+    const mirror = this.mirror.camera;
+    _onWater.set(camera.position.x, h, camera.position.z);
+    _eye.setFromMatrixPosition(camera.matrixWorld);
+    _turn.extractRotation(camera.matrixWorld);
+    mirror.position.subVectors(_onWater, _eye).reflect(_up).negate().add(_onWater);
+    _ahead.set(0, 0, -1).applyMatrix4(_turn).add(_eye);
+    _ahead.subVectors(_onWater, _ahead).reflect(_up).negate().add(_onWater);
+    mirror.up.set(0, 1, 0).applyMatrix4(_turn).reflect(_up);
+    mirror.lookAt(_ahead);
+    mirror.far = camera.far;
+    mirror.updateMatrixWorld();
+    mirror.projectionMatrix.copy(camera.projectionMatrix);
+    this.mirror.uniforms.uMirrorMatrix.value.copy(TO_PICTURE).multiply(mirror.projectionMatrix).multiply(mirror.matrixWorldInverse);
+    _waterPlane.setFromNormalAndCoplanarPoint(_up, _onWater).applyMatrix4(mirror.matrixWorldInverse);
+    _clip.set(_waterPlane.normal.x, _waterPlane.normal.y, _waterPlane.normal.z, _waterPlane.constant);
+    const e = mirror.projectionMatrix.elements;
+    _q.set((Math.sign(_clip.x) + e[8]) / e[0], (Math.sign(_clip.y) + e[9]) / e[5], -1, (1 + e[10]) / e[14]);
+    _clip.multiplyScalar(2 / _clip.dot(_q));
+    e[2] = _clip.x;
+    e[6] = _clip.y;
+    e[10] = _clip.z + 1 - 0.003;
+    e[14] = _clip.w;
+    mirror.projectionMatrixInverse.copy(mirror.projectionMatrix).invert();
+    return mirror;
   }
 
   /** How deep in the trees' shade the point (x, y, z) is from the sun (or the moon), 0 to 1. */
@@ -509,20 +767,6 @@ export class Stage {
       this.light.position.copy(this.ahead).addScaledVector(this.lightDir, 140);
     }
     this.skyMaterial.uniforms.uHorizonY.value = Math.sin(-Math.atan2(above, SEA_RADIUS * reach));
-    if (FILM) {
-      // The film exposes for where its camera is: seen from under the trees the sky is hazy and
-      // glows, out in the open it is plain blue. The sky eases between the two as the camera goes
-      // in and out of the trees, at once when it jumps.
-      const p = camera.position;
-      const target = coverAt(p.x, p.y, p.z);
-      const step = THREE.MathUtils.clamp(time - this.enclosedTime, 0, 0.5);
-      this.enclosed =
-        p.distanceTo(this.enclosedAt) > 6 ? target : this.enclosed + (target - this.enclosed) * (1 - Math.exp(-step / 0.8));
-      this.enclosedAt.copy(p);
-      this.enclosedTime = time;
-      this.skyMaterial.uniforms.uEnclosed.value = this.enclosed;
-      if (Math.abs(this.enclosed - this.skyEnclosed) > 0.01) this.paintSky();
-    }
     if (this.dark) this.putOut();
   }
 
@@ -542,9 +786,17 @@ export class Stage {
     // to the depth test: the ground sits a little back in it (for outlines where things touch
     // it), by an amount that changes with every triangle's slope, which would make a ragged edge
     // that covers the pen's waterline in places.
+    // In the film look it is painted as the film paints its sea (see the fragment shader): shaded
+    // where something stands between it and the sun (three's own shadow map, so it takes the
+    // scene's lights), the sky caught in its ripples, the sun's glitter, the sun netted on the sand
+    // under its shallows, rings round whoever wades in it. GLITTER and CAUSTICS are the dearest of
+    // these, about half a millisecond each with the water filling the screen (1024 x 768 on the dev
+    // PC); a graphics setting can take either out of the defines.
     return new THREE.ShaderMaterial({
-      defines: FILM ? { FILM: '' } : {},
+      defines: FILM ? { FILM: '', GLITTER: '', CAUSTICS: '' } : {},
+      lights: FILM,
       uniforms: {
+        ...(FILM ? THREE.UniformsUtils.clone(THREE.UniformsLib.lights) : {}),
         uTime: { value: 0 },
         uFloor: { value: deep },
         uMap: { value: new THREE.Vector4(-1, -1, 2, 2) },
@@ -553,20 +805,42 @@ export class Stage {
         uSurf: { value: 1 },
         uSplash: { value: new THREE.Vector4(0, 0, 0, 0) },
         uEdge: { value: new THREE.Color(COLORS.edge) },
-        uShallow: { value: new THREE.Color(COLORS.shallow) },
-        uMid: { value: new THREE.Color(COLORS.mid) },
-        uDeep: { value: new THREE.Color(COLORS.deep) },
+        uShallow: { value: new THREE.Color(FILM ? COLORS.filmShallow : COLORS.shallow) },
+        uMid: { value: new THREE.Color(FILM ? COLORS.filmMid : COLORS.mid) },
+        uDeep: { value: new THREE.Color(FILM ? COLORS.filmDeep : COLORS.deep) },
+        // The depths, in metres, over which each colour gives way to the next: in the film look pale
+        // and clear only over the first half metre, turquoise beyond, blue from a couple of metres
+        // down, as the film paints its beaches seen from above; and how bright the water is seen
+        // from straight above, against seen across it (see the shader).
+        uShallowAt: { value: FILM ? new THREE.Vector2(0.05, 0.7) : new THREE.Vector2(0.1, 1.2) },
+        uMidAt: { value: FILM ? new THREE.Vector2(1.8, 4.5) : new THREE.Vector2(2.6, 6.0) },
+        uDeepAt: { value: FILM ? new THREE.Vector2(5.0, 12.0) : new THREE.Vector2(8.0, 16.0) },
+        uFromAbove: { value: 0.9 },
         uFoam: { value: new THREE.Color(COLORS.foam) },
         uReflect: { value: null },
         uReflectOn: { value: 0 },
+        uRipples: { value: 1 },
+        uGlitter: { value: 1 },
         ...this.waterLight,
+        ...this.waders.uniforms,
+        ...this.mirror.uniforms,
       },
       vertexShader: /* glsl */ `
+        #ifdef FILM
+        #include <common>
+        #include <shadowmap_pars_vertex>
+        #endif
         varying vec3 vWorld;
         void main() {
-          vec4 wp = modelMatrix * vec4(position, 1.0);
-          vWorld = wp.xyz;
-          gl_Position = projectionMatrix * viewMatrix * wp;
+          vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+          vWorld = worldPosition.xyz;
+          vec4 mvPosition = viewMatrix * worldPosition;
+          #ifdef FILM
+          // Where it lies in the sun's shadow map (three's own chunk, which reads these names).
+          vec3 transformedNormal = normalMatrix * normal;
+          #include <shadowmap_vertex>
+          #endif
+          gl_Position = projectionMatrix * mvPosition;
         }`,
       fragmentShader: /* glsl */ `
         uniform float uTime;
@@ -584,11 +858,88 @@ export class Stage {
         uniform vec3 uShallow;
         uniform vec3 uMid;
         uniform vec3 uDeep;
+        uniform vec2 uShallowAt;
+        uniform vec2 uMidAt;
+        uniform vec2 uDeepAt;
+        uniform float uFromAbove;
         uniform vec3 uFoam;
         uniform samplerCube uReflect;
         uniform float uReflectOn;
         varying vec3 vWorld;
         float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+        #ifdef FILM
+        uniform vec3 uSeaSky;
+        uniform vec3 uSunDir;
+        uniform float uRipples;
+        uniform float uGlitter;
+        ${wadeGlsl(WADERS)}
+        uniform sampler2D uMirror;
+        uniform mat4 uMirrorMatrix;
+        uniform float uMirrorLevel;
+        #include <common>
+        #include <packing>
+        #include <lights_pars_begin>
+        #include <shadowmap_pars_fragment>
+        #include <shadowmask_pars_fragment>
+        // A hash without sin, so it keeps its precision far out over the sea and as the clock runs on.
+        float hash2(vec2 p) {
+          vec3 q = fract(vec3(p.xyx) * 0.1031);
+          q += dot(q, q.yzx + 33.33);
+          return fract((q.x + q.y) * q.z);
+        }
+        float valueNoise(vec2 p) {
+          vec2 i = floor(p);
+          vec2 f = fract(p);
+          f = f * f * (3.0 - 2.0 * f);
+          return mix(mix(hash2(i), hash2(i + vec2(1.0, 0.0)), f.x), mix(hash2(i + vec2(0.0, 1.0)), hash2(i + vec2(1.0)), f.x), f.y);
+        }
+        // The sun's glitter in one cell of a grid size metres across: the cell holds a facet of the
+        // ripples, which now and then (often, the chance of it) flashes the sun into the eye for a
+        // beat of its own, a fleck a little wider than tall on the screen (J: how the point on the
+        // water moves from pixel to pixel). How much of the point the fleck covers, times how bright
+        // it is in its beat.
+        float glitter(vec2 p, float size, mat2 J, float often) {
+          vec2 cell = floor(p / size);
+          float h = hash2(cell);
+          float beat = uTime * (0.9 + 1.1 * fract(h * 7.13)) + 17.0 * h;
+          float n = floor(beat);
+          if (hash2(cell + vec2(n * 0.37, n * 0.61)) > often) return 0.0;
+          vec2 at = (cell + 0.3 + 0.4 * vec2(fract(h * 31.7 + n * 0.618), fract(h * 57.3 + n * 0.414))) * size;
+          // From metres on the water to pixels on the screen, through J's inverse.
+          vec2 w = p - at;
+          float det = J[0].x * J[1].y - J[1].x * J[0].y;
+          vec2 px = vec2(J[1].y * w.x - J[1].x * w.y, J[0].x * w.y - J[0].y * w.x) / det;
+          float d = length(px / vec2(3.6, 2.0));
+          return (1.0 - smoothstep(0.6, 1.0, d)) * smoothstep(0.0, 0.25, sin(fract(beat) * PI));
+        }
+        // The sunlight the ripples gather into a net of bright lines on the sand under shallow water:
+        // the borders between cells round points that wander (p in cells), the lines thin where they
+        // gather it hardest, wider and fainter between.
+        float causticNet(vec2 p, float t) {
+          p += 0.45 * vec2(sin(p.y * 1.3 + t * 0.3), sin(p.x * 1.1 - t * 0.25));
+          vec2 cell = floor(p);
+          vec2 f = fract(p);
+          float d1 = 8.0;
+          float d2 = 8.0;
+          for (int j = -1; j <= 1; j++) {
+            for (int i = -1; i <= 1; i++) {
+              vec2 g = vec2(float(i), float(j));
+              float k = hash2(cell + g);
+              vec2 h = vec2(k, fract(k * 37.17));
+              vec2 o = g + 0.5 + 0.38 * sin(t * (0.5 + 0.6 * h) + 6.2831 * h) - f;
+              float d = dot(o, o);
+              if (d < d1) {
+                d2 = d1;
+                d1 = d;
+              } else if (d < d2) {
+                d2 = d;
+              }
+            }
+          }
+          float a = sqrt(d2) - sqrt(d1);
+          return 0.75 * (1.0 - smoothstep(0.0, 0.07, a)) + 0.25 * (1.0 - smoothstep(0.0, 0.21, a));
+        }
+        #endif
         void main() {
           // Beyond the island's map the sea floor falls away into the deep. Water with a depth of its
           // own (the cave's, under ground the height grid holds over it) is that deep all over.
@@ -601,15 +952,19 @@ export class Stage {
           float depth = uDepth > 0.0 ? uDepth : mix(uLevel - floorHere, 30.0, beyond);
           if (depth < 0.01) discard;
           // Distance to the shore, from the depth and how steeply the floor rises toward it, so
-          // the surf keeps its width on gentle beaches and steep rocks alike.
-          float e = 1.5;
-          vec2 slope = vec2(floorAt(vWorld.xz + vec2(e, 0.0)) - floorAt(vWorld.xz - vec2(e, 0.0)),
-                            floorAt(vWorld.xz + vec2(0.0, e)) - floorAt(vWorld.xz - vec2(0.0, e))) / (2.0 * e);
-          float shore = max(depth, 0.0) / max(length(slope), 0.02);
+          // the surf keeps its width on gentle beaches and steep rocks alike. (Only water shallow
+          // enough for surf and the bands along the shore looks for it: the open sea does not.)
+          float shore = 1e3;
+          if (depth < 8.0) {
+            float e = 1.5;
+            vec2 slope = vec2(floorAt(vWorld.xz + vec2(e, 0.0)) - floorAt(vWorld.xz - vec2(e, 0.0)),
+                              floorAt(vWorld.xz + vec2(0.0, e)) - floorAt(vWorld.xz - vec2(0.0, e))) / (2.0 * e);
+            shore = max(depth, 0.0) / max(length(slope), 0.02);
+          }
 
-          vec3 col = mix(uEdge, uShallow, smoothstep(0.1, 1.2, depth));
-          col = mix(col, uMid, smoothstep(2.6, 6.0, depth));
-          col = mix(col, uDeep, smoothstep(8.0, 16.0, depth));
+          vec3 col = mix(uEdge, uShallow, smoothstep(uShallowAt.x, uShallowAt.y, depth));
+          col = mix(col, uMid, smoothstep(uMidAt.x, uMidAt.y, depth));
+          col = mix(col, uDeep, smoothstep(uDeepAt.x, uDeepAt.y, depth));
           float shallow = 1.0 - smoothstep(0.5, 3.0, depth);
           col += (sin(shore * 1.3 - uTime * 0.9) * 0.5 + 0.5) * 0.035 * shallow;
           // Surf: a band of foam just off the beach breathing in and out, and a fainter one beyond.
@@ -626,33 +981,114 @@ export class Stage {
             float rings = smoothstep(0.6, 0.85, sin(d * 34.0 - uTime * 4.0) * 0.5 + 0.5) * (1.0 - smoothstep(0.6, 1.0, d));
             col = mix(col, uFoam, max(churn, rings * 0.7));
           }
+          #ifdef FILM
+          // Round whoever wades in it: foam hugging them where the water meets them, broken a little,
+          // and the rings they leave, each spreading where it was made as they walk on, broken into
+          // arcs as they spread and fade.
+          col = mix(col, uFoam, wadeFoam(vWorld.xz, uTime));
+          #endif
+          vec3 view = normalize(vWorld - cameraPosition);
           // A mirror of what stands round it, darker and greener than what it mirrors, smeared
           // by ripples into long wobbles as the film paints the waterfall's pool.
           if (uReflectOn > 0.5) {
-            vec3 view = normalize(vWorld - cameraPosition);
             vec2 wobble = vec2(sin(vWorld.x * 0.9 + uTime * 0.7) + sin(vWorld.z * 1.3 - uTime * 0.5),
                                sin(vWorld.z * 1.1 + uTime * 0.6) + sin(vWorld.x * 1.5 - uTime * 0.8)) * 0.004;
             vec3 seen = textureCube(uReflect, reflect(view, normalize(vec3(wobble.x, 1.0, wobble.y)))).rgb;
             float fresnel = 0.22 + 0.4 * pow(1.0 - abs(view.y), 3.0);
             col = mix(col, seen * vec3(0.36, 0.5, 0.44), fresnel * 0.8);
           }
+          float alpha = 1.0;
           #ifdef FILM
           // The film paints its sea a deep teal seen across it from the shore, most of all where it
-          // is deep; seen from above, the bright lagoon over its sand.
-          float down = abs(normalize(vWorld - cameraPosition).y);
-          col *= mix(mix(0.66, 0.6, smoothstep(2.0, 12.0, depth)), 1.0, smoothstep(0.12, 0.5, down));
+          // is deep; seen from above, the lagoon over its sand in its own colours (not paled toward
+          // white: uFromAbove).
+          float down = abs(view.y);
+          col *= mix(mix(0.66, 0.6, smoothstep(2.0, 12.0, depth)), uFromAbove, smoothstep(0.12, 0.5, down));
+          // Darker where something stands between it and the sun (or the moon), as the film darkens
+          // the water beside its pier and its boat.
+          float lit = getShadowMask();
+          col *= mix(0.58, 1.0, lit);
+          // By day, the sunlight netted on the sand under the shallows, seen looking down into them
+          // where the sun reaches; not where the net would be finer than the pixels.
+          float day = (1.0 - uNight) * smoothstep(0.02, 0.2, uSunDir.y);
+          #ifdef CAUSTICS
+          vec2 cells = vWorld.xz / 0.6;
+          float caustics = smoothstep(0.05, 0.35, depth) * (1.0 - smoothstep(1.2, 3.5, depth)) * smoothstep(0.3, 0.75, down)
+            * (1.0 - smoothstep(0.06, 0.16, length(fwidth(cells)))) * day * lit;
+          if (caustics > 0.01) col += vec3(0.75, 1.0, 0.92) * causticNet(cells, uTime * 0.8) * caustics * 0.13;
+          #endif
           #endif
           col *= uTint;
           #ifdef FILM
+          // The sky caught in its ripples: broken patches of it drifting with the waves, most where the
+          // water is seen across, as the film paints its sea seen from the shore, in long flat shapes
+          // nearby and finer toward the horizon; none where they would be finer than the pixels.
+          vec2 q = vWorld.xz * 0.7 + vec2(uTime * 0.07, uTime * 0.03);
+          float across = pow(1.0 - down, 3.0) * (1.0 - smoothstep(0.06, 0.25, length(fwidth(q)))) * uRipples * 0.42;
+          if (across > 0.015) {
+            float n = valueNoise(q) * 0.6 + valueNoise(q * 2.7 + 5.3 - uTime * 0.05) * 0.4;
+            col = mix(col, uSeaSky, smoothstep(0.58, 0.64, n) * across);
+          }
+          // What stands by it mirrored in it, when it is the water mirrored this frame (see drawMirror),
+          // as real water mirrors it: faint seen from above, more the further across the water it is
+          // seen (as the sky's light on it gives way to what it mirrors), shifted about and smeared
+          // toward the eye by the ripples, broken by them into drifting strokes, with much of the
+          // water's own colour in it. Never a crisp mirror.
+          if (abs(uLevel - uMirrorLevel) < 0.01) {
+            vec2 wob = vec2(sin(vWorld.x * 3.1 + uTime * 1.6) + sin(vWorld.z * 4.3 - uTime * 1.2),
+                            sin(vWorld.z * 2.7 + uTime * 1.4) + sin(vWorld.x * 3.7 - uTime * 1.9)) * 0.05;
+            vec4 at = uMirrorMatrix * vec4(vWorld.x + wob.x, uLevel, vWorld.z + wob.y, 1.0);
+            vec2 uv = at.xy / at.w;
+            vec2 smear = vec2(0.0, 3.0 / float(textureSize(uMirror, 0).y));
+            vec4 m0 = texture2D(uMirror, uv);
+            vec4 m1 = texture2D(uMirror, uv + smear);
+            vec4 m2 = texture2D(uMirror, uv - smear);
+            // (The cast mark themselves in the picture's alpha with a half, everything else with a whole.)
+            vec3 taps = vec3(step(0.1, m0.a) * 2.0, step(0.1, m1.a), step(0.1, m2.a));
+            float cover = (taps.x + taps.y + taps.z) * 0.25;
+            if (cover > 0.0) {
+              vec3 seen = (m0.rgb * taps.x + m1.rgb * taps.y + m2.rgb * taps.z) / (cover * 4.0);
+              // The strokes run across the view: long, thin in depth, drifting toward the eye.
+              vec2 sq = vec2(length(vWorld.xz - cameraPosition.xz) * 5.0, (vWorld.x - vWorld.z) * 0.8) + uTime * vec2(-0.9, 0.2);
+              float strokes = smoothstep(0.3, 0.55, valueNoise(sq) * 0.65 + valueNoise(sq * 2.3 + 4.7) * 0.35);
+              float fresnel = 0.07 + 0.7 * pow(1.0 - down, 5.0);
+              col = mix(col, mix(seen, col, 0.4), cover * strokes * fresnel);
+            }
+          }
           // Paling into the distance toward the horizon's haze, as the film's sea does.
           float away = length(vWorld.xz - cameraPosition.xz);
           col = mix(col, uSeaHaze, 0.8 * pow(smoothstep(25.0, 560.0, away), 0.7));
+          #ifdef GLITTER
+          // The sun's glitter: flecks of it flashing on the ripples, thick on the sun's path over the
+          // water (where the water would face halfway between the sun and the eye, give or take the
+          // ripples' slopes) and few elsewhere, in the hour's light (white by day, golden in the golden
+          // hour) brighter than white on the path, so the glow haloes them. Marked in the alpha as the
+          // cast are, so the brushwork leaves them crisp. One grid, its cells about as many pixels
+          // across at any distance: twice the size each time the distance doubles, the chance of a
+          // flash a quarter as big as the cells shrink toward the next size, so the flecks stay as
+          // thick on the screen.
+          mat2 J = mat2(dFdx(vWorld.xz), dFdy(vWorld.xz));
+          if (day > 0.0 && abs(J[0].x * J[1].y - J[1].x * J[0].y) > 1e-10) {
+            float level = log2(max(max(length(J[0]), length(J[1])) * 16.0, 1e-4) / 0.04);
+            vec3 h = normalize(uSunDir - view);
+            float tilt = (1.0 - h.y * h.y) / max(h.y * h.y, 1e-4);
+            float path = exp(-tilt / 0.04);
+            // (Seen from high above, the path covers much of the view: fewer flecks then, or they
+            // salt it white.)
+            float often = mix(0.02, 0.9, path) * exp2(-2.0 * fract(level)) * mix(1.0, 0.25, smoothstep(0.3, 0.8, down));
+            float flash = glitter(vWorld.xz, 0.04 * exp2(floor(level)), J, often) * day * lit
+              * (1.0 - smoothstep(150.0, 400.0, away)) * uGlitter;
+            col = mix(col, uTint * mix(1.3, 2.2, path), flash);
+            if (flash > 0.5) alpha = 0.5;
+          }
           #endif
+          #else
           // The sun's glints on the shallows, in the hour's light on the sea (white by day).
           vec2 cell = floor(vWorld.xz * 1.6);
           float sparkle = step(0.986, hash(cell + floor(uTime * 1.5))) * shallow * (1.0 - uNight);
           float dotMask = 1.0 - smoothstep(0.05, 0.18, length(fract(vWorld.xz * 1.6) - 0.5));
           col = mix(col, uTint, sparkle * dotMask);
+          #endif
           // The moon's road: a broken streak of light across the water toward the moon, widening
           // into the distance, as in the film's night beach.
           if (uNight > 0.0 && uMoonDir.y > 0.0) {
@@ -666,7 +1102,7 @@ export class Stage {
             float broken = step(0.42, fract(along * 0.09 + 0.35 * sin(vWorld.x * 0.23 + uTime * 0.6) + 0.25 * sin(vWorld.z * 0.31 - uTime * 0.4)));
             col = mix(col, uMoon, road * broken * uNight * smoothstep(0.0, 0.12, uMoonDir.y) * 0.85);
           }
-          gl_FragColor = vec4(col, 1.0);
+          gl_FragColor = vec4(col, alpha);
           #include <tonemapping_fragment>
           #include <colorspace_fragment>
         }`,
@@ -690,7 +1126,6 @@ export class Stage {
         uStarColor: { value: new THREE.Color(FILM ? COLORS.filmStar : COLORS.star) },
         uNight: { value: 0 },
         uTime: { value: 0 },
-        uEnclosed: { value: 0 },
         uGlowTint: { value: GLOW_TINT.clone() },
       },
       vertexShader: /* glsl */ `
@@ -714,25 +1149,95 @@ export class Stage {
         uniform vec3 uInk;
         uniform float uPen;
         uniform float uHorizonY;
-        uniform float uEnclosed;
         uniform vec3 uGlowTint;
         varying vec3 vDir;
         float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+        float moonNoise(vec2 p) {
+          vec2 i = floor(p);
+          vec2 f = fract(p);
+          f = f * f * (3.0 - 2.0 * f);
+          return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x), mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0)), f.x), f.y);
+        }
+        // One of the moon's seas, round c with half sizes r: how far inside it q is (x) and how near
+        // its edge, which the film paints a little darker (y).
+        vec2 moonSea(vec2 q, vec2 c, vec2 r) {
+          float d = length((q - c) / r);
+          return vec2(1.0 - smoothstep(0.6, 1.0, d), smoothstep(0.62, 0.84, d) * (1.0 - smoothstep(0.86, 1.04, d)));
+        }
+        // A crater's rim: a thin darker ring.
+        float moonCrater(vec2 q, vec2 c, float r) {
+          float d = length(q - c) / r;
+          return smoothstep(0.55, 0.85, d) * (1.0 - smoothstep(0.9, 1.15, d));
+        }
+        // A rayed crater: darker spikes out from its middle.
+        float moonRays(vec2 q, vec2 c, float r, float seed) {
+          vec2 d = q - c;
+          float l = length(d);
+          float a = atan(d.y, d.x);
+          float spikes = min(pow(abs(sin(a * 7.0 + seed)), 10.0) + pow(abs(sin(a * 12.0 + seed * 2.3)), 14.0), 1.0);
+          return spikes * (1.0 - smoothstep(r * 0.3, r, l)) * smoothstep(r * 0.1, r * 0.25, l);
+        }
+        // The full moon's face as the film paints it, across its disc (q from -1 to 1, x to the right
+        // and y up as it is seen): pale, a little darker toward its edge, its seas soft grey-green
+        // patches with ragged edges outlined a little darker, a chain of them down its right side, a
+        // broad one over its top and a faint one low on the left, a few small craters, and two rayed
+        // ones low on either side. Its colour as a share of the moon's.
+        vec3 moonFace(vec2 q) {
+          vec2 w = q + 0.15 * (vec2(moonNoise(q * 4.0 + 3.1), moonNoise(q * 4.0 + 9.7)) - 0.5)
+                     + 0.06 * (vec2(moonNoise(q * 11.0 + 1.7), moonNoise(q * 11.0 + 5.3)) - 0.5);
+          vec2 sea = moonSea(w, vec2(0.3, 0.6), vec2(0.3, 0.19));
+          sea = max(sea, moonSea(w, vec2(0.68, 0.3), vec2(0.14, 0.12)));
+          sea = max(sea, moonSea(w, vec2(0.7, 0.02), vec2(0.1, 0.13)));
+          sea = max(sea, moonSea(w, vec2(0.86, -0.2), vec2(0.07, 0.1)));
+          sea = max(sea, moonSea(w, vec2(-0.62, 0.24), vec2(0.16, 0.2)));
+          sea = max(sea, moonSea(w, vec2(-0.38, -0.5), vec2(0.17, 0.1)));
+          sea = max(sea, moonSea(w, vec2(-0.08, -0.74), vec2(0.1, 0.06)));
+          sea = max(sea, moonSea(w, vec2(-0.86, -0.22), vec2(0.07, 0.15)));
+          sea = max(sea, moonSea(w, vec2(0.08, -0.86), vec2(0.12, 0.05)));
+          sea = max(sea, moonSea(w, vec2(-0.42, -0.18), vec2(0.26, 0.22)) * 0.45);
+          float pits = max(max(moonCrater(q, vec2(0.12, 0.3), 0.045), moonCrater(q, vec2(-0.24, 0.22), 0.035)),
+                           max(moonCrater(q, vec2(0.5, -0.36), 0.04), moonCrater(q, vec2(-0.55, -0.24), 0.035)));
+          float rays = max(moonRays(q, vec2(0.38, -0.66), 0.27, 1.3), moonRays(q, vec2(-0.74, -0.1), 0.17, 4.1));
+          vec3 c = mix(vec3(1.0), vec3(0.93, 0.94, 0.87), sea.x);
+          c = mix(c, vec3(0.86, 0.87, 0.8), max(sea.y * 0.55, pits * 0.4));
+          c = mix(c, vec3(0.86, 0.88, 0.8), rays * 0.65);
+          return c * (1.0 - 0.1 * dot(q, q));
+        }
         void main() {
           vec3 dir = normalize(vDir);
           float h = clamp(dir.y, 0.0, 1.0);
           vec3 col = mix(uHorizon, uTop, pow(h, 0.55));
           float s = max(dot(dir, uSunDir), 0.0);
-          col += uSunColor * (pow(s, 400.0) * 1.5 + pow(s, 12.0) * 0.12) * (1.0 - uNight) * step(0.0, uSunDir.y);
+          col += uSunColor * pow(s, 12.0) * 0.12 * (1.0 - uNight) * step(0.0, uSunDir.y);
           #ifdef FILM
-          // The film's hazy daylight seen from under the trees (uEnclosed): brighter than white,
-          // most of all toward the sun and low down, so it glows round the trees standing against
-          // it. Out in the open, the plain pale blue of the film's open skies, a soft glow round the
-          // sun.
+          // The plain pale blue of the film's open skies, the same wherever the camera is, a soft glow
+          // round the sun.
           float day = (1.0 - uNight) * smoothstep(-0.05, 0.15, uSunDir.y);
-          float glow = day * uEnclosed;
-          col = col * mix(1.0, 1.2, glow) + uGlowTint
-            * (glow * (0.38 * pow(s, 4.0) + 0.2 * (1.0 - smoothstep(0.0, 0.45, h))) + day * 0.25 * pow(s, 24.0));
+          col += uGlowTint * day * 0.25 * pow(s, 24.0);
+          #endif
+          // The sun: a round disc in the hour's light, the sea's horizon cutting it as it rises and
+          // sets.
+          float sunAt = acos(clamp(dot(dir, uSunDir), -1.0, 1.0));
+          float sunUp = (1.0 - uNight) * step(0.0, dir.y - uHorizonY);
+          #ifdef FILM
+          // As the film paints it (the user's frame of it): high in the day, a white disc soft at its
+          // edge, in a ring of pale cream fading through a faint green into the sky's blue. The open
+          // sky round it is held under the glow's threshold then, so the glow does not spread the
+          // white past its edge. Low in the sky it burns in the hour's colour, gold or orange,
+          // brighter than white, so the glow haloes it.
+          float sunQ = sunAt / ${SUN_RADIUS};
+          float sunHigh = smoothstep(0.1, 0.35, uSunDir.y);
+          col = mix(col, min(col, vec3(0.9)), (1.0 - smoothstep(1.5, 3.5, sunQ)) * sunHigh * sunUp);
+          float sunCore = 1.0 - smoothstep(0.82, 1.15, sunQ);
+          vec3 sunWhite = mix(uSunColor / max(max(uSunColor.r, uSunColor.g), uSunColor.b), vec3(1.0), 0.75 * sunHigh);
+          col = mix(col, uSunColor * vec3(0.8, 0.79, 0.68), 0.3 * exp(-max(sunQ - 1.0, 0.0)) * sunUp);
+          col = mix(col, uSunColor * vec3(0.8, 0.78, 0.6), exp(-max(sunQ - 0.9, 0.0) / 0.35) * (1.0 - sunCore) * sunUp);
+          col = mix(col, sunWhite * mix(1.3, 0.97, sunHigh), sunCore * sunUp);
+          #else
+          // In the toon look, outlined with the pen, as the moon is.
+          float sunEdge = (sunAt - ${SUN_RADIUS}) / max(fwidth(sunAt), 1e-6);
+          float sunDisc = 1.0 - smoothstep(-0.5, 0.5, sunEdge);
+          col = mix(col, mix(uInk, uSunColor * 1.1, sunDisc), (1.0 - smoothstep(uPen - 0.5, uPen + 0.5, sunEdge)) * sunUp);
           #endif
           if (uNight > 0.0) {
             // Stars: dots scattered over the sky's directions, a few twinkling; in the film look as
@@ -757,19 +1262,30 @@ export class Stage {
             star = max(star, faint * 0.55);
             #endif
             col = mix(col, uStarColor, star * uNight * uNight * smoothstep(0.04, 0.2, dir.y));
-            // The full moon: a big pale disc in a soft halo, outlined with the pen.
+            // The full moon: a big pale disc with its seas and craters (moonFace) in a soft halo,
+            // outlined with the pen.
             float m = acos(clamp(dot(dir, uMoonDir), -1.0, 1.0));
-            float radius = 0.06;
+            float radius = ${MOON_RADIUS};
+            #ifdef FILM
+            col = mix(col, vec3(0.42, 0.52, 0.82), 0.15 * (1.0 - smoothstep(radius, radius * 4.0, m)) * uNight);
+            #else
             col = mix(col, vec3(0.42, 0.52, 0.82), 0.4 * (1.0 - smoothstep(radius, radius * 4.0, m)) * uNight);
+            #endif
             float edge = (m - radius) / max(fwidth(m), 1e-6);
             float disc = 1.0 - smoothstep(-0.5, 0.5, edge);
+            vec3 moonRight = normalize(cross(uMoonDir, vec3(0.0, 1.0, 0.0)));
+            vec2 q = vec2(dot(dir, moonRight), dot(dir, cross(moonRight, uMoonDir))) / sin(radius);
+            vec3 face = uMoonColor * moonFace(q);
             #ifdef FILM
-            // The film paints the moon without a line, glowing, in a wide halo of brighter blue.
+            // The film paints the moon without a line, its edge soft, glowing pale yellow round it,
+            // through green into the sky's blue, in a wide halo of brighter blue. (The night's grade
+            // leaves the moon and its glow as they are drawn: see GRADE in Look.ts.)
             col += vec3(0.16, 0.3, 0.62) * 0.55 * (1.0 - smoothstep(radius, radius * 9.0, m)) * uNight;
-            vec3 moon = uMoonColor * 1.7;
-            float drawn = disc;
+            col = mix(col, uMoonColor * 0.75, 0.9 * exp(-max(m - radius, 0.0) / (radius * 0.45)) * uNight);
+            vec3 moon = face * 0.88;
+            float drawn = 1.0 - smoothstep(radius * 0.94, radius * 1.01, m);
             #else
-            vec3 moon = mix(uInk, uMoonColor, disc);
+            vec3 moon = mix(uInk, face, disc);
             float drawn = 1.0 - smoothstep(uPen - 0.5, uPen + 0.5, edge);
             #endif
             col = mix(col, moon, drawn * uNight * step(0.0, dir.y - uHorizonY));

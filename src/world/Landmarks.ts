@@ -13,6 +13,14 @@ const COLORS = {
   shade: '#BFDCE3',
   foam: '#FFFFFF',
 };
+/**
+ * How big the puffs of leaves are on the clumps along the cliffs' ledges (metres; the crowns' are 1.9)
+ * and how full (see PUFF_GLSL): fuller than the crowns', or a clump this small, seen from the side or
+ * from the boat below, opens between its puffs into tatters, where it should only break into leaves
+ * at its edge.
+ */
+const LEDGE_PUFFS = 0.75;
+const LEDGE_FILL = 1.25;
 
 /**
  * Toon-shaded stone with its painted colours, and the pen's waterline drawn where the rock
@@ -235,6 +243,7 @@ export class Landmarks {
     // The jungle on the rocks' tops, and the vines and moss hanging down them: in the film look
     // painted like the trees' leaves, the crowns in leaf clusters.
     let crowns: THREE.Material | null = toonRocks;
+    let tufts: THREE.Material | null = toonRocks;
     let vines: THREE.Material | null = toonRocks;
     if (FILM) {
       const leaves = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: paintedRamp() });
@@ -244,6 +253,19 @@ export class Landmarks {
         fireLights(shader);
       };
       crowns = leaves;
+      // The clumps on the cliffs' ledges: leaves in puffs as the crowns', smaller, as the clumps are.
+      const small = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: paintedRamp() });
+      small.onBeforeCompile = (shader) => {
+        shader.fragmentShader = shader.fragmentShader.replace(
+          '#include <common>',
+          `#define PUFF_FILL ${LEDGE_FILL.toFixed(2)}\n#include <common>`,
+        );
+        paintLeaves(shader, LEDGE_PUFFS);
+        moonEdges(shader);
+        fireLights(shader);
+      };
+      small.customProgramCacheKey = () => `leaves:${LEDGE_PUFFS}:${LEDGE_FILL}`;
+      tufts = small;
       const hanging = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: paintedRamp() });
       hanging.onBeforeCompile = (shader) => {
         paintLeaves(shader);
@@ -253,6 +275,7 @@ export class Landmarks {
       vines = hanging;
     }
     let crownShadow: THREE.MeshDepthMaterial | undefined;
+    let tuftShadow: THREE.MeshDepthMaterial | undefined;
     for (const mesh of meshes) {
       mesh.removeFromParent();
       // Nothing here is a leaf with veins to paint (see paintLeaves).
@@ -266,15 +289,18 @@ export class Landmarks {
           ? spray
           : mesh.name.startsWith('crowns') && crowns
             ? crowns
-            : mesh.name.startsWith('vines') && vines
-              ? vines
-              : rocksFor(mesh.name);
+            : mesh.name.startsWith('tufts') && tufts
+              ? tufts
+              : mesh.name.startsWith('vines') && vines
+                ? vines
+                : rocksFor(mesh.name);
       landmarks.group.add(mesh);
       if (isSpray) landmarks.spray.push(mesh);
       if (FILM) {
         mesh.castShadow = mesh.receiveShadow = !isSpray && !isFall;
         // The sun comes through the gaps between the puffs of the jungle on the rocks' tops.
         if (mesh.name.startsWith('crowns')) mesh.customDepthMaterial = crownShadow ??= puffShadow(1.9);
+        if (mesh.name.startsWith('tufts')) mesh.customDepthMaterial = tuftShadow ??= puffShadow(LEDGE_PUFFS);
         continue;
       }
       const hull = addOutline(mesh);

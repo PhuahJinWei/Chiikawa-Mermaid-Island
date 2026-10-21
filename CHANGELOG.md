@@ -242,18 +242,26 @@ stage, and along every path. Not yet checked on a real phone.
   one side, with boulders half in the water along its edge and ferns,
   monstera and red ti plants at the wall's foot, as in the film's frames of
   it. It passes under the stones' shelf on its way to the restaurant.
-- 島二郎, the restaurant at the end of the riverside path: a ramen shop
-  built as the village builds, a plank floor on short log stilts under a
-  big thatched hip roof on log posts, open at the front under a navy cloth
-  curtain between red paper lanterns that light up at night. Along a plank
-  counter, stools and bowls of ramen heaped with bean sprouts, cabbage and
-  pork; behind it the kitchen, walled in planks: a clay stove with two
-  steel stockpots, a prep table with a tray of noodles and stacked bowls,
-  and jars on a shelf by an open window with a bamboo blind rolled up.
-  Its sign hangs over the path on two posts wound with vines, as in the
-  film's frame of the way to it (a template to paint its 島二郎 on is
-  drawn); the place is named 島二郎. Built by `art/blender/houses.py` and
-  `art/blender/build_props.py`.
+- 島二郎, the restaurant at the end of the riverside path, after the film's
+  frames of it (`shimajiro exterior 1`, `2`, `shimajiro interior 1` to `3`)
+  and the user's sketches of it: a tall box of a shop clad in weathered grey
+  brown planks between dark square posts that part its front into three
+  bays (a bench of potted plants, the plank door with its small square
+  window under a thick board, two riveted iron plates over boards running up
+  and down), a deep cornice round its top, a wide cream board standing up
+  off it over the front with 島二郎 on it and a lamp over it, a gable roof of
+  dark boards behind, a lean-to of corrugated tin down its left side over
+  beer crates, bottles and a bucket of sticks, and beside it the tall
+  standing sign, 貝汁, under its own lamp on a pole wound with vines. Inside,
+  the film's room of warm planks over boards below a dark rail: the kitchen
+  by the door (a pale blue stove with big pots on it, ladles and pans over
+  it, two jars), a table under the window with a chair and a stool, the
+  menu's three plaques, strings of shells and starfish, a lamp hanging in
+  the room's middle. Its sign hangs over the path on two posts wound with
+  vines, as in the film's frame of the way to it; templates to paint its
+  signs on are drawn; the place is named 島二郎. Built by
+  `art/blender/shimajiro.py` (the sign over the path by
+  `art/blender/build_props.py`).
 - The bay is the festival, laid out as in the film's arrival: a short
   wooden pier (rough planks on log posts, over turquoise water) reaches out
   from the middle of the beach, and the white duck ferry lies at anchor out
@@ -940,6 +948,90 @@ outlined is drawn twice, once for its pen line. To get there:
   blue at the horizon (between its deep blue and the hour's sky) where it
   had stayed dark navy right up to it; seen from above, the lagoon is
   still bright turquoise over its sand.
+- The film look's sea painted as the film paints its water, where it had
+  been one flat colour by its depth. Seen across it from the shore, the sky
+  catches in its ripples in broken flat patches, long nearby and finer
+  toward the horizon, as in the film's frame of the bay from the water, in
+  the sky's colours of the hour (golden in the golden hour). The sun
+  glitters on it in flecks a little wider than they are tall, a few
+  anywhere and thick along its path toward the sun, a glittering road
+  under the low sun of the late afternoon, bright enough for the glow to
+  halo them; the brushwork leaves them crisp. Seen from above, the sun is
+  netted in fine bright lines on the sand under the shallows, as round
+  the film's pier. What stands between the water and the sun shades it:
+  the pier, its posts, the ferry, the sea cliffs and the sea stack. Whoever
+  wades in it has foam round their legs where the water meets them and
+  broken rings spreading out from them, each staying where it was made as
+  they walk on and turn (at first each frame drew them round where they
+  stood, pushed back along the way they were going, so that they swung
+  round after them as they turned, which the user saw). The
+  waterfall's pool stays as still as the film's, its ripples catching
+  hardly any of the sky, the sun glittering on it only where it falls
+  through the trees. By night only the shade and the rings show, and the
+  moon's road is as it was. The open sea no longer looks for the floor's
+  slope, which only the surf and the bands along the shore need, so a
+  frame costs the same as before within the measuring noise in most views
+  (from 0.9 ms less to 0.3 ms more, at 1024 x 768 on the dev PC), and up to
+  about 1 ms more with the screen full of shallow water seen from above;
+  the glitter and the net on the sand are about half of that, and a
+  graphics setting can take either out of the water's shader (GLITTER,
+  CAUSTICS). The island's and the cave's dark tests pass, and the island's
+  by night and by day with the cast wading too.
+- What stands in the calm water or by it shows in it, as real water shows
+  it: whoever wades in the shallows or stands on the pier, the pier and the
+  quay themselves, the ferry, and in the waterfall's pool whoever wades at
+  its edge. Faint seen from above and more the further across the water it
+  is seen, shifted about and smeared toward the eye by the ripples, broken
+  by them into drifting strokes, with much of the water's colour in it:
+  never a crisp mirror (a first try mirrored faces and blushes, which the
+  user found too much). It is drawn each frame by a camera under the water
+  into a picture half the frame's size, of only those things (the cast
+  without their lines or shadows, and a copy of the pier and the quay of
+  its own, as they are joined with the festival's stalls for drawing), and
+  not at all unless the mirror image of one of them could be in view;
+  those of the cast more than a couple of metres from the water are left
+  out. About 0.05 to 0.3 ms for the mirror (1024 x 768 on the dev PC), the
+  whole frame within the measuring noise but by the pier (0.4 ms more).
+  The Test panel's 表示 has 水面の映りこみ to turn it off and on. The
+  waterfall's pool now captures what it mirrors a face of its cube at a
+  time, and only with the camera within 120 metres of it: all six at once
+  had cost about 12.6 ms in one frame every half an hour of the island's
+  day, wherever the camera was; a face is 1.4 to 4.9 ms. The pool looks as
+  it did, and the dark tests pass with the mirror drawn.
+- The film look's sea in the film's colours seen from above, where it had
+  been a pale, washed-out mint (124, 255, 225, its green running past
+  white), brightest and most saturated right at the sand, and blue nowhere
+  near the island. Its lagoon is the richer turquoise of the film's aerial
+  shot (53, 211, 176 against the frame's 59, 209, 170), pale and clear only
+  over its first half metre at the sand's edge, as the film paints shallow
+  water over its sand, and azure from a couple of metres down (41, 111, 197
+  against 37, 124, 218 on the film's beach seen from above). Seen across
+  from the shore it is as it was, as it already matched the film's beach
+  frames, and so are the waterfall's pool and the toon look's sea. The
+  sun's glitter seen from high above is a quarter as thick, where it had
+  salted the water white. The sliver of ground showing under the water at
+  its edge takes the new edge colour. The dark tests pass.
+- The forbidden cave's water rings as the sea does. Whoever wades in it has
+  foam round their legs where it meets them and broken rings spreading out
+  from them. Round the boat afloat, foam laps along its sides, heaped at its
+  bow as it goes ahead; its wake opens behind it in a wavering V, and rings
+  trail it, fewer as it slows. Where an oar's blade goes in and where it
+  comes out, a small ring, and a splash while it dips. Every ring stays
+  where it was made, and the wake is the waves the bow made all along its
+  way spreading out from where they were made, so as the boat turns its V
+  bends after it, its far end fading, where it had swung round with the
+  boat like a tail. They catch the light that falls on them there (the
+  lake's glow, the torches', the sun's or the moon's down the skylight's
+  well, the openings' sky, the cave's own dark) over the water's own, so
+  they show pale on the glow and in a torch's pool and faint in the dark,
+  and not at all with the cave's lights out. Drawing the cave's water
+  filling the screen costs about 0.2 ms more with two of the cast wading
+  and 0.5 ms with the boat rowing close by (1024 x 768 on the dev PC; the
+  measuring noise is about 0.1 ms); the wake that follows the boat's way
+  is about half of that, and nothing of any of them is worked out away
+  from where they are. Both dark tests pass, and the cave's by day and by
+  night with two of the cast wading and with the boat rowing round a turn,
+  its wake and its rings out.
 - The sea cliffs after the film's frame: their sandstone is a pale, quiet
   cream with tan beds, painted in long beds with few joints and little
   stain where it had read as a brick wall; tufts of leaves sit on the
@@ -1017,6 +1109,45 @@ outlined is drawn twice, once for its pen line. To get there:
   path. A path stops where it meets the festival's ground or the village's
   clearing, rather than painting its end over them: the end of the path
   north from the festival's street had shown as a brown spot on its sand.
+- The bushes along the tall cliffs' tops (the gorge's rims, round the high
+  ground and the spur, the sea cliffs) are leafy now, where they had been a
+  row of smooth green balls: each heaped of rounded lobes and painted as
+  the jungle on the rocks' tops is, of every size, in clumps of a few to a
+  dozen with grass between, some set back from the edge and some leaning
+  out over it, an odd big one. The clumps on the ledges down the cliffs'
+  faces are leafy too, where they had been strings of round beads, one
+  after another all along a ledge: low cushions heaped of rounded lobes,
+  wider than they are tall, about one in three spilling a lobe over the
+  ledge's lip, growing in runs along the ledges with bare rock between.
+  They are painted in puffs of leaves as the bushes on the tops are, but
+  smaller puffs (0.75 m against 1.9) and fuller ones, so that a clump
+  breaks into leaves only at its edge: in the crowns' big puffs these
+  small cushions, seen from the side or from the boat below, had opened
+  into tatters. The curtains of creepers hang as they did. About 11,100
+  triangles more over the whole island (5,900 for the bushes along the
+  tops, 5,200 for the clumps on the ledges).
+- The gorge's dry head, between the river's end and its mouth onto the
+  lowland by the waterfall, is choked by a rockfall: blocks of the gorge's
+  white limestone fallen from its walls, split flat on their sides and
+  tumbled wall to wall in three layers up to nearly 10 metres (the rims
+  stand at 11), moss in patches on some, a few smaller ones at its foot
+  and spilling out of the mouth, the ground round them damp and strewn
+  with fallen stones. It stands back, clear of the stepping stones, and
+  the river runs on to its foot, 6 metres further than it did, its bed
+  shelving up under the first blocks so the water meets the rocks; the
+  riverside path along the south wall reaches it. No one walks into the
+  gorge that way any more: the path from the waterfall's bank ends at the
+  rocks, and the riverside path and 島二郎 are reached the long way, up the
+  ramp onto the high ground north of the gorge, across it and down by the
+  west coast, about 470 metres from the festival's street where the way
+  through the ravine was about 350. The 24 trees, 4 palms and 142 small
+  plants that grew where it and the water now lie are gone; everything
+  planted round it stands as it was, but for a clump of trees at the mouth
+  that lost a tree to it. The camera may pass over a bare rock lower than
+  it, as over this heap from the rims; it had been kept out of every
+  rock's foot at any height. About 12,000 triangles more over the whole
+  island (16,300 for the blocks, less 4,300 for the plants gone) and 70 KB
+  more to download.
 - Evenings and nights lit the film's way, where night had been one flat
   blue wash and the island's lights lit nothing. The tiki torches burn in
   big cartoon flames, a pale yellow heart with tongues of orange licking
@@ -1250,6 +1381,48 @@ outlined is drawn twice, once for its pen line. To get there:
   0.5 ms a frame for the bake and 1 ms for the light out of the houses, at
   1906 x 1562 on the dev PC in the lane between the stilt huts, within the
   measuring noise.
+- The sun and the moon can be seen. They had always been in the sky, and
+  they light the island and cast its shadows, but the camera, looking down
+  at the player through its narrow lens, saw only 6 degrees above the
+  horizon (14 tilted all the way): the sun was in sight only in the first
+  and last 20 minutes of daylight, about 40 seconds a day, and the moon at
+  full night never. Dragging the camera on down past level with the player
+  now turns its gaze up, as far as 66 degrees above the horizon, the player
+  out of the frame below. The sun is a round disc, as the film paints it
+  (the user's frame of it): high in the day, white, soft at its edge, in a
+  ring of pale cream fading through a faint green into the sky's blue
+  (measured against the frame, cream 245, 248, 221 just past its edge
+  against 248, 248, 238, the sky at half its width out 205, 241, 235
+  against 201, 228, 231); the open sky round it no longer blooms, so the
+  white stops at its edge. Low in the sky it burns gold in the golden hour
+  and orange as it sets, glowing, the sea's horizon cutting it; in the
+  toon look it is outlined with the pen. It had been a soft white spot that
+  bloomed into a shapeless glow. The full moon now passes over the
+  forbidden cave's skylight. It climbs slowly through the evening (5
+  degrees up at 19:00,
+  37.5 at 21:00, much as before, so the film-matched night views at 21:00
+  to 21:30 measure the same, their mean colours unchanged) and rides high
+  toward midnight, 75 degrees up in the south at its highest where it had
+  been 55. From the lake under the skylight, whose well shows the sky above
+  55 degrees, it crosses the opening from about 22:10 to 1:50, its light
+  coming down the well onto the water; before, it only grazed the rim
+  behind the trees. Midnight is a little brighter, the moon higher. The
+  island's and the cave's dark tests pass. The disc is a few instructions
+  on the sky's pixels only (not timed).
+- The full moon as the film paints it (the user's frame of it): a big
+  pale yellow disc, a little darker toward its edge, its seas soft
+  grey-green patches with ragged edges outlined a little darker (a chain
+  down its right side, a broad one over its top, a faint one low on the
+  left), a few small craters and two rayed ones low on either side, its
+  edge soft, glowing pale yellow round it through green into the sky's
+  blue. It had been a plain blue-white disc in a white ring. The night's
+  blue grade now leaves the moon and its glow as the sky draws them, out to
+  three times its radius: it had turned the glow into a pale ring. Measured
+  against the frame, the disc's mean colour is 230, 231, 181 against 229,
+  231, 177. It is painted in the sky's shader, not taken from the frame, and
+  the toon look's cream moon gets the same face inside its pen line. The
+  film-matched night views do not change by a pixel (the moon is not in
+  them), and the dark tests pass.
 - The village's watchtower stage after the film's (its night frame of the
   stage): its legs splay out to the ground where they stood straight, each
   side braced in two tiers of crossed planks; the platform stands higher,
@@ -1378,6 +1551,59 @@ outlined is drawn twice, once for its pen line. To get there:
   judged by how long a first visit takes on a real phone (PLAN.md): the rest
   is mostly the jungle, and loading its far patches and the village after
   the start could bring the first load to about 5 if that is ever needed.
+- 島二郎 is rebuilt after the film's frames of it and the user's sketches
+  (the user: it looked way different from the film), where it had been an
+  open, thatched ramen stall built as the village builds (see 島二郎 above).
+  It stands where it stood, facing the path from the hanging sign, inside
+  the ground cleared for it, so the jungle grows as it did.
+  - Every plank, post, board and sheet of tin is painted in a patch of its
+    own of the shop's texture (`art/blender/paintmap.py`): its faces unfold
+    round its length into the patch, which is painted texel by texel from
+    where on it each texel lies. Outside, the wood's grain, knots and nail
+    heads with rust bleeding under them, greyer weathered patches and the
+    damp at the walls' foot; the boards' cream paint worn through at their
+    edges and here and there, rust and grime running down from the standing
+    sign's top; rust round the plates' rivets and in streaks down the tin.
+    Inside, warm golden planks, their joins painted. One texture 2048 texels
+    across, 90 a metre on the walls, 50 on the roof and 126 on the signs,
+    patches laid where they rest lowest (a skyline); the game draws it over
+    the shop in the film look (`paint` in `src/world/Props.ts`), and what is
+    too small to paint (a shell, a bottle) keeps its own colour, as the
+    whole shop does seen from afar.
+  - At night its lamp's light is baked into it, falling on the walls, the
+    floor and the furniture and coming back off the wood, out through its
+    doorway and its two windows. Every face open to the room keeps its
+    light (`rooms` in `bake_night`), where the bake had dropped the thin
+    and shaded ones (a rail under a window's sill, a table's legs) into
+    the moonlit blue; the lamp hangs in the room's middle, so the room is
+    lit warm and even, as the film's.
+  - Its board and its standing sign glow warm under their lamps, as the
+    film's: lamps of a kind of their own in the light grid (`spot` in
+    `src/world/Firelight.ts`, twice a lantern's brightness, its light falling
+    off as the distance to the power 0.7, not its square, so a tall board
+    is lit down to its foot; each kind of light now has its own fall-off).
+  - The painted signs' texture packs its patches as the shop's texture does,
+    where they rest lowest, so the shop's five new faces (the board, the
+    standing sign and the menu's three plaques) fit with every sign still
+    at 130 texels a metre; templates to paint them on are in
+    `art/signs/_guides/` (`sign.shimajiroShop`, `sign.kaijiru`,
+    `menu.kaijiru`, `menu.yashiCurry`, `menu.title`).
+  - Checked side by side with the film's frames by day and at night, inside
+    and out (`screenshots/shimajiro-film-now.png`). The island's dark test
+    passes, no faces flicker, and walkers go up its step into the room and
+    round it. The shop is about 630 KB to download where it was 52: the
+    model 250, its night map 150 and its texture 228.
+  - A trodden path now runs on from the end of the way down the gorge to the
+    shop's step, narrowing to its door, and the earth lies worn bare along
+    its front from the bench to the standing sign, as in the film's frame of
+    it through the jungle (`screenshots/shimajiro-path.png`), where the grass
+    had grown right up to the step. These are paths of their own (TRODDEN in
+    `art/blender/build_island.py`), painted and kept clear as the others are
+    but not among PATHS, whose lines the planting keeps to, and the edge
+    tufts and clover still follow the paths as they were planted: every
+    tree, palm, plant and butterfly stands where it stood (the plants
+    compared one by one with the build before), the heights are the same to
+    the byte, and only the ground's paint round the shop changes.
 
 **Removed**
 
@@ -1389,6 +1615,22 @@ outlined is drawn twice, once for its pen line. To get there:
   timber either side of the pier, and the festival's eight fruit baskets
   by the stalls' counters, at the user's word. The village's two baskets
   at the stage's foot stay.
+- The film look's sky under the trees, at the user's word. Whenever the
+  camera stood under the jungle's crowns the whole sky paled into a haze
+  and glowed (gold in the golden hour), its clouds faded away and the
+  distance faded into its haze, so that looking out of the jungle over the
+  beach or the sea the sky was blown to white, its glow spilling over the
+  trees and the sea in front of it. The sky, its clouds, the colour the
+  distance fades to and the glow round the sun are now the same wherever
+  the camera stands: up through the trees and out of the jungle, the plain
+  blue of the film's open skies with its white clouds, as its jungle shows
+  the sky through its palms (`jungle 5`). The jungle's depth haze and the
+  waterfall's warm haze stay; at the waterfall the sky glimpsed through
+  the trees at the top of its frame is blue now, a white cloud in it,
+  where it was a pale haze. The shafts of sunlight in the waterfall's
+  clearing are screened over what lies behind them rather than added, as
+  bright on the clearing on the whole as before, so a white cloud seen
+  through them no longer glows like the sun.
 
 **Fixed**
 
@@ -1465,6 +1707,23 @@ outlined is drawn twice, once for its pen line. To get there:
   inside the planks. Past the timber's ends the drop turns into a beach,
   the raised sand easing into it over 6 metres, and the water shallows over
   the timber's last 12 metres, so the surf bends smoothly round them.
+- The sea cliffs no longer have a V cut down them in the cove. The quay's
+  shaping of the ground was chosen by how far along the bay's x a place
+  lies, so it reached the north coast too, where the same x's run: just
+  past the timber's east end it pulled the cliffs' grassy top from 18
+  metres down to 4 in a notch, the cliff's stone following it down, green
+  inside; and along the north beach west of the headland it had raised the
+  sand into a quay's edge over water 1.6 metres deep. It now shapes only
+  the bay's own coast: the cliff stands whole, the north beach slopes into
+  the sea, and the steep corner where the headland meets the cliffs is the
+  rock of any steep ground. The jungle stands as it was, but for three
+  palms that the raised sand had held out of the water.
+- The pier no longer stops a plank short of its end. Its planks covered
+  13.6 of its 14 metres, so its two beams stuck out bare past the last
+  plank over the water, and its deck to walk on, the full 14 metres long,
+  let the player stand out on them. A plank more now covers the beams to
+  their ends, and the deck stops 0.35 metres short of the pier's end, as
+  it does of its sides, so no one stands half off the planks.
 - Every beach's waterline is drawn smooth. Seen from above, the sand met
   the shallows in short straight pieces with a corner about every metre,
   where the heights between the grid's points were blended four at a time.

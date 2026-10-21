@@ -4,6 +4,12 @@ import type { Input } from './Input';
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 const wrapAngle = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
 
+/** The lowest the camera goes round the player, in radians of pitch: about level with them. */
+const LOWEST = -0.02;
+/** How far further the player can drag it, in radians: turning its gaze up from there, past them,
+ * to the sky (the sun and the moon, and the moon over the forbidden cave's skylight). */
+const LOOK_UP = 1.15;
+
 /** Orbit camera that follows a focus point. Yaw 0 looks along -Z from the +Z side. */
 export class CameraRig {
   yaw = 0;
@@ -44,7 +50,7 @@ export class CameraRig {
     const zoom = input.consumeZoom();
     if (this.lookDelta.lengthSq() > 0 || zoom !== 0) this.goal = null;
     this.yaw -= this.lookDelta.x * 0.0065;
-    this.pitch = clamp(this.pitch + this.lookDelta.y * 0.0045, -0.02, 1.2);
+    this.pitch = clamp(this.pitch + this.lookDelta.y * 0.0045, LOWEST - LOOK_UP, 1.2);
     this.distance = clamp(this.distance * Math.exp(zoom * 0.0012), this.minDistance, this.maxDistance);
 
     if (this.goal) {
@@ -60,16 +66,19 @@ export class CameraRig {
     }
 
     this.target.lerp(focus, 1 - Math.exp(-dt * 10));
-    const cp = Math.cos(this.pitch);
+    // Dragged on past level with the player, the camera stays there and looks up instead.
+    const orbit = Math.max(this.pitch, LOWEST);
+    const cp = Math.cos(orbit);
     const p = this.camera.position.set(
       this.target.x + Math.sin(this.yaw) * cp * this.distance,
-      this.target.y + Math.sin(this.pitch) * this.distance,
+      this.target.y + Math.sin(orbit) * this.distance,
       this.target.z + Math.cos(this.yaw) * cp * this.distance,
     );
     // Never behind a rock, a hut or a tree, nor inside a hill behind the player.
     this.comeInFront(p);
     this.limit(p, this.target);
     this.camera.lookAt(this.target);
+    if (this.pitch < orbit) this.camera.rotateX(orbit - this.pitch);
   }
 
   /** Brings the camera in along its line to the player until nothing stands between them. */

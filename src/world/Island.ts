@@ -42,8 +42,9 @@ export interface TerrainInfo {
   quay?: { line: [number, number][]; ends: [number, number]; feather: number };
   /** The rock landmarks, the sea cliffs and the waterfall, built with the ground. */
   landmarks: string;
-  /** Each rock's foot: its middle (x, z), and how far it reaches at even angles round it from east toward south. */
-  rocks: { centre: [number, number]; outline: number[] }[];
+  /** Each rock's foot: its middle (x, z), and how far it reaches at even angles round it from east toward south;
+   * a bare rock's top too (with whatever lies on it), which the camera may pass over. */
+  rocks: { centre: [number, number]; outline: number[]; top?: number }[];
   /** The jungle waterfall's pool: its water stands at `level` within `radius` of `centre` (x, z). */
   pool?: { centre: [number, number]; radius: number; level: number };
   /** Where the waterfall lands in its pool (x, z), and how far its splash spreads. */
@@ -71,8 +72,9 @@ export interface TerrainInfo {
   };
 }
 
-/** The colour of the water at its very edge, where it is shallowest. */
-export const WATER_EDGE = '#45DFC8';
+/** The colour of the water at its very edge, where it is shallowest: in the film look pale and clear,
+ * as the film paints shallow water over its sand. */
+export const WATER_EDGE = FILM ? '#9FDCE6' : '#45DFC8';
 
 /**
  * GLSL: the ground's height at a point (x, z), from the island's height grid, filtered between
@@ -205,7 +207,7 @@ export class Terrain {
    * their waterline keeps the plain filter (green; see floorAtSmooth). */
   readonly texture: THREE.DataTexture;
   /** Each rock's foot, with its furthest reach for a quick first test. */
-  private readonly rocks: { x: number; z: number; outline: number[]; reach: number }[];
+  private readonly rocks: { x: number; z: number; outline: number[]; reach: number; top: number }[];
 
   constructor(
     readonly info: TerrainInfo,
@@ -223,7 +225,13 @@ export class Terrain {
     this.texture.magFilter = THREE.LinearFilter;
     this.texture.minFilter = THREE.LinearFilter;
     this.texture.needsUpdate = true;
-    this.rocks = info.rocks.map((r) => ({ x: r.centre[0], z: r.centre[1], outline: r.outline, reach: Math.max(...r.outline) }));
+    this.rocks = info.rocks.map((r) => ({
+      x: r.centre[0],
+      z: r.centre[1],
+      outline: r.outline,
+      reach: Math.max(...r.outline),
+      top: r.top ?? Infinity,
+    }));
   }
 
   /** Ground height under (x, z), between the grid's samples; the deep sea floor off the map. */
@@ -250,9 +258,11 @@ export class Terrain {
     return this.info.water;
   }
 
-  /** Whether (x, z) is within `margin` metres of a rock's foot. */
-  nearRock(x: number, z: number, margin: number): boolean {
+  /** Whether (x, z) is within `margin` metres of a rock's foot; for the camera at height `y`, of a rock
+   * it is not over the top of. */
+  nearRock(x: number, z: number, margin: number, y = -Infinity): boolean {
     for (const rock of this.rocks) {
+      if (y > rock.top + margin) continue;
       const dx = x - rock.x;
       const dz = z - rock.z;
       const d = Math.hypot(dx, dz);
@@ -843,12 +853,12 @@ export function cameraClear(x: number, y: number, z: number): boolean {
     const k = cave.at(x, z);
     if (k >= 0 && !Number.isNaN(cave.floor[k])) {
       if (y < cave.ceiling[k] - 0.25) return y > cave.floor[k] + 0.25 && !cameraBlocked(x, y, z, CAMERA_MARGIN);
-      if (y < terrain.height(x, z) + 0.3 || terrain.nearRock(x, z, CAMERA_MARGIN)) return false;
+      if (y < terrain.height(x, z) + 0.3 || terrain.nearRock(x, z, CAMERA_MARGIN, y)) return false;
     } else if (cave.walled(x, z, y)) {
       return false;
     }
   }
-  if (terrain && terrain.nearRock(x, z, CAMERA_MARGIN)) return false;
+  if (terrain && terrain.nearRock(x, z, CAMERA_MARGIN, y)) return false;
   return !cameraBlocked(x, y, z, CAMERA_MARGIN);
 }
 

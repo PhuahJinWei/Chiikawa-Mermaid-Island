@@ -4,6 +4,7 @@ import { sharedUniforms } from '../characters/CharacterMaterial';
 import type { SkyLook } from './DayNight';
 import { inkOutlineMaterialLit, windUniforms } from './Ink';
 import { addCircle } from './Obstacles';
+import { WadeRings, wadeGlsl } from './Ripples';
 
 /**
  * The forbidden cave's inside (built with the island by art/blender/cave.py), after the film's frames of
@@ -53,6 +54,23 @@ export interface CaveInfo {
 const WADE = 0.25;
 const STEEPEST = 1.0;
 const STEP_UP = 0.35;
+/** How many of those wading in the cave's water it rings round at once (see Cave.waders). */
+const CAVE_WADERS = 6;
+/**
+ * The boat's rings in the cave's water (see Cave.ripples and Boat.update), each left where it was made:
+ * how many points along its bow's way its wake is drawn from, and how far the wave its bow made at each
+ * spreads for each metre the bow goes on (so the V they open together is 0.36 wide for each metre back);
+ * how many rings trail its stern at once, and how many its oars' blades leave where they go in and come
+ * out; how long each of those spreads before it is gone (seconds) and how far out (metres).
+ */
+export const WAKE_POINTS = 18;
+export const WAKE_OPEN = 0.339;
+export const STERN_RINGS = 3;
+export const STERN_LIFE = 2.2;
+export const STERN_SPREAD = 1.4;
+export const OAR_RINGS = 8;
+export const OAR_LIFE = 1.1;
+export const OAR_SPREAD = 0.55;
 /** How close a walker's middle comes to the cave's walls. */
 const MARGIN = 0.3;
 /** The least room over a floor for walking under. */
@@ -451,12 +469,14 @@ function rockMaterial(shine = 0): THREE.ShaderMaterial {
  * skylight, with sparkles winking on it as in the film's frames (`cave interior 4`, `5`), and each torch
  * mirrored in its ripples as a column of short warm strokes under the flame, toward whoever looks
  * (`cave interior 3`). Each vertex carries how much it glows, how much of the skylight's light falls on
- * it and how deep it is.
+ * it and how deep it is. Foam and rings in it round whoever wades in it and round the boat, its wake and
+ * its oars' (`ripples`, see Cave.ripples), as in the island's sea, each ring left where it was made.
  */
-function waterMaterial(): THREE.ShaderMaterial {
+function waterMaterial(ripples: Cave['ripples']): THREE.ShaderMaterial {
   return new THREE.ShaderMaterial({
     uniforms: {
       ...caveLight,
+      ...ripples,
       uSparkle: { value: new THREE.Color(0.85, 0.97, 1.0) },
     },
     vertexColors: true,
@@ -473,6 +493,15 @@ function waterMaterial(): THREE.ShaderMaterial {
       #include <common>
       ${LIGHT_GLSL}
       uniform vec3 uSparkle;
+      ${wadeGlsl(CAVE_WADERS)}
+      uniform vec4 uBoat;
+      uniform vec4 uBoatWay;
+      uniform vec4 uOars[2];
+      uniform vec4 uWake[${WAKE_POINTS}];
+      uniform vec4 uWakeReach;
+      uniform vec4 uSternRings[${STERN_RINGS}];
+      uniform vec4 uOarRings[${OAR_RINGS}];
+      uniform vec4 uBoatReach;
       varying vec3 vInfo;
       varying vec3 vWorld;
       float hash2(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
@@ -512,6 +541,99 @@ function waterMaterial(): THREE.ShaderMaterial {
           float dist = length(d);
           float mirror = pow(max(dot(seen, d / dist), 0.0), 50.0);
           col += uTorchColour[i] * vec3(1.0, 0.82, 0.42) * mirror * 4.5 * smoothstep(uTorch[i].w * 3.5, uTorch[i].w * 0.6, dist);
+        }
+        // Rings in it, catching the light that falls on them there (the glow, the torches', the sun's or
+        // the moon's, the openings' sky, the cave's own dark) over the water's own, so they show paler
+        // than the water even on the glow, and only as bright as the light there; each ring left where it
+        // was made, spreading there as whoever made it goes on and turns. Round whoever wades in it: foam
+        // hugging them where it meets them, and the rings they leave as they walk on.
+        float ring = wadeFoam(p, t);
+        // Round the boat afloat (uBoat: its middle, its heading, how much of it is afloat; uBoatWay: its
+        // speed, half its length and half its beam): foam along its sides, heaped at its bow as it goes
+        // ahead.
+        if (uBoat.w > 0.0) {
+          vec2 rel = p - uBoat.xy;
+          if (dot(rel, rel) < 4.0) {
+            vec2 ahead = vec2(sin(uBoat.z), cos(uBoat.z));
+            vec2 hull = uBoatWay.zy;
+            vec2 local = vec2(dot(rel, vec2(ahead.y, -ahead.x)), dot(rel, ahead));
+            float outside = (length(local / hull) - 1.0) * min(hull.x, hull.y);
+            if (outside >= -0.05 && outside < 0.11) {
+              float a = atan(local.x, local.y);
+              float collar = 1.0 - smoothstep(0.02, 0.07 + 0.03 * sin(a * 6.0 + t * 2.5), outside);
+              float bow = smoothstep(0.2, 1.0, local.y / hull.y) * smoothstep(0.2, 2.0, uBoatWay.x);
+              ring = max(ring, collar * (0.5 + 0.5 * bow) * uBoat.w);
+            }
+          }
+        }
+        // Its wake as it goes: the wave its bow made at each point of its way spreading out from there
+        // (uWake: the way its bow has come, oldest first, ending at its bow now, each with how far its
+        // wave has spread, WAKE_OPEN for each metre the bow has gone on since), so that together they
+        // open in a V behind it, wavering, that bends after it as it turns; fading by how far back along
+        // its way the waves making each piece of it were made, and toward the oldest kept; within
+        // uWakeReach, as much of it as that shows (w). Well inside any of the waves there is no edge,
+        // and a wave well away makes none here: nothing to work out for either.
+        vec2 toWake = p - uWakeReach.xy;
+        if (dot(toWake, toWake) < uWakeReach.z) {
+          float edge = 1e3;
+          float next = 1e3;
+          float spread = 0.0;
+          float spreadNext = 0.0;
+          float oldest = uWake[0].z;
+          for (int i = 0; i < ${WAKE_POINTS}; i++) {
+            vec4 w = uWake[i];
+            if (w.z < 0.0) break;
+            vec2 rel = p - w.xy;
+            float d2 = dot(rel, rel);
+            if (w.z > 0.25 && d2 < (w.z - 0.25) * (w.z - 0.25)) {
+              edge = -1.0;
+              break;
+            }
+            if (d2 > (w.z + 0.4) * (w.z + 0.4)) continue;
+            float d = sqrt(d2) - w.z;
+            if (d < edge) {
+              next = edge;
+              spreadNext = spread;
+              edge = d;
+              spread = w.z;
+            } else if (d < next) {
+              next = d;
+              spreadNext = w.z;
+            }
+          }
+          // How far back along its way the edge here was made: that of the wave it is the edge of, eased
+          // toward the next one's where two meet, so nothing steps along it.
+          float back = mix(spread, spreadNext, 0.5 - 0.5 * smoothstep(0.0, 0.15, next - edge)) / ${WAKE_OPEN};
+          float arm = abs(edge - 0.05 * sin(back * 5.0 - t * 4.0));
+          float v = (1.0 - smoothstep(0.0, 0.04 + 0.015 * back, arm)) * smoothstep(0.96, 1.44, back) * (1.0 - smoothstep(2.0, 9.0, back))
+            * smoothstep(0.0, 2.0, oldest / ${WAKE_OPEN} - back);
+          ring = max(ring, v * 0.65 * uWakeReach.w);
+        }
+        // The rings it leaves astern, fewer as it slows (uSternRings), and each oar's blade where it goes
+        // in and where it comes out (uOarRings), each where it was made (x, z), when, and how much of it
+        // there is; and a splash where a blade dips (uOars: where, how far in). All within uBoatReach.
+        vec2 toBoat = p - uBoatReach.xy;
+        if (dot(toBoat, toBoat) < uBoatReach.z) {
+          for (int k = 0; k < ${STERN_RINGS}; k++) {
+            vec4 r = uSternRings[k];
+            float age = (t - r.z) / ${STERN_LIFE.toFixed(1)};
+            if (age < 0.0 || age >= 1.0) continue;
+            ring = max(ring, ringOfFoam(p, r.xy, 0.5 + age * ${STERN_SPREAD.toFixed(1)}, age, float(k), fract(r.z * 0.618)) * r.w);
+          }
+          for (int k = 0; k < ${OAR_RINGS}; k++) {
+            vec4 r = uOarRings[k];
+            float age = (t - r.z) / ${OAR_LIFE.toFixed(1)};
+            if (age < 0.0 || age >= 1.0) continue;
+            ring = max(ring, (1.0 - smoothstep(0.0, 0.025, abs(length(p - r.xy) - (0.08 + age * ${OAR_SPREAD.toFixed(2)})))) * (1.0 - age) * (1.0 - age) * r.w);
+          }
+          for (int i = 0; i < 2; i++) {
+            vec4 o = uOars[i];
+            if (o.z > 0.0) ring = max(ring, (1.0 - smoothstep(0.03, 0.12, length(p - o.xy))) * 0.8 * o.z);
+          }
+        }
+        if (ring > 0.0) {
+          vec3 lit = uCaveFloor * 1.6 + uLakeGlow * glow * 0.75 + warm * 0.9 + uSunLight * sunlit * 0.7 + uCaveSky * sky * 0.5;
+          col += vec3(0.78, 0.92, 1.0) * lit * ring * 0.6;
         }
         // Sparkles: in each cell of a fine grid one point, winking in its own time; seen from far off
         // (down the skylight) fewer of them, but each bigger, so they still show as the film's do.
@@ -768,6 +890,30 @@ export class Cave {
   private readonly bounds: THREE.Box3;
   /** The lights moving or burning in the cave this frame: where each is and how far it reaches. */
   private readonly lights = Array.from({ length: CAVE_LIGHTS }, () => new THREE.Vector4());
+  /** The foam whoever wades in the cave's water makes in it, kept by the stage (see Stage.setWaders). */
+  readonly waders = new WadeRings(CAVE_WADERS);
+  /**
+   * The rings in the cave's water (see waterMaterial), kept by what makes them each frame: who wades in
+   * it (waders); and the boat (Boat.update): the boat afloat on it (its middle, x and z, its heading and
+   * how much of it is afloat, 0 drawn up on the beach; its speed, half its length and half its beam); its
+   * oars' blades (x, z, how far into the water each dips, 0 out of it); its wake (the way its bow has
+   * come, oldest first, ending at its bow now, x and z, each with how far the wave its bow made there
+   * has spread, below 0 past the end of it; and round all of it, x and z, how far, squared, below 0 for
+   * no wake, and how much of it shows); the rings it has left astern and its blades have left (each where it was made,
+   * x and z, when, and how much of it there is); and round those and the splashes (x and z, how far,
+   * squared, below 0 for nothing there).
+   */
+  readonly ripples = {
+    ...this.waders.uniforms,
+    uBoat: { value: new THREE.Vector4() },
+    uBoatWay: { value: new THREE.Vector4() },
+    uOars: { value: [new THREE.Vector4(), new THREE.Vector4()] },
+    uWake: { value: Array.from({ length: WAKE_POINTS }, () => new THREE.Vector4(0, 0, -1, 0)) },
+    uWakeReach: { value: new THREE.Vector4(0, 0, -1, 0) },
+    uSternRings: { value: Array.from({ length: STERN_RINGS }, () => new THREE.Vector4(0, 0, -1e9, 0)) },
+    uOarRings: { value: Array.from({ length: OAR_RINGS }, () => new THREE.Vector4(0, 0, -1e9, 0)) },
+    uBoatReach: { value: new THREE.Vector4(0, 0, -1, 0) },
+  };
 
   private constructor(
     readonly info: CaveInfo,
@@ -781,7 +927,7 @@ export class Cave {
     }
     parts.crystals.material = rockMaterial(1);
     this.group.add(parts.crystals);
-    parts.water.material = waterMaterial();
+    parts.water.material = waterMaterial(this.ripples);
     this.group.add(parts.water);
     parts.fire.material = caveFlameMaterial();
     this.group.add(parts.fire);

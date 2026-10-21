@@ -32,6 +32,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import build_props as P  # noqa: E402
 import charlib as L  # noqa: E402
 import houses as H  # noqa: E402
+import shimajiro as S  # noqa: E402
 import stall_goods as SG  # noqa: E402
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -498,7 +499,9 @@ def build_pier(collection):
     rng = np.random.default_rng(4)
     pieces = []
     step = 0.47
-    n = int(PIER_LENGTH / step)
+    # Planks all the way to the beams' ends: rounded down, the count left the last 0.4 m of beam bare
+    # past the last plank, and walkers stood on it over the water.
+    n = int(math.ceil(PIER_LENGTH / step))
     shades = (C["plank"], C["plankDark"], C["plankLight"])
     for i in range(n):
         y = -(i + 0.5) * step
@@ -521,8 +524,10 @@ def build_pier(collection):
             pieces.append((P.disc_bm(V(x, y, top + 0.02 * (top + 4.0) + 0.003), UP, 0.13, 12), C["postTop"]))
         pieces.append((P.box_bm(V(0.0, y, -0.4), (PIER_WIDTH + 0.2, 0.18, 0.18)), C["plankDark"]))
     body = join("pier", pieces, collection, sharp=P.SHARP)
-    # The deck to walk on stops a little short of the planks' edges, so no one stands half off them.
-    info = {"decks": [{"box": [0.0, PIER_LENGTH / 2, PIER_WIDTH / 2 - 0.35, PIER_LENGTH / 2], "top": 0.0}],
+    # The deck to walk on stops a little short of the planks' edges and of the pier's end, so no one
+    # stands half off them.
+    reach = PIER_LENGTH - 0.35
+    info = {"decks": [{"box": [0.0, reach / 2, PIER_WIDTH / 2 - 0.35, reach / 2], "top": 0.0}],
             "height": 0.5}
     return [body], info
 
@@ -1003,7 +1008,8 @@ BUILDERS = {
     "beehive": build_beehive,
     "stage": H.build_stage,
     "torch": H.build_torch,
-    "restaurant": H.build_restaurant,
+    # 島二郎, the restaurant at the end of the riverside path (shimajiro.py).
+    "restaurant": S.build_restaurant,
     # The guest houses where the visitors sleep: an orange-shingled one and a tan one, as the film's.
     "guest_orange": lambda collection: H.build_guest_house("guest_orange", "orange", collection),
     "guest_tan": lambda collection: H.build_guest_house("guest_tan", "tan", collection),

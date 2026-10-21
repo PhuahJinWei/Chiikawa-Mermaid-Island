@@ -22,7 +22,7 @@ import math
 
 import bmesh
 import numpy as np
-from mathutils import Vector
+from mathutils import Matrix, Vector
 
 import build_props as P
 import charlib as L
@@ -462,6 +462,98 @@ class Rock:
         return np.where(inside[..., None], C["cave"], col)
 
 
+class Block:
+    """A block of rock fallen from a cliff, as it lies in a rockfall (see fallen_block): its middle
+    (x, z), how high it and whatever lies on it reach (`top`), and, if it lies on the ground, its
+    foot's reach round its middle at even angles from east toward south (as Rock.outline), for the
+    game to keep walkers out; `s` as a Rock's spec, for what asks one."""
+
+    def __init__(self, cx, cz, top, reach, spec):
+        self.cx, self.cz, self.top, self.reach, self.s = cx, cz, top, reach, spec
+
+
+def fallen_block(rng, centre, radii, ground, stone="karst", facets=(6, 10), lumps=0.08, tilt=0.4, moss=0.35,
+                 wet=None, subdivisions=3):
+    """A block of limestone fallen from a cliff, as it lies in a rockfall: a lumpy egg of `radii`
+    (along, across, up) cut flat by a few planes, as limestone splits into slabs, more of them
+    upright than level, then tipped over by up to `tilt` radians and turned; its middle at `centre`
+    (game x, y, z). Painted as the rocks are: pale stone in soft bands, streaked, darker underneath,
+    moss in patches on what faces up (about `moss` of it), earthy where it meets the ground
+    (`ground`: its height at game x, z) and dark where the water at `wet` laps it. Returns (bmesh,
+    colours) in Blender's coordinates, and its vertices in the game's as an (n, 3) array."""
+    ra, rb, rc = radii
+    bm = bmesh.new()
+    bmesh.ops.create_icosphere(bm, subdivisions=subdivisions, radius=1.0)
+    p = np.array([v.co[:] for v in bm.verts])
+    ph = rng.uniform(0.0, 2.0 * math.pi, 3)
+    k = rng.uniform(1.5, 3.0, 3)
+    swell = np.sin(k[0] * p[:, 0] + ph[0]) * np.sin(k[1] * p[:, 1] + ph[1]) + 0.6 * np.sin(k[2] * p[:, 2] + ph[2])
+    p = p * (1.0 + lumps * swell)[:, None] * np.array([ra, rb, rc])
+    for _ in range(int(rng.integers(*facets))):
+        n = rng.normal(size=3)
+        n[2] *= 0.6
+        n /= np.linalg.norm(n)
+        d = math.sqrt((ra * n[0]) ** 2 + (rb * n[1]) ** 2 + (rc * n[2]) ** 2) * rng.uniform(0.62, 0.86)
+        p = p - np.maximum(p @ n - d, 0.0)[:, None] * n[None, :]
+    axis = rng.uniform(0.0, 2.0 * math.pi)
+    turn = (Matrix.Rotation(rng.uniform(0.0, 2.0 * math.pi), 3, "Z")
+            @ Matrix.Rotation(rng.uniform(0.0, tilt), 3, Vector((math.cos(axis), math.sin(axis), 0.0))))
+    p = p @ np.array(turn).T
+    cx, cy, cz = centre
+    game = np.stack([cx + p[:, 0], cy + p[:, 2], cz - p[:, 1]], axis=1)
+    for v, (x, y, z) in zip(bm.verts, game):
+        v.co = (float(x), float(-z), float(y))
+    bm.normal_update()
+    C = {**SHARED, **STONES[stone]}
+    q = rng.uniform(0.0, 2.0 * math.pi, 4)
+    x, y, z = game.T
+    up = np.array([v.normal.z for v in bm.verts])
+    band = (0.5 + 0.5 * np.sin(1.1 * x + 0.7 * y + q[0])) * (0.5 + 0.5 * np.sin(0.9 * z - 1.3 * y + q[1]))
+    col = mix(np.broadcast_to(C["stone"], (len(x), 3)), C["stoneMid"], smoothstep(0.3, 0.75, band))
+    streak = (0.5 + 0.5 * np.sin(5.0 * x + 3.0 * z + q[2])) * (0.5 + 0.5 * np.sin(7.0 * z - 4.0 * x + q[3]))
+    col = mix(col, C["streak"], 0.6 * smoothstep(0.55, 0.85, streak))
+    col = mix(col, C["groove"], 0.35 * smoothstep(-0.3, -0.8, up))
+    # Moss in small patches on its tops, not a cap over each.
+    patch = 0.5 + 0.5 * np.sin(4.1 * x + 1.3 * y + q[1]) * np.sin(3.4 * z - 0.9 * y + q[2])
+    green = mix(np.broadcast_to(C["moss"], (len(x), 3)), C["mossDark"], 0.35 + 0.5 * smoothstep(0.3, 0.7, band))
+    col = col + (green - col) * (smoothstep(0.5, 0.85, up) * smoothstep(1.0 - moss - 0.1, 1.0 - moss + 0.1, patch))[:, None]
+    col = mix(col, C["foot"], smoothstep(1.2, 0.0, y - ground(x, z)))
+    if wet is not None:
+        col = mix(col, C["wet"], smoothstep(1.0, 0.25, y - wet))
+    return bm, list(col), game
+
+
+def footprint(game, cx, cz, y0, y1, count=32):
+    """How far a block (its vertices in game coordinates) reaches from (cx, cz) between heights y0
+    and y1, at `count` even angles from east toward south: the radius of the hull of its vertices in
+    that band, or None if none are."""
+    band = game[(game[:, 1] >= y0) & (game[:, 1] <= y1)][:, [0, 2]] - np.array([cx, cz])
+    if len(band) < 3:
+        return None
+    pts = sorted(map(tuple, band))
+    def half(points):
+        out = []
+        for pt in points:
+            while len(out) >= 2 and ((out[-1][0] - out[-2][0]) * (pt[1] - out[-2][1])
+                                     - (out[-1][1] - out[-2][1]) * (pt[0] - out[-2][0])) <= 0.0:
+                out.pop()
+            out.append(pt)
+        return out
+    hull = np.array(half(pts)[:-1] + half(pts[::-1])[:-1])
+    a, b = hull, np.roll(hull, -1, axis=0)
+    reach = []
+    for t in np.linspace(0.0, 2.0 * math.pi, count, endpoint=False):
+        d = np.array([math.cos(t), math.sin(t)])
+        e = b - a
+        den = d[0] * e[:, 1] - d[1] * e[:, 0]
+        ok = np.abs(den) > 1e-9
+        s = np.where(ok, (a[:, 0] * e[:, 1] - a[:, 1] * e[:, 0]) / np.where(ok, den, 1.0), -1.0)
+        w = np.where(ok, (a[:, 0] * d[1] - a[:, 1] * d[0]) / np.where(ok, den, 1.0), -1.0)
+        hit = ok & (s > 0.0) & (w >= -1e-6) & (w <= 1.0 + 1e-6)
+        reach.append(round(float(s[hit].max()) if hit.any() else float(np.max(band @ d)), 2))
+    return reach
+
+
 def grass_cap(rock, rim, seed, overhang=0.22, fringe=(0.16, 0.4), inset=0.15):
     """A mat of grass on a stepping stone's flat top, as the film draws them: lying a little over
     the top's rim and reaching `overhang` past it all round, its edge hanging down in a ragged fringe
@@ -698,8 +790,10 @@ def vines(rock, around, count, seed, avoid=None, curtains=0):
             cols.extend([VINE[("leaf", "leafMid", "leafDark")[int(rng.integers(0, 3))]]] * len(leaf.verts))
             leaf.free()
 
-    # Curtains of hanging moss.
-    hung = 0
+    # Curtains of hanging moss. Where blades overlap at their top ends (neighbours in a curtain, and
+    # curtains running into one another), each end lies at a depth of its own, 5 mm a step, so no two
+    # of them lie in one plane, flickering.
+    hung, ends = 0, []
     for _ in range(curtains * 6):
         if hung >= curtains:
             break
@@ -717,7 +811,12 @@ def vines(rock, around, count, seed, avoid=None, curtains=0):
             pts = hang(a, length, off=0.16, sway=0.08, step=0.7)
             out = Vector((math.cos(a), -math.sin(a), 0.0))
             side = Vector((math.sin(a), math.cos(a), 0.0))
-            blade = ribbon_bm(pts, side, out, rng.uniform(0.15, 0.24), 0.05)
+            w = rng.uniform(0.15, 0.24)
+            taken = {s for (x, y, r), s in ends if math.hypot(pts[0].x - x, pts[0].y - y) < r + w / 2 + 0.05}
+            level = next(s for s in range(len(ends) + 1) if s not in taken)
+            ends.append(((pts[0].x, pts[0].y, w / 2), level))
+            pts[0] = pts[0] - Vector((0.0, 0.0, 0.005 * level))
+            blade = ribbon_bm(pts, side, out, w, 0.05)
             colour = mix(VINE["curtain"], VINE["curtainDark"], rng.uniform(0.0, 0.7))
             for v in blade.verts:
                 below = float(np.clip((top - v.co.z) / max(length, 1e-3), 0.0, 1.0))
@@ -809,7 +908,12 @@ def cliff(points, normals, tops, water, seed, base=-4.5, lip=2.6, column=1.2, st
     grid, cols = [], []
     for i in range(len(u)):
         top = T[i]
+        # Its bottom, deep in the ground, a little lower column by column (5 mm, over again every
+        # eight): where the face turns a corner tighter than the lip is deep, the bottom folds over
+        # itself, and in one plane its faces there would flicker.
+        sink = 0.005 * (i % 8)
         ys = list(np.minimum(levels, top - 0.6)) + [top - 0.3, top - 0.1, top]
+        ys[0] -= sink
         pull = [0.0] * len(levels) + [0.15, 0.45, 0.9]
         ring, ring_cols = [], []
         for y, back in zip(ys, pull):
@@ -836,7 +940,7 @@ def cliff(points, normals, tops, water, seed, base=-4.5, lip=2.6, column=1.2, st
             ring.append(bm.verts.new((float(p[0]), float(-p[1]), float(top + dy))))
             ring_cols.append(mix(grass, grass_dark, 0.35))
         p = P[i] - N[i] * lip
-        ring.append(bm.verts.new((float(p[0]), float(-p[1]), float(base))))
+        ring.append(bm.verts.new((float(p[0]), float(-p[1]), float(base - sink))))
         ring_cols.append(C["foot"])
         grid.append(ring)
         cols.extend(ring_cols)
@@ -851,45 +955,95 @@ def cliff(points, normals, tops, water, seed, base=-4.5, lip=2.6, column=1.2, st
         for k in range(rows):
             bm.faces.new((ring[k], ring[(k + 1) % rows], mid))
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
-    # Shrubs along the top of the tall cliffs, spilling over the edge here and there (low cliffs
-    # keep a clear grassy edge): soft clumps fused a stretch at a time, leafy green, darker
-    # underneath.
-    leaves, mid_leaf, dark = SHARED["leaves"], SHARED["leavesMid"], SHARED["leavesDark"]
+    # The greenery along the top of the tall cliffs is leafy clumps of its own (see cliff_tufts), for
+    # the leaves' painting. The round shrubs that stood there in a row are gone, but their draws are
+    # still made, so the greenery down the face grows as it did.
     stretch = 12.0
     for s0 in np.arange(0.0, u[-1], stretch):
-        blobs = []
         for d in np.arange(s0 + rng.uniform(0.0, 1.0), min(s0 + stretch, u[-1]), rng.uniform(1.1, 1.7)):
             i = min(int(round(d / column)), len(u) - 1)
             if T[i] < water + 11.0:
                 continue
-            r = rng.uniform(0.55, 1.15)
-            over = rng.random() < 0.4
-            off = face_offset(i, T[i] - 0.6)[0] - (0.2 if over else 0.9)
-            p = P[i] + N[i] * off
-            y = T[i] + r * 0.15 - (rng.uniform(0.5, 1.4) if over else 0.0)
-            blobs.append(L.ellipsoid_bm(Vector((float(p[0]), float(-p[1]), float(y))), (r, r, r * 0.8), u=12, v=8))
-        if not blobs:
-            continue
-        lump = L.fuse(blobs, voxel=0.12, smooth_iterations=5, smooth_lambda=0.8, target_tris=700)
-        lump.normal_update()
-        for v in lump.verts:
-            up = v.normal.z
-            c = mid_leaf + (leaves - mid_leaf) * float(smoothstep(0.2, 0.9, up))
-            cols.append(c + (dark - c) * float(smoothstep(0.05, -0.6, up)))
-        L.append_bm(bm, lump)
-        lump.free()
-    return bm, cols, cliff_greens(rng, u, P, N, T, beds, face_offset, water, column)
+            rng.uniform(0.55, 1.15)
+            if rng.random() < 0.4:
+                rng.uniform(0.5, 1.4)
+    tufts, tuft_cols = cliff_tufts(np.random.default_rng(seed + 1000), u, P, N, T, face_offset, water, column)
+    greens, ledges = cliff_greens(rng, u, P, N, T, beds, face_offset, water, column, np.random.default_rng(seed + 2000))
+    # The clumps on the ledges come apart from the bushes along the top: painted in puffs as those are,
+    # but smaller puffs (see Landmarks.ts), as the crowns' big ones ate these small cushions into tatters.
+    return bm, cols, greens, (tufts, tuft_cols), ledges
 
 
-def cliff_greens(rng, u, P, N, T, beds, face_offset, water, column):
-    """Greenery down the face of the tall sea cliffs, as on the film's: leafy tufts sitting on the
+def cliff_tufts(rng, u, P, N, T, face_offset, water, column):
+    """Greenery along the top of the tall cliffs, as on the film's (`parkour stone landmark 3`, `sea
+    cliffs`): bushes of every size, in clumps of a few to a dozen along the edge with grass between,
+    some set back from it, some leaning out to spill over it, an odd big one; each heaped of rounded
+    leafy lobes as the jungle on the rocks' tops is (see crown), never a smooth ball, fused a clump at
+    a time. Low cliffs keep a clear grassy edge. The cliff's columns (`u` along the coast, P and N
+    their foot and outward normal, T the land's height on top) and how far its face stands out
+    (`face_offset`) say where. Returns (bmesh, colours), for the rocks' crowns."""
+    leaves, mid_leaf, dark = SHARED["leaves"], SHARED["leavesMid"], SHARED["leavesDark"]
+    out, cols = bmesh.new(), []
+    s = rng.uniform(0.0, 5.0)
+    while s < u[-1]:
+        run = rng.uniform(3.0, 13.0)
+        blobs, bushes = [], 0
+        d = s
+        while d < min(s + run, u[-1]):
+            i = min(int(round(d / column)), len(u) - 1)
+            step = rng.uniform(0.7, 1.7)
+            if T[i] >= water + 11.0:
+                big = rng.random() < 0.12
+                r = rng.uniform(1.25, 1.85) if big else rng.uniform(0.4, 1.1)
+                spill = not big and rng.random() < 0.3
+                edge = face_offset(i, T[i] - 0.6)[0]
+                off = edge - (rng.uniform(-0.15, 0.3) if spill else rng.uniform(0.5, 2.8) + 0.4 * r)
+                p = P[i] + N[i] * off
+                y = T[i] - (rng.uniform(0.25, 0.9) * r if spill else -0.15 * r)
+                centre = Vector((float(p[0]), float(-p[1]), float(y)))
+                rz = r * rng.uniform(0.7, 0.9)
+                blobs.append(L.ellipsoid_bm(centre, (r, r, rz), u=12, v=8))
+                # Its lobes over its top and round its sides, the film's way of painting a bush.
+                count = 5 + int(round(r * 5.0))
+                for k in range(count):
+                    a = 2.0 * math.pi * k / count + rng.uniform(-0.45, 0.45)
+                    up = rng.uniform(0.0, 0.95)
+                    side = math.sqrt(max(1.0 - up * up, 0.0))
+                    rr = r * rng.uniform(0.28, 0.42)
+                    at = centre + Vector((math.cos(a) * side * r, math.sin(a) * side * r, up * rz)) * rng.uniform(0.8, 0.95)
+                    blobs.append(L.ellipsoid_bm(at, (rr, rr, rr * 0.85), u=8, v=6))
+                bushes += 1
+            d += step
+        if blobs:
+            clump = L.fuse(blobs, voxel=0.09, smooth_iterations=3, smooth_lambda=0.7, target_tris=140 * bushes)
+            clump.normal_update()
+            for v in clump.verts:
+                up = v.normal.z
+                n = 0.5 + 0.5 * math.sin(v.co.x * 0.9 + 1.3) * math.sin(v.co.y * 0.75 - 0.4)
+                c = mid_leaf + (leaves - mid_leaf) * float(smoothstep(0.3, 0.9, up))
+                cols.append(c + (dark - c) * float(max(smoothstep(0.1, -0.6, up), 0.4 * smoothstep(0.55, 0.85, n))))
+            L.append_bm(out, clump)
+            clump.free()
+        s += run + rng.uniform(2.0, 9.0)
+    return out, cols
+
+
+def cliff_greens(rng, u, P, N, T, beds, face_offset, water, column, lobes):
+    """Greenery down the face of the tall sea cliffs, as on the film's: leafy clumps sitting on the
     ledges where a bed of stone juts out past the one above it, and curtains of creepers hanging
     over the lip, straight down past the beds' steps, their lower edge ragged. The cliff's columns
     (`u` along the coast, P and N their foot and outward normal, T the land's height on top),
-    its beds and how far its face stands out (`face_offset`) say where. Returns (bmesh, colours)."""
+    its beds and how far its face stands out (`face_offset`) say where; `lobes`, a generator of the
+    clumps' own, shapes them. Returns the curtains and, apart, the clumps, each as (bmesh, colours),
+    the clumps heaped of lobes as the bushes along the top are (see cliff_tufts)."""
     leaves, mid_leaf, dark = SHARED["leaves"], SHARED["leavesMid"], SHARED["leavesDark"]
     out, cols = bmesh.new(), []
-    # Tufts on the ledges.
+    # Clumps on the ledges, along each ledge in runs with bare stone between (a slow wave along it
+    # says where), never one tuft after another all along it as they had been: where a ledge holds a
+    # run, its tufts fuse into one leafy cushion heaped of rounded lobes, some spilling over its lip.
+    # Their places are drawn as the round tufts' were, so the curtains after them hang where they did.
+    phase = lobes.uniform(0.0, 2.0 * math.pi, 2)
+    ledges = {}
     for i in range(0, len(u), 2):
         top = T[i]
         if top < water + 8.0:
@@ -903,16 +1057,46 @@ def cliff_greens(rng, u, P, N, T, beds, face_offset, water, column):
             if lower - upper < 0.2 or rng.random() > 0.75:
                 continue
             r = rng.uniform(0.5, 1.0)
-            p = P[i] + N[i] * (0.5 * (lower + upper))
-            tuft = L.ellipsoid_bm(Vector((float(p[0]), float(-p[1]), float(y + r * 0.25))), (r * 1.4, r * 1.4, r * 0.75),
-                                  u=8, v=5)
-            tuft.normal_update()
-            for v in tuft.verts:
-                up = v.normal.z
-                c = mid_leaf + (leaves - mid_leaf) * float(smoothstep(0.2, 0.9, up))
-                cols.append(c + (dark - c) * float(smoothstep(0.05, -0.6, up)))
-            L.append_bm(out, tuft)
-            tuft.free()
+            wave = math.sin(u[i] * 0.23 + k * 1.7 + phase[0]) * math.sin(u[i] * 0.071 + k * 0.9 + phase[1])
+            if wave < -0.4:
+                continue
+            ledges.setdefault(k, []).append((i, y, r, 0.5 * (lower + upper), lower))
+    clumps, clump_cols = bmesh.new(), []
+    for k, spots in ledges.items():
+        run = []
+        for n, spot in enumerate(spots):
+            run.append(spot)
+            last = n == len(spots) - 1
+            if last or u[spots[n + 1][0]] - u[spot[0]] > 4.0:
+                blobs = []
+                for i, y, r, mid, lower in run:
+                    p = P[i] + N[i] * mid
+                    centre = Vector((float(p[0]), float(-p[1]), float(y + r * 0.2)))
+                    rx, rz = r * lobes.uniform(1.0, 1.35), r * lobes.uniform(0.6, 0.8)
+                    blobs.append(L.ellipsoid_bm(centre, (rx, rx, rz), u=10, v=6))
+                    for j in range(4 + int(round(r * 4.0))):
+                        a = 2.0 * math.pi * j / (4 + int(round(r * 4.0))) + lobes.uniform(-0.5, 0.5)
+                        up = lobes.uniform(0.1, 0.9)
+                        side = math.sqrt(max(1.0 - up * up, 0.0))
+                        rr = r * lobes.uniform(0.3, 0.45)
+                        at = centre + Vector((math.cos(a) * side * rx, math.sin(a) * side * rx, up * rz)) * lobes.uniform(0.8, 0.95)
+                        blobs.append(L.ellipsoid_bm(at, (rr, rr, rr * 0.8), u=8, v=5))
+                    if lobes.random() < 0.35:
+                        # Spilling over the ledge's lip a little way down the face.
+                        q = P[i] + N[i] * (lower + 0.1)
+                        rh = r * lobes.uniform(0.35, 0.5)
+                        blobs.append(L.ellipsoid_bm(Vector((float(q[0]), float(-q[1]), float(y - rh * 0.6))),
+                                                    (rh, rh, rh * 1.2), u=8, v=5))
+                clump = L.fuse(blobs, voxel=0.08, smooth_iterations=3, smooth_lambda=0.7, target_tris=120 * len(run))
+                clump.normal_update()
+                for v in clump.verts:
+                    up_n = v.normal.z
+                    shade = 0.5 + 0.5 * math.sin(v.co.x * 1.1 + 0.7) * math.sin(v.co.y * 0.9 - 1.2)
+                    c = mid_leaf + (leaves - mid_leaf) * float(smoothstep(0.3, 0.9, up_n))
+                    clump_cols.append(c + (dark - c) * float(max(smoothstep(0.1, -0.6, up_n), 0.4 * smoothstep(0.55, 0.85, shade))))
+                L.append_bm(clumps, clump)
+                clump.free()
+                run = []
     # Curtains of creepers over the lip, hanging straight down from the face's outermost point
     # above, so they drape over the beds' steps rather than following them in.
     s0 = rng.uniform(0.0, 3.0)
@@ -944,7 +1128,7 @@ def cliff_greens(rng, u, P, N, T, beds, face_offset, water, column):
                     if face.normal.dot(outward) < 0.0:
                         face.normal_flip()
         s0 += rng.uniform(3.0, 7.5)
-    return out, cols
+    return (out, cols), (clumps, clump_cols)
 
 
 def skylight_edge(radius, lumps, theta):

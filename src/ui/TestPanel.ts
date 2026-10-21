@@ -10,6 +10,8 @@ export interface TestPanelState {
   expression: ExpressionId | null;
   clockRunning: boolean;
   freeCamera: boolean;
+  /** Whether the calm water mirrors what stands by it; null where it cannot (the toon look). */
+  reflections: boolean | null;
 }
 
 /** The test panel's times of day: dawn, midday, dusk and night, in hours past midnight. */
@@ -31,6 +33,7 @@ export interface TestPanelHandlers {
   toggleClock(): void;
   toggleFreeCamera(): void;
   moveHere(): void;
+  toggleReflections(): void;
 }
 
 const escapeHtml = (s: string) =>
@@ -90,7 +93,8 @@ export class TestPanel {
           chip('outfit', '1', t('panel.outfit'), s.outfit) +
           chip('reset', '1', t('panel.resetCamera')) +
           chip('freecam', '1', t('panel.freeCamera'), s.freeCamera) +
-          (s.freeCamera ? chip('movehere', '1', t('panel.moveHere')) : ''),
+          (s.freeCamera ? chip('movehere', '1', t('panel.moveHere')) : '') +
+          (s.reflections !== null ? chip('reflect', '1', t('panel.reflections'), s.reflections) : ''),
       ),
       section(
         'panel.time',
@@ -125,6 +129,7 @@ export class TestPanel {
     else if (d.reset) this.handlers.resetCamera();
     else if (d.freecam) this.handlers.toggleFreeCamera();
     else if (d.movehere) this.handlers.moveHere();
+    else if (d.reflect) this.handlers.toggleReflections();
     else if (d.time) this.handlers.setTime(Number(d.time));
     else if (d.clock) this.handlers.toggleClock();
     else if (d.action) this.handlers.action(d.action as ActionId | 'jump');

@@ -51,6 +51,11 @@ never pushed, because it is other people's artwork.
   pale sky-blue in their shade, flat and soft at the base, never a row of
   one cut-out nor a stack of separate balls; seen from high above they
   float below as round cauliflower tops with their shadows on the sea.
+  The sky and its clouds, the glow round the sun and the colour the
+  distance fades to are the same wherever the camera stands: seen up
+  through the trees or out of the jungle, the plain blue of the film's
+  open skies with its white clouds (`jungle 5`), never paled, glowing or
+  emptied of clouds because the camera is under the crowns.
   Built things show their flat faces: each side of a plank, a post or a box
   takes its own light, never blended into the next, while logs, lanterns
   and thatch stay round. Stone splits into slabs or beds, each its own shade, stained
@@ -66,8 +71,21 @@ never pushed, because it is other people's artwork.
   scales, yellow-green toward the sun and blue-green away from it, the
   crown's edge broken into puffs. Bark is furrowed, patched with pale
   lichen and lit warm orange on the sun's side. The sea is a deep teal
-  seen across it from the shore, bright turquoise over the lagoon's sand
-  seen from above, paling into a hazy blue toward the horizon. The sea
+  seen across it from the shore, paling into a hazy blue toward the
+  horizon; seen from above, a rich turquoise over the lagoon's sand (never
+  a washed-out mint), pale and clear only in its shallowest water at the
+  sand's edge, azure where it deepens. Seen across
+  it, the sky catches in its ripples in broken flat patches, long nearby
+  and finer toward the horizon; the sun glitters on it in small flecks, a
+  few anywhere and thick along its path; seen from above, the sun is
+  netted in fine bright lines on the sand under the shallows. It is darker
+  where the pier, a boat or a cliff shades it, and whoever wades in it has
+  foam round their legs and broken rings spreading from them, each staying
+  where it was made as they walk on and turn, never following them. Whoever stands
+  in it or by it, the pier and the ferry show in it faintly, as real water
+  shows them: broken by the ripples into drifting strokes, most where the
+  water is seen across, much of the water's colour in them. Never a flat
+  colour, never a crisp mirror. The sea
   cliffs are pale cream sandstone in long beds, tufts of leaves on their
   ledges and creepers hanging over their lip. Grass is clumps, light
   yellow-green patches with sharp blade tips along their tops over a plain
@@ -402,7 +420,11 @@ green-turquoise water you can see sparkles in. Confetti welcome on arrival.
 
 - Tall cliffs of level-bedded sandstone, cream and tan in bands, split
   into blocks by upright joints, stepping in and out bed by bed. Grass and
-  rounded shrubs on top, greenery hanging over the edge in places.
+  leafy shrubs on top, greenery hanging over the edge in places.
+- Leafy clumps sit on the ledges down the face, where a bed juts out past
+  the one above: low cushions of leaves in runs along a ledge with bare
+  rock between, some spilling over its lip, painted in puffs as the bushes
+  on top are, smaller. Never a string of round beads along every ledge.
 - They run away along the coast into the distance, their faces catching
   the sun. Turquoise water at their foot, deep blue further out.
 - A tall sea stack of the same bedded rock stands off the coast, stepped,
@@ -431,18 +453,56 @@ food and cups on the ground, everyone toasting. This is the festival.
 
 - A wide river of pale, bright blue water between sheer white limestone
   cliffs, grass and shrubs along their tops, greenery spilling over.
+- Along every tall cliff's top the bushes grow as the jungle on the rocks'
+  tops does: each heaped of rounded leafy lobes, of every size, in clumps
+  of a few to a dozen with grass between, some set back from the edge and
+  some leaning out over it, an odd big one. Never a row of round balls.
+- The gorge's dry head, between the river's end and its mouth onto the
+  lowland, is choked by a rockfall: big blocks of its white limestone, split
+  flat on their sides and tumbled wall to wall, blocks lying on blocks,
+  smaller ones at its foot, moss in patches on some. It stands clear of the
+  stepping stones, the river running on to its foot so the water meets the
+  rocks. Never a row of upright columns, never a cap of moss on every block.
 - Across it, tall thin pillars of the same pale rock, cracked and stained,
   each with a flat round top of bright grass, a short jump apart, from one
   clifftop to the other.
 - At the foot of a cliff, a narrow riverside path of rounded pebbles and
   boulders, ferns and dark leafy plants at the rock, vines hanging down it,
   leading along the water to a wooden restaurant.
-- 島二郎, the restaurant: a ramen shop, its name on a weathered board hung
-  by two ropes from a rough crossbar over the jungle path to it, vines
-  with heart-shaped leaves wound round its posts and hanging from the bar.
-  Built as the village builds (log posts, plank walls, thatch), open at the
-  front under a navy curtain between red paper lanterns, a counter with
-  stools, bowls of ramen heaped with bean sprouts.
+- 島二郎, the restaurant (`shimajiro exterior 1`, `2`, `shimajiro interior 1`
+  to `3`, the user's `shimajiro sketch front` and `sketch three quarter`): its
+  name on a weathered board hung by two ropes from a rough crossbar over the
+  jungle path to it, vines with heart-shaped leaves wound round its posts
+  and hanging from the bar. The shop is a tall box of a building clad in
+  weathered planks, grey brown, each a little lighter or darker, their grain,
+  knots and nail heads painted, between dark square posts that part its front
+  into three bays: a low bench with a terracotta pot of purple flowers and a
+  gourd of a vase on the left; the plank door with a small square window and
+  a thick board over it in the middle; two riveted iron plates over boards
+  running up and down on the right. A deep cornice runs round its top; over
+  the front a wide board stands up off it, painted a pale cream, worn and
+  stained, 島二郎 on it in dark brown, a green enamel lamp on a curved arm
+  over it; behind it a gable roof of dark boards, a stovepipe through it.
+  Down its left side a lean-to of rusting corrugated tin over stacked blue
+  and red beer crates of brown bottles, bottles on the ground and a white
+  bucket of sticks, a four-paned window under it. Beside the shop on the
+  right, the tall standing sign, cream paint stained with rust, 貝汁 down it,
+  nearly as tall as the board's top, on two legs, its own lamp on a pole
+  wound with vines. At night both boards glow warm under their lamps, the
+  windows and the door's small window lit orange, the night's blue round
+  them.
+- Inside, the film's room: warm golden planks laid across the walls over
+  boards running up and down below a dark rail, wide planks underfoot, a
+  boarded ceiling on beams; by the door the kitchen, a pale blue stove with
+  three knobs and its oven's door, big steel pots and a brass one on it,
+  ladles on a rail and pans on a shelf over it, a brown jar and a pale
+  celadon one on the floor; across the room a simple table under a
+  four-paned window, a chair with a navy cushion and a low stool, a glass of
+  water and a bowl on it; the menu's three plaques (貝汁, ヤシカレー, メニュー)
+  beside the window; strings of pale blue shells, starfish and beads hanging
+  in the corner; a branch hung on strings; a navy floor cushion with white
+  fish; a green enamel lamp hanging in the room's middle, lighting it warm
+  and even at night.
 
 ### The forbidden cave's entrance (`cave entrance 1` to `4`, `cave signboard 1` to `3`)
 
@@ -488,6 +548,13 @@ food and cups on the ground, everyone toasting. This is the festival.
 - The cavern's beach: dark blue sand, the rowboat drawn up on it, the water
   beyond glowing blue with sparkles, heavy rounded rock round it (`cave
   interior 2`). The sea on from it is dark (`cave interior 3`).
+- Whoever wades in the cave's water has foam round their legs and broken
+  rings spreading from them, as in the sea; the boat afloat has foam along
+  its sides, a wavering V of wake behind it as it goes, bending after it as
+  it turns, and rings trailing it, and an oar's blade a splash and a small
+  ring where it goes in and comes out. Every ring stays where it was made.
+  They are only as pale as the light that falls on them: bright on the glow
+  and in a torch's pool, faint in the dark, never glowing of their own.
 - Its rock is never smooth plaster anywhere: heavy rounded masses up the
   walls of its wide places, flowstone in runs down the passage, rounded
   masses piled up the chamber, darker in their hollows and paler on their

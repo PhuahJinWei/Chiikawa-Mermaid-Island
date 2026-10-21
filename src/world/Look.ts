@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { MOON_RADIUS } from './DayNight';
 
 /**
  * The film look, the island's look: the island painted the way the film's backgrounds are. The
@@ -14,6 +15,11 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
  * so the two can be compared side by side.
  */
 export const FILM = !(typeof location !== 'undefined' && new URLSearchParams(location.search).has('toon'));
+
+/** In the film look, the render layer the calm water's mirror draws (see Stage.drawMirror): the
+ * cast's bodies and what they hold (not their lines nor their shadows), the ferry, and a copy of the
+ * pier and the quay of its own, which only the mirror draws. */
+export const MIRROR_LAYER = 2;
 
 let ramp: THREE.DataTexture | null = null;
 
@@ -66,8 +72,6 @@ const coverUniforms = {
   uCover: { value: null as THREE.DataTexture | null },
   uCoverMap: { value: new THREE.Vector3(0, 0, 1) },
 };
-/** The same cover as laid (see coverTrees), for reading it at a point (see coverAt). */
-let cover: { data: Uint8Array; origin: [number, number]; size: number } | null = null;
 
 /** Blurs n x n values in place: a box `reach` texels each way, along the rows, then the columns. */
 function blurSquare(values: Float32Array, n: number, reach: number): void {
@@ -142,32 +146,6 @@ export function coverTrees(crowns: [number, number, number, number][], origin: [
   texture.needsUpdate = true;
   coverUniforms.uCover.value = texture;
   coverUniforms.uCoverMap.value.set(origin[0], origin[1], size);
-  cover = { data, origin: [origin[0], origin[1]], size };
-}
-
-/**
- * How deep under the trees' crowns the point (x, y, z) lies, as shadeUnderTrees reads it: 1 under a
- * closed canopy, 0 out in the open, above the crowns or before the island has loaded.
- */
-export function coverAt(x: number, y: number, z: number): number {
-  if (!cover) return 0;
-  const n = COVER_TEXELS;
-  const u = THREE.MathUtils.clamp(((x - cover.origin[0]) / cover.size) * n - 0.5, 0, n - 1.001);
-  const v = THREE.MathUtils.clamp(((z - cover.origin[1]) / cover.size) * n - 0.5, 0, n - 1.001);
-  const i = Math.floor(u);
-  const j = Math.floor(v);
-  const { data } = cover;
-  // One of the texels' values, blended between them as the GPU filters the texture.
-  const read = (c: number): number => {
-    const a = data[(j * n + i) * 4 + c];
-    const b = data[(j * n + i + 1) * 4 + c];
-    const d = data[((j + 1) * n + i) * 4 + c];
-    const e = data[((j + 1) * n + i + 1) * 4 + c];
-    return ((a + (b - a) * (u - i)) * (1 - (v - j)) + (d + (e - d) * (u - i)) * (v - j)) / 255;
-  };
-  const middle = COVER_LOW + COVER_SPAN * read(1);
-  const r = Math.max(COVER_RADIUS * read(2), 0.5);
-  return read(0) * (1 - THREE.MathUtils.smoothstep(y, middle - 0.5 * r, middle + 0.2 * r));
 }
 
 /**
@@ -280,20 +258,6 @@ export function shadeUnderTrees(shader: THREE.WebGLProgramParametersWithUniforms
 }
 
 const warm = new THREE.Color('#FFE3BC');
-const hazeTop = new THREE.Color('#B4E1F4');
-const hazeHorizon = new THREE.Color('#E6FAF6');
-
-/**
- * The day's sky as the film paints it seen from under the jungle's trees (`enclosed`, 0 to 1):
- * paler and hazier, almost white at the horizon, so the distant trees fade into light; out in the
- * open, the plain blue of its open skies. Takes the sky's top and horizon colours and changes them
- * in place.
- */
-export function filmSky(top: THREE.Color, horizon: THREE.Color, night: number, enclosed: number): void {
-  const haze = 0.6 * (1 - night) * enclosed;
-  top.lerp(hazeTop, haze);
-  horizon.lerp(hazeHorizon, haze);
-}
 const cool = new THREE.Color('#9DC2EC');
 
 /**
@@ -711,7 +675,16 @@ export function lightShafts(bases: [number, number, number, number, number][], s
       }`,
     transparent: true,
     depthWrite: false,
-    blending: THREE.AdditiveBlending,
+    // Screened over what lies behind, not added: the haze's light lifts the clearing's greens and
+    // shadows but makes nothing whiter than white. Added, a band in front of a white cloud seen
+    // through the trees lifted it over the bloom's threshold and it glowed like the sun. What lies
+    // behind keeps its alpha (the cast's mark, for the paint).
+    blending: THREE.CustomBlending,
+    blendEquation: THREE.AddEquation,
+    blendSrc: THREE.OneMinusDstColorFactor,
+    blendDst: THREE.OneFactor,
+    blendSrcAlpha: THREE.ZeroFactor,
+    blendDstAlpha: THREE.OneFactor,
   });
   const mesh = new THREE.Mesh(geometry, material);
   mesh.frustumCulled = false;
@@ -1060,6 +1033,7 @@ const GRADE = {
     uniform vec2 uProj;
     uniform mat4 uCameraWorld;
     uniform vec4 uJungleHole;
+    uniform vec3 uMoonWay;
     varying vec2 vUv;
     #include <packing>
     // Whether what is seen at uv is the island's, up the forbidden cave's skylight (over its rim, or the
@@ -1071,6 +1045,16 @@ const GRADE = {
       float viewZ = perspectiveDepthToViewZ(d, uNear, uFar);
       vec3 view = vec3((uv * 2.0 - 1.0) / uProj * -viewZ, viewZ);
       return (uCameraWorld * vec4(view, 1.0)).y > uJungleHole.w;
+    }
+    // How much of what is seen at uv is the moon and the glow round it in the sky (1 on it, fading
+    // out by three times its radius): its own light, painted as the sky draws it, pale yellow through
+    // green into the sky's blue, as the film paints its full moon. The night's blue would turn the
+    // glow a pale ring.
+    float moonGlow(vec2 uv) {
+      if (texture2D(tDepth, uv).x < 1.0) return 0.0;
+      vec3 way = normalize(mat3(uCameraWorld) * vec3((uv * 2.0 - 1.0) / uProj, -1.0));
+      float m = acos(clamp(dot(way, uMoonWay), -1.0, 1.0));
+      return 1.0 - smoothstep(${(MOON_RADIUS * 1.3).toFixed(4)}, ${(MOON_RADIUS * 3.2).toFixed(4)}, m);
     }
     // The film's moonlit night, by brightness (n, 0 to 1): one royal blue with little red in it, from a
     // deep navy in the darks (nothing goes black) through cobalt to a bright azure, paling to a blue
@@ -1108,6 +1092,7 @@ const GRADE = {
       // (Not in the cave, which is painted in its own dark blues whatever the hour; but what is seen of the
       // island from in it, up its skylight, is the island's.)
       float night = smoothstep(0.4, 1.0, uNight) * (1.0 - (uCave > 0.0 && !overRim(vUv) ? uCave : 0.0));
+      if (night > 0.0) night *= 1.0 - moonGlow(vUv);
       if (night > 0.0) {
         // Painted from how bright each point is as drawn, with the grade's contrast, but the darks
         // only eased down, not crushed, onto a navy floor: nothing goes black. The cast, marked in the
@@ -1389,6 +1374,7 @@ export class FilmPost {
     // cave's skylight from the cave (see GRADE).
     for (const name of ['tDepth', 'uNear', 'uFar', 'uProj', 'uCameraWorld'] as const) grade.uniforms[name] = this.focus.uniforms[name];
     grade.uniforms.uJungleHole = jungleHaze.uJungleHole;
+    grade.uniforms.uMoonWay = moonUniforms.uMoonWay;
     this.composer.addPass(grade);
     this.setTexel(size.x, size.y);
   }

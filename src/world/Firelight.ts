@@ -1,12 +1,17 @@
 import * as THREE from 'three';
 import { lightBlocked } from './Obstacles';
 
-/** Each kind of source: its colour, how bright, and how far its light reaches, in metres. */
-const KINDS = {
+/** Each kind of source: its colour, how bright, how far its light reaches, in metres, and how fast it
+ * falls off with distance (`decay`, the distance's power it falls as, 2 if not given). */
+const KINDS: Record<string, { colour: THREE.Color; intensity: number; reach: number; warmth: number; decay?: number }> = {
   flame: { colour: new THREE.Color('#FF8A30'), intensity: 24, reach: 15, warmth: 1 },
   // A lantern: a warm pool round where it hangs, so where they stand thick, along the festival's
   // street, the night still shows blue between the pools.
   glow: { colour: new THREE.Color('#FFBE72'), intensity: 3, reach: 6, warmth: 0.45 },
+  // A lamp under a shade shining on a sign (島二郎's board and its standing sign): its board lit warm
+  // all the way down, as the film's, its light falling off far more slowly than a bare bulb's, as a
+  // shade throwing it onto the board does; the night's blue soon round it.
+  spot: { colour: new THREE.Color('#FFD08A'), intensity: 6, reach: 5, warmth: 0.8, decay: 0.7 },
   // A room's lantern: bright enough to light the room from where it hangs, reaching little past it.
   // Its light on its house is baked (see Props), falling off and shadowed, coming back off the wood
   // only as much as the wood's colours give back; this bright, the room's lit side is as warm as when
@@ -16,8 +21,8 @@ const KINDS = {
   // out over the ground before the house: as bright as the lantern, so it carries on from the light
   // baked on the house's porch.
   opening: { colour: new THREE.Color('#FFBE72'), intensity: 20, reach: 9, warmth: 0.9 },
-} as const;
-export type FireKind = keyof typeof KINDS;
+};
+export type FireKind = 'flame' | 'glow' | 'spot' | 'lamp' | 'opening';
 /** How many of the sources reaching a character light them (see Firelight.lightsAt), the strongest. */
 export const CHARACTER_LIGHTS = 4;
 /** How fast a light comes and goes on a character as a wall comes between them, per second. */
@@ -89,7 +94,7 @@ interface Source {
  * The light grid, for everything lit (see fireLights): each source in a texel column (row 0, its
  * place and reach; 1, its colour this moment; 2 and 3, its room's middle and half sizes with the
  * cosine and sine of its turn, or its opening's middle and way out with its half width and height;
- * 4, how it lights (SHAPE), its owner plus one and its opening's mask plus one), and the island in
+ * 4, how it lights (SHAPE), its owner plus one, its opening's mask plus one and its decay), and the island in
  * cells of CELL metres, each listing the sources that reach it, the strongest first.
  */
 export const fireUniforms = {
@@ -171,7 +176,7 @@ if (uFireOn > 0.5) {
         }
         if (fireD >= fireSpot.w) continue;
         directLight.direction = mat3(viewMatrix) * (fireWay / fireD);
-        directLight.color = fireColour * getDistanceAttenuation(fireD, fireSpot.w, 2.0);
+        directLight.color = fireColour * getDistanceAttenuation(fireD, fireSpot.w, fireHow.w);
         directLight.visible = true;
         RE_Direct(directLight, geometryPosition, geometryNormal, geometryViewDir, geometryClearcoatNormal, material, reflectedLight);
       }
@@ -340,7 +345,7 @@ export class Firelight {
         table.set([half.x, half.y, half.z, Math.sin(yaw)], (3 * width + i) * 4);
       }
       const shape = s.opening ? SHAPE.opening : s.room ? SHAPE.room : SHAPE.round;
-      table.set([shape, s.owner + 1, masked.indexOf(s) + 1, 0], (4 * width + i) * 4);
+      table.set([shape, s.owner + 1, masked.indexOf(s) + 1, KINDS[s.kind].decay ?? 2], (4 * width + i) * 4);
     });
     const lights = new THREE.DataTexture(table, width, 5, THREE.RGBAFormat, THREE.FloatType);
     lights.needsUpdate = true;
@@ -365,7 +370,7 @@ export class Firelight {
     const cells: { i: number; strength: number }[][] = Array.from({ length: across * down }, () => []);
     this.sources.forEach((s, i) => {
       if (i >= EMPTY) return;
-      const { reach, intensity } = KINDS[s.kind];
+      const { reach, intensity, decay = 2 } = KINDS[s.kind];
       const { x, z } = s.position;
       const a0 = Math.max(Math.floor((x - reach - x0) / CELL), 0);
       const a1 = Math.min(Math.floor((x + reach - x0) / CELL), across - 1);
@@ -381,7 +386,7 @@ export class Firelight {
           if (s.opening && !openingReaches(s.opening, s.position, x0 + a * CELL, z0 + b * CELL, x0 + (a + 1) * CELL, z0 + (b + 1) * CELL)) {
             continue;
           }
-          const strength = (intensity / Math.max(d * d, 1)) * (1 - (d / reach) ** 4) ** 2;
+          const strength = (intensity / Math.max(d ** decay, 1)) * (1 - (d / reach) ** 4) ** 2;
           cells[b * across + a].push({ i, strength });
         }
       }

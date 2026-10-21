@@ -117,11 +117,27 @@ function mixTriple(out: THREE.Color, a: [number, number, number], b: [number, nu
   out.setRGB(a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t);
 }
 
-/** Where a body crossing the sky is at an angle round its path: rising in the east, highest in the south. */
-function across(angle: number, highest: number, out: THREE.Vector3): THREE.Vector3 {
-  const e = Math.sin(angle) * highest;
+/** Where a body crossing the sky is at an angle round its path: rising in the east, highest in the
+ * south, its height following the angle's sine raised to `climb` (above 1 it climbs slowly at first
+ * and quickly toward its highest). */
+function across(angle: number, highest: number, out: THREE.Vector3, climb = 1): THREE.Vector3 {
+  const s = Math.sin(angle);
+  const e = Math.sign(s) * Math.abs(s) ** climb * highest;
   return out.set(Math.cos(angle) * Math.cos(e), Math.sin(e), Math.sin(angle) * Math.cos(e)).normalize();
 }
+
+/**
+ * The full moon's path: it climbs slowly through the evening, so the early night is lit from as low
+ * as it always was (37 degrees up at 21:00), then rides high, 75 degrees up in the south at
+ * midnight, across the forbidden cave's skylight: from the lake under it, the skylight's well shows
+ * the sky above 55 degrees, so the moon passes over it from about 22:10 to 1:50.
+ */
+const MOON_HIGHEST = THREE.MathUtils.degToRad(75);
+const MOON_CLIMB = 2;
+/** How big the full moon is in the sky: its radius, in radians (the film paints it large). */
+export const MOON_RADIUS = 0.06;
+/** And the sun's. */
+export const SUN_RADIUS = 0.045;
 
 export function newSkyLook(): SkyLook {
   return {
@@ -152,10 +168,11 @@ export function skyAt(hours: number, out: SkyLook): SkyLook {
   out.night = a.night + (b.night - a.night) * t;
   // The festival's lights come on through dusk, and go out with the dawn.
   out.glow = Math.max(smoothstep(17.6, 18.8, hours), 1 - smoothstep(5.4, 6.6, hours));
-  // The sun rises at six in the east and sets at six in the west; the full moon opposite.
+  // The sun rises at six in the east and sets at six in the west; the full moon opposite (see
+  // MOON_HIGHEST).
   const sunAngle = (Math.PI * (hours - 6)) / 12;
   across(sunAngle, THREE.MathUtils.degToRad(68), out.sunDir);
-  across(sunAngle + Math.PI, THREE.MathUtils.degToRad(55), out.moonDir);
+  across(sunAngle + Math.PI, MOON_HIGHEST, out.moonDir, MOON_CLIMB);
   // By day the light comes from the sun; as it sets, it passes to the moon.
   out.lightDir.copy(out.moonDir).lerp(out.sunDir, smoothstep(-0.06, 0.12, out.sunDir.y));
   if (out.lightDir.y < 0.15) out.lightDir.y = 0.15;

@@ -53,6 +53,8 @@ BOARDS = {
     "stall_blue": ["#7EC3EA"], "stall_red": ["#E0674F"], "stall_white": ["#F7F4EC"],
     "arch": ["#E2BE86", "#FFFFFF"], "banner": ["#FFFFFF"],
     "sign": ["#E2E8CF"], "sign_hanging": ["#D9B483"],
+    # 島二郎's board over its front and its standing sign, painted a pale cream; its menu's plaques.
+    "restaurant": ["#EAE5D3", "#EAE5D3", "#EFE6CF", "#EFE6CF", "#EFE6CF"],
 }
 # The words on the templates: in the game's own font where there is one (--font-ja in
 # src/styles.css), this strong, laid out as the game lays them out (paintLabels in Props.ts).

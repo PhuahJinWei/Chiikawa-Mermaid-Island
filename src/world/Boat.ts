@@ -1,7 +1,21 @@
 import * as THREE from 'three';
-import { caveFlameMaterial, caveInkMaterial, caveThingMaterial, type Cave } from './Cave';
+import {
+  caveFlameMaterial,
+  caveInkMaterial,
+  caveThingMaterial,
+  OAR_LIFE,
+  OAR_RINGS,
+  OAR_SPREAD,
+  STERN_LIFE,
+  STERN_RINGS,
+  STERN_SPREAD,
+  WAKE_OPEN,
+  WAKE_POINTS,
+  type Cave,
+} from './Cave';
 import { addOutline } from './Ink';
 import { addSwitchedBox } from './Obstacles';
+import { coverCircles } from './Ripples';
 
 /**
  * The rowboat waiting in the forbidden cave, drawn up on the sand of its beach as the film's (`cave
@@ -46,6 +60,11 @@ const KEEL = 0.12;
  * it must be landed for it to be drawn up. */
 const SLIDE = 1.3;
 const DRAW_UP_REACH = 4;
+/** Its wake (see wake): how far apart along its bow's way the points its waves spread from are kept
+ * (metres); how fast it must go to make one; and how far past the waves' edge its foam reaches at most. */
+const WAKE_STEP = 0.5;
+const WAKE_SPEED = 0.1;
+const WAKE_BAND = 0.25;
 
 export class Boat {
   readonly group = new THREE.Group();
@@ -72,6 +91,24 @@ export class Boat {
   private stroke = 0;
   private readonly hull: THREE.Mesh;
   private readonly oars: THREE.Group[] = [];
+  /** Each oar itself, where its blade's middle is along it, and how far each blade has lately dipped
+   * into the water, 0 to 1, fading after it lifts out (for the rings it leaves: see update). */
+  private readonly blades: THREE.Mesh[] = [];
+  private readonly bladeAt: THREE.Vector3;
+  private readonly dips = [0, 0];
+  /** Whether each blade is in the water, for the rings it leaves where it goes in and comes out; and which
+   * of those rings is left next. */
+  private readonly wet = [false, false];
+  private oarRing = 0;
+  /** When it next leaves a ring astern, and which of those it leaves next. */
+  private sternNext = 0;
+  private sternRing = 0;
+  /** Its bow's way over the water, newest first, for its wake (see wake): where it was (x, z) and how far
+   * it had gone by then, `tracked` of them; how far it has gone in all; and where it was last frame. */
+  private readonly track = Array.from({ length: WAKE_POINTS - 1 }, () => ({ x: 0, z: 0, at: 0 }));
+  private tracked = 0;
+  private travelled = 0;
+  private readonly lastBow = new THREE.Vector2(NaN, NaN);
   private readonly torch: THREE.Group;
   private readonly materials: THREE.ShaderMaterial[] = [];
   private readonly water: number;
@@ -104,7 +141,11 @@ export class Boat {
       addOutline(oar, 'still', false, ink);
       body.add(pivot);
       this.oars.push(pivot);
+      this.blades.push(oar);
     }
+    if (!cave.oarGeometry.boundingBox) cave.oarGeometry.computeBoundingBox();
+    const reach = cave.oarGeometry.boundingBox as THREE.Box3;
+    this.bladeAt = reach.getCenter(new THREE.Vector3()).setX(reach.max.x - 0.15);
     this.torch = new THREE.Group();
     const stick = new THREE.Mesh(cave.torchGeometry, material);
     const flame = new THREE.Mesh(cave.torchFlameGeometry, caveFlameMaterial());
@@ -474,10 +515,99 @@ export class Boat {
         // Moored: shipped, lying along the gunwales, their blades over the bow.
         pivot.rotation.set(0, side * 1.35, -side * 0.06);
       }
+      pivot.updateMatrixWorld(true);
     });
+    // Its rings in the cave's water (see Cave.ripples), each left where it was made, never following it:
+    // round it as far as it is afloat, at its way; its wake; rings astern, every so often, fewer as it
+    // slows (lapping round it moored); and where each oar's blade goes in and where it comes out, rowing,
+    // with a splash while it dips, fading for a moment after it lifts out.
+    const ripples = this.cave.ripples;
+    ripples.uBoat.value.set(this.position.x, this.position.z, this.heading, afloat);
+    ripples.uBoatWay.value.set(this.speed, HALF_LENGTH, HALF_BEAM, 0);
+    this.wake(afloat);
+    const sternEvery = STERN_LIFE / STERN_RINGS;
+    if (afloat > 0 && (time >= this.sternNext || this.sternNext - time > sternEvery)) {
+      const f = this.forward(_f);
+      const going = THREE.MathUtils.smoothstep(Math.abs(this.speed), 0.15, 1.5);
+      const back = HALF_LENGTH * 0.7;
+      ripples.uSternRings.value[this.sternRing].set(this.position.x - f.x * back, this.position.z - f.z * back, time, 0.5 * afloat * (0.35 + 0.65 * going));
+      this.sternRing = (this.sternRing + 1) % STERN_RINGS;
+      this.sternNext = time + sternEvery;
+    }
+    this.blades.forEach((blade, i) => {
+      const tip = _tip.copy(this.bladeAt).applyMatrix4(blade.matrixWorld);
+      const dip = this.manned && afloat > 0.5 ? THREE.MathUtils.smoothstep(this.water + 0.08 - tip.y, 0, 0.12) : 0;
+      this.dips[i] = Math.max(dip, this.dips[i] - dt * 1.4);
+      ripples.uOars.value[i].set(tip.x, tip.z, this.dips[i], 0);
+      const wet = dip > 0.5;
+      if (wet !== this.wet[i]) {
+        this.wet[i] = wet;
+        ripples.uOarRings.value[this.oarRing].set(tip.x, tip.z, time, 0.7);
+        this.oarRing = (this.oarRing + 1) % OAR_RINGS;
+      }
+    });
+    // How far round its rings and splashes the water looks for them.
+    _circles.length = 0;
+    for (const r of ripples.uSternRings.value) {
+      const age = (time - r.z) / STERN_LIFE;
+      if (age >= 0 && age < 1) _circles.push(r.x, r.y, 0.5 + age * STERN_SPREAD + 0.06);
+    }
+    for (const r of ripples.uOarRings.value) {
+      const age = (time - r.z) / OAR_LIFE;
+      if (age >= 0 && age < 1) _circles.push(r.x, r.y, 0.08 + age * OAR_SPREAD + 0.03);
+    }
+    for (const o of ripples.uOars.value) if (o.z > 0) _circles.push(o.x, o.y, 0.12);
+    if (_circles.length) coverCircles(_circles, ripples.uBoatReach.value);
+    else ripples.uBoatReach.value.set(0, 0, -1, 0);
     // Lit as the cast are where it is, a little dimmer, as wood is.
     const lit = this.materials[0].uniforms.uLit.value as THREE.Color;
     this.cave.lightOn(this.position.x, this.position.y + 0.5, this.position.z, lit).multiplyScalar(0.6);
+  }
+
+  /**
+   * Its wake for the cave's water (Cave.ripples' uWake and uWakeReach): where its bow is now, and back
+   * along the way it has come a point every WAKE_STEP metres, each with how far the wave its bow made
+   * there has spread since, so that the V they open bends after it as it turns rather than swinging
+   * round with it. None while it is slow or drawn up; how much of it shows by how fast it goes.
+   */
+  private wake(afloat: number): void {
+    const f = this.forward(_f);
+    const bx = this.position.x + f.x * HALF_LENGTH;
+    const bz = this.position.z + f.z * HALF_LENGTH;
+    if (afloat > 0 && this.speed > WAKE_SPEED) {
+      if (!Number.isNaN(this.lastBow.x)) this.travelled += Math.hypot(bx - this.lastBow.x, bz - this.lastBow.y);
+      if (this.tracked === 0 || this.travelled - this.track[0].at >= WAKE_STEP) {
+        // The oldest point kept becomes the newest.
+        const point = this.track.pop() as { x: number; z: number; at: number };
+        point.x = bx;
+        point.z = bz;
+        point.at = this.travelled;
+        this.track.unshift(point);
+        this.tracked = Math.min(this.tracked + 1, this.track.length);
+      }
+    } else {
+      this.tracked = 0;
+    }
+    this.lastBow.set(bx, bz);
+    // Oldest first (the widest waves, which hold most of the water inside the V), ending at its bow.
+    const { uWake, uWakeReach } = this.cave.ripples;
+    _circles.length = 0;
+    let i = 0;
+    for (let k = this.tracked - 1; k >= 0; k--, i++) {
+      const point = this.track[k];
+      const spread = WAKE_OPEN * (this.travelled - point.at);
+      uWake.value[i].set(point.x, point.z, spread, 0);
+      _circles.push(point.x, point.z, spread + WAKE_BAND);
+    }
+    uWake.value[i++].set(bx, bz, 0, 0);
+    _circles.push(bx, bz, WAKE_BAND);
+    for (; i < uWake.value.length; i++) uWake.value[i].set(0, 0, -1, 0);
+    if (this.tracked > 0) {
+      coverCircles(_circles, uWakeReach.value);
+      uWakeReach.value.w = afloat * THREE.MathUtils.smoothstep(this.speed, WAKE_SPEED, 1.2);
+    } else {
+      uWakeReach.value.set(0, 0, -1, 0);
+    }
   }
 
   private place(): void {
@@ -488,6 +618,8 @@ export class Boat {
 }
 
 const _f = new THREE.Vector3();
+const _tip = new THREE.Vector3();
+const _circles: number[] = [];
 
 /** Whether the boat floats with its middle at (x, z), its bow along `heading`: water deep enough under
  * its bow, its middle and its stern, and either side, with room over it for its rower. */

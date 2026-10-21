@@ -368,14 +368,10 @@ export class FilmClouds {
   private readonly aerialCards: Card[];
   private shadowStrength = 1;
 
-  /** `horizon` is the sky's horizon colour and `enclosed` how far in under the trees the camera is
-   * (both shared with the sky, so the clouds pale into its haze and are lost in its glow); `seaLight` the
-   * hour's light on the sea (shared with it), which the aerial clouds' shadows on it lie in. */
-  constructor(
-    horizon: THREE.IUniform<THREE.Color>,
-    private readonly enclosed: THREE.IUniform<number>,
-    seaLight: THREE.IUniform<THREE.Color>,
-  ) {
+  /** `horizon` is the sky's horizon colour (shared with the sky, so the clouds pale into its haze);
+   * `seaLight` the hour's light on the sea (shared with it), which the aerial clouds' shadows on it lie
+   * in. */
+  constructor(horizon: THREE.IUniform<THREE.Color>, seaLight: THREE.IUniform<THREE.Color>) {
     const sky = skyCards().sort((a, b) => b.centre.length() - a.centre.length());
     this.aerialCards = aerialCards();
     const rows = sky.length + this.aerialCards.length;
@@ -565,10 +561,8 @@ export class FilmClouds {
     this.uniforms.uShade.value.setRGB(0, 0, 0);
   }
 
-  /** Each frame: the sky's clouds lost in the glow under the trees; the aerial ones shown only from
-   * high above. */
+  /** Each frame: the aerial clouds shown only from high above. */
   update(camera: THREE.Camera): void {
-    this.uniforms.uFade.value = 1 - THREE.MathUtils.smoothstep(this.enclosed.value, 0.25, 0.7);
     const fade = THREE.MathUtils.smoothstep(camera.position.y, AERIAL_FROM, AERIAL_FROM + AERIAL_OVER);
     this.aerialFade.value = fade;
     this.shadowFade.value = fade * this.shadowStrength;

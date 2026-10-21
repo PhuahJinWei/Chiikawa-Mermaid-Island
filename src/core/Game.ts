@@ -180,6 +180,7 @@ export class Game {
         toggleClock: () => (this.clock.running = !this.clock.running),
         toggleFreeCamera: () => this.setFreeCamera(!this.freeCamOn),
         moveHere: () => this.moveHere(),
+        toggleReflections: () => (this.stage.reflections = !this.stage.reflections),
       },
       () => ({
         character: this.controlled,
@@ -188,6 +189,7 @@ export class Game {
         expression: this.expression,
         clockRunning: this.clock.running,
         freeCamera: this.freeCamOn,
+        reflections: FILM ? this.stage.reflections : null,
       }),
     );
     this.hud.onJump = () => this.input.queueJump();
@@ -247,6 +249,7 @@ export class Game {
         extra.attach(this.scene, this.emotes);
         this.crowd.push(extra);
       }
+      this.stage.setCast([...this.characters.values(), ...this.crowd]);
       this.makeCave();
       await this.stage.warmShaders(this.renderer, this.camera);
     } catch (err) {
@@ -451,10 +454,15 @@ export class Game {
     this.updateStats(dt);
   };
 
-  /** Draws the frame: straight to the screen, or through the film look's finishing passes. */
+  /** Draws the frame: straight to the screen, or through the film look's finishing passes, after
+   * the calm water's mirror. */
   private draw(): void {
-    if (this.post) this.post.render();
-    else this.renderer.render(this.scene, this.camera);
+    if (this.post) {
+      this.stage.drawMirror(this.renderer, this.camera);
+      this.post.render();
+    } else {
+      this.renderer.render(this.scene, this.camera);
+    }
   }
 
   /** Advance the whole simulation by dt seconds, without drawing. */
@@ -513,21 +521,23 @@ export class Game {
     this.updateZone(dt);
     this.clock.advance(dt);
     this.stage.setHour(this.clock.hours);
+    this.stage.setWaders(this.time);
     this.stage.update(this.camera, this.time);
     this.updateReflections();
     this.updateInk();
   }
 
-  /** In the film look, captures what the waterfall's pool mirrors again once the light has moved on
-   * by half an hour. */
+  /** In the film look, has what the waterfall's pool mirrors captured again once the light has moved
+   * on by half an hour, a face of it each step (see Stage.reflectPool). */
   private updateReflections(): void {
     if (!FILM) return;
     const hours = this.clock.hours;
     const since = Math.abs(hours - this.reflectedHour);
-    if (Math.min(since, 24 - since) < 0.5) return;
-    this.reflectedHour = hours;
-    const hide = [...this.characters.values(), ...this.crowd].map((ch) => ch.root);
-    this.stage.reflectPool(this.renderer, hide, this.camera);
+    if (!(Math.min(since, 24 - since) < 0.5)) {
+      this.reflectedHour = hours;
+      this.stage.recapturePool();
+    }
+    this.stage.reflectPool(this.renderer, this.camera);
   }
 
   /** One pen for the whole world, set from where the camera is looking; see world/Ink.ts. */

@@ -71,19 +71,6 @@ C = {k: L.hex_color(v) for k, v in {
     "basket": "#C9A06A",
     "flame": "#FFB347",
     "flameCore": "#FFE58A",
-    # 島二郎's ramen: bean sprouts and cabbage heaped high, slices of pork, garlic; its stockpots, the
-    # cloth curtain over its front and the red paper lanterns either side.
-    "sprouts": "#F1E9C4",
-    "cabbage": "#A6CC6E",
-    "pork": "#B9784E",
-    "porkDark": "#8E5536",
-    "soup": "#D9A65A",
-    "steel": "#B9BEC2",
-    "steelDark": "#8D9398",
-    "noren": "#34507A",
-    "norenLight": "#F3EAD6",
-    "chochin": "#E0503E",
-    "chochinBand": "#3A2A22",
     # The guest houses: pale logs, their cut ends paler round a darker heart; the doors' planks, the
     # brown of their frames, and diamond windows; the orange one's grey-green boarded sides; inside,
     # dark logs with pale cut ends, a floor of light planks and the roof's dark boards on rafters; a
@@ -113,6 +100,9 @@ C = {k: L.hex_color(v) for k, v in {
     "iron": "#3E3733",
     "water": "#86BFD8",
     "rattan": "#CDA36B",
+    # The huts' grey sink and its curved tap.
+    "steel": "#B9BEC2",
+    "steelDark": "#8D9398",
     "paperLantern": "#FFD9A0",
     # The porches' potted plants, and the doors' handles.
     "succulent": "#B7A88E",
@@ -737,10 +727,10 @@ def night_layout(unwrap, keep):
     mesh.uv_layers["night"].data.foreach_set("uv", uvs.ravel())
 
 
-def night_lit(mesh, light):
+def night_lit(mesh, light, dark=NIGHT_DARK):
     """Which faces of `mesh` a bake's `light` (texel by texel, rows from the bottom, laid out on the
-    mesh's map `night`) finds lit: brighter than NIGHT_DARK of its brightest at any of their
-    corners, their middle, or halfway between."""
+    mesh's map `night`) finds lit: brighter than `dark` of its brightest at any of their corners,
+    their middle, or halfway between."""
     n = NIGHT_SIZE
     lit = light[light > 1e-6]
     top = float(np.percentile(lit, 99.5)) if lit.size else 1.0
@@ -760,7 +750,7 @@ def night_lit(mesh, light):
     y = np.clip((samples[:, 1] * n).astype(int), 0, n - 1)
     brightest = np.zeros(faces, dtype=np.float32)
     np.maximum.at(brightest, sample_face, light.reshape(n, n)[y, x])
-    return brightest > NIGHT_DARK * top
+    return brightest > dark * top
 
 
 def night_seen(mesh, lantern):
@@ -780,6 +770,27 @@ def night_seen(mesh, lantern):
         seen[i] = bvh.ray_cast(c + f.normal * 0.002, way.normalized(), way.length - LANTERN_RADIUS)[0] is None
     bm.free()
     return seen
+
+
+def night_open(mesh, faces):
+    """Which of `mesh`'s faces numbered in `faces` (a range) lie open to the room, nothing pressed
+    against them within a centimetre and a half: the room's faces the lantern's light reaches however
+    it bounces there (a table's legs in its shadow, a rail under a window's sill), which the rough bake
+    may read as dark where they are thin (see night_lit)."""
+    bm = bmesh.new()
+    bm.from_mesh(mesh)
+    bm.normal_update()
+    bm.faces.ensure_lookup_table()
+    bvh = BVHTree.FromBMesh(bm)
+    out = np.zeros(len(bm.faces), dtype=bool)
+    for i in faces:
+        f = bm.faces[i]
+        if f.calc_area() < 1e-8:
+            continue
+        c = f.calc_center_median()
+        out[i] = bvh.ray_cast(c + f.normal * 0.002, f.normal, 0.015)[0] is None
+    bm.free()
+    return out
 
 
 def night_decals(mesh):
@@ -852,7 +863,7 @@ def decal_layout(mesh, decal):
     bm.free()
 
 
-def bake_night(name, targets, lamp, openings):
+def bake_night(name, targets, lamp, openings, dark=NIGHT_DARK, rooms=()):
     """The room's lantern's light on the house, baked with Cycles: lit by the lantern alone, the
     sky and every other prop left out, its light falling on the walls, the floor and the furniture,
     shadowed under the bed and the table, coming back off the wood into the corners and out through
@@ -861,7 +872,9 @@ def bake_night(name, targets, lamp, openings):
     root of its share of `scale` (the light at the brightest texels, less a few hottest ones),
     so the darks keep their steps. A first, rough bake of every face finds those the light reaches,
     and those and every face that sees the lantern (see night_seen) are laid out in the map, so its
-    texels go to the light, not to the outside's shingles, which point at its one black corner. What
+    texels go to the light, not to the outside's shingles, which point at its one black corner (a face
+    lit under `dark` of the brightest is left black; and every face of the targets numbered in `rooms`
+    that lies open, see night_open, however the rough bake read it). What
     is painted on other faces (see night_decals) has no texels of its own: it waits out of the light,
     behind what it is painted on, while the light is baked, then takes that face's light. Returns what
     the game needs to read it, and the house's `openings` with where the light passes through each
@@ -970,7 +983,14 @@ def bake_night(name, targets, lamp, openings):
 
     night_layout(unwrap, np.ones(faces, dtype=bool))
     hand_out()
-    keep = (night_lit(joined, bake(NIGHT_PROBE_SAMPLES).max(axis=1)) | night_seen(joined, light.location)) & ~decal
+    keep = night_lit(joined, bake(NIGHT_PROBE_SAMPLES).max(axis=1), dark) | night_seen(joined, light.location)
+    start = 0
+    for k, o in enumerate(targets):
+        n = len(o.data.polygons)
+        if k in rooms:
+            keep |= night_open(joined, range(start, start + n))
+        start += n
+    keep &= ~decal
     night_layout(unwrap, keep)
     hand_out()
     hide_decals(1.0)
@@ -2655,186 +2675,6 @@ def build_guest_house(name, style, collection):
     info = {"blocks": blocks, "decks": decks, "height": ridge + 0.2, "openings": openings_of(walls)}
     info.update(bake_night(name, [body, room], lights, info["openings"]))
     return [body, lights, glass, room, distant], info
-
-
-# ---------------------------------------------------------------------------- 島二郎
-def ramen_bowl(at, pieces):
-    """A bowl of 島二郎's ramen, after the shop it is named for: a deep cream bowl heaped high with
-    bean sprouts and cabbage, thick slices of pork leaning on the heap, a dab of garlic on top."""
-    pieces.append((turned([(0.0, 0.0), (0.06, 0.0), (0.08, 0.02), (0.15, 0.08), (0.165, 0.125), (0.15, 0.125),
-                           (0.0, 0.105)], at, segments=14), C["cream"]))
-    pieces.append((P.segment_bm(at + V(0.0, 0.0, 0.1), at + V(0.0, 0.0, 0.112), 0.145, 0.145, 14), C["soup"]))
-    pieces.append((L.ellipsoid_bm(at + V(0.0, 0.0, 0.17), (0.115, 0.11, 0.13), u=12, v=8), C["sprouts"]))
-    for k, (dx, dy) in enumerate(((0.06, 0.04), (-0.05, 0.06), (0.02, -0.07))):
-        pieces.append((L.ellipsoid_bm(at + V(dx, dy, 0.21 + 0.02 * k), (0.045, 0.035, 0.02), u=6, v=4), C["cabbage"]))
-    for ang in (0.4, 2.4):
-        c = at + V(math.cos(ang) * 0.1, math.sin(ang) * 0.1, 0.16)
-        rot = Matrix.Rotation(ang, 3, "Z") @ Matrix.Rotation(0.9, 3, "Y")
-        pieces.append((L.ellipsoid_bm(c, (0.075, 0.055, 0.016), rot=rot, u=8, v=4), C["pork"]))
-    pieces.append((L.ellipsoid_bm(at + V(0.0, -0.02, 0.305), (0.03, 0.03, 0.015), u=6, v=4), C["cream"]))
-
-
-def build_restaurant(collection):
-    """島二郎, the restaurant at the end of the riverside path: a ramen shop after the one it is named
-    for, built as the village builds. A plank floor on short log stilts under a big thatched hip roof
-    on log posts, open at the front, where a navy cloth curtain hangs over the way in between red
-    paper lanterns that light up at night. Inside, a long plank counter with stools along it and
-    bowls of ramen heaped with bean sprouts on it; behind it the kitchen, walled in planks at the
-    back and sides: a clay stove with two tall steel stockpots, a prep table with a cutting board, a
-    tray of noodles and stacked bowls, and a shelf of jars by the window. Faces -Y."""
-    floor, t = 0.3, 0.15
-    xo, yo = 3.6, 2.6
-    eave = 2.8
-    kitchen = 0.55                      # where the kitchen's side walls begin
-    counter_y, counter_d, counter_h = 0.45, 0.55, 0.85
-    counter_x = (-3.0, 2.0)
-    pieces, glow, inside = [], [], []
-    # The floor: planks on a thick log edge, on short stilts, a log step at the front.
-    pieces.append((P.box_bm(V(0.0, 0.0, floor - 0.09), (2 * xo, 2 * yo, 0.18)), C["floor"]))
-    for k in range(1, 18):
-        x = -xo + 2 * xo * k / 18
-        pieces.append((P.box_bm(V(x, -0.125, floor + 0.002), (PEN, 2 * yo - 0.35, 0.01)), C["floorLine"]))
-    pieces.append((log(V(-xo - 0.05, -yo - 0.02, floor - 0.12), V(xo + 0.05, -yo - 0.02, floor - 0.12), 0.11, segments=10),
-                   C["log"]))
-    for x in (-xo + 0.3, -1.2, 1.2, xo - 0.3):
-        for y in (-yo + 0.3, 0.0, yo - 0.3):
-            pieces.append((log(V(x, y, -0.3), V(x, y, floor - 0.17), 0.1, segments=8), C["logDark"]))
-    pieces.append((P.box_bm(V(0.0, -yo - 0.3, 0.075), (2.6, 0.5, 0.15)), C["log"]))
-    # The posts, and beams along the eave between them.
-    posts = [(-xo + 0.15, -yo + 0.15), (xo - 0.15, -yo + 0.15), (-1.25, -yo + 0.15), (1.25, -yo + 0.15),
-             (-xo + 0.15, kitchen), (xo - 0.15, kitchen), (-xo + 0.15, yo - 0.15), (xo - 0.15, yo - 0.15)]
-    for x, y in posts:
-        pieces.append((log(V(x, y, -0.2), V(x, y, eave + 0.05), 0.14, segments=10), C["log"]))
-    for a, b in (((-xo + 0.15, -yo + 0.15), (xo - 0.15, -yo + 0.15)), ((-xo + 0.15, yo - 0.15), (xo - 0.15, yo - 0.15)),
-                 ((-xo + 0.15, -yo + 0.15), (-xo + 0.15, yo - 0.15)), ((xo - 0.15, -yo + 0.15), (xo - 0.15, yo - 0.15))):
-        pieces.append((log(V(*a, eave - 0.12), V(*b, eave - 0.12), 0.11, segments=8), C["logDark"]))
-    # The kitchen's walls: the back, with a window, and both sides from the counter back.
-    sill, head = floor + 1.0, floor + 1.7
-    walls = [Wall((xo - 0.15, yo - t / 2), (-xo + 0.15, yo - t / 2), floor, eave - floor - 0.12, t,
-                  [(4.25, 5.45, sill - floor, head - floor)]),
-             Wall((-xo + t / 2, yo - 0.15), (-xo + t / 2, kitchen), floor, eave - floor - 0.12, t),
-             Wall((xo - t / 2, kitchen), (xo - t / 2, yo - 0.15), floor, eave - floor - 0.12, t)]
-    for wall in walls:
-        pieces.extend(wall.skins(C["plank"], C["inside"]))
-        pieces.extend(wall.courses(C["plankLine"], -1, start=0.3, step=0.3))
-        inside.extend(wall.courses(C["insideLine"], 1))
-        for v, r in ((0.1, 0.08), (eave - floor - 0.2, 0.08)):
-            pieces.extend(wall.rail(v, r, C["log"]))
-        for u0, u1, v0, v1 in wall.openings:
-            # An open window for the kitchen's steam: a board frame, a bamboo blind rolled up under
-            # its head.
-            uc, w = (u0 + u1) / 2, u1 - u0
-            # Each board reaches a little into the opening, so none of its faces lies in the wall's.
-            e = 0.004
-            for c, size in ((wall.point(uc, v1 + 0.05 - e, -0.03), (w + 0.2, 0.08, 0.1)),
-                            (wall.point(uc, v0 - 0.05 + e, -0.05), (w + 0.34, 0.14, 0.1)),
-                            (wall.point(u0 - 0.05 + e, (v0 + v1) / 2, -0.03), (0.1, 0.08, v1 - v0)),
-                            (wall.point(u1 + 0.05 - e, (v0 + v1) / 2, -0.03), (0.1, 0.08, v1 - v0))):
-                pieces.append((oriented_box(c, wall.d, wall.inward, size), C["frame"]))
-            pieces.append((log(wall.point(u0 + 0.02, v1 - 0.06, -0.09), wall.point(u1 - 0.02, v1 - 0.06, -0.09), 0.055,
-                               segments=8), C["bamboo"]))
-    # The counter: a plank front, a log top, stools along it.
-    cx0, cx1 = counter_x
-    cy = counter_y + counter_d / 2
-    top = floor + counter_h
-    pieces.append((P.box_bm(V((cx0 + cx1) / 2, cy, floor + counter_h / 2 - 0.03), (cx1 - cx0, counter_d, counter_h - 0.06)),
-                   C["plank"]))
-    for k in range(1, 9):
-        x = cx0 + (cx1 - cx0) * k / 9
-        pieces.append((P.box_bm(V(x, counter_y - 0.002, floor + counter_h / 2 - 0.03), (PEN, 0.01, counter_h - 0.12)),
-                       C["plankLine"]))
-    pieces.append((P.box_bm(V((cx0 + cx1) / 2, cy - 0.04, top - 0.03), (cx1 - cx0 + 0.16, counter_d + 0.16, 0.06)), C["log"]))
-    stools = [(-2.55 + 1.05 * k, counter_y - 0.42) for k in range(5)]
-    for sx, sy in stools:
-        pieces.append((log(V(sx, sy, floor), V(sx, sy, floor + 0.38), 0.05, segments=8), C["logDark"]))
-        pieces.append((P.segment_bm(V(sx, sy, floor + 0.38), V(sx, sy, floor + 0.44), 0.19, 0.19, 14), C["log"]))
-    # Bowls of ramen on the counter, a pot of chopsticks, a stack of clean bowls at its end.
-    for x in (-2.0, -0.45, 1.1):
-        ramen_bowl(V(x, counter_y + 0.18, top), inside)
-    inside.append((turned([(0.0, 0.0), (0.05, 0.0), (0.055, 0.14), (0.0, 0.14)], V(-1.2, counter_y + 0.22, top)), C["pot"]))
-    for k in range(7):
-        a = k * 0.9
-        p = V(-1.2 + math.cos(a) * 0.025, counter_y + 0.22 + math.sin(a) * 0.025, top + 0.06)
-        inside.append((P.segment_bm(p, p + V(math.cos(a) * 0.02, math.sin(a) * 0.02, 0.2), 0.006, 0.005, 4), C["logEnd"]))
-    for k in range(4):
-        inside.append((turned([(0.0, 0.0), (0.06, 0.0), (0.15, 0.07), (0.16, 0.09), (0.0, 0.03)],
-                              V(1.75, counter_y + 0.3, top + 0.075 * k)), C["cream"]))
-    # The stove: a clay hearth in the kitchen's back corner, two tall steel stockpots on it.
-    sx0, sx1, sy0, sy1 = 0.8, 2.75, 1.6, yo - 0.2
-    pieces.append((P.box_bm(V((sx0 + sx1) / 2, (sy0 + sy1) / 2, floor + 0.38), (sx1 - sx0, sy1 - sy0, 0.76), bevel=0.06),
-                   C["pot"]))
-    for x in (1.25, 2.3):
-        pieces.append((P.box_bm(V(x, sy0 - 0.004, floor + 0.28), (0.34, 0.01, 0.24)), C["iron"]))
-        pieces.append((P.segment_bm(V(x, (sy0 + sy1) / 2, floor + 0.76), V(x, (sy0 + sy1) / 2, floor + 1.28), 0.27, 0.27, 16),
-                       C["steel"]))
-        pieces.append((P.segment_bm(V(x, (sy0 + sy1) / 2, floor + 1.28), V(x, (sy0 + sy1) / 2, floor + 1.3), 0.285, 0.285, 16),
-                       C["steelDark"]))
-        pieces.append((P.segment_bm(V(x, (sy0 + sy1) / 2, floor + 1.3), V(x, (sy0 + sy1) / 2, floor + 1.31), 0.25, 0.25, 16),
-                       C["soup"]))
-    inside.append((log(V(1.25, 1.95, floor + 1.25), V(1.55, 1.5, floor + 1.75), 0.018, segments=5), C["logDark"]))
-    # The prep table along the back, by the window: a cutting board, a tray of noodles, a stack of
-    # bowls; a shelf of jars over it.
-    px0, px1, py0, py1 = -3.3, -0.3, 1.75, yo - 0.2
-    pieces.append((P.box_bm(V((px0 + px1) / 2, (py0 + py1) / 2, floor + 0.78), (px1 - px0, py1 - py0, 0.06)), C["log"]))
-    for x in (px0 + 0.1, px1 - 0.1):
-        for y in (py0 + 0.1, py1 - 0.1):
-            pieces.append((P.box_bm(V(x, y, floor + 0.375), (0.08, 0.08, 0.75)), C["logDark"]))
-    inside.append((P.box_bm(V(-2.5, 2.05, floor + 0.825), (0.6, 0.38, 0.03)), C["logEnd"]))
-    inside.append((P.box_bm(V(-1.6, 2.05, floor + 0.83), (0.55, 0.38, 0.04)), C["rattan"]))
-    for k in range(6):
-        inside.append((log(V(-1.85, 1.92 + 0.05 * k, floor + 0.87), V(-1.35, 1.92 + 0.05 * k, floor + 0.87), 0.018,
-                           segments=4), C["sprouts"]))
-    for k in range(3):
-        inside.append((turned([(0.0, 0.0), (0.06, 0.0), (0.15, 0.07), (0.16, 0.09), (0.0, 0.03)],
-                              V(-0.75, 2.05, floor + 0.81 + 0.075 * k)), C["cream"]))
-    inside.append((P.box_bm(V(-2.7, yo - 0.33, floor + 1.45), (1.0, 0.25, 0.04)), C["plank"]))
-    for k, x in enumerate((-3.1, -2.85, -2.6, -2.35)):
-        inside.append((turned([(0.0, 0.0), (0.06, 0.01), (0.08, 0.08), (0.05, 0.16), (0.055, 0.18), (0.0, 0.18)],
-                              V(x, yo - 0.33, floor + 1.47)), C["pot"] if k % 2 else C["clayDark"]))
-    # The curtain over the way in: three panels on a bamboo pole under the front beam, a pale band
-    # along their top.
-    pole_z = eave - 0.22
-    pieces.append((log(V(-1.3, -yo + 0.02, pole_z), V(1.3, -yo + 0.02, pole_z), 0.03, segments=6), C["bamboo"]))
-    for k in range(3):
-        x = -0.82 + 0.82 * k
-        pieces.append((oriented_box(V(x, -yo + 0.03, pole_z - 0.33), V(1, 0, 0), V(0, 1, 0), (0.78, 0.025, 0.62)),
-                       C["noren"]))
-        pieces.append((oriented_box(V(x, -yo + 0.0095, pole_z - 0.1), V(1, 0, 0), V(0, 1, 0), (0.78, 0.008, 0.07)),
-                       C["norenLight"]))
-    # Red paper lanterns hanging at the front corners, lit at night.
-    for x in (-xo + 0.15, xo - 0.15):
-        lz = eave - 0.75
-        pieces.append((log(V(x, -yo - 0.12, eave - 0.18), V(x, -yo - 0.12, lz + 0.22), 0.012, segments=4), C["rope"]))
-        for dz in (0.2, -0.2):
-            pieces.append((P.segment_bm(V(x, -yo - 0.12, lz + dz - 0.025), V(x, -yo - 0.12, lz + dz + 0.025), 0.1, 0.1, 10),
-                           C["chochinBand"]))
-        glow.append((L.ellipsoid_bm(V(x, -yo - 0.12, lz), (0.17, 0.17, 0.21), u=12, v=8), C["chochin"]))
-    # Potted plants either side of the step.
-    potted_succulent(V(-1.7, -yo - 0.35, 0.0), pieces)
-    potted_thistles(V(1.7, -yo - 0.35, 0.0), pieces)
-    # The roof: a big thatched hip roof reaching well out over the front.
-    roof = (-xo - 0.9, xo + 0.9, -yo - 1.1, yo + 0.9, eave, eave + 0.3, eave + 2.3, 2.0)
-    pieces.append(hip_roof(*roof))
-    far = [hip_roof(*roof, subdivide=False), (P.box_bm(V(0.0, 0.0, floor - 0.09), (2 * xo, 2 * yo, 0.18)), C["floor"])]
-    far += [wall.far(C["plank"]) for wall in walls]
-    body = P.join("restaurant", pieces, collection, sharp=P.SHARP)
-    lights = P.join("restaurant_glow", glow, collection)
-    room = P.join("restaurant_inside", inside, collection, sharp=P.SHARP)
-    distant = P.join("restaurant_far", far, collection, sharp=P.SHARP)
-    blocks = [
-        block_box(-xo, xo, yo - t, yo, -10, eave), block_box(-xo, -xo + t, kitchen, yo, -10, eave),
-        block_box(xo - t, xo, kitchen, yo, -10, eave),
-        block_box(cx0, cx1, counter_y, counter_y + counter_d, floor - 0.1, top, camera=False),
-        block_box(sx0, sx1, sy0, sy1, floor - 0.1, floor + 1.3, camera=False),
-        block_box(px0, px1, py0, py1, floor - 0.1, floor + 0.9, camera=False),
-        block_box(roof[0], roof[1], roof[2], roof[3], eave - 0.05, roof[6], walk=False),
-    ]
-    blocks += [{"circle": [*g(x, y), 0.17], "y": [-10, eave], "walk": True, "camera": True} for x, y in posts]
-    blocks += [{"circle": [*g(x, y), 0.2], "y": [floor - 0.1, floor + 0.44], "walk": True, "camera": False}
-               for x, y in stools]
-    blocks += [{"circle": [*g(x, -yo - 0.35), 0.22], "y": [-0.1, 0.6], "walk": True, "camera": False} for x in (-1.7, 1.7)]
-    decks = [deck_box(-xo, xo, -yo, yo, floor), deck_box(-1.3, 1.3, -yo - 0.55, -yo, 0.15)]
-    return [body, lights, room, distant], {"blocks": blocks, "decks": decks, "height": roof[6]}
 
 
 # ---------------------------------------------------------------------------- the stage

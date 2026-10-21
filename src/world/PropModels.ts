@@ -45,6 +45,10 @@ export interface PropInfo {
    * models/props) on the parts' UVs, each texel the square root of its light's share of `scale`,
    * for a lantern of `power` watts (see bake_night in art/blender/houses.py). */
   night?: { map: string; scale: number; power: number };
+  /** A house's painted texture (in models/props): its wood's grain, knots and weather, its signs'
+   * peeling paint, rust, laid on its body's and room's second UVs (`uv1`, below 0 where a small thing
+   * keeps its own colour; see paintmap.py in art/blender). */
+  paint?: { map: string };
   /** A house's doorways and windows: each one's middle on the wall's outer face, the way out of it,
    * its width and height, and whether it is a doorway; its lantern's light spills out of them, as
    * its `mask` (base64) says it passes (see Opening in Firelight). */
@@ -59,14 +63,15 @@ export interface PropInfo {
 
 /**
  * body: lit and outlined; glow: lights up at night and lights what is round it (lanterns, the
- * ferry's windows); lamp: a room's lantern, which lights up at night and lights the room; pane: a
+ * ferry's windows); spot: a lamp under a shade shining on a sign, lit at night and lighting what is
+ * near it brightly; lamp: a room's lantern, which lights up at night and lights the room; pane: a
  * house's window pane, lit at night seen from outside and turned away from inside so the window is
  * clear there, drawn without the pen and lighting nothing; flame: shows only at night;
  * inside: a room's inside, drawn only near; far: a light version for seeing from afar, drawn instead
  * of the body and the inside; label: painted words; board: drawn as the body, the board its words
  * are painted on, which takes the colour of a hand-lettered sign painted solid.
  */
-export type PartRole = 'body' | 'glow' | 'lamp' | 'pane' | 'flame' | 'inside' | 'far' | 'label' | 'board';
+export type PartRole = 'body' | 'glow' | 'spot' | 'lamp' | 'pane' | 'flame' | 'inside' | 'far' | 'label' | 'board';
 
 export interface PropModel {
   parts: { role: PartRole; index: number; geometry: THREE.BufferGeometry }[];
@@ -78,7 +83,7 @@ const cache = new Map<string, Promise<PropModel>>();
 function roleOf(name: string): [PartRole, number] {
   const label = /_label(\d*)$/.exec(name);
   if (label) return ['label', label[1] ? Number(label[1]) : 0];
-  for (const role of ['glow', 'lamp', 'pane', 'flame', 'inside', 'far', 'board'] as const) if (name.endsWith(`_${role}`)) return [role, 0];
+  for (const role of ['glow', 'spot', 'lamp', 'pane', 'flame', 'inside', 'far', 'board'] as const) if (name.endsWith(`_${role}`)) return [role, 0];
   return ['body', 0];
 }
 
