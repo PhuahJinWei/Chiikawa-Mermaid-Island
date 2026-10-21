@@ -66,6 +66,10 @@ C = {k: np.array(L.hex_color(v)[:3]) for k, v in {
     "bananaLight": "#9AD467",
     "bananaDark": "#4A9A3F",
     "bananaStem": "#86A44A",
+    "ear": "#3F9650",
+    "earLight": "#5BAE5C",
+    "earDark": "#2F7C44",
+    "earStem": "#6F9C4C",
 }.items()}
 
 UP = Vector((0.0, 0.0, 1.0))
@@ -244,9 +248,12 @@ class Variants:
     def __init__(self):
         self.shapes = []      # (name, arrays)
         self.placed = {}      # layer -> [[shape, x, y, z, turn, scale], ...] in game coordinates
-        # Where plants are kept out (a test of game x and z), and how many were kept out there.
+        # Where plants are kept out (a test of game x and z), and how many were kept out there; and
+        # where only the lowest kinds of plant grow (`low`, by their shapes' names).
         self.keep_out = None
         self.kept_out = 0
+        self.keep_low = None
+        self.low = ("fern", "brom", "grass", "clover")
 
     def shape(self, name, arrays):
         self.shapes.append((name, arrays))
@@ -257,6 +264,9 @@ class Variants:
         palm also names its far shape. Nothing is planted where `keep_out` keeps plants out; says
         whether it was planted."""
         if self.keep_out is not None and self.keep_out(x, z):
+            self.kept_out += 1
+            return False
+        if self.keep_low is not None and self.shapes[index][0] not in self.low and self.keep_low(x, z):
             self.kept_out += 1
             return False
         entry = [index, round(x, 2), round(y, 3), round(z, 2), round(turn, 3), round(scale, 3)]
@@ -317,21 +327,24 @@ def limbs(rng, fork, heart, r, thickness, count):
     return pieces
 
 
-def clump(rng, trees, target=None):
+def clump(rng, trees, target=None, straight=False):
     """A clump of canopy trees after the film's: tall trunks forking into limbs, each tree's head
     heaped of rounded leafy lobes (see lobes), the clump's heads run together into one mass with a
     bumpy, broken outline. `trees` is a list of (x, y, height, base) for each, relative to the
     clump's middle and the ground there. Returns the plant, each crown as (x, y, z, radius) and the
-    far version."""
+    far version. A `straight` clump's trunks stand straight up from their feet (see trunk_radius),
+    so something can be fixed to one."""
     blobs, pieces, crowns, far_blobs = [], [], [], []
     for x, y, height, base in trees:
         crown_z = base + height * 0.66
         r = height * 0.34
         lean = (rng.uniform(-0.4, 0.4), rng.uniform(-0.4, 0.4))
+        bend = (rng.uniform(-0.3, 0.3), rng.uniform(-0.3, 0.3))
+        if straight:
+            lean, bend = (0.0, 0.0), (0.0, 0.0)
         fork = Vector((x + lean[0], y + lean[1], crown_z))
         trunk = trunk_bm(Vector((x, y, base - 0.4)), fork + UP * (r * 0.15),
-                         0.32 * height / 8.0 + 0.1, 0.17 * height / 8.0 + 0.06,
-                         bend=(rng.uniform(-0.3, 0.3), rng.uniform(-0.3, 0.3)))
+                         0.32 * height / 8.0 + 0.1, 0.17 * height / 8.0 + 0.06, bend=bend)
         pieces.append((trunk, [lerp(C["trunk"], C["trunkLight"], 0.5 + 0.5 * math.sin(v.co.z * 2.0))
                                for v in trunk.verts], [smoothstep(base, crown_z * 1.4, v.co.z) * 0.3 for v in trunk.verts]))
         heart = fork + UP * (r * 0.5)
@@ -356,6 +369,14 @@ def clump(rng, trees, target=None):
     far_cols = leafy(far, 0.0, 0.0, C["canopyLight"], C["canopy"], C["canopyDark"], seed=seed)
     pieces.append((mass, cols, sway))
     return merge(pieces), crowns, (far, far_cols, [0.6] * len(far.verts))
+
+
+def trunk_radius(height, up):
+    """How thick a `straight` clump's trunk (see clump) of a tree `height` tall is `up` metres over
+    the ground at its foot: to the corners of its six sides."""
+    top = height * 0.66 + height * 0.34 * 0.15
+    r0, r1 = 0.32 * height / 8.0 + 0.1, 0.17 * height / 8.0 + 0.06
+    return r0 + (r1 - r0) * (up + 0.4) / (top + 0.4)
 
 
 # ---------------------------------------------------------------------------- palms
@@ -756,6 +777,64 @@ def banana(rng):
         colour = C["bananaLight"] if young else (C["banana"] if k % 2 else C["bananaDark"])
         pieces.append((blade, [colour] * len(blade.verts),
                        [min(1.0, 0.3 + (v.co - top).length / length) for v in blade.verts], paddle_leaf(rows)))
+    return merge(pieces)
+
+
+# An elephant ear's leaf, its right half from the notch between its two lobes round to its tip, in
+# lengths of the leaf from its stalk's joint: across, and along toward the tip.
+EAR_OUTLINE = [(0.0, -0.05), (0.08, -0.22), (0.2, -0.31), (0.34, -0.27), (0.44, -0.12), (0.46, 0.1), (0.41, 0.36),
+               (0.29, 0.62), (0.14, 0.84), (0.0, 1.0)]
+
+
+def elephant_ear(rng):
+    """An elephant ear (alocasia), as round 島二郎 in the film's frames of it: a clump of long stalks
+    springing from the ground and arching out, each holding a big heart-shaped leaf out on its
+    end, its two round lobes either side of the stalk, its tip hanging down and out and its halves
+    drooping a little from the midrib, which the game paints with its veins."""
+    pieces = []
+    count = int(rng.integers(4, 7))
+    outline = EAR_OUTLINE + [(-u, w) for u, w in reversed(EAR_OUTLINE[1:-1])]
+    for k in range(count):
+        theta = 2 * math.pi * k / count + rng.uniform(-0.35, 0.35)
+        d = Vector((math.cos(theta), math.sin(theta), 0.0))
+        side = Vector((-math.sin(theta), math.cos(theta), 0.0))
+        young = k == 0
+        lift = rng.uniform(0.75, 1.2) * (1.15 if young else 1.0)
+        reach = rng.uniform(0.3, 0.55) * (0.45 if young else 1.0)
+        joint = d * reach + UP * lift
+        bend = d * (reach * 0.3) + UP * (lift * 0.62)
+        for a, b, r0, r1 in ((Vector((0.0, 0.0, -0.05)), bend, 0.032, 0.025), (bend, joint, 0.025, 0.017)):
+            stalk = P.segment_bm(a, b, r0, r1, segments=5)
+            pieces.append((stalk, [C["earStem"]] * len(stalk.verts),
+                           [0.1 + 0.5 * max(v.co.z, 0.0) / lift for v in stalk.verts]))
+        # The leaf, its tip tipped down `drop` from level out along d.
+        size = rng.uniform(0.6, 0.85) * (0.8 if young else 1.0)
+        drop = rng.uniform(0.55, 0.95) * (0.55 if young else 1.0)
+        along = d * math.cos(drop) - UP * math.sin(drop)
+        normal = side.cross(along).normalized()
+        if normal.z < 0:
+            normal = -normal
+
+        def at(u, w, lift_=0.0, along=along, normal=normal, side=side, joint=joint, size=size):
+            # Its halves droop from the midrib, and its tip curls on down.
+            return (joint + along * (w * size) + side * (u * size)
+                    - UP * (size * (0.22 * abs(u) + 0.12 * max(w, 0.0) ** 2)) + normal * lift_)
+
+        leaf = bmesh.new()
+        top = [leaf.verts.new(at(u, w, 0.01)) for u, w in outline]
+        bot = [leaf.verts.new(at(u, w, -0.01)) for u, w in outline]
+        hub_t, hub_b = leaf.verts.new(at(0.0, 0.14, 0.01)), leaf.verts.new(at(0.0, 0.14, -0.01))
+        n = len(outline)
+        for i in range(n):
+            j = (i + 1) % n
+            leaf.faces.new((hub_t, top[i], top[j]))
+            leaf.faces.new((hub_b, bot[j], bot[i]))
+            leaf.faces.new((top[i], bot[i], bot[j], top[j]))
+        bmesh.ops.recalc_face_normals(leaf, faces=leaf.faces[:])
+        where = [(max(w, 0.0), u / 0.46) for u, w in outline] * 2 + [(0.14, 0.0)] * 2
+        colour = C["earLight"] if young else (C["ear"] if k % 2 else C["earDark"])
+        pieces.append((leaf, [colour] * len(leaf.verts),
+                       [min(1.0, 0.55 + 0.45 * (v.co - joint).length / size) for v in leaf.verts], where))
     return merge(pieces)
 
 

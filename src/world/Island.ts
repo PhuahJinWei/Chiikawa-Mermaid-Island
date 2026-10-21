@@ -485,48 +485,131 @@ vec3 earthTone(vec2 p, float inside, float px) {
   }
   return tone;
 }
-// A bank of rounded pebbles packed close, as along the film's riverside path: each a little lighter
-// or darker, cooler or warmer than its neighbours, lit along one side and shaded along the other,
-// dark in the cracks between them; fading to the bank's plain colour before they are small enough to
-// shimmer ('px' is how many metres a pixel spans there).
-vec3 pebbleTone(vec2 p, float px) {
-  const float size = 0.2;
-  float fade = 1.0 - smoothstep(0.03, 0.08, px);
-  if (fade <= 0.0) return vec3(1.0);
+// A cheap hash for the pebbles, three values 0 to 1 for a cell (no sines: the bank is painted
+// stone by stone over much of the screen along the riverside path).
+vec3 pebbleHash(vec2 p) {
+  vec3 q = fract(vec3(p.xyx) * vec3(0.1031, 0.103, 0.0973));
+  q += dot(q, q.yzx + 33.33);
+  return fract((q.xxy + q.yzz) * q.zyx);
+}
+// The stones of one size in a bank of pebbles: in a jittered grid of cells 'size' metres across, a
+// 'fill' of them holding one, each an oval a little turned, worn round (lit over its top toward the
+// sun, darker down to its rim), a little lighter or darker, cooler or warmer than the next. Returns
+// the tone of the stone over p (to multiply the bank's colour by) and in 'cover' how much of p it
+// covers; in 'shadow', how much of p the stones' soft shadows darken, cast away from the sun ('px' is
+// how many metres a pixel spans there). Each stone keeps within half a cell of its own cell's middle,
+// so only the four cells nearest p need looking at; its turn, size and tint all come from its cell's
+// one hash, and only the stone on top is shaded.
+vec3 cobbles(vec2 p, float size, float fill, float salt, float px, out float cover, out float shadow) {
   vec2 q = p / size;
-  vec2 i = floor(q);
+  vec2 i = floor(q - 0.5);
   vec2 f = q - i;
-  float d1 = 9.0;
-  float d2 = 9.0;
-  vec2 r1 = vec2(0.0);
-  vec3 h1 = vec3(0.0);
-  for (int y = -1; y <= 1; y++) {
-    for (int x = -1; x <= 1; x++) {
+  float aa = 0.8 * px / size;
+  cover = 0.0;
+  shadow = 0.0;
+  vec3 top = vec3(0.0);
+  vec2 off = vec2(0.0);
+  float reach = 1.0;
+  float far = 9.0;
+  for (int y = 0; y <= 1; y++) {
+    for (int x = 0; x <= 1; x++) {
       vec2 g = vec2(float(x), float(y));
-      vec3 h = groundHash(i + g + 71.0);
-      vec2 r = g + 0.15 + 0.7 * h.xy - f;
-      float d = dot(r, r);
-      if (d < d1) {
-        d2 = d1;
-        d1 = d;
-        r1 = r;
-        h1 = h;
-      } else if (d < d2) {
-        d2 = d;
+      vec3 h = pebbleHash(i + g + salt);
+      if (h.z > fill) continue;
+      vec2 d = f - (g + 0.35 + 0.3 * h.xy);
+      vec2 turn = normalize(h.yx - 0.5 + 1e-3);
+      vec2 e = vec2(turn.x * d.x - turn.y * d.y, turn.y * d.x + turn.x * d.y);
+      e.y *= 1.0 + 0.55 * fract(h.z * 7.31);
+      float r = 0.27 + 0.16 * fract(h.z * 13.7);
+      float dist = length(e) / r;
+      shadow = max(shadow, 1.0 - smoothstep(0.8, 1.3, length(d - vec2(0.6, 0.8) * 0.22 * r) / r));
+      float c = 1.0 - smoothstep(1.0 - aa / r, 1.0 + aa / r, dist);
+      if (c > cover) {
+        cover = c;
+        top = h;
+        off = d;
+        reach = r;
+        far = dist;
       }
     }
   }
-  float aa = 0.8 * px / size;
-  // Each pebble rounded: lit on its sunward side and shaded down its other, out to its rim; the
-  // gaps between them only a little darker, the bank's own grit showing there.
-  float edge = sqrt(d2) - sqrt(d1);
-  float crack = (1.0 - smoothstep(0.03, 0.08 + 2.0 * aa, edge)) * mix(0.5, 1.0, h1.y);
-  float dome = smoothstep(0.0, 0.35, edge);
-  float lit = smoothstep(-0.45, 0.45, dot(-r1, vec2(-0.6, -0.8)) * 2.0);
-  vec3 tone = vec3(mix(0.88, 1.1, lit * dome + 0.5 * (1.0 - dome)) * mix(0.88, 1.1, h1.z));
-  tone *= mix(vec3(0.96, 0.99, 1.04), vec3(1.05, 1.0, 0.93), fract(h1.z * 5.3));
-  tone = mix(tone, vec3(0.72, 0.71, 0.7), crack);
-  return mix(vec3(1.0), tone, fade);
+  if (cover <= 0.0) return vec3(1.0);
+  float lit = smoothstep(-0.9, 0.75, dot(off / reach, vec2(-0.6, -0.8)));
+  float dome = 1.0 - smoothstep(0.55, 1.0, far);
+  vec3 tone = vec3(mix(0.82, 1.13, lit) * mix(0.84, 1.0, dome) * mix(0.9, 1.1, fract(top.z * 9.7)));
+  return tone * mix(vec3(0.95, 0.99, 1.05), vec3(1.06, 1.0, 0.91), fract(top.x * 5.1 + top.y * 3.3));
+}
+// A bank of rounded pebbles, as along the film's riverside path ('river below parkour stone landmark
+// 1'): stones of every size packed close, a big flat cobble here and there among the smaller ones and
+// the small stones and grit between them all; dark in the cracks, moss in them here and there, the
+// stones darker and wet down by the water ('wet', 0 to 1). Each size fades to the bank's plain colour
+// before it is small enough to shimmer ('px' is how many metres a pixel spans there). It had been one
+// even size of pebble, as if paved (the user, 2026-10-21).
+vec3 pebbleTone(vec2 p, float px, float wet) {
+  float fadeBig = 1.0 - smoothstep(0.09, 0.22, px);
+  if (fadeBig <= 0.0) return vec3(mix(1.0, 0.78, wet));
+  float fadeMid = 1.0 - smoothstep(0.05, 0.11, px);
+  float fadeSmall = 1.0 - smoothstep(0.025, 0.06, px);
+  // The small stones and grit under everything: cells of a close-packed bank, dark between them.
+  vec3 tone = vec3(0.86);
+  if (fadeSmall > 0.0) {
+    // Each in its cell's middle half or so, so the four cells nearest p hold the nearest stones.
+    const float size = 0.09;
+    vec2 q = p / size;
+    vec2 i = floor(q - 0.5);
+    vec2 f = q - i;
+    float d1 = 9.0;
+    float d2 = 9.0;
+    vec2 r1 = vec2(0.0);
+    vec3 h1 = vec3(0.0);
+    for (int y = 0; y <= 1; y++) {
+      for (int x = 0; x <= 1; x++) {
+        vec2 g = vec2(float(x), float(y));
+        vec3 h = pebbleHash(i + g + 71.0);
+        vec2 r = g + 0.22 + 0.56 * h.xy - f;
+        float d = dot(r, r);
+        if (d < d1) {
+          d2 = d1;
+          d1 = d;
+          r1 = r;
+          h1 = h;
+        } else if (d < d2) {
+          d2 = d;
+        }
+      }
+    }
+    float aa = 0.8 * px / size;
+    // Each small stone rounded too, darker toward its edge, the grit between them only a little
+    // darker: not the dark lines of paving.
+    float edge = sqrt(d2) - sqrt(d1);
+    float crack = 1.0 - smoothstep(0.03, 0.09 + 2.0 * aa, edge);
+    float lit = smoothstep(-0.45, 0.45, dot(-r1, vec2(-0.6, -0.8)) * 2.0);
+    vec3 small = vec3(mix(0.8, 0.98, lit) * mix(0.8, 1.0, smoothstep(0.02, 0.3, edge)) * mix(0.86, 1.04, h1.z));
+    small *= mix(vec3(0.97, 0.99, 1.03), vec3(1.04, 1.0, 0.94), fract(h1.z * 5.3));
+    small = mix(small, vec3(0.7, 0.69, 0.67), 0.8 * crack);
+    tone = mix(tone, small, fadeSmall);
+  }
+  float cover;
+  float shadow;
+  if (fadeMid > 0.0) {
+    vec3 mid = cobbles(p, 0.24, 0.86, 41.0, px, cover, shadow);
+    tone *= 1.0 - 0.28 * shadow * (1.0 - cover) * fadeMid;
+    tone = mix(tone, mid, cover * fadeMid);
+  }
+  vec3 big = cobbles(p + 13.0, 0.6, 0.34, 83.0, px, cover, shadow);
+  tone *= 1.0 - 0.32 * shadow * (1.0 - cover) * fadeBig;
+  tone = mix(tone, big * 1.03, cover * fadeBig);
+  // Moss in the cracks between them, in patches (a value noise of the cheap hash).
+  vec2 mi = floor(p * 0.45 + 7.0);
+  vec2 mf = p * 0.45 + 7.0 - mi;
+  mf = mf * mf * (3.0 - 2.0 * mf);
+  float mossy = mix(mix(pebbleHash(mi).x, pebbleHash(mi + vec2(1.0, 0.0)).x, mf.x),
+                    mix(pebbleHash(mi + vec2(0.0, 1.0)).x, pebbleHash(mi + vec2(1.0, 1.0)).x, mf.x), mf.y);
+  float moss = smoothstep(0.6, 0.85, mossy) * (1.0 - cover) * smoothstep(0.92, 0.7, tone.r);
+  tone = mix(tone, vec3(0.66, 0.8, 0.52), 0.55 * moss);
+  // Wet down by the water: darker, a little cooler.
+  tone *= mix(vec3(1.0), vec3(0.74, 0.77, 0.8), wet);
+  return mix(vec3(1.0), tone, fadeBig);
 }
 #ifdef SCREE
 uniform sampler2D uScree;
@@ -536,8 +619,10 @@ uniform sampler2D uScree;
 // rounded, lit along their sunward side, shaded and darker along the other, each with a soft shadow on
 // the ground beside it. Returns the stone's colour (rgb) and how much of p it covers (a), and in
 // 'shadow' how much its shadow darkens the ground there; faded out before they are small enough to
-// shimmer ('px' is how many metres a pixel spans there).
-vec4 screeStones(vec2 p, float density, float px, out float shadow) {
+// shimmer ('px' is how many metres a pixel spans there). On a slope ('fall', the way down it seen
+// from above; 'level', its normal's height, 1 on the flat) each is measured along the ground, so it
+// lies round on it rather than drawn out down the slope as a pattern painted from above would be.
+vec4 screeStones(vec2 p, float density, float px, vec2 fall, float level, out float shadow) {
   const float size = 0.5;
   shadow = 0.0;
   float fade = 1.0 - smoothstep(0.05, 0.12, px);
@@ -546,6 +631,7 @@ vec4 screeStones(vec2 p, float density, float px, out float shadow) {
   vec2 i = floor(q);
   vec2 f = q - i;
   float aa = 0.8 * px / size;
+  float along = 1.0 / max(level, 0.4) - 1.0;
   vec4 stone = vec4(0.0);
   for (int y = -1; y <= 1; y++) {
     for (int x = -1; x <= 1; x++) {
@@ -555,6 +641,7 @@ vec4 screeStones(vec2 p, float density, float px, out float shadow) {
       vec3 k = groundHash(i + g + 271.0);
       float r = (0.12 + 0.2 * k.x) * (0.7 + 0.5 * density);
       vec2 d = f - (g + 0.25 + 0.5 * h.xy);
+      d += fall * dot(d, fall) * along;
       float turn = 6.2831853 * k.y;
       vec2 e = mat2(cos(turn), -sin(turn), sin(turn), cos(turn)) * d;
       e.y *= 1.2 + 0.5 * k.z;
@@ -590,6 +677,13 @@ const GROUND_PAINT = /* glsl */ `
   float px = length(fwidth(p));
   vec2 uvdx = dFdx(vMapUv);
   vec2 uvdy = dFdy(vMapUv);
+  // How level the ground is (its normal's height, 1 on the flat) and which way it falls: stones and
+  // pebbles lie only on what is level enough to hold them, fewer and smaller as it steepens, none on
+  // the steep feet of the cliffs, where painted from above they had been drawn out into long eggs.
+  vec3 upward = inverseTransformDirection(vNormal, viewMatrix);
+  float level = upward.y;
+  vec2 fall = upward.xz / max(length(upward.xz), 1e-4);
+  float hold = smoothstep(0.45, 0.75, level);
   float grass = kind.r;
   float bare = kind.g + kind.b;
   if (grass + bare > 0.05) {
@@ -629,17 +723,21 @@ const GROUND_PAINT = /* glsl */ `
       vec3 c = diffuseColor.rgb;
       float hi = max(c.r, max(c.g, c.b));
       float grey = 1.0 - smoothstep(0.38, 0.5, (hi - min(c.r, min(c.g, c.b))) / max(hi, 1e-3));
-      if (grey > 0.01) tone *= mix(vec3(1.0), pebbleTone(p, px), sand * grey);
+      if (grey * hold > 0.01) {
+        float wet = 1.0 - smoothstep(uSea + 0.1, uSea + 0.55, vGroundWorld.y);
+        tone *= mix(vec3(1.0), pebbleTone(p, px, wet), sand * grey * hold);
+      }
     }
     diffuseColor.rgb *= tone;
   }
   #ifdef SCREE
-  // Stones fallen from the rocks (see screeStones), over whatever ground they lie on.
-  if (scree > 0.02) {
+  // Stones fallen from the rocks (see screeStones), over whatever ground they lie on; a little darker
+  // on the steeper ground, damp under the cliffs.
+  if (scree * hold > 0.02) {
     float shadow;
-    vec4 stone = screeStones(p, scree, px, shadow);
+    vec4 stone = screeStones(p, scree * hold, px, fall, level, shadow);
     diffuseColor.rgb *= 1.0 - 0.45 * shadow;
-    diffuseColor.rgb = mix(diffuseColor.rgb, stone.rgb, stone.a);
+    diffuseColor.rgb = mix(diffuseColor.rgb, stone.rgb * mix(0.8, 1.0, smoothstep(0.6, 0.92, level)), stone.a);
   }
   #endif
 }

@@ -22,11 +22,25 @@ shows the painting, and the rest keep their typed words.
 | The arch's board, `arch.welcome` 島へようこそ!! | 6256 × 880 |
 | The arch's banner, `arch.banner` ウェルカム・トゥ・シマ | 4712 × 760 |
 | The street's banners, `banner.welcome` いらっしゃいませ!! and `banner.enjoy` たのしんでね | 4856 × 600 |
-| The cave's No Entry sign, `sign.noEntry` 立入禁止, written down its plank | 342 × 499 |
+| The cave's No Entry sign, `sign.noEntry` 立入禁止, written down its plank | 1027 × 1498 |
+| 島二郎's sign hung over the path to it, `sign.shimajiro` 島二郎 | 960 × 320 |
+| 島二郎's board over its front, `sign.shimajiroShop` 島二郎 | 2144 × 904 |
+| 島二郎's tall standing sign, `sign.kaijiru` 貝汁, written down it | 848 × 2720 |
+| 島二郎's three menu plaques inside, `menu.kaijiru` 貝汁, `menu.yashiCurry` カツカレー and `menu.title` メニュー, each written down it | 272 × 768 |
 
-The cave's sign is painted as `cave warning signboard.png` (1000 × 1451, the
-same shape): a painting named in your own words works once its name is
-listed in `NAMED` in `art/blender/build_signs.py`.
+A small sign the game shows close up, such as the cave's or the menu's
+plaques, gets a bigger canvas for its size, so the same brush reads the same
+on every sign. Any canvas with the template's proportions works: a menu
+plaque painted at 136 × 384 fills its plaque just as well.
+
+The cave's sign was first painted as `cave warning signboard.png`: a painting
+named in your own words works once its name is listed in `NAMED` in
+`art/blender/build_signs.py`.
+
+島二郎's board and standing sign are cream paint, worn and stained with rust,
+and its plaques are paper. Leave the background transparent so that wear
+shows round your letters, as in the film, where the letters are dark brown
+brush strokes over the stains.
 
 A stall's canvas is its board's whole front, so a stall sign fills its board
 edge to edge with no board showing round it. A stall sign painted at the old

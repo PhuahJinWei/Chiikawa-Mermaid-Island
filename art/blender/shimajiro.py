@@ -4,7 +4,8 @@ images `shimajiro exterior 1`, `2`, `shimajiro interior 1` to `3`) and the user'
 
 Outside, a tall box of a shop clad in weathered planks, grey brown, between dark square posts that
 part its front into three bays: on the left a bench of potted plants against the planks, in the
-middle the plank door with a small square window and a thick board over it, on the right two
+middle the plank door with a small square window and a thick board over it, standing swung out
+(it opens outward, as the film's), on the right two
 riveted iron plates over boards running up and down. Over the front a wide sign board stands up off
 the cornice, painted a pale cream and peeling, 島二郎 on it, a lamp on a curved arm over it; behind
 it a roof of dark boards. Down the left side a lean-to of corrugated tin over stacked beer crates,
@@ -12,10 +13,10 @@ bottles and a bucket of sticks, a window under it. Beside the shop the tall stan
 paint stained with rust, lit by a lamp on a pole wound with vines.
 
 Inside, the film's room: warm planks laid across the walls over boards running up and down below a
-dark rail, wide planks underfoot and a boarded ceiling on beams; by the door the kitchen, a pale
-blue stove with big steel pots on it, ladles on a rail and pans on a shelf over it, jars on the
-floor beside it; across the room a table under the window, a chair with a navy cushion and a stool,
-the menu's three plaques on the wall, strings of shells hanging in the corner, a lamp hanging in
+dark rail, wide planks underfoot and a boarded ceiling on beams; by the door the kitchen, against
+the side wall on its right as one looks out, a pale blue stove with big steel pots on it, ladles on
+a rail and pans on a shelf over it, jars on the floor between it and the door; across the room a
+table under the window, a chair with a navy cushion and a stool, the menu's three plaques on the wall, strings of shells hanging in the corner, a lamp hanging in
 the room's middle, lit at night.
 
 Every plank, post and board is painted in its own patch of the house's texture (paintmap.py), the
@@ -26,7 +27,6 @@ on its origin, the middle of its floor.
 import math
 
 import bmesh
-import numpy as np
 from mathutils import Matrix, Vector
 
 import build_props as P
@@ -66,8 +66,8 @@ C = {k: L.hex_color(v) for k, v in {
     "brass": "#C9A43C", "greenPan": "#9DA34E", "shelf": "#B98352", "jar": "#6E4A2E", "jarDrip": "#E8DFC9",
     "celadon": "#CFE2D9", "bowl": "#F2EEE6", "bowlRim": "#6F8FB8",
     # The table, the chair and the stool, the chair's navy cushion, a glass of water; the menu's
-    # plaques; the shells, starfish and beads on their strings; a navy floor cushion with white fish.
-    "table": "#D7A464", "chair": "#D29C5C", "cushion": "#2E3F66", "fish": "#E9EEF2", "glassCup": "#CFE7EF",
+    # plaques; the shells, starfish and beads on their strings.
+    "table": "#D7A464", "chair": "#D29C5C", "cushion": "#2E3F66", "glassCup": "#CFE7EF",
     "water": "#BFDDEA", "paper": "#EFE6CF", "shell": "#CFE6EE", "shellWhite": "#F4F1E6", "starfish": "#EADFC0",
     "bead": "#7EC8D6", "string": "#8A7A66", "branch": "#7B6248",
 }.items()}
@@ -88,6 +88,7 @@ POST = 0.24             # the front's square posts
 # each between two posts (widths after the film's frame of it).
 BAYS = (1.26, 1.31, 1.07)
 DOOR_W, DOOR_H = 1.15, 2.15
+DOOR_OPEN = 105.0       # how far the door stands swung out, in degrees from shut
 RAIL = 0.95             # the inside's rail, over the floor
 SIGN = {"w": 3.0, "h": 1.45, "frame": 0.1}  # the board over the front
 # The standing sign beside the shop, as tall as the film's: its top up by the board over the front.
@@ -333,10 +334,11 @@ def build_walls(pieces, inside, panes, seed=7):
 
 # ---------------------------------------------------------------------------- the door
 def build_door(door, pieces, inside, panes, seed=400):
-    """The door's frame, outside and in, and the plank door standing open into the room, hung on the
-    frame's right as one faces the shop: five planks, two battens across their back, a small square
-    window lit at night in its middle plank, a long iron handle; the thick board over the doorway, on
-    two brackets; the step up to it."""
+    """The door's frame, outside and in, and the plank door standing open out of it, as the film's
+    opens outward (`shimajiro interior 2`), hung on the frame's right as one faces the shop on two
+    strap hinges: five planks, two battens across their inside, a small square window lit at night in
+    its middle plank, a long iron handle; the thick board over the doorway, on two brackets; the step
+    up to it."""
     d0, d1 = door
     for k, (target, y, n) in enumerate(((pieces, -YO - 0.02, -Y), (inside, -YO + T + 0.02, Y))):
         frame = C["doorFrame"] if target is pieces else C["inFrame"]
@@ -351,13 +353,19 @@ def build_door(door, pieces, inside, panes, seed=400):
               seed=seed + 10 + j, along=2, **TIMBER)
     piece(pieces, V((d0 + d1) / 2, -YO + T / 2, FLOOR - 0.015), X, Y, (DOOR_W - 0.05, T + 0.06, 0.04), C["step"], "wood",
           seed=seed + 12, along=0, **dict(TIMBER, weather=0.3))
-    # The leaf, open a little past a right angle into the room on its hinge.
-    hinge = V(d1 - 0.03, -YO + T + 0.03, 0.0)
-    angle = math.radians(-98.0)
-    along = V(math.cos(math.pi + angle), math.sin(math.pi + angle), 0.0)  # from the hinge toward the free edge
+    # The leaf, swung out a little past a right angle on its hinge just outside the frame, standing
+    # clear of the doorway so the way in is open.
+    hinge = V(d1 - 0.03, -YO - 0.04, 0.0)
+    angle = math.radians(DOOR_OPEN)
+    along = V(-math.cos(angle), -math.sin(angle), 0.0)  # from the hinge toward the free edge
     out = V(-along.y, along.x, 0.0)  # the leaf's outer face, toward -Y when shut
     leaf_w, leaf_h, leaf_t = DOOR_W - 0.06, DOOR_H - 0.04, 0.045
     foot = FLOOR + 0.01
+    # Its two strap hinges, black iron across the outer face from their knuckles on the hinge's pin.
+    for z in (0.32, leaf_h - 0.32):
+        c = hinge + UP * (foot + z)
+        solid(pieces, H.oriented_box(c + along * 0.25 + out * (leaf_t / 2 + 0.005), along, out, (0.38, 0.007, 0.05)), C["iron"])
+        solid(pieces, P.segment_bm(c - UP * 0.07 - along * 0.012, c + UP * 0.07 - along * 0.012, 0.02, 0.02, 8), C["iron"])
     centre = hinge + along * (leaf_w / 2) + UP * (foot + leaf_h / 2)
     planks = 5
     pw = leaf_w / planks
@@ -763,72 +771,77 @@ def build_floor_and_ceiling(inside, pieces):
 
 
 def build_kitchen(inside, blocks):
-    """The kitchen in the corner by the door: the pale blue stove against the front wall, its steel
-    top with three burners, three knobs and its oven's door; two tall steel stockpots and a brass pot on
-    it; a rail of ladles and a shelf of pans over it; two jars on the floor beside it."""
-    x0, x1 = -XO + T + 0.14, -0.98
-    y0, y1 = -YO + T + 0.02, -YO + T + 0.64
+    """The kitchen by the door, as the film's (`shimajiro interior 2`): against the side wall on the
+    door's right as one looks out, the pale blue stove, its steel top with three burners, three knobs
+    and its oven's door to the room; two tall steel stockpots and a brass pot on it; a rail of ladles
+    and a shelf of pans over it on the wall; two jars on the floor between it and the door."""
+    # Out from the wall (x0, its back, clear of the rail and the skirting, to x1, its front) and along
+    # it from the front corner's post (y0) back (y1).
+    x0, x1 = -XO + T + 0.035, -XO + T + 0.655
+    y0, y1 = -YO + T + 0.14, -YO + T + 1.16
     h = 0.86
     cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
-    piece(inside, V(cx, cy, FLOOR + h / 2 - 0.02), X, Y, (x1 - x0, y1 - y0, h - 0.04), C["range"], "enamel", seed=1500,
-          front=Y, along=0, faces=["+n", "+a", "-a"], floor=FLOOR)
-    piece(inside, V(cx, cy, FLOOR + h - 0.01), X, Y, (x1 - x0 + 0.02, y1 - y0 + 0.02, 0.03), C["rangeTop"], "metal",
+    along, out = -Y, X  # its boxes' length along the wall, and their depth out into the room
+    piece(inside, V(cx, cy, FLOOR + h / 2 - 0.02), along, out, (y1 - y0, x1 - x0, h - 0.04), C["range"], "enamel",
+          seed=1500, front=out, along=0, faces=["+n", "+a", "-a"], floor=FLOOR)
+    piece(inside, V(cx, cy, FLOOR + h - 0.01), along, out, (y1 - y0 + 0.02, x1 - x0 + 0.02, 0.03), C["rangeTop"], "metal",
           seed=1501, front=UP, along=0, rust=0.05)
     for k in range(3):
-        bx = x0 + (x1 - x0) * (k + 0.5) / 3
-        solid(inside, P.segment_bm(V(bx, cy - 0.04, FLOOR + h + 0.004), V(bx, cy - 0.04, FLOOR + h + 0.016), 0.11, 0.11, 14),
+        by = y0 + (y1 - y0) * (k + 0.5) / 3
+        solid(inside, P.segment_bm(V(cx - 0.04, by, FLOOR + h + 0.004), V(cx - 0.04, by, FLOOR + h + 0.016), 0.11, 0.11, 14),
               C["knob"])
-        solid(inside, P.segment_bm(V(bx, y1 + 0.005, FLOOR + h - 0.12), V(bx, y1 + 0.04, FLOOR + h - 0.12), 0.03, 0.028, 10),
+        solid(inside, P.segment_bm(V(x1 + 0.005, by, FLOOR + h - 0.12), V(x1 + 0.04, by, FLOOR + h - 0.12), 0.03, 0.028, 10),
               C["knob"])
     # The oven's door: a panel's edge drawn round it, a steel bar of a handle.
-    for c, size in ((V(cx, y1 + 0.004, FLOOR + 0.57), (x1 - x0 - 0.14, 0.006, H.PEN)), (V(cx, y1 + 0.004, FLOOR + 0.1), (x1 - x0 - 0.14, 0.006, H.PEN)),
-                    (V(x0 + 0.07, y1 + 0.004, FLOOR + 0.335), (H.PEN, 0.006, 0.47)), (V(x1 - 0.07, y1 + 0.004, FLOOR + 0.335), (H.PEN, 0.006, 0.47)),
-                    (V(cx, y1 + 0.004, FLOOR + 0.665), (x1 - x0 - 0.04, 0.006, H.PEN))):
+    for c, size in ((V(x1 + 0.004, cy, FLOOR + 0.57), (0.006, y1 - y0 - 0.14, H.PEN)), (V(x1 + 0.004, cy, FLOOR + 0.1), (0.006, y1 - y0 - 0.14, H.PEN)),
+                    (V(x1 + 0.004, y0 + 0.07, FLOOR + 0.335), (0.006, H.PEN, 0.47)), (V(x1 + 0.004, y1 - 0.07, FLOOR + 0.335), (0.006, H.PEN, 0.47)),
+                    (V(x1 + 0.004, cy, FLOOR + 0.665), (0.006, y1 - y0 - 0.04, H.PEN))):
         solid(inside, P.box_bm(c, size), C["steelDark"])
-    solid(inside, P.segment_bm(V(x0 + 0.15, y1 + 0.05, FLOOR + 0.52), V(x1 - 0.15, y1 + 0.05, FLOOR + 0.52), 0.014, 0.014, 8), C["steel"])
+    solid(inside, P.segment_bm(V(x1 + 0.05, y0 + 0.15, FLOOR + 0.52), V(x1 + 0.05, y1 - 0.15, FLOOR + 0.52), 0.014, 0.014, 8), C["steel"])
     for k in (0, 1):
-        bx = x0 + (x1 - x0) * (0.18 + 0.64 * k)
-        for c, size in ((V(bx, y1 + 0.03, FLOOR + 0.52), (0.02, 0.05, 0.02)),):
-            solid(inside, P.box_bm(c, size), C["steel"])
-    blocks.append(H.block_box(x0, x1, y0, y1, FLOOR - 0.1, FLOOR + h + 0.4, camera=False))
-    # The pots on it.
-    for k, (px, r, hh, colour) in enumerate(((x0 + 0.24, 0.17, 0.34, C["steel"]), (x0 + 0.62, 0.16, 0.3, C["steel"]),
-                                             (x1 - 0.2, 0.15, 0.17, C["brass"]))):
-        base = V(px, cy - 0.02, FLOOR + h + 0.016)
+        by = y0 + (y1 - y0) * (0.18 + 0.64 * k)
+        solid(inside, P.box_bm(V(x1 + 0.03, by, FLOOR + 0.52), (0.05, 0.02, 0.02)), C["steel"])
+    blocks.append(H.block_box(x0 - 0.04, x1, y0, y1, FLOOR - 0.1, FLOOR + h + 0.4, camera=False))
+    # The pots on it, the brass one nearest the room's middle as in the film.
+    for k, (py, r, hh, colour) in enumerate(((y0 + 0.24, 0.17, 0.34, C["steel"]), (y0 + 0.62, 0.16, 0.3, C["steel"]),
+                                             (y1 - 0.2, 0.15, 0.17, C["brass"]))):
+        base = V(cx - 0.02, py, FLOOR + h + 0.016)
         solid(inside, P.segment_bm(base, base + UP * hh, r, r, 18), colour)
         solid(inside, P.segment_bm(base + UP * hh, base + UP * (hh + 0.012), r + 0.01, r + 0.01, 18),
               C["steelDark"] if colour is C["steel"] else colour)
         solid(inside, P.segment_bm(base + UP * (hh + 0.012), base + UP * (hh + 0.03), r * 0.9, r * 0.25, 18),
               C["steelDark"] if colour is C["steel"] else colour)
         for side in (1, -1):
-            hp = base + UP * (hh * 0.82) + X * side * (r + 0.02)
-            solid(inside, H.oriented_box(hp, X, Y, (0.05, 0.1, 0.02)), C["steelDark"])
-    # The rail of ladles on the wall over it, and the shelf of pans over that.
-    wy = -YO + T + 0.035
-    solid(inside, P.segment_bm(V(x0 + 0.15, wy, FLOOR + 1.62), V(x1 - 0.1, wy, FLOOR + 1.62), 0.012, 0.012, 8), C["steel"])
+            hp = base + UP * (hh * 0.82) + Y * side * (r + 0.02)
+            solid(inside, H.oriented_box(hp, Y, -X, (0.05, 0.1, 0.02)), C["steelDark"])
+    # The rail of ladles on the wall over it, and the shelf of pans over that on two braces.
+    wx = -XO + T + 0.035
+    solid(inside, P.segment_bm(V(wx, y0 + 0.15, FLOOR + 1.62), V(wx, y1 - 0.1, FLOOR + 1.62), 0.012, 0.012, 8), C["steel"])
     for k in range(4):
-        lx = x0 + 0.3 + k * 0.22
-        solid(inside, P.segment_bm(V(lx, wy + 0.01, FLOOR + 1.62), V(lx, wy + 0.02, FLOOR + 1.22), 0.009, 0.009, 6), C["steel"])
-        solid(inside, L.ellipsoid_bm(V(lx, wy + 0.04, FLOOR + 1.18), (0.045, 0.045, 0.03), u=10, v=5), C["steel"])
-    sy = -YO + T + 0.18
-    piece(inside, V((x0 + x1) / 2 + 0.05, sy, FLOOR + 2.0), X, Y, (x1 - x0 + 0.1, 0.32, 0.04), C["shelf"], "wood", seed=1520,
+        ly = y0 + 0.3 + k * 0.22
+        solid(inside, P.segment_bm(V(wx + 0.01, ly, FLOOR + 1.62), V(wx + 0.02, ly, FLOOR + 1.22), 0.009, 0.009, 6), C["steel"])
+        solid(inside, L.ellipsoid_bm(V(wx + 0.04, ly, FLOOR + 1.18), (0.045, 0.045, 0.03), u=10, v=5), C["steel"])
+    sx = -XO + T + 0.185  # its back a few millimetres off the wall's planks
+    s0, s1 = y0, y1 + 0.1
+    piece(inside, V(sx, (s0 + s1) / 2, FLOOR + 2.0), along, out, (s1 - s0, 0.32, 0.04), C["shelf"], "wood", seed=1520,
           front=UP, along=0, **FURNITURE)
     for k in (0, 1):
-        bx = x0 + 0.15 + k * (x1 - x0 - 0.2)
-        solid(inside, H.oriented_box(V(bx, sy - 0.06, FLOOR + 1.9), V(0, 1, -1), X, (0.26, 0.03, 0.04)), C["shelf"])
-    for k, (px, r, hh, colour) in enumerate(((x0 + 0.2, 0.11, 0.1, C["steel"]), (x0 + 0.48, 0.1, 0.12, C["steel"]),
-                                             (x0 + 0.76, 0.12, 0.09, C["greenPan"]))):
-        base = V(px, sy, FLOOR + 2.02)
+        by = s0 + 0.15 + k * (s1 - s0 - 0.3)
+        solid(inside, H.oriented_box(V(sx - 0.06, by, FLOOR + 1.88), V(1, 0, 1), Y, (0.26, 0.03, 0.04)), C["shelf"])
+    for k, (py, r, hh, colour) in enumerate(((s0 + 0.2, 0.11, 0.1, C["steel"]), (s0 + 0.48, 0.1, 0.12, C["steel"]),
+                                             (s0 + 0.76, 0.12, 0.09, C["greenPan"]))):
+        base = V(sx, py, FLOOR + 2.02)
         solid(inside, P.segment_bm(base, base + UP * hh, r, r, 14), colour)
         # Its handle out over the shelf's front edge, into the room.
-        solid(inside, P.segment_bm(base + UP * (hh * 0.7) + Y * r, base + UP * (hh * 0.8) + Y * (r + 0.18), 0.012, 0.012, 6),
+        solid(inside, P.segment_bm(base + UP * (hh * 0.7) + X * r, base + UP * (hh * 0.8) + X * (r + 0.18), 0.012, 0.012, 6),
               C["iron"])
     for k in range(4):
-        solid(inside, H.turned([(0.0, 0.0), (0.05, 0.0), (0.1, 0.05), (0.11, 0.07), (0.0, 0.02)], V(x1 - 0.12, sy, FLOOR + 2.02 + 0.05 * k)),
+        solid(inside, H.turned([(0.0, 0.0), (0.05, 0.0), (0.1, 0.05), (0.11, 0.07), (0.0, 0.02)], V(sx, s1 - 0.12, FLOOR + 2.02 + 0.05 * k)),
               C["bowl"])
-    # The jars by the door: a brown one glazed cream round its shoulder, a pale celadon one.
-    for k, (jx, jy, r, hh, colour) in enumerate(((x1 + 0.17, -YO + T + 0.22, 0.15, 0.4, C["jar"]),
-                                                 (x1 + 0.12, -YO + T + 0.56, 0.12, 0.3, C["celadon"]))):
+    # The jars on the floor against the front wall, between the stove and the door: a brown one glazed
+    # cream round its shoulder, and a pale celadon one before it.
+    for k, (jx, jy, r, hh, colour) in enumerate(((x1 + 0.37, -YO + T + 0.21, 0.15, 0.4, C["jar"]),
+                                                 (x1 + 0.67, -YO + T + 0.36, 0.12, 0.3, C["celadon"]))):
         base = V(jx, jy, FLOOR)
         prof = [(0.0, 0.0), (r * 0.6, 0.0), (r, hh * 0.35), (r * 0.95, hh * 0.7), (r * 0.55, hh * 0.92), (r * 0.5, hh), (0.0, hh)]
         solid(inside, H.turned(prof, base, segments=16), colour)
@@ -844,7 +857,7 @@ def build_dining(inside, glow, blocks, collection, labels):
     """The table under the back window, the chair with its navy cushion and the stool at its ends, a
     glass of water and a bowl on it; the menu's three plaques beside the window; strings of shells,
     starfish and beads hanging in the corner; a branch hung on strings over the stool; the lamp
-    hanging before the table; a floor cushion with white fish on it."""
+    hanging before the table."""
     ty = YO - T - 0.45
     tz = FLOOR + 0.72
     tw, td = 1.15, 0.7
@@ -937,30 +950,7 @@ def build_dining(inside, glow, blocks, collection, labels):
         f.normal_flip()
     solid(inside, inner, C["shadeIn"])
     glow.append((L.ellipsoid_bm(V(0.0, ly, lz - 0.04), (0.055, 0.055, 0.065), u=10, v=6), C["bulb"]))
-    # The floor cushion by the right wall, white fish on its navy.
-    zb, patch = PM.box(V(XO - T - 0.5, 0.3, FLOOR + 0.04), X, Y, (0.62, 0.62, 0.08), "cloth", C["cushion"], 1750, front=UP,
-                       pattern=fish_pattern)
-    inside.append((zb, C["cushion"], None, patch))
     return menu
-
-
-def fish_pattern(d, col):
-    """White fish swimming across a cloth: a round body and a forked tail, a dot of an eye."""
-    s, t = d["along"], d["across"]
-    front = d["face"] == 0
-    out = col.copy()
-    for k, (fs, ft, a, size) in enumerate(((-0.12, 0.1, 0.4, 0.11), (0.12, -0.08, -0.3, 0.09), (0.05, 0.18, 2.6, 0.07),
-                                           (-0.16, -0.17, 3.4, 0.08))):
-        ca, sa = math.cos(a), math.sin(a)
-        u = (s - fs) * ca + (t - ft) * sa
-        v = -(s - fs) * sa + (t - ft) * ca
-        body = (u / size) ** 2 + (v / (size * 0.5)) ** 2 < 1.0
-        tail = (u < -size * 0.8) & (u > -size * 1.4) & (np.abs(v) < (-u - size * 0.8) * 0.9 + 0.01)
-        eye = ((u - size * 0.55) ** 2 + (v - size * 0.12) ** 2) < (size * 0.09) ** 2
-        m = (body | tail) & front
-        out[m] = PM.hexc("#E9EEF2")
-        out[eye & front] = PM.hexc("#2E3F66")
-    return out
 
 
 def star(at, size, pieces):
@@ -1027,8 +1017,7 @@ def build_restaurant(collection):
         H.block_box(-SIGN["w"] / 2, SIGN["w"] / 2, -YO - 0.18, -YO - 0.06, EAVE, EAVE + SIGN["h"] + 0.1, walk=False),
         H.block_box(KAIJIRU["x"] - KAIJIRU["w"] / 2, KAIJIRU["x"] + KAIJIRU["w"] / 2, KAIJIRU["y"] - 0.03, KAIJIRU["y"] + 0.09,
                     KAIJIRU["legs"] - 0.05, KAIJIRU["legs"] + KAIJIRU["h"], walk=False),
-        door_leaf_block(hinge, along, leaf_w),
-    ]
+    ] + door_leaf_blocks(hinge, along, leaf_w)
     for fx, fy, _ in kaijiru_feet:
         blocks.append({"circle": [*g(fx, fy), 0.09], "y": [-1, KAIJIRU["legs"] + KAIJIRU["h"]], "walk": True, "camera": False})
     decks = [H.deck_box(-XO + t, XO - t, -YO + t, YO - t, FLOOR), H.deck_box(d0, d1, -YO - 0.02, -YO + t, FLOOR),
@@ -1045,10 +1034,8 @@ def build_restaurant(collection):
     return [body, lights, bulb, glass, room, distant] + labels, info
 
 
-def door_leaf_block(hinge, along, leaf_w):
-    c = hinge + along * (leaf_w / 2)
-    side = V(-along.y, along.x, 0.0)
-    corners = [c + along * (sa * leaf_w / 2) + side * (sb * 0.04) for sa in (-1, 1) for sb in (-1, 1)]
-    x0, x1 = min(p.x for p in corners), max(p.x for p in corners)
-    y0, y1 = min(p.y for p in corners), max(p.y for p in corners)
-    return H.block_box(x0, x1, y0, y1, FLOOR - 0.1, FLOOR + DOOR_H, camera=False)
+def door_leaf_blocks(hinge, along, leaf_w):
+    """What keeps walkers out of the door standing open before the shop: a row of posts along it, as
+    houses.villager_door's."""
+    return [{"circle": [*g(*(hinge + along * u).xy), 0.07], "y": [-0.5, FLOOR + DOOR_H], "walk": True, "camera": False}
+            for u in (0.08 + 0.15 * k for k in range(int((leaf_w - 0.08) / 0.15) + 1))]

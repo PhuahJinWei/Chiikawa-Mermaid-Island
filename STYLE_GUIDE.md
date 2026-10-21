@@ -101,8 +101,11 @@ never pushed, because it is other people's artwork.
   lie pale in the moonlight; the trees and every leaf lie darker than the
   sand and rock round them, a dark green navy (navy in their shade, cobalt
   at most on their lit edges, seen from above as from within the jungle),
-  a hint of teal or violet in them; rock, leaves and pebbles in the shade
-  still show their shapes. What is colourful keeps its own colour, only darker and
+  a hint of teal or violet in them. The moon's shadows are soft, as the
+  film paints them: what the moon does not reach, under the trees, down
+  the gorge and along the paths under its walls, is a clear royal blue
+  whose rock, leaves and pebbles are easy to make out, never sunk in navy;
+  only the deepest gaps go navy. What is colourful keeps its own colour, only darker and
   bluer, and the cast glow a pale blue white. The moon glows in a wide halo
   in a sky thick with pale cyan stars and rims the very edges of leaves,
   trunks and rocks in cool cyan; torches burn in big licking cartoon
@@ -395,9 +398,10 @@ green-turquoise water you can see sparkles in. Confetti welcome on arrival.
 - The ground runs right up to the rocks and cliffs: grass and ferns to
   their foot, sand to the rock on the beach, darker and damp close in,
   pale stones fallen from them lying about, more close in and in clusters
-  (`parkour stone landmark 3`, `cave entrance 3`). Never a ring of pale
-  grey or a band of pebbles round them; the gorge's riverside bank of
-  pebbles is its own.
+  (`parkour stone landmark 3`, `cave entrance 3`), only where the ground is
+  level enough to hold them, each round where it lies. Never a ring of pale
+  grey or a band of pebbles round them, never a stone drawn out up a steep
+  slope; the gorge's riverside bank of pebbles is its own.
 - Blue butterflies; bubbles float in one clearing.
 - Golden backlight through the canopy in the late afternoon.
 
@@ -463,22 +467,34 @@ food and cups on the ground, everyone toasting. This is the festival.
   smaller ones at its foot, moss in patches on some. It stands clear of the
   stepping stones, the river running on to its foot so the water meets the
   rocks. Never a row of upright columns, never a cap of moss on every block.
+- Where the river meets the sea its deep blue-green fades into the beach's
+  pale shallows over its last stretch, never a line of surf across the
+  water between them.
 - Across it, tall thin pillars of the same pale rock, cracked and stained,
   each with a flat round top of bright grass, a short jump apart, from one
   clifftop to the other.
-- At the foot of a cliff, a narrow riverside path of rounded pebbles and
-  boulders, ferns and dark leafy plants at the rock, vines hanging down it,
-  leading along the water to a wooden restaurant.
+- At the foot of a cliff, a narrow riverside path of rounded pebbles of
+  every size, the small ones packed between the bigger, mossy in patches
+  and darker where the water wets them; boulders worn round and sunk in the
+  bank along the water's edge, a few more fallen at the cliff's foot, small
+  stones lying about them; the rock's foot pale and damp, ferns and dark
+  leafy plants thick along it, vines hanging down its face in strands
+  (`river below parkour stone landmark 1`). Never a row of eggs or pillars
+  along it, never one even size of pebble. It leads along the water to a
+  wooden restaurant, the way up to it walled in by jungle.
 - 島二郎, the restaurant (`shimajiro exterior 1`, `2`, `shimajiro interior 1`
   to `3`, the user's `shimajiro sketch front` and `sketch three quarter`): its
-  name on a weathered board hung by two ropes from a rough crossbar over the
-  jungle path to it, vines with heart-shaped leaves wound round its posts
-  and hanging from the bar. The shop is a tall box of a building clad in
+  name on a weathered board hung by two cords from a low branch of a big
+  tree beside the jungle path to it, the branch reaching out over the path,
+  vines with heart-shaped leaves draped along it, hanging from it either side
+  of the board and wound round the trunk (the film's frame of the way there,
+  the user's). The shop is a tall box of a building clad in
   weathered planks, grey brown, each a little lighter or darker, their grain,
   knots and nail heads painted, between dark square posts that part its front
   into three bays: a low bench with a terracotta pot of purple flowers and a
   gourd of a vase on the left; the plank door with a small square window and
-  a thick board over it in the middle; two riveted iron plates over boards
+  a thick board over it in the middle, opening outward, standing swung out
+  on its black strap hinges; two riveted iron plates over boards
   running up and down on the right. A deep cornice runs round its top; over
   the front a wide board stands up off it, painted a pale cream, worn and
   stained, 島二郎 on it in dark brown, a green enamel lamp on a curved arm
@@ -490,19 +506,26 @@ food and cups on the ground, everyone toasting. This is the festival.
   nearly as tall as the board's top, on two legs, its own lamp on a pole
   wound with vines. At night both boards glow warm under their lamps, the
   windows and the door's small window lit orange, the night's blue round
-  them.
+  them. The signs' words are the user's own hand-lettering.
+- It stands deep in the jungle, which closes in on its back and sides: big
+  heart-leaved elephant ears either side of the standing sign and its lamp
+  and by the lean-to, banana plants, monstera, ferns, red ti and flowering
+  bushes crowding up to its walls, palms and trees overhead. Before it the
+  yard of bare trodden earth, tufts of grass along its edges, the path to it
+  between low ferns.
 - Inside, the film's room: warm golden planks laid across the walls over
   boards running up and down below a dark rail, wide planks underfoot, a
-  boarded ceiling on beams; by the door the kitchen, a pale blue stove with
-  three knobs and its oven's door, big steel pots and a brass one on it,
-  ladles on a rail and pans on a shelf over it, a brown jar and a pale
-  celadon one on the floor; across the room a simple table under a
-  four-paned window, a chair with a navy cushion and a low stool, a glass of
-  water and a bowl on it; the menu's three plaques (貝汁, ヤシカレー, メニュー)
-  beside the window; strings of pale blue shells, starfish and beads hanging
-  in the corner; a branch hung on strings; a navy floor cushion with white
-  fish; a green enamel lamp hanging in the room's middle, lighting it warm
-  and even at night.
+  boarded ceiling on beams; by the door the kitchen, against the side wall
+  on the door's right as one looks out: a pale blue stove with three knobs
+  and its oven's door to the room, big steel pots and a brass one on it,
+  ladles on a rail and pans on a shelf over it on the wall, a brown jar and
+  a pale celadon one on the floor between it and the door; across the room a
+  simple table under a four-paned window, a chair with a navy cushion and a
+  low stool, a glass of water and a bowl on it; the menu's three plaques
+  (貝汁, カツカレー, メニュー) beside the window; strings of pale blue shells,
+  starfish and beads hanging in the corner; a branch hung on strings; a green
+  enamel lamp hanging in the room's middle, lighting it warm and even at
+  night. The floor is bare planks (the user, 2026-10-21).
 
 ### The forbidden cave's entrance (`cave entrance 1` to `4`, `cave signboard 1` to `3`)
 

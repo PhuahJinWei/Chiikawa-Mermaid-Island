@@ -8,7 +8,8 @@ sign's template in art/signs/_guides/. Both are named by the key of the sign's w
 src/locales/ja.json, the template with the words after it ("stall.takoyaki たこやき.png"); a
 painting may keep that name or drop the words.
 
-This script draws every sign's template, PAINT_PIXELS a metre of its face: the board's colour with
+This script draws every sign's template, PAINT_PIXELS a metre of its face (more for a small face
+the game paints sharper): the board's colour with
 the game's words faint on it and a dashed margin. It redraws a template only while it is still as
 it drew it, so a painting saved over one by mistake is kept. It copies each painting into the
 game at the game's own sharpness (public/signs/, lossless WebP, listed in signs.json), with black paint turned to
@@ -179,11 +180,12 @@ def words_cover(text, width, height, font, ss=2):
 
 
 def guide_png(sign, font):
-    """A sign's template, as a PNG file's bytes, and its size: its face, PAINT_PIXELS a metre, in
-    its board's colour, with the game's words faint on it and a dashed margin a little darker than
-    the board."""
-    width = max(1, round(sign["size"][0] * PAINT_PIXELS))
-    height = max(1, round(sign["size"][1] * PAINT_PIXELS))
+    """A sign's template, as a PNG file's bytes, and its size: its face, PAINT_PIXELS a metre (times
+    its `sharp`, as the game paints a small face seen close sharper, so the same brush reads the same
+    on every sign), in its board's colour, with the game's words faint on it and a dashed margin a
+    little darker than the board."""
+    width = max(1, round(sign["size"][0] * PAINT_PIXELS * sign["sharp"]))
+    height = max(1, round(sign["size"][1] * PAINT_PIXELS * sign["sharp"]))
     board = rgb(sign["board"])
     img = np.ones((height, width, 4), dtype=np.float32)
     img[..., :3] = board

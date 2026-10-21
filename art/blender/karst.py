@@ -27,6 +27,8 @@ from mathutils import Matrix, Vector
 import build_props as P
 import charlib as L
 
+P_segment = P.segment_bm  # for where `P` names a cliff's points
+
 
 def palette(hexes):
     return {k: np.array(L.hex_color(v)[:3]) for k, v in hexes.items()}
@@ -74,6 +76,8 @@ DEFAULTS = {
     "crown": True,        # jungle on top
     "moss": True,         # moss hanging down from the top
     "drape": 1.0,         # how far down the moss hangs: more for a rock the jungle covers
+    "groove_paint": 1.0,  # how dark its grooves are painted, and its streaks (less for a stone the
+    "streak_paint": 1.0,  # river has worn smooth)
     "wet": None,          # the level of the water its foot stands in, for a dark wet band
     "notch": None,        # (angle, half width, depth): a dip in the top's rim for a waterfall
     "cave": None,         # (angle, half width, height, depth): an arched cave mouth at `wet`
@@ -438,9 +442,9 @@ class Rock:
         h = self.h(y)
         band = (0.5 + 0.5 * np.sin(3.0 * theta + p[0] + 2.0 * h)) * (0.5 + 0.5 * np.sin(5.0 * theta + p[1]))
         col = mix(np.broadcast_to(C["stone"], theta.shape + (3,)), C["stoneMid"], smoothstep(0.3, 0.7, band))
-        col = mix(col, C["groove"], smoothstep(0.15, 0.7, groove))
+        col = mix(col, C["groove"], smoothstep(0.15, 0.7, groove) * s["groove_paint"])
         streak = (0.5 + 0.5 * np.sin(23.0 * theta + p[2])) * (0.5 + 0.5 * np.sin(37.0 * theta + p[3]))
-        col = mix(col, C["streak"], smoothstep(0.5, 0.8, streak) * (0.35 + 0.65 * h))
+        col = mix(col, C["streak"], smoothstep(0.5, 0.8, streak) * (0.35 + 0.65 * h) * s["streak_paint"])
         if s["strata"]:
             beds = 0.5 + 0.5 * np.sin(y * 0.85 + 0.8 * np.sin(2.0 * theta + p[7]))
             col = mix(col, C["stoneMid"], s["strata"] * smoothstep(0.5, 0.85, beds))
@@ -473,14 +477,20 @@ class Block:
 
 
 def fallen_block(rng, centre, radii, ground, stone="karst", facets=(6, 10), lumps=0.08, tilt=0.4, moss=0.35,
-                 wet=None, subdivisions=3):
+                 wet=None, subdivisions=3, cut=(0.62, 0.86), upright=0.6, worn=0, keel=None, patchy=1.0, foot=1.2,
+                 damp=(1.0, 0.25)):
     """A block of limestone fallen from a cliff, as it lies in a rockfall: a lumpy egg of `radii`
-    (along, across, up) cut flat by a few planes, as limestone splits into slabs, more of them
-    upright than level, then tipped over by up to `tilt` radians and turned; its middle at `centre`
-    (game x, y, z). Painted as the rocks are: pale stone in soft bands, streaked, darker underneath,
-    moss in patches on what faces up (about `moss` of it), earthy where it meets the ground
-    (`ground`: its height at game x, z) and dark where the water at `wet` laps it. Returns (bmesh,
-    colours) in Blender's coordinates, and its vertices in the game's as an (n, 3) array."""
+    (along, across, up) cut flat by a few planes (each `cut` of the way out to its side, a range), as
+    limestone splits into slabs, more of them upright than level (`upright`: how little they lean
+    from upright, 1 none), then tipped over by up to `tilt` radians and turned; its middle at
+    `centre` (game x, y, z). The cuts' edges smoothed off `worn` times, for one the river has worn
+    round; below `keel`'s first height (out of sight under water) carried on down to its second, for
+    a stone whose foot is in a river's bed. Painted as the rocks are: pale stone in soft bands,
+    streaked, darker underneath, moss in patches on what faces up (about `moss` of it, the patches
+    `patchy` times as close as on a rockfall's blocks), earthy up to `foot` metres over the ground
+    (`ground`: its height at game x, z) and dark where the water at `wet` laps it (from `damp` metres
+    over it, fully at the second). Returns (bmesh, colours) in Blender's coordinates, and its
+    vertices in the game's as an (n, 3) array."""
     ra, rb, rc = radii
     bm = bmesh.new()
     bmesh.ops.create_icosphere(bm, subdivisions=subdivisions, radius=1.0)
@@ -491,16 +501,44 @@ def fallen_block(rng, centre, radii, ground, stone="karst", facets=(6, 10), lump
     p = p * (1.0 + lumps * swell)[:, None] * np.array([ra, rb, rc])
     for _ in range(int(rng.integers(*facets))):
         n = rng.normal(size=3)
-        n[2] *= 0.6
+        n[2] *= upright
         n /= np.linalg.norm(n)
-        d = math.sqrt((ra * n[0]) ** 2 + (rb * n[1]) ** 2 + (rc * n[2]) ** 2) * rng.uniform(0.62, 0.86)
+        d = math.sqrt((ra * n[0]) ** 2 + (rb * n[1]) ** 2 + (rc * n[2]) ** 2) * rng.uniform(*cut)
         p = p - np.maximum(p @ n - d, 0.0)[:, None] * n[None, :]
+    if worn:
+        for v, co in zip(bm.verts, p):
+            v.co = (float(co[0]), float(co[1]), float(co[2]))
+        for _ in range(worn):
+            bmesh.ops.smooth_vert(bm, verts=bm.verts[:], factor=0.5, use_axis_x=True, use_axis_y=True, use_axis_z=True)
+        p = np.array([v.co[:] for v in bm.verts])
     axis = rng.uniform(0.0, 2.0 * math.pi)
     turn = (Matrix.Rotation(rng.uniform(0.0, 2.0 * math.pi), 3, "Z")
             @ Matrix.Rotation(rng.uniform(0.0, tilt), 3, Vector((math.cos(axis), math.sin(axis), 0.0))))
     p = p @ np.array(turn).T
     cx, cy, cz = centre
     game = np.stack([cx + p[:, 0], cy + p[:, 2], cz - p[:, 1]], axis=1)
+    if keel is not None:
+        hidden, bottom = keel
+        low = float(game[:, 1].min())
+        if bottom < low < hidden - 0.02:
+            # Under the water it goes on down to the bed as wide as it is just over the keel's top, its
+            # sides easing out to that over the first half of what lies under it, not narrowing to a
+            # point.
+            off = game[:, [0, 2]] - np.array([cx, cz])
+            dist = np.hypot(off[:, 0], off[:, 1])
+            sector = ((np.arctan2(off[:, 1], off[:, 0]) + math.pi) / (2.0 * math.pi) * 24).astype(int) % 24
+            ring = (game[:, 1] >= hidden) & (game[:, 1] < hidden + 0.2)
+            wide = np.zeros(24)
+            np.maximum.at(wide, sector[ring], dist[ring])
+            for _ in range(3):
+                wide = np.maximum(wide, 0.97 * np.maximum(np.roll(wide, 1), np.roll(wide, -1)))
+            below = game[:, 1] < hidden
+            t = smoothstep(0.0, 0.5, (hidden - game[below, 1]) / (hidden - low))
+            reach = dist[below] + (np.maximum(wide[sector[below]], dist[below]) - dist[below]) * t
+            scale = reach / np.maximum(dist[below], 1e-6)
+            game[below, 0] = cx + off[below, 0] * scale
+            game[below, 2] = cz + off[below, 1] * scale
+            game[below, 1] = hidden - (hidden - game[below, 1]) * (hidden - bottom) / (hidden - low)
     for v, (x, y, z) in zip(bm.verts, game):
         v.co = (float(x), float(-z), float(y))
     bm.normal_update()
@@ -514,12 +552,13 @@ def fallen_block(rng, centre, radii, ground, stone="karst", facets=(6, 10), lump
     col = mix(col, C["streak"], 0.6 * smoothstep(0.55, 0.85, streak))
     col = mix(col, C["groove"], 0.35 * smoothstep(-0.3, -0.8, up))
     # Moss in small patches on its tops, not a cap over each.
-    patch = 0.5 + 0.5 * np.sin(4.1 * x + 1.3 * y + q[1]) * np.sin(3.4 * z - 0.9 * y + q[2])
-    green = mix(np.broadcast_to(C["moss"], (len(x), 3)), C["mossDark"], 0.35 + 0.5 * smoothstep(0.3, 0.7, band))
-    col = col + (green - col) * (smoothstep(0.5, 0.85, up) * smoothstep(1.0 - moss - 0.1, 1.0 - moss + 0.1, patch))[:, None]
-    col = mix(col, C["foot"], smoothstep(1.2, 0.0, y - ground(x, z)))
+    if moss > 0.0:
+        patch = 0.5 + 0.5 * np.sin(patchy * (4.1 * x + 1.3 * y) + q[1]) * np.sin(patchy * (3.4 * z - 0.9 * y) + q[2])
+        green = mix(np.broadcast_to(C["moss"], (len(x), 3)), C["mossDark"], 0.35 + 0.5 * smoothstep(0.3, 0.7, band))
+        col = col + (green - col) * (smoothstep(0.5, 0.85, up) * smoothstep(1.0 - moss - 0.1, 1.0 - moss + 0.1, patch))[:, None]
+    col = mix(col, C["foot"], smoothstep(foot, 0.0, y - ground(x, z)))
     if wet is not None:
-        col = mix(col, C["wet"], smoothstep(1.0, 0.25, y - wet))
+        col = mix(col, C["wet"], smoothstep(damp[0], damp[1], y - wet))
     return bm, list(col), game
 
 
@@ -843,7 +882,7 @@ def spray(level, seed=7):
 
 
 def cliff(points, normals, tops, water, seed, base=-4.5, lip=2.6, column=1.2, stone="sandstone", stand=1.6,
-          jut=1.0, row=0.7, beds=(0.7, 2.0), joints=(3.5, 9.0)):
+          jut=1.0, row=0.7, beds=(0.7, 2.0), joints=(3.5, 9.0), strands=None, floor=None):
     """Sea cliffs of bedded sandstone along a stretch of coast, after the film's frame of them:
     `points` (x, z) along the foot of the face at the water, each with its outward normal (x, z) and
     the height of the land on top. The face rises from below the water at `base`, stepped in and
@@ -857,7 +896,9 @@ def cliff(points, normals, tops, water, seed, base=-4.5, lip=2.6, column=1.2, st
     The same makes the white limestone cliffs round the tableland and down its gorge: another
     `stone`, its face standing `stand` metres out from the points (1.6 for the sea cliffs), its
     beds jutting `jut` times as far, rows every `row` metres up it, beds and joints (upright
-    cracks) as far apart as `beds` and `joints` say."""
+    cracks) as far apart as `beds` and `joints` say. Where `strands` (one weight a point, 0 to 1)
+    says, vines hang in strands from its lip down toward the ground at its foot (`floor`), with
+    the greenery (see cliff_strands)."""
     rng = np.random.default_rng(seed)
     C = {**SHARED, **STONES[stone]}
     grass, grass_dark = np.array(L.hex_color("#84C557")[:3]), np.array(L.hex_color("#5E9E44")[:3])
@@ -969,9 +1010,64 @@ def cliff(points, normals, tops, water, seed, base=-4.5, lip=2.6, column=1.2, st
                 rng.uniform(0.5, 1.4)
     tufts, tuft_cols = cliff_tufts(np.random.default_rng(seed + 1000), u, P, N, T, face_offset, water, column)
     greens, ledges = cliff_greens(rng, u, P, N, T, beds, face_offset, water, column, np.random.default_rng(seed + 2000))
+    if strands is not None:
+        weight = np.interp(u, along, np.asarray(strands, dtype=float))
+        sb, sc = cliff_strands(np.random.default_rng(seed + 3000), u, P, N, T, face_offset, weight, floor, column)
+        L.append_bm(greens[0], sb)
+        greens[1].extend(sc)
+        sb.free()
     # The clumps on the ledges come apart from the bushes along the top: painted in puffs as those are,
     # but smaller puffs (see Landmarks.ts), as the crowns' big ones ate these small cushions into tatters.
     return bm, cols, greens, (tufts, tuft_cols), ledges
+
+
+def cliff_strands(rng, u, P, N, T, face_offset, weight, floor, column):
+    """Vines hanging from a cliff's lip in strands, as down the wall over the film's riverside path
+    (`river below parkour stone landmark 1`): every metre or few where `weight` (one a column) holds,
+    each lying a hand's breadth out from the face's outermost stone above it, so it drapes over the
+    beds' steps, a little swaying, thick with leaves near the top and thinning out toward its end,
+    which comes most of the way down toward the ground at the foot (`floor`). Returns (bmesh,
+    colours); their own generator, so the rest of the greenery hangs as it did."""
+    bm, cols = bmesh.new(), []
+    s = rng.uniform(0.0, 2.0)
+    while s < u[-1]:
+        i = min(int(round(s / column)), len(u) - 1)
+        s += rng.uniform(1.0, 3.2)
+        if weight[i] < 0.5 or T[i] < floor + 3.0:
+            continue
+        top = T[i] - 0.2
+        length = (top - floor) * rng.uniform(0.35, 0.92)
+        rows = max(5, int(length / 0.4) + 1)
+        tangent = np.array([N[i][1], -N[i][0]])
+        sway = rng.uniform(-0.35, 0.35)
+        pts, reach = [], face_offset(i, top - 0.6)[0] - 0.3
+        for r in range(rows):
+            f = r / (rows - 1)
+            y = top - length * f
+            if r > 0:
+                reach = max(reach, face_offset(i, y)[0] + 0.14)
+            p = P[i] + N[i] * (reach + 0.04 * f) + tangent * (sway * f * f)
+            pts.append(Vector((float(p[0]), float(-p[1]), float(y))))
+        thick = rng.uniform(0.02, 0.035)
+        for a, b in zip(pts, pts[1:]):
+            seg = P_segment(a, b, thick, thick * 0.85, segments=4)
+            L.append_bm(bm, seg)
+            cols.extend([VINE["stem"]] * len(seg.verts))
+            seg.free()
+        out = Vector((float(N[i][0]), float(-N[i][1]), 0.0))
+        side = Vector((float(tangent[0]), float(-tangent[1]), 0.0))
+        for t in np.arange(rng.uniform(0.0, 0.04), 1.0, rng.uniform(0.03, 0.05)):
+            if rng.random() < t * 0.55:
+                continue
+            k = t * (len(pts) - 1)
+            j = min(int(k), len(pts) - 2)
+            c = pts[j].lerp(pts[j + 1], k - j) + out * 0.05 + side * rng.uniform(-0.13, 0.13)
+            size = rng.uniform(0.11, 0.2) * (1.0 - 0.3 * t)
+            leaf = L.ellipsoid_bm(c, (size, size * 0.35, size * 0.65), u=4, v=3)
+            L.append_bm(bm, leaf)
+            cols.extend([VINE[("leaf", "leafMid", "leafDark")[int(rng.integers(0, 3))]]] * len(leaf.verts))
+            leaf.free()
+    return bm, cols
 
 
 def cliff_tufts(rng, u, P, N, T, face_offset, water, column):

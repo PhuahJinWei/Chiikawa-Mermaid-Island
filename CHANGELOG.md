@@ -247,21 +247,23 @@ stage, and along every path. Not yet checked on a real phone.
   and the user's sketches of it: a tall box of a shop clad in weathered grey
   brown planks between dark square posts that part its front into three
   bays (a bench of potted plants, the plank door with its small square
-  window under a thick board, two riveted iron plates over boards running up
-  and down), a deep cornice round its top, a wide cream board standing up
+  window under a thick board, opening outward, two riveted iron plates over
+  boards running up and down), a deep cornice round its top, a wide cream board standing up
   off it over the front with 島二郎 on it and a lamp over it, a gable roof of
   dark boards behind, a lean-to of corrugated tin down its left side over
   beer crates, bottles and a bucket of sticks, and beside it the tall
   standing sign, 貝汁, under its own lamp on a pole wound with vines. Inside,
   the film's room of warm planks over boards below a dark rail: the kitchen
-  by the door (a pale blue stove with big pots on it, ladles and pans over
-  it, two jars), a table under the window with a chair and a stool, the
-  menu's three plaques, strings of shells and starfish, a lamp hanging in
-  the room's middle. Its sign hangs over the path on two posts wound with
-  vines, as in the film's frame of the way to it; templates to paint its
-  signs on are drawn; the place is named 島二郎. Built by
-  `art/blender/shimajiro.py` (the sign over the path by
-  `art/blender/build_props.py`).
+  against the side wall by the door (a pale blue stove with big pots on it,
+  ladles and pans over it, two jars), a table under the window with a chair
+  and a stool, the menu's three plaques, strings of shells and starfish, a
+  lamp hanging in the room's middle. It stands deep in the jungle, which
+  closes in on it. Its sign hangs over the path from a low branch of a tree
+  beside it, vines draped along the branch, as in the film's frame of the way
+  to it; its signs are the user's own hand-lettering; the place is named
+  島二郎. Built by `art/blender/shimajiro.py` (the sign over the path by
+  `art/blender/build_props.py`, its tree and the jungle round the shop by
+  `art/blender/build_island.py`).
 - The bay is the festival, laid out as in the film's arrival: a short
   wooden pier (rough planks on log posts, over turquoise water) reaches out
   from the middle of the beach, and the white duck ferry lies at anchor out
@@ -1604,6 +1606,113 @@ outlined is drawn twice, once for its pen line. To get there:
     tree, palm, plant and butterfly stands where it stood (the plants
     compared one by one with the build before), the heights are the same to
     the byte, and only the ground's paint round the shop changes.
+  - Its door opens outward, as the film's does (`shimajiro interior 2`): hung
+    on its right-hand jamb as one faces the shop on two black strap hinges,
+    it stands swung out a little past a right angle, clear of the doorway,
+    where it had stood open into the room. The kitchen stands against the
+    side wall on the door's right as one looks out, as in the film, where it
+    had stood against the door's own wall: the stove's front and its oven
+    door face the room, the ladle rail and the shelf of pans hang on that
+    wall over it, and the two jars stand on the floor between it and the
+    door (the user, 2026-10-21). The navy floor cushion with white fish is
+    gone, at the user's asking: the floor is bare planks.
+  - The jungle closes in on it as in the film's frames, where it had stood in
+    a wide clearing of bare grass: nothing had been planted within the room
+    its prop keeps, trees not within 13.5 metres of its middle. A grove of
+    its own now grows there (SHOP_GREENS in `art/blender/build_island.py`):
+    three clumps of trees behind it and down its sides, palms over it, big
+    elephant ears either side of its standing sign and its lamp and by its
+    lean-to, as the film has them, and banana plants, monstera, ferns, red ti,
+    cycads and flowering bushes crowding up to its walls and along the yard,
+    each kind no nearer the shop than its leaves reach, the low ones next to
+    the trodden ground and before the standing sign on the path's side, so it
+    shows all the way up the path (the jungle's three tall plants there, a
+    flowering bush, a cycad and a red ti, are now left out, as the rockfall's
+    are: the bush kept among the butterflies' flowers, so none of them moves);
+    tufts of grass line the yard's and the path's edges.
+    The elephant ear is a new plant (`elephant_ear` in `art/blender/plants.py`):
+    big heart-shaped leaves on long arching stalks, their two lobes either
+    side of the stalk and their tips hanging, veined by the game as the
+    other leaves are. All of it grows from a generator of its own after the
+    rest of the jungle, so every other tree, plant and butterfly stands where
+    it stood.
+  - The user has hand-lettered all of its signs: the board, the standing
+    sign, the menu's three plaques and the sign hung over the path. The
+    middle plaque reads カツカレー, as the user lettered it, where the game
+    had typed ヤシカレー. The hung sign's board takes the shape the user
+    lettered it in, 638 × 313 (about two to one, where it had been three to
+    one), and it hangs as in the film's frame of the way to the shop (the
+    user's): by two cords from a low branch of a big tree beside the path,
+    heart-leaved vines draped along the branch and hanging either side of
+    the board, where it had hung from a crossbar on two posts. The tree
+    grows with the jungle, standing straight so its branch leaves the trunk
+    where the sign's cords and vines meet it (SIGN_TREE in
+    `art/blender/build_island.py`, HANGING in `art/blender/build_props.py`),
+    from a generator of its own. Small signs seen close (the menu's plaques, the
+    cave's sign) now have templates drawn bigger for their size, as the game
+    paints them sharper, so the same brush reads the same on every sign; the
+    signs' README lists them all.
+- The way up from the riverside path to 島二郎 runs between walls of jungle as
+  thick as round the shop, where it had crossed open grass (the user circled
+  it, 2026-10-21): between the path and the high ground's cliffs on one side
+  and the river's pebble bank on the other. There are 9 clumps of trees (16
+  trunks), 6 palms and 55 big-leaved plants, the low ones next to the path
+  (PATH_GREENS in `art/blender/build_island.py`). They grow from a generator of
+  their own after the shop's grove, so the rest of the jungle stands as it did.
+- The riverside path along the foot of the gorge's south wall follows the
+  film's frame of it (`river below parkour stone landmark 1`), where the user
+  found it "poorly textured/styled" (2026-10-21):
+  - Its bank is pebbles of every size. Small stones are packed close with grit
+    between them, rounded cobbles lie over them, and here and there a big flat
+    one. Each is lit over its top toward the sun and casts a soft shadow, with
+    moss in the cracks in patches, darker and cooler down by the water. It had
+    been one even size of pebble, as if paved. Where the bank fills the screen
+    it costs about 0.7 ms more a frame at 1024 × 768 on the dev PC (1.17 ms
+    against 0.47), and nothing where it does not show.
+  - Its boulders are river stones: broad, low and worn round, with a few flat
+    faces where they split. They are a little stained, with moss on hardly any
+    of their tops, and darker where the water wets them. Eleven rest on the
+    bank at the river's edge, their tops at the path's edge or down by the
+    water, with five smaller ones out in the water beside some. Six more lie
+    fallen at the wall's foot, half buried where the ground climbs, and 43
+    small stones lie along the water's edge and against those at the wall.
+    Under the water each goes on down into the river's bed. The game paints
+    them as stone of their own (`river` in `src/world/Look.ts`): uncracked,
+    where the cliffs' limestone paint had cracked them into slabs and grown
+    moss over every top. They had stood in an even row by the water, as tall
+    as broad, rounding to a point under a cap of moss. Walkers keep clear only
+    of what shows of each, and the path stays at least about a metre wide all
+    along it (`art/blender/build_island.py`'s `boulders`, the stones by
+    `fallen_block` in `art/blender/karst.py`).
+  - Under the cliff the rock's foot is pale and damp, with stones fallen from
+    it lying thicker. Ferns, monstera, red ti and bromeliads grow thick at the
+    very foot of the cliff, every 0.6 to 1.25 metres, 49 of them, where the
+    path as trodden had kept all but four off. Vines hang in strands down the
+    wall's face over the path (`strands` in `cliff`, `art/blender/karst.py`).
+  - The jungle stands as it did. It is planted round the boulders as they
+    stood before (PLANTED_BOULDERS), and the new plants grow from a generator
+    of their own; the eight small plants that would now grow inside a boulder
+    are left out. The island's download is about 180 KB bigger for this and
+    the way up to 島二郎 (the rocks 144 KB, the jungle 23, the ground 13).
+- Night in the jungle and the gorge as the film paints it, where it had lain
+  under a dark, murky navy that hid what the place was (the user, on the
+  riverside path toward 島二郎 at 22:32, with the film's night frames of the
+  same ground beside it). The moon's shadows are soft now, keeping 60% of
+  its light where they had kept none, and the night sky's fill is three
+  times as strong, so what the moon does not reach is a clear royal blue
+  whose pebbles, boulders, bushes and signs read. The jungle's and the
+  gorge's night views had sat half on the grade's navy floor, their middle
+  at a brightness of 0.08 to 0.09 against the film's 0.23 to 0.25; they
+  are 0.19 to 0.22 now (the riverside path at 22:32 0.22, the way to
+  島二郎 0.20). Where the moon falls, on the open beach, the cave's beach
+  and the village's plaza, it is as bright as before (0.35 against the
+  film's 0.35, the cave's beach 0.34 against 0.33), so the torches' and
+  the lanterns' pools keep their warmth out to their edges; the crowns
+  seen from above are as they were, and so is the cave inside. Dusk, the
+  golden hour and the day are unchanged; the night eases in from 18:45 to
+  19:36 and out from 4:36 to 5:36. The waterfall's clearing stays darker
+  than the film's moonlit pond at 22:30: the moon, high in the south,
+  only grazes its cliff.
 
 **Removed**
 
@@ -1634,6 +1743,18 @@ outlined is drawn twice, once for its pen line. To get there:
 
 **Fixed**
 
+- Pale slits no longer stand up the face of the riverside path's wall, and
+  no white eggs up the steep bank behind 島二郎. They were the stones painted
+  on the ground at the rocks' feet, laid on steep ground (between the wall's
+  faces, on the bank) and, being painted from above, drawn out into tall
+  white ovals. The stones now lie only on ground level enough to hold them:
+  fewer and smaller as it steepens past about 40°, none past about 63°. Each
+  is round where it lies on a slope, and a little darker on the steeper
+  ground. The bank's pebbles keep off the steep ground likewise. Stones on
+  the flat are as they were. The ground costs no more over the flat (within
+  0.1 ms a frame at 1024 × 768 on the dev PC, about the noise) and about
+  0.3 ms less where the cliffs' feet fill the view (`screeStones` in
+  `src/world/Island.ts`).
 - The sun's glints winking on the shallows of the sea and of the
   waterfall's pool were pure white at any hour, brighter than any light on
   the water in the golden hour and at dusk. They are the hour's light on
@@ -1724,6 +1845,15 @@ outlined is drawn twice, once for its pen line. To get there:
   let the player stand out on them. A plank more now covers the beams to
   their ends, and the deck stops 0.35 metres short of the pier's end, as
   it does of its sides, so no one stands half off the planks.
+- The gorge's river no longer stops at a line across its mouth. Its bed
+  ran 2.8 metres deep right to the coast, where the beach's sandy
+  shallows, 10 to 25 centimetres deep, ran straight across the mouth; the
+  water took that step under it for a beach and drew a line of surf
+  across the open water. The bed now rises smoothly over the river's last
+  22 metres to a shelf 13 centimetres down where it meets the sea, so the
+  river's deep turquoise fades into the shallows as at a river's mouth
+  onto a beach, and the shelf can still be waded across, the only way on
+  foot to 島二郎 since the rockfall. The jungle stands as it was.
 - Every beach's waterline is drawn smooth. Seen from above, the sand met
   the shallows in short straight pieces with a corner about every metre,
   where the heights between the grid's points were blended four at a time.

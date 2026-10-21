@@ -212,7 +212,7 @@ export class Landmarks {
     // In the film look the stone is painted as the film paints it, without a line (see paintStone),
     // lit through the soft ramp, and casts and takes the sun's shadows: limestone in upright slabs,
     // the sea cliffs, the rocks behind the night beach and the forbidden cave's terraced outcrop (all
-    // but bare of moss) in beds.
+    // but bare of moss) in beds, and the stones along the gorge's river worn smooth.
     const toonRocks = FILM ? null : rockMaterial(info);
     const painted = new Map<StoneKind, THREE.Material>();
     const rocksFor = (name: string): THREE.Material => {
@@ -225,7 +225,9 @@ export class Landmarks {
             ? STONES.bare
             : name.startsWith('rocks_spires')
               ? STONES.spire
-              : STONES.limestone;
+              : name.startsWith('rocks_river')
+                ? STONES.river
+                : STONES.limestone;
       let material = painted.get(kind);
       if (!material) {
         const stone = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: paintedRamp() });

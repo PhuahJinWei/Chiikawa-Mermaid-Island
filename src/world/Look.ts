@@ -263,14 +263,22 @@ const cool = new THREE.Color('#9DC2EC');
 /**
  * The day's lights as the film paints them: the sun warmer and the sky's fill cooler and stronger,
  * so the side turned from the sun, and every shadow, is a clear cool blue rather than a darker copy
- * of the lit side. Takes the toon look's sun and sky light and changes them in place.
+ * of the lit side. By night the moon's shadows are soft and the sky's fill three times as strong, as
+ * the film paints its moonlit jungle and gorge: what the moon does not reach a clear royal blue whose
+ * stones and leaves read, not lost in navy. (The moon's full shadows left only the sky's fill in
+ * them, under a fifth of the moonlight, and the jungle's and the gorge's night frames sat half on
+ * the grade's navy floor.) The moonlit open, the beach and the clearings, is as bright as before, so
+ * the firelight's pools keep their warmth. Takes the toon look's sun and sky light and changes them
+ * in place.
  */
 export function filmLights(light: THREE.DirectionalLight, hemi: THREE.HemisphereLight, night: number): void {
   const day = 1 - night;
+  const moonlit = THREE.MathUtils.smoothstep(night, 0.6, 1);
   light.color.lerp(warm, 0.55 * day);
   light.intensity *= 0.78;
+  light.shadow.intensity = 1 - 0.6 * moonlit;
   hemi.color.lerp(cool, 0.5 * day);
-  hemi.intensity *= 1.35;
+  hemi.intensity *= 1.35 * (1 + 2 * moonlit);
 }
 
 /** GLSL: dabs of light and dark leaves over a plant, from where each point is in the world. */
@@ -694,25 +702,31 @@ export function lightShafts(bases: [number, number, number, number, number][], s
 /** How a kind of stone is painted (`paintStone`): the blocks it splits into (how wide and how tall,
  * in metres); whether it stands in upright slabs, each column of them breaking at heights of its own,
  * or lies in level beds, each bed's joints where they fall; how readily moss grows on what faces up;
- * and how strongly it is stained and streaked. */
+ * how strongly it is stained and streaked; and whether its blocks are cracked apart at all (a stone
+ * worn smooth is one block, each shaded its own). */
 export interface StoneKind {
   block: [number, number];
   upright: boolean;
   moss: number;
   stain: number;
+  cracks?: boolean;
 }
 
 /** Limestone splits into tall upright slabs, the sea spires' into narrower ones; bedded rock lies in
  * long, low blocks, the sea cliffs' sandstone in long beds with few joints and little stain, clean
  * and pale as the film paints it (its beds and joints are in the rock's own shape). The forbidden
  * cave's terraced outcrop is bedded rock left bare, as the film's is: level beds and the joints
- * between their blocks, as the user's sketch of it draws them, a little moss on what faces up. */
+ * between their blocks, as the user's sketch of it draws them, a little moss on what faces up. The
+ * stones along the gorge's river are worn smooth, uncracked, a little stained, moss on hardly any of
+ * their tops (`river below parkour stone landmark 1`), where they had been painted as the cliffs'
+ * limestone, slabbed and capped with moss. */
 export const STONES = {
   limestone: { block: [2.6, 7.0], upright: true, moss: 1, stain: 1 },
   spire: { block: [1.4, 3.5], upright: true, moss: 0.6, stain: 1 },
   bedded: { block: [9.0, 2.4], upright: false, moss: 0.5, stain: 0.35 },
   layered: { block: [3.0, 1.1], upright: false, moss: 0.7, stain: 1 },
   bare: { block: [5.0, 2.0], upright: false, moss: 0.4, stain: 0.8 },
+  river: { block: [3.0, 3.0], upright: false, moss: 0.45, stain: 0.6, cracks: false },
 } satisfies Record<string, StoneKind>;
 
 /**
@@ -727,6 +741,7 @@ uniform vec2 uBlock;
 uniform float uUpright;
 uniform float uMoss;
 uniform float uStain;
+uniform float uCracks;
 uniform vec3 uMossLight;
 uniform vec3 uMossDark;
 vec2 stoneHash2(vec2 p) {
@@ -791,15 +806,17 @@ vec3 paintStone(vec3 base, vec3 p, vec3 n) {
     col = mix(col, col * vec3(0.7, 0.86, 0.6), damp * 0.75);
   }
   // Cracks taper and widen along their length; only some blocks break from the one above.
-  float wide = 0.3 + 1.4 * leafNoise(p * vec3(0.9, 0.22, 0.9));
-  float joint = step(0.45, cellHash3(vec3(cid, floor(rise + 0.5)) + 3.0).z);
-  float upright = cBorder * uBlock.x;
-  float level = mix(9.0, min(within, 1.0 - within) * uBlock.y, joint);
-  float lip = (1.0 - within) * uBlock.y;
-  col = mix(col, col * vec3(1.12, 1.12, 1.06), (1.0 - smoothstep(0.12, 0.3, lip)) * smoothstep(0.08, 0.14, lip) * joint);
-  float edge = min(upright, level);
-  col = mix(col, col * 0.86, 1.0 - smoothstep(0.15 * wide, 0.45 * wide, edge));
-  col = mix(col, base * vec3(0.38, 0.43, 0.32), 1.0 - smoothstep(0.07 * wide, 0.14 * wide, edge));
+  if (uCracks > 0.5) {
+    float wide = 0.3 + 1.4 * leafNoise(p * vec3(0.9, 0.22, 0.9));
+    float joint = step(0.45, cellHash3(vec3(cid, floor(rise + 0.5)) + 3.0).z);
+    float upright = cBorder * uBlock.x;
+    float level = mix(9.0, min(within, 1.0 - within) * uBlock.y, joint);
+    float lip = (1.0 - within) * uBlock.y;
+    col = mix(col, col * vec3(1.12, 1.12, 1.06), (1.0 - smoothstep(0.12, 0.3, lip)) * smoothstep(0.08, 0.14, lip) * joint);
+    float edge = min(upright, level);
+    col = mix(col, col * 0.86, 1.0 - smoothstep(0.15 * wide, 0.45 * wide, edge));
+    col = mix(col, base * vec3(0.38, 0.43, 0.32), 1.0 - smoothstep(0.07 * wide, 0.14 * wide, edge));
+  }
   // Moss in clumps: the rock's own moss thinned out in broad stretches, and what faces up. Its
   // noise is only worked where moss can grow (the picture is the same: elsewhere it weighs nought).
   float own = mossy(base);
@@ -931,6 +948,7 @@ export function paintStone(shader: THREE.WebGLProgramParametersWithUniforms, kin
     uUpright: { value: kind.upright ? 1 : 0 },
     uMoss: { value: kind.moss },
     uStain: { value: kind.stain },
+    uCracks: { value: kind.cracks === false ? 0 : 1 },
     uMossLight: { value: new THREE.Color('#9CCB55') },
     uMossDark: { value: new THREE.Color('#4E8A3A') },
   });

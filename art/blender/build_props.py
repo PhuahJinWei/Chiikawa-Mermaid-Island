@@ -432,41 +432,191 @@ def heart_leaf_bm(at, out, size):
     return L.ellipsoid_bm(at, (size, size * 0.85, size * 0.18), rot=rot, u=8, v=4)
 
 
+# The face 島二郎's hung sign's words are painted on, in metres: the shape of the user's lettering
+# (`sign.shimajiro`, 638 x 313 at the templates' 800 a metre, 2026-10-21).
+HANGING_FACE = (0.7975, 0.39125)
+# The sign hangs from a low branch of a tree beside the path, as in the film's frame of the way to
+# 島二郎 (`river below parkour stone landmark 2`; the user, 2026-10-21), not from posts. In the sign's
+# own metres (across the path, to the right as one faces the sign; back along the path from its face;
+# up from the ground under it): the tree's foot (`trunk`) and its height (the island's build grows it
+# with the jungle, see SIGN_TREE in build_island.py, and the branch with it); the branch from inside
+# the trunk out over the path through `branch`, rising out of the trunk, sagging over the path and
+# lifting at its tip, thinning from `radius` and thicker and thinner by turns (`gnarl`); the board's
+# middle `board` up, close under it. Twigs off the branch (how far along it, and their reach), each
+# with a tuft of leaves; and the vines: loops draped along the branch (from, to, how far down they
+# sag), strands hanging from it (across, how far down) and one wound round the trunk.
+HANGING = {"trunk": (-2.8, -0.9), "height": 12.0,
+           "branch": [(-2.8, -0.9, 3.3), (-2.1, -0.6, 3.52), (-1.15, -0.2, 3.3), (0.0, 0.02, 3.0), (0.7, 0.22, 2.94),
+                      (1.3, 0.48, 3.1)],
+           "radius": (0.21, 0.045), "gnarl": 0.14, "board": 2.35,
+           "twigs": [(0.55, (0.25, -0.3, 0.42)), (0.8, (0.12, 0.35, 0.48)), (1.0, (0.32, 0.3, 0.28))],
+           "garlands": [(0.2, 0.36, 0.3), (0.42, 0.56, 0.36), (0.66, 0.85, 0.28)],
+           "strands": [(-1.9, 0.6), (-0.95, 1.1), (0.62, 1.5), (1.12, 0.8)]}
+# A heart-shaped leaf of the vines, from the notch where its stalk meets it round to its tip: across
+# and down it, in lengths of the leaf.
+HEART_CARD = [(0.0, 0.1), (0.16, 0.0), (0.35, 0.05), (0.48, 0.2), (0.5, 0.38), (0.41, 0.6), (0.22, 0.82), (0.0, 1.0)]
+
+
+def hanging_branch(samples=28):
+    """The branch 島二郎's hung sign hangs from (see HANGING), in the sign's own metres: points along
+    it, smoothly through its bend points (a Catmull-Rom curve), and its radius at each, from inside
+    the trunk out to its tip, a little thicker and thinner by turns as a limb grows."""
+    pts = [Vector(p) for p in HANGING["branch"]]
+    r0, r1 = HANGING["radius"]
+    out = []
+    for k in range(samples + 1):
+        t = k / samples * (len(pts) - 1)
+        i = min(int(t), len(pts) - 2)
+        f = t - i
+        p0, p1, p2, p3 = pts[max(i - 1, 0)], pts[i], pts[i + 1], pts[min(i + 2, len(pts) - 1)]
+        q = 0.5 * (2.0 * p1 + (p2 - p0) * f + (2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3) * f * f
+                   + (3.0 * p1 - p0 - 3.0 * p2 + p3) * f ** 3)
+        s = k / samples
+        gnarl = 1.0 + HANGING["gnarl"] * (0.6 * math.sin(k * 1.7 + 0.4) + 0.4 * math.sin(k * 4.3))
+        out.append((q, (r0 + (r1 - r0) * s ** 0.8) * gnarl))
+    return out
+
+
+def branch_at(s, branch):
+    """The point `s` of the way along the branch (0 inside the trunk, 1 its tip), and its radius."""
+    f = min(max(s, 0.0), 1.0) * (len(branch) - 1)
+    i = min(int(f), len(branch) - 2)
+    (p, r), (q, t) = branch[i], branch[i + 1]
+    return p.lerp(q, f - i), r + (t - r) * (f - i)
+
+
+def branch_over(x, branch):
+    """The point on the branch over `x` across the path, and the branch's radius there."""
+    for (p, r), (q, s) in zip(branch, branch[1:]):
+        if (p.x - x) * (q.x - x) <= 0.0 and p.x != q.x:
+            f = (x - p.x) / (q.x - p.x)
+            return p.lerp(q, f), r + (s - r) * f
+    return branch[-1]
+
+
+def heart_card_bm(stalk, face, size, tilt=0.0):
+    """A vine's heart-shaped leaf hanging from its stalk's end at `stalk`, its face toward `face`, its
+    tip down (turned `tilt` about its face), cupped a little: a thin solid 1.15 `size` long."""
+    n = face.normalized()
+    down = -UP + n * n.dot(UP)
+    if down.length < 0.2:
+        down = Vector((0.0, -1.0, 0.0)) - n * n.y
+    down.normalize()
+    side = n.cross(down).normalized()
+    down, side = down * math.cos(tilt) + side * math.sin(tilt), side * math.cos(tilt) - down * math.sin(tilt)
+    outline = HEART_CARD + [(-u, w) for u, w in reversed(HEART_CARD[1:-1])]
+    bm = bmesh.new()
+    rims = []
+    for lift in (0.004, -0.004):
+        rims.append([bm.verts.new(stalk + side * (u * size) + down * (w * size * 1.15)
+                                  + n * (lift - 0.12 * size * (2.0 * u) ** 2)) for u, w in outline])
+    hubs = [bm.verts.new(stalk + down * (0.45 * size * 1.15) + n * lift) for lift in (0.004, -0.004)]
+    m = len(outline)
+    for i in range(m):
+        j = (i + 1) % m
+        bm.faces.new((hubs[0], rims[0][i], rims[0][j]))
+        bm.faces.new((hubs[1], rims[1][j], rims[1][i]))
+        bm.faces.new((rims[0][i], rims[1][i], rims[1][j], rims[0][j]))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    return bm
+
+
+def vine_leaves(points, leaves, size, seed, every=0.11):
+    """A vine's leaves along `points` (a line down or along it), about every `every` metres, on
+    alternate sides of it, each facing out a little differently."""
+    run = 0.0
+    k = 0
+    for a, b in zip(points, points[1:]):
+        length = (b - a).length
+        while run <= length:
+            at = a.lerp(b, run / max(length, 1e-6))
+            turn = seed + k * 2.4
+            side = 1.0 if k % 2 else -1.0
+            face = Vector((0.55 * side * math.cos(turn), -1.0, 0.25 * math.sin(turn * 1.3)))
+            leaves.append((heart_card_bm(at + Vector((0.02 * side, -0.01, 0.0)), face,
+                                         size * (0.85 + 0.3 * ((k * 7) % 5) / 4), tilt=0.35 * side),
+                           C["leafA"] if k % 2 else C["leafB"]))
+            run += every
+            k += 1
+        run -= length
+
+
 def build_sign_hanging(collection):
-    """島二郎's sign, as in the film's frame of the way to it: a weathered board hung by two ropes
-    from a rough crossbar over the path, on two posts wound with vines, strings of heart-shaped
-    leaves hanging from the bar. Faces -Y, with a face on the board's front for the game to paint
-    its words on."""
-    pieces = []
-    for x in (-0.95, 0.95):
-        pieces.append((segment_bm(Vector((x, 0.0, -0.3)), Vector((x, 0.0, 2.75)), 0.085, 0.07, segments=8), C["bark"]))
-        pieces.append((L.ellipsoid_bm(Vector((x, 0.0, 2.75)), (0.075, 0.075, 0.04), u=10, v=6), C["bark"]))
-    pieces.append((segment_bm(Vector((-1.2, 0.0, 2.6)), Vector((1.2, 0.0, 2.66)), 0.07, 0.062, segments=8), C["bark"]))
-    for x in (-0.45, 0.45):
-        pieces.append((segment_bm(Vector((x, 0.0, 2.6)), Vector((x, 0.0, 2.28)), 0.012, 0.012, segments=5), C["rope"]))
-    pieces.append((box_bm(Vector((0.0, 0.0, 2.05)), (1.3, 0.06, 0.48), bevel=0.012), C["board"]))
-    # Vines wound up the posts, leaves along them, and strings of leaves hanging from the bar.
-    leaves = []
-    for x, turn in ((-0.95, 0.0), (0.95, 2.1)):
-        for k in range(22):
-            a = turn + k * 0.95
-            z = 0.25 + k * 0.11
-            out = Vector((math.cos(a), math.sin(a), 0.15))
-            leaves.append((heart_leaf_bm(Vector((x, 0.0, z)) + Vector((math.cos(a), math.sin(a), 0.0)) * 0.1, out,
-                                         0.06 + 0.015 * (k % 3)), C["leafA"] if k % 2 else C["leafB"]))
-    for x, length in ((-0.75, 0.55), (-0.2, 0.3), (0.25, 0.45), (0.78, 0.7)):
-        pieces.append((segment_bm(Vector((x, 0.0, 2.62)), Vector((x, 0.0, 2.62 - length)), 0.008, 0.006, segments=4),
-                       C["leafA"]))
-        for k in range(int(length / 0.1) + 1):
-            a = k * 2.3 + x
-            out = Vector((math.cos(a) * 0.4, -1.0, 0.2 * math.sin(a)))
-            leaves.append((heart_leaf_bm(Vector((x, -0.03, 2.58 - 0.1 * k)), out, 0.055 + 0.01 * (k % 2)),
-                           C["leafB"] if k % 2 else C["leafA"]))
+    """島二郎's sign, as in the film's frame of the way to it: a weathered board hung close under a low
+    branch of a tree beside the path by two cords (see HANGING), heart-leaved vines draped along the
+    branch in loops, hanging from it either side of the board and wound round the trunk under it,
+    twigs off the branch with tufts of leaves. The tree and its branch grow with the jungle
+    (build_island.py); the board, its cords, the twigs and the vines are this prop. Faces -Y, with a
+    face on the board's front for the game to paint its words on."""
+    import plants as PL  # noqa: PLC0415 (plants imports this module)
+
+    pieces, leaves = [], []
+    branch = hanging_branch()
+    fw, fh = HANGING_FACE
+    bz = HANGING["board"]
+    pieces.append((box_bm(Vector((0.0, 0.0, bz)), (fw + 0.1, 0.06, fh + 0.08), bevel=0.012), C["board"]))
+    # Its two cords from its top's ends up round the branch.
+    for x in (-(fw / 2 - 0.08), fw / 2 - 0.08):
+        at, r = branch_over(x, branch)
+        pieces.append((segment_bm(Vector((x, 0.0, bz + fh / 2 + 0.03)), at - Vector((0.0, 0.0, r * 0.4)), 0.012, 0.012,
+                                  segments=5), C["rope"]))
+        pieces.append((L.ellipsoid_bm(at, (0.026, r + 0.014, r + 0.014), u=8, v=6), C["rope"]))
+    # Twigs off the branch, each with a tuft of leaves at its end.
+    for n, (s, reach) in enumerate(HANGING["twigs"]):
+        foot, r = branch_at(s, branch)
+        tip = foot + Vector(reach)
+        bend = foot.lerp(tip, 0.5) + Vector((0.0, 0.0, 0.06))
+        pieces.append((segment_bm(foot, bend, r * 0.45, 0.022, segments=5), C["bark"]))
+        pieces.append((segment_bm(bend, tip, 0.022, 0.012, segments=5), C["bark"]))
+        for k in range(10):
+            a = n * 1.3 + k * 2.4
+            at = tip.lerp(bend, 0.35 * (k % 3) / 2) + Vector((math.cos(a), math.sin(a), 0.25)) * 0.05
+            face = Vector((math.cos(a), math.sin(a) - 0.4, 0.5))
+            leaves.append((heart_card_bm(at, face, 0.085 + 0.01 * (k % 3), tilt=k * 0.5), C["leafA"] if k % 2 else C["leafB"]))
+    # Leaves on the branch itself, in clumps where the vines run along it.
+    for k, (p, r) in enumerate(branch[5:-1], start=5):
+        if k % 5 in (1, 4):
+            continue
+        a = k * 2.4
+        face = Vector((0.3 * math.sin(a), -0.9 + 0.5 * math.cos(a), 0.7))
+        leaves.append((heart_card_bm(p + Vector((0.0, -0.4, 0.85)).normalized() * (r + 0.01), face, 0.065 + 0.01 * (k % 3),
+                                     tilt=0.4 * math.sin(a)), C["leafA"] if k % 2 else C["leafB"]))
+    # The vines draped along it in loops, as in the film's frame, their leaves down them.
+    for n, (s0, s1, sag) in enumerate(HANGING["garlands"]):
+        a, ra = branch_at(s0, branch)
+        b, rb = branch_at(s1, branch)
+        line = [a.lerp(b, t) - Vector((0.0, 0.05 * math.sin(math.pi * t), sag * 4.0 * t * (1.0 - t) + (ra + rb) * 0.3))
+                for t in (k / 10 for k in range(11))]
+        for p, q in zip(line, line[1:]):
+            pieces.append((segment_bm(p, q, 0.007, 0.007, segments=4), C["leafA"]))
+        vine_leaves(line, leaves, 0.06, seed=n * 1.9)
+    # Strands hanging from it either side of the board, as the film's, leaves all down them.
+    for n, (x, length) in enumerate(HANGING["strands"]):
+        top, r = branch_over(x, branch)
+        top = top - Vector((0.0, 0.0, r * 0.6))
+        line = [top + Vector((0.035 * math.sin(n * 1.7 + 3.0 * t), -0.05 * t, -length * t)) for t in (k / 8 for k in range(9))]
+        for p, q in zip(line, line[1:]):
+            pieces.append((segment_bm(p, q, 0.008, 0.006, segments=4), C["leafA"]))
+        vine_leaves(line, leaves, 0.062, seed=n * 2.7)
+    # A vine wound round the trunk from head height up to the branch.
+    tx, ty = HANGING["trunk"]
+    coil = []
+    for k in range(40):
+        z = 1.2 + k * 0.055
+        a = k * 0.42
+        rr = PL.trunk_radius(HANGING["height"], z) * 0.93 + 0.02
+        coil.append(Vector((tx + math.cos(a) * rr, ty + math.sin(a) * rr, z)))
+    for p, q in zip(coil, coil[1:]):
+        pieces.append((segment_bm(p, q, 0.009, 0.009, segments=4), C["leafA"]))
+    for k, p in enumerate(coil):
+        a = k * 0.42 + 0.5 * (k % 2)
+        face = Vector((math.cos(a), math.sin(a), 0.15))
+        leaves.append((heart_card_bm(p + face.normalized() * 0.02 + Vector((0.0, 0.0, 0.03 * (k % 2))), face,
+                                     0.065 + 0.012 * (k % 3), tilt=0.6 * math.sin(k * 1.3)), C["leafA"] if k % 2 else C["leafB"]))
     sign = L.assemble_colored("sign_hanging", pieces + leaves, collection)
-    face, uvs = label_bm(Vector((0.0, -0.03, 2.05)), 1.2, 0.4)
+    face, uvs = label_bm(Vector((0.0, -0.03, bz)), fw, fh)
     label = object_with_uv("sign_hanging_label", face, uvs, collection)
-    info = {"footprint": {"circles": [[-0.95, 0.0, 0.1], [0.95, 0.0, 0.1]]}, "height": 2.75,
-            "label": {"size": [1.2, 0.4], "colour": "#2B211B"}}
+    info = {"height": 3.8, "label": {"size": [fw, fh], "colour": "#2B211B"}}
     return [sign, label], info
 
 

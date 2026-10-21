@@ -48,6 +48,7 @@ import charlib as L  # noqa: E402
 import karst as K  # noqa: E402
 import cave as CV  # noqa: E402
 import plants as PL  # noqa: E402
+import build_props as BP  # noqa: E402
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 OUT_DIR = os.path.join(ROOT, "public", "models", "island")
@@ -160,6 +161,60 @@ VILLAGE = {"plaza": ((0.0, -78.0), 14.0), "lanes": [([(-11.0, -71.0), (-24.0, -6
 GUEST_GREENS = {"count": 16, "room": (0.5, 2.6), "front": 40.0, "palms": 3, "half": (2.6, 3.0, 4.1),
                 "mix": ("bush", "banana", "bush", "monstera", "bush", "ti", "fern", "banana", "cycad", "bush"),
                 "clear": {"banana": 1.9, "monstera": 1.3, "cycad": 1.0, "fern": 0.8}}
+# Round 島二郎, as thick as the film's frames of it (`shimajiro exterior 1`, `2`), where the jungle was
+# planted no nearer than the room its prop keeps (PROP_ROOM): the jungle closing in on its back and
+# sides and along its yard. Places are in the shop's own metres, as art/blender/shimajiro.py builds
+# it: across to its right as one faces it, and back from its middle (its front at -2.7). Elephant ears
+# either side of its standing sign and its lamp and by its lean-to, as in the film (across, back, size);
+# palms over it (across, back); clumps of trees behind it and down its sides (across, back, height
+# each). A fill of the understory's kinds round them, as close as the film's jungle grows, `gap` apart
+# within its room and further out, out to `reach` from its middle, round what the jungle already has
+# there (in `passes` over the ground, so few gaps are left): of `mix`, or of `low` where a kind would
+# reach the trodden ground (within `path_big` of it; nothing within `path`), each kind no nearer the
+# shop than its leaves reach (`clear`, from the shop's `solid` parts: its walls, the lean-to, the crates
+# and bottles before it, the standing sign and its lamp's pole, the bench; boxes across and back).
+# Tufts of grass along the edges of its trodden ground, about `tufts` apart, as along the paths'. All
+# from a generator of its own, after all the rest, so the jungle stands as it did.
+SHOP_GREENS = {"seed": 151, "reach": 11.5, "gap": (0.9, 1.1), "passes": 2, "path": 0.5, "path_big": 1.3, "tufts": 0.8,
+               "ears": [(6.0, -2.2, 1.45), (6.4, -0.7, 1.3), (4.0, -1.2, 1.2), (-5.6, 1.0, 1.3), (-5.2, -4.6, 1.2)],
+               # Before the standing sign on the side the path comes from (across more than and back
+               # less than these; the jungle's own plants within the last of its middle), only the
+               # lowest kinds, so the sign shows all the way up the path.
+               "view": (2.0, -2.9, 9.0), "low_view": ("fern", "brom", "fern"),
+               "palms": [(8.0, -2.6), (-4.0, -7.5), (3.9, 1.8)],
+               "trees": [[(5.6, 4.6, 11.5), (7.6, 2.0, 10.0)], [(-6.4, -0.6, 10.5), (-8.6, -3.0, 12.0)],
+                         [(-3.2, 5.2, 10.0), (2.4, 5.6, 11.0)]],
+               "mix": ("fern", "ear", "monstera", "fern", "banana", "ti", "ear", "bush", "fern", "monstera", "cycad",
+                       "ti", "ear", "brom", "banana", "fern"),
+               "low": ("fern", "ti", "brom", "fern", "bush", "ti"),
+               # A banana's leaves arch out under the shop's eaves, so it keeps further off.
+               "clear": {"fern": 1.4, "bush": 1.25, "ti": 1.0, "brom": 0.45, "monstera": 1.8, "cycad": 1.65,
+                         "banana": 2.5, "ear": 1.5},
+               "solid": [(-2.3, 2.3, -2.7, 2.7), (-4.0, -2.3, -0.6, 2.5), (-3.5, -2.3, -3.0, -0.4), (2.7, 4.7, -3.15, -2.9),
+                         (-1.95, -0.8, -3.15, -2.8)]}
+# The jungle down both sides of 島二郎's path, from its yard to the riverside path, as thick as round the
+# shop (the user, 2026-10-21, circling the open grass there: "make the area ... dense forest too"), as
+# the film's frame of the way there has it (`shimajiro exterior 2`): between the path and the high
+# ground's cliffs on the one side and the river's pebble bank on the other. Within `reach` of the
+# path's line (x, z), none of it on the trodden ground (`path`, the big kinds `path_big` off it, the
+# trees `tree_path`) nor on the cliffs' climbing feet (`cliff`, `tree_cliff`: metres outside the high
+# ground's edge, whose faces stand 0.9 out) nor on the gorge's pebble floor (`bank`, `tree_bank`:
+# metres outside its walls); trees in clumps of one or two about `trees` apart (`tree_height`), as near
+# as `stems` to another trunk, as a jungle's crowd in, palms `palms` apart, and the understory `gap`
+# apart in `passes`, of `mix` (most of it big-leaved), low by the path. From a generator of its own,
+# after the shop's, so the jungle stands as it did.
+PATH_GREENS = {"seed": 171, "line": [(-172.5, -158.6), (-167.5, -162.0), (-163.0, -165.5), (-152.0, -170.5), (-145.0, -172.6)],
+               "reach": 11.0, "path": 0.5, "path_big": 1.4, "tree_path": 1.8, "cliff": 1.4, "tree_cliff": 1.8, "bank": 0.6,
+               "tree_bank": 1.1, "trees": 3.8, "stems": 2.4, "tree_height": (8.5, 13.0), "palms": 2.8, "gap": (0.85, 1.0),
+               "passes": 2,
+               "mix": ("monstera", "banana", "ear", "fern", "monstera", "banana", "bush", "ear", "cycad", "fern", "ti",
+                       "monstera", "ear", "banana"),
+               "low": ("fern", "ti", "brom", "fern", "bush")}
+# The tree 島二郎's sign hangs from over the path to it, as in the film's frame of the way there (the
+# user's, 2026-10-21): a canopy tree beside the path, standing straight, and the low branch the sign
+# hangs from, reaching out over the path from its trunk; both where the sign's own build has them
+# (build_props.HANGING), so its cords and vines meet them. From a generator of its own (`seed`).
+SIGN_TREE = {"seed": 161}
 FIELDS = {"centre": (-45.0, -38.0), "half": (14.0, 12.0), "feather": 6.0, "height": 1.2}
 # The jungle waterfall, after the film's frame of it, in the middle of the island: the round water
 # the aerial shot shows through the trees in the middle of the ring of pillars is its pool. The
@@ -299,10 +354,14 @@ TABLELAND = {"outline": [(-260.0, -210.0), (-150.0, -193.0), (-142.0, -183.0), (
 # frames of it. East of there its floor is a dry ravine climbing to the lowland's level by `head`.
 # Since the rockfall (see ROCKFALL) the river runs on to `reach`, its bed shelving up under the
 # rockfall's foot, so the water meets the rocks (user, 2026-10-21); the jungle was planted with it
-# ending at `from` (see ground's `planted`).
+# ending at `from` (see ground's `planted`). At its mouth its bed rises smoothly over `mouth`'s first
+# metres in from the coast to a shelf its second deep, the sand the beach's shallows run across it
+# on, so river and sea meet without a step under the water (which the water drew as a line of surf
+# across it) and the shelf can still be waded across (user, 2026-10-21).
 GORGE = {"line": [(-25.0, -200.0), (-52.0, -201.0), (-80.0, -199.0), (-110.0, -193.0), (-140.0, -186.0),
                   (-165.0, -181.0), (-240.0, -177.0)],
-         "half": 13.5, "water": 10.0, "from": -75.0, "reach": -69.0, "head": -52.0, "ledge": (0.6, 3.0), "bed": -2.8}
+         "half": 13.5, "water": 10.0, "from": -75.0, "reach": -69.0, "head": -52.0, "ledge": (0.6, 3.0), "bed": -2.8,
+         "mouth": (22.0, 0.13)}
 # The stepping-stone pillars across the gorge's river, after the film's frames of them: tall thin
 # pillars of the gorge's white rock standing in the water, each topped with a flat round mat of grass
 # a short jump from the next, from a pillar standing against the north rim's cliff, its top level
@@ -316,13 +375,36 @@ STONES = {"x": -100.0, "across": [-8.9, -5.34, -1.78, 1.78, 5.34, 8.9], "along":
           "rise": [-0.22, -0.05, -0.28, -0.06, -0.3, -0.1], "radii": (1.6, 1.45), "seed": 101,
           "rim": (12.6, 13.1), "rim_radii": (2.0, 1.8), "shelf": 3.8, "ledge": (13.2, 15.4), "ledge_half": 1.3}
 # Plants at the foot of the gorge's south wall along the riverside path: from x, to x, every so
-# many metres (a range), this far in from the wall's line, of these kinds.
-GORGE_FOOT = {"from": -77.0, "to": -142.0, "gap": (1.4, 2.6), "in": 1.45, "kinds": ("fern", "fern", "monstera", "ti"),
-              "seed": 121}
-# Boulders along the river's edge below the riverside path, every so many metres (a range), their
-# radii and heights over the path (ranges), clear of the stones' crossing by `clear` metres.
-BOULDERS = {"from": -78.0, "to": -146.0, "gap": (4.5, 9.0), "radius": (0.55, 0.95), "height": (0.5, 1.2),
-            "across": 9.7, "clear": 7.0, "seed": 111}
+# many metres (a range), as many as `skip` of the places left bare, this far in from the wall's line,
+# of these kinds, this big (a range). As thick as the film's frame of the path has them (`river below
+# parkour stone landmark 1`), where they had stood thin along it (the user, 2026-10-21).
+# Right at the cliff's foot, where the ground starts to climb and no one walks: kept clear of the
+# boulders there, not of the path as trodden, which had kept all but four of them off. (Up the climb
+# they stood a metre over the path, the cycads' trunks like pots on a shelf.)
+GORGE_FOOT = {"from": -77.0, "to": -142.0, "gap": (0.6, 1.25), "skip": 0.15, "in": 1.15, "scale": (0.8, 1.2),
+              "kinds": ("fern", "fern", "monstera", "ti", "brom", "fern", "monstera", "fern"), "seed": 121}
+# Boulders along the riverside path, as in the film's frame of it (`river below parkour stone landmark
+# 1`): river stones, rounded, broad and low, worn smooth but for a few flat faces where they split,
+# hardly any moss. On the bank at the river's edge below the path every so many metres (a range),
+# metres `across` from the gorge's line (a range), their radii, how high their tops reach over the
+# path (some below it, down by the water) and how flat they are (their height over their radius;
+# ranges), how mossy, a smaller one or two beside one out in the water as often as `group`, its top
+# `awash` over the water; and fallen at the foot of the gorge's wall (`wall`: across, gaps, radii,
+# how high they rest (their top over the path, in their heights), how flat, how mossy, and none
+# within `apart` metres along the path of one by the water that would leave less than `way` metres
+# between what shows of them). Small stones lie about them where no one walks (`stones`: along the water's edge,
+# across, gaps and radii, and `beside` each boulder at the wall, how many). All clear of the stones'
+# crossing by `clear` metres. They had stood in an even row by the water, as tall as broad, rounding
+# to a point under a cap of moss (the user: "poorly textured/styled", 2026-10-21); the jungle was
+# planted round them as they stood then (PLANTED_BOULDERS, see build_plants), so it stands as it did.
+BOULDERS = {"from": -78.0, "to": -146.0, "gap": (3.0, 7.5), "radius": (0.6, 1.15), "height": (-0.3, 0.45),
+            "flat": (0.5, 0.68), "moss": (0.0, 0.08), "across": (9.7, 10.0), "group": 0.45, "awash": (0.1, 0.35),
+            "clear": 7.0, "seed": 112,
+            "wall": {"across": (12.0, 12.25), "gap": (3.5, 8.0), "radius": (0.4, 0.72), "rest": (0.9, 1.5),
+                     "flat": (0.55, 0.72), "moss": (0.04, 0.16), "apart": 0.3, "way": 1.5, "seed": 114},
+            "stones": {"water": (9.6, 10.0), "gap": (0.5, 1.6), "radius": (0.1, 0.26), "beside": (1, 4), "seed": 116}}
+PLANTED_BOULDERS = {"from": -78.0, "to": -146.0, "gap": (4.5, 9.0), "radius": (0.55, 0.95), "height": (0.5, 1.2),
+                    "across": 9.7, "clear": 7.0, "seed": 111}
 # A rockfall chokes the gorge's dry head between the river's end and its mouth onto the lowland, so
 # no one walks into the gorge that way (user, 2026-10-21): blocks of its white limestone fallen from
 # its walls, tumbled wall to wall in three layers, a few smaller ones at its foot and spilling out of
@@ -570,6 +652,11 @@ COLOURS = {k: np.array(L.hex_color(v)[:3]) for k, v in {
     "pebble": "#CBC8BE",
     "pebbleCool": "#B6BCBC",
     "pebbleWarm": "#D3C7B2",
+    # The broken stone under the high ground's white cliffs, theirs (karst.py's karst stone) in their
+    # shadow, and damp where it meets the gorge's floor.
+    "cliffFoot": "#BCC6C8",
+    "cliffFootDark": "#929FA4",
+    "cliffDamp": "#75847F",
 }.items()}
 
 
@@ -871,11 +958,12 @@ def gorge_across(x, z):
     return u, d - GORGE["half"]
 
 
-def gorge_floor(x, u, end=None):
+def gorge_floor(x, u, end=None, s=None):
     """The gorge's floor at x and u metres south of its line: west of the water's end (`end`, the
     river's `from` unless given) the river's bed, deepest in its middle, shelving to the ledge along
     the south wall's foot and to the north wall's foot under the water; east of it the dry ravine,
-    climbing to the lowland's level."""
+    climbing to the lowland's level. Given how far in from the coast it is (`s`), the bed rises to
+    the shelf at the river's mouth (see GORGE's `mouth`)."""
     g = GORGE
     end = g["from"] if end is None else end
     w = g["water"]
@@ -884,6 +972,10 @@ def gorge_floor(x, u, end=None):
     south = np.where(u < w - 0.6, south, ledge + (WATER - 0.7 - ledge) * (1.0 - smoothstep(w - 0.6, w + 0.3, u)))
     north = g["bed"] + (WATER - 1.2 - g["bed"]) * smoothstep(0.3 * w, g["half"], -u)
     river = np.where(u >= 0.0, south, north)
+    if s is not None:
+        ramp, shelf = g["mouth"]
+        shelf = WATER - shelf
+        river = np.where(river < shelf, shelf + (river - shelf) * smoothstep(0.0, ramp, s), river)
     ravine = ledge + (LOWLAND["height"] - ledge) * smoothstep(g["from"], g["head"], x)
     wet = 1.0 - smoothstep(end - 6.0, end, x)
     return ravine + (river - ravine) * wet
@@ -955,9 +1047,10 @@ def stepping_stones():
     return specs, ledges
 
 
-def boulder_specs():
-    """Rounded boulders along the river's edge below the riverside path, half in the water."""
-    b = BOULDERS
+def planted_boulder_specs():
+    """The boulders as they stood when the jungle was planted round them (PLANTED_BOULDERS): in an
+    even row along the river's edge below the riverside path, half in the water."""
+    b = PLANTED_BOULDERS
     rng = np.random.default_rng(b["seed"])
     specs = []
     x = b["from"] - rng.uniform(0.0, b["gap"][1])
@@ -977,6 +1070,123 @@ def boulder_specs():
             })
         x -= rng.uniform(*b["gap"])
     return specs
+
+
+def boulders():
+    """The boulders along the riverside path (see BOULDERS), each as (bmesh, colours, karst.Block),
+    and the small stones about them, each as (bmesh, colours): river stones worn round, broad and
+    low, resting on the bank at the river's edge below the path, the tops of some over the path and
+    of others down by the water, their feet carried on out of sight into the river's bed; here and
+    there a smaller one or two beside one, out in the water, awash; and fallen at the foot of the
+    gorge's wall, half buried where the ground climbs under the cliff. The boulders are marked
+    `boulder`, for the planting to keep to the old ones (see PLANTED_BOULDERS); the small stones lie
+    along the water's edge and against the boulders at the wall, where no one walks, so no one keeps
+    clear of them."""
+    b = BOULDERS
+    rng = np.random.default_rng(b["seed"])
+    # Their shapes from a generator of their own, so where each lies stays put however it is shaped.
+    shape = np.random.default_rng(b["seed"] + 1)
+    ledge = GORGE["ledge"][0]
+    big, small = [], []
+
+    def at(x, z):
+        return float(ground_height(np.array([x]), np.array([z]))[0])
+
+    def stone(cx, cz, r, top, flat, moss, kind="karst"):
+        # Its middle `flat` of its radius below its top, never so high its foot stands clear of the
+        # ground round its middle where that falls away (nor out of the water over it); under the
+        # water, carried on down to the bed wherever that lies lower under it.
+        rc = r * flat
+        a = np.linspace(0.0, 2.0 * math.pi, 12, endpoint=False)
+
+        def lowest(reach):
+            return float(ground_height(np.append(cx + reach * np.cos(a), cx), np.append(cz + reach * np.sin(a), cz)).min())
+
+        top = min(top, max(lowest(0.6 * r), WATER - 0.12) - 0.08 + 2.0 * rc)
+        under = lowest(0.9 * r)
+        return K.fallen_block(shape, (cx, top - rc, cz), (r, r * shape.uniform(0.72, 0.92), rc), ground_height,
+                              stone=kind, facets=(1, 4), cut=(0.8, 0.94), upright=0.25, lumps=0.13, tilt=0.15,
+                              moss=moss, wet=WATER if under < WATER + 0.3 else None,
+                              subdivisions=4 if r >= 0.6 else 3 if r >= 0.2 else 2, worn=2,
+                              keel=(WATER - 0.12, under - 0.15), patchy=2.5, foot=0.25, damp=(0.4, 0.06))
+
+    def boulder(cx, cz, r, top, flat, moss, kind="karst"):
+        bm, cols, game = stone(cx, cz, r, top, flat, moss, kind)
+        # Walkers keep clear of what shows of it, over the water and the ground.
+        shows = game[(game[:, 1] > WATER - 0.1) & (game[:, 1] > ground_height(game[:, 0], game[:, 2]) + 0.02)]
+        shows = shows if len(shows) >= 3 else game
+        reach = K.footprint(shows, cx, cz, -100.0, 100.0)
+        # How far across the gorge what shows of it reaches, and between which x.
+        across = gorge_across(shows[:, 0], shows[:, 2])[0]
+        big.append((bm, cols, K.Block(cx, cz, float(game[:, 1].max()), reach,
+                                      {"notch": None, "crown": False, "boulder": True,
+                                       "across": (float(across.min()), float(across.max())),
+                                       "along": (float(shows[:, 0].min()), float(shows[:, 0].max()))})))
+
+    x = b["from"] - rng.uniform(0.0, b["gap"][1])
+    while x > b["to"]:
+        (px, pz), d, n = gorge_point(x)
+        r = rng.uniform(*b["radius"])
+        u = rng.uniform(*b["across"])
+        cx, cz = px + n[0] * u, pz + n[1] * u
+        # Only by the water, clear of the stones' crossing.
+        if abs(x - STONES["x"]) > b["clear"] and at(cx, cz) < ledge + 0.3:
+            boulder(cx, cz, r, ledge + rng.uniform(*b["height"]), rng.uniform(*b["flat"]), rng.uniform(*b["moss"]))
+            # Smaller ones beside it, along the water's edge either side, out in the water, awash.
+            for k in range(int(rng.integers(1, 3)) if rng.random() < b["group"] else 0):
+                side = rng.choice([-1.0, 1.0])
+                r2 = r * rng.uniform(0.35, 0.6)
+                along = side * (r + r2 * rng.uniform(0.4, 0.8))
+                out = -rng.uniform(0.2, 0.7)
+                boulder(cx + d[0] * along + n[0] * out, cz + d[1] * along + n[1] * out, r2,
+                        WATER + rng.uniform(*b["awash"]), rng.uniform(*b["flat"]), 0.0)
+        x -= rng.uniform(*b["gap"])
+    # At the wall's foot, where the ground climbs under the cliff's face; never so near across the path
+    # from one by the water that the way left between what shows of them is narrower than `way`.
+    by_water = [block.s for _, _, block in big]
+    w = b["wall"]
+    wall = np.random.default_rng(w["seed"])
+    walls = []
+    x = b["from"] - wall.uniform(0.0, w["gap"][1])
+    while x > b["to"]:
+        (px, pz), d, n = gorge_point(x)
+        u, r = wall.uniform(*w["across"]), wall.uniform(*w["radius"])
+        cx, cz = px + n[0] * u, pz + n[1] * u
+        opposite = any(s["along"][0] - r - w["apart"] < cx < s["along"][1] + r + w["apart"]
+                       and (u - r) - s["across"][1] < w["way"] for s in by_water)
+        if abs(x - STONES["x"]) > b["clear"] and not opposite:
+            flat = wall.uniform(*w["flat"])
+            boulder(cx, cz, r, ledge + r * flat * wall.uniform(*w["rest"]), flat, wall.uniform(*w["moss"]),
+                    "mossy" if wall.random() < 0.5 else "karst")
+            walls.append((x, u, r))
+        x -= wall.uniform(*w["gap"])
+    # Small stones: along the water's edge, none in a boulder, none at the crossing; and against the
+    # boulders at the wall's foot, either side of them along it.
+    s = b["stones"]
+    lie = np.random.default_rng(s["seed"])
+
+    def pebble(cx, cz, r, rest):
+        flat = lie.uniform(0.5, 0.75)
+        bm, cols, _ = stone(cx, cz, r, max(at(cx, cz), WATER) + r * flat * rest, flat, 0.0)
+        small.append((bm, cols))
+
+    x = b["from"] - lie.uniform(0.0, s["gap"][1])
+    while x > b["to"]:
+        (px, pz), d, n = gorge_point(x)
+        u, r = lie.uniform(*s["water"]), lie.uniform(*s["radius"])
+        cx, cz = px + n[0] * u, pz + n[1] * u
+        clear = all(math.hypot(cx - block.cx, cz - block.cz) > 0.8 * max(block.reach) + r for _, _, block in big)
+        if abs(x - STONES["x"]) > b["clear"] and clear:
+            pebble(cx, cz, r, lie.uniform(0.6, 1.4))
+        x -= lie.uniform(*s["gap"])
+    for x0, u0, r0 in walls:
+        for _ in range(int(lie.integers(*s["beside"]))):
+            side = lie.choice([-1.0, 1.0])
+            r = lie.uniform(*s["radius"])
+            (px, pz), d, n = gorge_point(x0 + side * (r0 + r * lie.uniform(0.2, 1.1)))
+            u = u0 + lie.uniform(-0.1, 0.25)
+            pebble(px + n[0] * u, pz + n[1] * u, r, lie.uniform(0.5, 1.2))
+    return big, small
 
 
 def rockfall():
@@ -1215,7 +1425,9 @@ def ground(x, z, natural=False, ramps=True, mouth=True, planted=False):
     # The gorge's floor, between its walls: the river and its ledge, the ravine at its head.
     across, outside = gorge_across(x, z)
     in_gorge = (1.0 - smoothstep(-1.5, 0.0, outside)) * smoothstep(-2.0, 0.5, s)
-    h = h + (gorge_floor(x, across, GORGE["from"] if planted else GORGE["reach"]) - h) * in_gorge
+    # (As the jungle was planted on it, the river ending where it did and its bed deep to the coast.)
+    floor = gorge_floor(x, across, GORGE["from"]) if planted else gorge_floor(x, across, GORGE["reach"], s)
+    h = h + (floor - h) * in_gorge
 
     # The high ground: the tableland and the spur standing sheer out of the low ground, climbing to
     # their tops just inside their edges (under the cliff faces built over them).
@@ -1313,7 +1525,10 @@ def paint(x, z, h, masks, normal_y, shade):
     # in the film's frames of it: pale grey stones, some cooler, some warmer, marked as bare ground
     # for the film look to paint each pebble (see GROUND_PAINT in Island.ts, which tells them from
     # sand by their grey).
-    pebbles = smoothstep(0.4, 0.9, masks["gorge"]) * smoothstep(WATER + 0.05, WATER + 0.3, h)
+    # Only on the floor's flat: where the ground starts up into the walls' feet it is their broken
+    # stone (see below), not pebbles stretched up the slope.
+    pebbles = (smoothstep(0.4, 0.9, masks["gorge"]) * smoothstep(WATER + 0.05, WATER + 0.3, h)
+               * smoothstep(0.8, 0.93, normal_y))
     stones = mix(c("pebble"), c("pebbleCool"), smoothstep(0.3, 0.8, noise(x, z, 3.0, 47.0)))
     stones = mix(stones, c("pebbleWarm"), smoothstep(0.45, 0.85, noise(x, z, 5.0, 48.0)) * 0.7)
     col = mix(col, stones, pebbles)
@@ -1386,10 +1601,22 @@ def paint(x, z, h, masks, normal_y, shade):
     # on it. (Not on the quay: its only steep ground is the drop its timber hides, and the sand by its
     # ends.)
     slope = mix(c("rock"), c("rockDark"), 0.35 + 0.65 * smoothstep(-0.3, 0.6, noise(x, z, 2.6, 65.0)))
-    t = smoothstep(0.8, 0.62, normal_y) * (s > -1.0) * above * (1.0 - masks["quay"])
+    # Down the gorge's walls, right under their white cliffs, the broken stone is the cliffs' own, pale
+    # and cool in their shadow, damp and darker down where it meets the floor, from where the floor's
+    # pebbles end (see above), so it reads as the cliff's foot: it had been a warm brown band along the
+    # riverside path's wall, ragged where the ground climbs into the cliff's face (the user,
+    # 2026-10-21). (Only in the gorge: round the high ground in the jungle the grass runs to the
+    # cliffs' feet, as the film's does.)
+    under_cliff = (1.0 - smoothstep(2.5, 4.5, np.abs(masks["high"]))) * smoothstep(0.02, 0.2, masks["gorge"])
+    pale = mix(c("cliffFoot"), c("cliffFootDark"), 0.25 + 0.6 * smoothstep(-0.3, 0.6, noise(x, z, 1.7, 66.0)))
+    low_down = smoothstep(GORGE["ledge"][0] + 2.6, GORGE["ledge"][0] + 0.2, h)
+    pale = mix(pale, c("cliffDamp"), 0.75 * low_down * smoothstep(-0.5, 0.5, noise(x, z, 1.3, 67.0) + 0.4))
+    slope = mix(slope, pale, under_cliff)
+    t = (np.maximum(smoothstep(0.8, 0.62, normal_y), smoothstep(0.93, 0.78, normal_y) * under_cliff)
+         * (s > -1.0) * above * (1.0 - masks["quay"]))
     col = mix(col, slope, t)
     kind = mix(kind, earth_k * 0.8, t)
-    scree = np.maximum(scree, 0.6 * t * clusters) * (1.0 - masks["quay"])
+    scree = np.maximum(scree, (0.6 + 0.3 * under_cliff) * t * clusters) * (1.0 - masks["quay"])
 
     return np.clip(col * shade[..., None], 0.0, 1.0), np.clip(kind, 0.0, 1.0), np.clip(scree, 0.0, 1.0)
 
@@ -1747,10 +1974,9 @@ def rock_specs():
     })
     # The forbidden cave's heap of rock, from the sea to the spur's end, its mouth in the middle.
     specs.extend(cave_rocks())
-    # The stepping-stone pillars across the gorge's river, and the boulders along its edge below the
-    # riverside path.
+    # The stepping-stone pillars across the gorge's river. (The boulders along its edge below the
+    # riverside path are river stones: see boulders.)
     specs.extend(stepping_stones()[0])
-    specs.extend(boulder_specs())
     for centre, r, top, seed in NEEDLES:
         specs.append({
             "centre": centre, "radii": (r, r * 0.85), "turn": 0.4, "top": top, "seed": seed, "segments": 14,
@@ -2025,6 +2251,15 @@ def build_landmarks(collection, air):
         groups.setdefault("gorge", []).append((bm, cols, True))
         if block.reach:
             outlines.append((block, block.reach))
+    # The boulders along the riverside path, kept clear by walkers, and the small stones about them:
+    # in a mesh of their own, which the game paints as stone the river has worn smooth (no slabs, no
+    # moss over their tops).
+    big, small = boulders()
+    for bm, cols, block in big:
+        groups.setdefault("river", []).append((bm, cols, True))
+        outlines.append((block, block.reach))
+    for bm, cols in small:
+        groups.setdefault("river", []).append((bm, cols, True))
     # The waterfall's wall: vines hanging down its face either side of the water, the water itself
     # and the spray where it lands in the pool.
     wall = next(r for r, _ in outlines if r.s["notch"])
@@ -2044,9 +2279,15 @@ def build_landmarks(collection, air):
     # round the spur, as the film's frames of the stepping-stone pillars draw them: sheer, pale, cut
     # by upright cracks more than by beds, with greenery spilling over their tops.
     for k, (rp, rn, tops, low) in enumerate(high_edges()):
+        # Vines hang in strands down the gorge's wall over the riverside path, as in the film's frame
+        # of it (`river below parkour stone landmark 1`; the user, 2026-10-21).
+        across, out = gorge_across(rp[:, 0], rp[:, 1])
+        riverside = ((np.abs(out) < 1.5) & (across > 0.0) & (rp[:, 0] < GORGE["from"] - 2.0)
+                     & (rp[:, 0] > BOULDERS["to"] - 1.0)).astype(float)
         bm, cols, greens, tufts, ledges = K.cliff(rp, rn, tops, WATER, TABLELAND["seed"] + k, base=float(low.min()) - 1.5,
                                                   column=1.6, stone="karst", stand=0.9, jut=0.45, row=1.0,
-                                                  beds=(1.2, 3.0), joints=(2.0, 5.0))
+                                                  beds=(1.2, 3.0), joints=(2.0, 5.0),
+                                                  strands=riverside if riverside.any() else None, floor=GORGE["ledge"][0])
         air.cut(bm, bounds=CV.BOUNDS)
         groups.setdefault("west", []).append((bm, cols, True))
         hanging.setdefault("west", []).append((*greens, True))
@@ -2215,7 +2456,11 @@ def build_plants(collection, outlines):
     # The rockfall in the gorge's head came after the jungle was planted: the plants are drawn round
     # the rocks as they stood before it, so the jungle stands as it did, and those that would grow in
     # it are left out (see in_rockfall).
-    outlines = [(rock, reach) for rock, reach in outlines if not rock.s.get("rockfall")]
+    # So did the boulders along the riverside path as they stand now: it is drawn round them as they
+    # stood (PLANTED_BOULDERS), and what would grow in them now is left out (see in_boulder).
+    boulders = [(rock, reach) for rock, reach in outlines if rock.s.get("boulder")]
+    outlines = ([(rock, reach) for rock, reach in outlines if not rock.s.get("rockfall") and not rock.s.get("boulder")]
+                + [(rock, rock.outline()) for rock in (K.Rock(spec, ground_height) for spec in planted_boulder_specs())])
     G = plant_ground(outlines, props)
     x0, z0 = CENTRE[0] - SIZE / 2, CENTRE[1] - SIZE / 2
     canopy = PL.Patchwork(x0, z0, SIZE, CANOPY_PATCHES)
@@ -2268,8 +2513,22 @@ def build_plants(collection, outlines):
                 return True
         return float(stall_backs(np.array([x]), np.array([z]), BACKS["room"])[0]) > 0.02
 
+    def in_boulder(x, z):
+        # In one of the boulders along the riverside path as they stand now, or within a hand of it.
+        for rock, reach in boulders:
+            dx, dz = x - rock.cx, z - rock.cz
+            d = math.hypot(dx, dz)
+            if d > max(reach) + 0.3:
+                continue
+            k = len(reach)
+            f = (math.atan2(dz, dx) / (2.0 * math.pi) * k) % k
+            i = int(f)
+            if d < reach[i] + (reach[(i + 1) % k] - reach[i]) * (f - i) + 0.2:
+                return True
+        return False
+
     def keep_out(x, z):
-        return in_rockfall(x, z) or kept_out(x, z)
+        return in_rockfall(x, z) or kept_out(x, z) or in_boulder(x, z)
 
     def since_planted(x, z):
         # Left out only by what came to the gorge's head after the jungle was planted, the rockfall and
@@ -2277,6 +2536,18 @@ def build_plants(collection, outlines):
         return (in_rockfall(x, z) or in_run_on(x, z)) and not kept_out(x, z, sea=False)
 
     variants.keep_out = keep_out
+
+    # Before 島二郎's standing sign on the side its path comes from (SHOP_GREENS' `view`), only the
+    # lowest plants grow, so the sign shows all the way up the path.
+    shop_x, shop_z, shop_turn = next((x, z, math.radians(turn)) for kind, x, z, turn in props if kind == "restaurant")
+    cs, sn = math.cos(shop_turn), math.sin(shop_turn)
+
+    def before_sign(x, z):
+        dx, dz = x - shop_x, z - shop_z
+        across, back, reach = SHOP_GREENS["view"]
+        return dx * cs - dz * sn > across and -(dx * sn + dz * cs) < back and math.hypot(dx, dz) < reach
+
+    variants.keep_low = before_sign
 
     def at(x, z):
         return float(ground_height(np.array([x]), np.array([z]))[0])
@@ -2500,7 +2771,10 @@ def build_plants(collection, outlines):
         grown = variants.plant("under", kinds[kind][int(rng.integers(0, len(kinds[kind])))], x, y, z,
                                  rng.uniform(0, 2 * math.pi), rng.uniform(0.95, 1.5))
         count[kind] += 1
-        if kind == "bush" and (grown or since_planted(x, z)):
+        # A bush left out by what came since the jungle was planted (before 島二郎's sign, in a boulder by
+        # the river) still counts among the flowers, as one since_planted does, so the butterflies are
+        # drawn as before.
+        if kind == "bush" and (grown or since_planted(x, z) or not (in_rockfall(x, z) or kept_out(x, z))):
             flowers.append((x, y, z))
             if not grown:
                 unplanted.add((x, y, z))
@@ -2519,20 +2793,22 @@ def build_plants(collection, outlines):
                        rim.uniform(0, 2 * math.pi), rim.uniform(1.0, 1.5))
 
     # Ferns and dark leafy plants at the foot of the gorge's south wall, along the riverside path, as
-    # in the film's frames of it: in clumps with gaps, clear of the stones' crossing; from a generator
-    # of their own.
+    # in the film's frames of it: in clumps with gaps, clear of the stones' crossing and the boulders;
+    # from a generator of their own.
     foot = np.random.default_rng(GORGE_FOOT["seed"])
     fx = GORGE_FOOT["from"]
+    variants.keep_out = lambda x, z: in_rockfall(x, z) or in_boulder(x, z)
     while fx > GORGE_FOOT["to"]:
         fx -= foot.uniform(*GORGE_FOOT["gap"])
-        if abs(fx - STONES["x"]) < 4.0 or foot.random() < 0.3:
+        if abs(fx - STONES["x"]) < 4.0 or foot.random() < GORGE_FOOT["skip"]:
             continue
         (px, pz), _, n = gorge_point(fx)
         u = GORGE["half"] - GORGE_FOOT["in"] + foot.uniform(-0.15, 0.15)
         px, pz = px + n[0] * u, pz + n[1] * u
         kind = GORGE_FOOT["kinds"][int(foot.integers(0, len(GORGE_FOOT["kinds"])))]
         variants.plant("under", kinds[kind][int(foot.integers(0, len(kinds[kind])))], px, at(px, pz) - 0.04, pz,
-                       foot.uniform(0, 2 * math.pi), foot.uniform(0.75, 1.1))
+                       foot.uniform(0, 2 * math.pi), foot.uniform(*GORGE_FOOT["scale"]))
+    variants.keep_out = keep_out
 
     # The waterfall pool's own plants and the bromeliads on its stump (see POOL_PLANTS and POOL_ROCKS).
     for kind, index, across, toward, scale in POOL_PLANTS:
@@ -2728,6 +3004,241 @@ def build_plants(collection, outlines):
             near, far = palms[int(greens.integers(0, len(palms)))]
             if variants.plant("palms", near, x, at(x, z) - 0.05, z, greens.uniform(0, 2 * math.pi), greens.uniform(0.9, 1.15), far):
                 trunks.append([round(x, 2), round(z, 2), 0.3])
+
+    # Round 島二郎, as thick as the film's (see SHOP_GREENS): its trees, palms and elephant ears, the
+    # understory filling in round them and tufts along its trodden ground's edges. Its bushes are not
+    # among the butterflies' flowers, which are drawn as before.
+    shop = SHOP_GREENS
+    grove = np.random.default_rng(shop["seed"])
+    kinds["ear"] = [variants.shape("ear", PL.to_arrays(PL.elephant_ear(grove))) for _ in range(3)]
+
+    def shop_place(across, back):
+        # A place in the shop's own metres, on the map.
+        return shop_x + across * cs - back * sn, shop_z - across * sn - back * cs
+
+    def shop_clear(x, z):
+        # How far (x, z) lies from the shop's solid parts (0 in them).
+        dx, dz = np.asarray(x) - shop_x, np.asarray(z) - shop_z
+        across, back = dx * cs - dz * sn, -(dx * sn + dz * cs)
+        return np.min([np.hypot(np.maximum(np.maximum(a0 - across, across - a1), 0.0),
+                                np.maximum(np.maximum(b0 - back, back - b1), 0.0)) for a0, a1, b0, b1 in shop["solid"]], axis=0)
+
+    def trodden_at(x, z):
+        return float(path_field(np.array([x]), np.array([z]))[0])
+
+    spaced = Spacing(4.0)
+    for layer in ("under", "palms"):
+        for entry in variants.placed.get(layer, []):
+            if math.hypot(entry[1] - shop_x, entry[3] - shop_z) < shop["reach"] + 3.0:
+                spaced.take(entry[1], entry[3])
+    for group in shop["trees"]:
+        trees = []
+        for across, back, height in group:
+            tx, tz = shop_place(across, back)
+            if not stems.free(tx, tz, 3.0) or trodden_at(tx, tz) < 1.5:
+                print(f"WARNING 島二郎's tree at {across}, {back} has no room: left out")
+                continue
+            stems.take(tx, tz)
+            spaced.take(tx, tz)
+            trees.append((tx, tz, height))
+        if not trees:
+            continue
+        tcx, tcz = sum(t[0] for t in trees) / len(trees), sum(t[1] for t in trees) / len(trees)
+        base = at(tcx, tcz)
+        built, tops, far = PL.clump(np.random.default_rng(int(grove.integers(1 << 31))),
+                                    [(tx - tcx, -(tz - tcz), height, at(tx, tz) - base) for tx, tz, height in trees])
+        canopy.add(PL.to_arrays(built), tcx, tcz, base)
+        canopy_far.add(PL.to_arrays(far), tcx, tcz, base)
+        for tx, tz, height in trees:
+            trunks.append([round(tx, 2), round(tz, 2), round(0.32 * height / 8.0 + 0.2, 2)])
+        for lx, ly, lz, r in tops:
+            crowns.append([round(tcx + lx, 2), round(base + lz, 2), round(tcz - ly, 2), round(r, 2)])
+    for across, back in shop["palms"]:
+        x, z = shop_place(across, back)
+        if not stems.free(x, z, 2.5) or trodden_at(x, z) < 1.5:
+            print(f"WARNING 島二郎's palm at {across}, {back} has no room: left out")
+            continue
+        # Leaning away from the shop, so its trunk never comes over the roof.
+        away = math.atan2(-(z - shop_z), x - shop_x) + grove.uniform(-0.6, 0.6)
+        near, far = palms[int(grove.integers(0, len(palms)))]
+        if variants.plant("palms", near, x, at(x, z) - 0.05, z, away, grove.uniform(1.0, 1.2), far):
+            stems.take(x, z)
+            spaced.take(x, z)
+            trunks.append([round(x, 2), round(z, 2), 0.3])
+    for across, back, scale in shop["ears"]:
+        x, z = shop_place(across, back)
+        if float(shop_clear(x, z)) < shop["clear"]["ear"] * scale / 1.5:
+            print(f"WARNING 島二郎's elephant ear at {across}, {back} would reach into it: left out")
+            continue
+        if variants.plant("under", kinds["ear"][int(grove.integers(0, len(kinds["ear"])))], x, at(x, z) - 0.04, z,
+                          grove.uniform(0, 2 * math.pi), scale):
+            spaced.take(x, z)
+    # The fill, round the jungle's own plants there and what was just planted.
+    walk = path_field(G["x"], G["z"])
+    room = shop_clear(G["x"], G["z"])
+    near_shop = np.hypot(G["x"] - shop_x, G["z"] - shop_z)
+    fill_ok = ((near_shop < shop["reach"]) & (room > min(shop["clear"].values())) & (walk > shop["path"])
+               & (G["inland"] > 1.0) & (G["rock"] > 1.0) & (G["slope"] < 0.85) & (G["cliff_band"] < 0.5)
+               & (G["wet"] < 0.5) & (G["h"] > WATER + 0.45) & (G["skylight"] > 0.3))
+    gap = np.where(near_shop < PROP_ROOM["restaurant"], shop["gap"][0], shop["gap"][1])
+    filled = 0
+    for _ in range(shop["passes"]):
+        for x, z in scatter(grove, G, fill_ok, gap, taken=spaced, stride=1):
+            clear, trodden = float(shop_clear(x, z)), trodden_at(x, z)
+            if trodden < shop["path"] or not stems.free(x, z, 1.0):
+                continue
+            pick = shop["mix"][int(grove.integers(0, len(shop["mix"])))]
+            dx, dz = x - shop_x, z - shop_z
+            in_view = (dx * cs - dz * sn > shop["view"][0]) and (-(dx * sn + dz * cs) < shop["view"][1])
+            if in_view or trodden < shop["path_big"] or clear < shop["clear"][pick]:
+                fits = [k for k in (shop["low_view"] if in_view else shop["low"]) if shop["clear"][k] <= clear]
+                if not fits:
+                    continue
+                pick = fits[int(grove.integers(0, len(fits)))]
+            scale = grove.uniform(1.15, 1.5) if pick == "ear" else grove.uniform(0.9, 1.3)
+            shapes = kinds[pick]
+            if variants.plant("under", shapes[int(grove.integers(0, len(shapes)))], x, at(x, z) - 0.04, z,
+                              grove.uniform(0, 2 * math.pi), scale):
+                filled += 1
+    # Tufts along its trodden ground's edges, either side of each of TRODDEN's lines as trodden (see
+    # walked_paths), where the paths' own tufts don't already run.
+    edged = 0
+    tufted = Spacing(2.0)
+    for px, pz, half in walked_paths()[len(PATHS):]:
+        tx, tz = np.gradient(px), np.gradient(pz)
+        length = np.hypot(tx, tz) + 1e-9
+        for k in range(len(px)):
+            for side in (1.0, -1.0):
+                d = half[k] + grove.uniform(-0.15, 0.3)
+                x, z = float(px[k] - tz[k] / length[k] * d * side), float(pz[k] + tx[k] / length[k] * d * side)
+                if (math.hypot(x - shop_x, z - shop_z) > shop["reach"] or not -0.25 < trodden_at(x, z) < 0.45
+                        or float(path_field(np.array([x]), np.array([z]), trodden=False)[0]) < 0.6
+                        or float(shop_clear(x, z)) < 0.3 or not tufted.free(x, z, shop["tufts"])):
+                    continue
+                tufted.take(x, z)
+                if variants.plant("under", edge_tufts[int(grove.integers(0, len(edge_tufts)))], x, at(x, z) - 0.02, z,
+                                  grove.uniform(0, 2 * math.pi), grove.uniform(0.75, 1.25)):
+                    edged += 1
+    print(f"SHOP GREENS: {filled} plants filling in round 島二郎, {edged} tufts along its trodden ground")
+
+    # The tree 島二郎's sign hangs from (see SIGN_TREE), its branch over the path in the sign's own
+    # metres (from the ground under the sign) brought into the tree's, bark like its trunk's and still
+    # in the wind, as the board hanging from it is.
+    hang = BP.HANGING
+    sign_x, sign_z, sign_turn = next((x, z, math.radians(turn)) for kind, x, z, turn in props if kind == "sign_hanging")
+    hc, hs = math.cos(sign_turn), math.sin(sign_turn)
+
+    def sign_place(across, back):
+        # A place in the hung sign's own metres, on the map (as the game places its parts).
+        return sign_x + across * hc - back * hs, sign_z - across * hs - back * hc
+
+    tx, tz = sign_place(*hang["trunk"])
+    if not stems.free(tx, tz, 2.0):
+        print("WARNING the hung sign's tree stands close by another")
+    stems.take(tx, tz)
+    base, under = at(tx, tz), at(sign_x, sign_z)
+    built, tops, far = PL.clump(np.random.default_rng(SIGN_TREE["seed"]), [(0.0, 0.0, hang["height"], 0.0)], straight=True)
+    bough = []
+    for p, r in BP.hanging_branch():
+        wx, wz = sign_place(p.x, p.y)
+        bough.append((Vector((wx - tx, tz - wz, under + p.z - base)), r))
+    limb = [built]
+
+    def bark(bm):
+        return [PL.lerp(PL.C["trunk"], PL.C["trunkLight"], 0.5 + 0.5 * math.sin(v.co.z * 2.0 + v.co.x)) for v in bm.verts]
+
+    for (a, ra), (b, rb) in zip(bough, bough[1:]):
+        seg = BP.segment_bm(a, b, ra, rb, segments=8)
+        limb.append((seg, bark(seg), [0.0] * len(seg.verts)))
+    # Swollen where it leaves the trunk, and knotted twice along it.
+    for k, swell in ((3, 1.45), (10, 1.3), (19, 1.35)):
+        p, r = bough[k]
+        knot = L.ellipsoid_bm(p, (r * swell, r * swell, r * swell * 0.9), u=9, v=6)
+        limb.append((knot, bark(knot), [0.0] * len(knot.verts)))
+    canopy.add(PL.to_arrays(PL.merge(limb)), tx, tz, base)
+    canopy_far.add(PL.to_arrays(far), tx, tz, base)
+    trunks.append([round(tx, 2), round(tz, 2), round(0.32 * hang["height"] / 8.0 + 0.2, 2)])
+    for lx, ly, lz, r in tops:
+        crowns.append([round(tx + lx, 2), round(base + lz, 2), round(tz - ly, 2), round(r, 2)])
+
+    # The jungle down both sides of 島二郎's path (see PATH_GREENS): clumps of trees, palms and the
+    # understory round them, round what is already there.
+    way = PATH_GREENS
+    woods = np.random.default_rng(way["seed"])
+    to_line = polyline_distance(G["x"], G["z"], way["line"])
+    gorge_out = gorge_across(G["x"], G["z"])[1]
+    room_g = shop_clear(G["x"], G["z"])
+    near_way = ((to_line < way["reach"]) & (G["slope"] < 0.85) & (G["rock"] > 1.2) & (G["wet"] < 0.5)
+                & (G["h"] > WATER + 0.45) & (G["inland"] > 0.5) & (G["skylight"] > 0.3) & (room_g > 1.0))
+
+    def way_at(x, z):
+        # The trodden ground's, the high ground's and the gorge's walls' distances at (x, z).
+        xs, zs = np.array([x]), np.array([z])
+        return trodden_at(x, z), float(high_field(xs, zs)[0]), float(gorge_across(xs, zs)[1][0])
+
+    tree_ok = near_way & (walk > way["tree_path"]) & (G["high"] < -way["tree_cliff"]) & (gorge_out > way["tree_bank"])
+    groves = 0
+    for cx, cz in scatter(woods, G, tree_ok, way["trees"], taken=Spacing(4.0), stride=1):
+        trees = []
+        for t in range(2 if woods.random() < 0.55 else 1):
+            a, d = woods.uniform(0.0, 2.0 * math.pi), (0.0 if not trees else woods.uniform(3.2, 4.4))
+            tx, tz = cx + d * math.cos(a), cz + d * math.sin(a)
+            walked, high, out = way_at(tx, tz)
+            if (walked < way["tree_path"] or high > -way["tree_cliff"] or out < way["tree_bank"] or before_sign(tx, tz)
+                    or float(shop_clear(tx, tz)) < 3.0 or not stems.free(tx, tz, way["stems"])):
+                continue
+            stems.take(tx, tz)
+            spaced.take(tx, tz)
+            trees.append((tx, tz, woods.uniform(*way["tree_height"])))
+        if not trees:
+            continue
+        gcx, gcz = sum(t[0] for t in trees) / len(trees), sum(t[1] for t in trees) / len(trees)
+        base = at(gcx, gcz)
+        built, tops, far = PL.clump(np.random.default_rng(int(woods.integers(1 << 31))),
+                                    [(tx - gcx, -(tz - gcz), height, at(tx, tz) - base) for tx, tz, height in trees])
+        canopy.add(PL.to_arrays(built), gcx, gcz, base)
+        canopy_far.add(PL.to_arrays(far), gcx, gcz, base)
+        for tx, tz, height in trees:
+            trunks.append([round(tx, 2), round(tz, 2), round(0.32 * height / 8.0 + 0.2, 2)])
+        for lx, ly, lz, r in tops:
+            crowns.append([round(gcx + lx, 2), round(base + lz, 2), round(gcz - ly, 2), round(r, 2)])
+        groves += 1
+    # Palms lean, so they keep as far off the cliffs as the trees do.
+    palm_ok = near_way & (walk > 1.5) & (G["high"] < -way["tree_cliff"]) & (gorge_out > 0.8)
+    palmed = 0
+    for x, z in scatter(woods, G, palm_ok, way["palms"], taken=Spacing(4.0), stride=1):
+        if not stems.free(x, z, 2.2) or float(shop_clear(x, z)) < 3.0:
+            continue
+        near, far = palms[int(woods.integers(0, len(palms)))]
+        if variants.plant("palms", near, x, at(x, z) - 0.05, z, woods.uniform(0, 2 * math.pi), woods.uniform(0.95, 1.25), far):
+            stems.take(x, z)
+            spaced.take(x, z)
+            trunks.append([round(x, 2), round(z, 2), 0.3])
+            palmed += 1
+    under_way = near_way & (walk > way["path"]) & (G["high"] < -way["cliff"]) & (gorge_out > way["bank"])
+    gap = np.where(to_line < 6.0, way["gap"][0], way["gap"][1])
+    for layer in ("under", "palms"):
+        for entry in variants.placed.get(layer, []):
+            spaced.take(entry[1], entry[3])
+    grown = 0
+    for _ in range(way["passes"]):
+        for x, z in scatter(woods, G, under_way, gap, taken=spaced, stride=1):
+            walked, high, out = way_at(x, z)
+            clear = float(shop_clear(x, z))
+            if walked < way["path"] or high > -way["cliff"] or out < way["bank"] or not stems.free(x, z, 1.0):
+                continue
+            pick = way["mix"][int(woods.integers(0, len(way["mix"])))]
+            if walked < way["path_big"] or clear < SHOP_GREENS["clear"][pick] or before_sign(x, z):
+                fits = [k for k in (SHOP_GREENS["low_view"] if before_sign(x, z) else way["low"]) if SHOP_GREENS["clear"][k] <= clear]
+                if not fits:
+                    continue
+                pick = fits[int(woods.integers(0, len(fits)))]
+            scale = woods.uniform(1.15, 1.5) if pick == "ear" else woods.uniform(0.9, 1.3)
+            shapes = kinds[pick]
+            if variants.plant("under", shapes[int(woods.integers(0, len(shapes)))], x, at(x, z) - 0.04, z,
+                              woods.uniform(0, 2 * math.pi), scale):
+                grown += 1
+    print(f"PATH GREENS: {groves} clumps of trees, {palmed} palms and {grown} plants down 島二郎's path")
 
     # Blue butterflies flutter round flowering bushes, a few here and there; the nearer to the
     # festival and the village, the likelier.
