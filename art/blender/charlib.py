@@ -16,9 +16,11 @@ from mathutils import Matrix, Vector
 from mathutils.bvhtree import BVHTree
 
 # Part indices, shared with src/characters/Model.ts. HEAD is a head that turns on its own about its neck
-# (the Siren's); the cast's heads are their bodies.
+# (the Siren's); the cast's heads are their bodies. An arm is three: ARM_* its upper arm, from the shoulder,
+# ARM_*2 its forearm, from the elbow, and PAW_* its paw, from the wrist.
 BODY, ARM_L, ARM_R, FOOT_L, FOOT_R, EAR_L, EAR_R, EAR_L2, EAR_R2, SKIRT, TAIL, SPROUT, HEAD = range(13)
-MAX_PARTS = 13
+ARM_L2, ARM_R2, PAW_L, PAW_R = range(13, 17)
+MAX_PARTS = 17
 
 # Paint codes, shared with src/characters/CharacterMaterial.ts
 PAINT_PLAIN, PAINT_BODY, PAINT_LEAF, PAINT_SKIRT = 0.0, 1.0, 2.0, 3.0

@@ -15,6 +15,26 @@ export interface Pose {
   armLSwing: number;
   armRRaise: number;
   armRSwing: number;
+  /** How far an arm that bends (see Character.poseArm) folds at its elbow and its paw at its wrist, forward and
+   * in toward the middle (radians). */
+  armLBend: number;
+  armRBend: number;
+  pawLBend: number;
+  pawRBend: number;
+  /**
+   * Reaching: how far (0 to 1) a paw's tip goes to a point instead of where the angles above put it, the arm
+   * bending at its elbow to get it there; and the point, in face radii: out from the middle on that arm's own
+   * side (x), up from the eyes (y), forward from the body's middle (z). So one set of numbers suits both paws
+   * and everyone. See REACH in Actions.ts for the points the actions use.
+   */
+  reachL: number;
+  reachLX: number;
+  reachLY: number;
+  reachLZ: number;
+  reachR: number;
+  reachRX: number;
+  reachRY: number;
+  reachRZ: number;
   footLX: number;
   footLY: number;
   footLZ: number;
@@ -53,6 +73,18 @@ const REST: Pose = {
   armLSwing: 0,
   armRRaise: 0,
   armRSwing: 0,
+  armLBend: 0,
+  armRBend: 0,
+  pawLBend: 0,
+  pawRBend: 0,
+  reachL: 0,
+  reachLX: 0,
+  reachLY: 0,
+  reachLZ: 0,
+  reachR: 0,
+  reachRX: 0,
+  reachRY: 0,
+  reachRZ: 0,
   footLX: 0,
   footLY: 0,
   footLZ: 0,

@@ -48,6 +48,10 @@ export interface CharacterUniforms {
    * mark fades away over the body below it, round, rather than stopping at the head's seam. */
   uHeadParts: THREE.IUniform<number>;
   uHeadBall: THREE.IUniform<THREE.Vector4>;
+  /** How far a grass skirt's hem spreads out round them on the ground as they sit (0 standing): its lower part
+   * pushed out from their middle, the more the further down it is, its waist staying snug (see VERT). Shared
+   * with their outfit. */
+  uSkirtFlare: THREE.IUniform<number>;
 }
 
 const NO_TEXTURE = new THREE.Texture();
@@ -85,6 +89,7 @@ export function makeCharacterUniforms(
     uMark: { value: 0.5 },
     uHeadParts: { value: 0 },
     uHeadBall: { value: new THREE.Vector4(0, 0, 0, 0) },
+    uSkirtFlare: { value: 0 },
     uMaskOn: { value: mask ? 1 : 0 },
     // Whether the pen draws along the second colour's edge (1), or it only changes colour there (0, Furuhonya's cap).
     uMaskLine: { value: rig.maskLine === false ? 0 : 1 },
@@ -137,6 +142,12 @@ uniform mat4 uParts[MAX_PARTS];
 uniform float uSquash;
 uniform vec2 uLean;
 uniform vec4 uBow;
+uniform vec4 uSkirt;
+uniform float uSkirtFlare;
+// How far a spread skirt's hull goes back behind it (metres for each unit of uSkirtFlare): its inside lies within
+// millimetres under its top. Its inside's hull goes this far back (metres) out of sight as it starts to spread.
+const float SKIRT_HULL_BACK = 0.06;
+const float SKIRT_INSIDE_BACK = 1.0;
 uniform int uHeadParts;
 uniform vec4 uHeadBall;
 uniform float uHeight;
@@ -185,10 +196,31 @@ vec3 bowedNormal(vec3 n) {
 }
 
 void main() {
+  // Sitting, a grass skirt spreads out on the ground round them as the film's do (the bonfire's, [anime]
+  // chiikawa 5), rather than only growing shorter: its lower part pushed out from their middle, the more the
+  // further down it is (uSkirt: its tie, y, and its hem, x), so the waist stays snug and the hem pools wide. As
+  // much as the point is on the skirt (an islander's own skirt grows out of the body).
+  vec3 rest = position;
+  vec3 restNormal = normal;
+  float onSkirt = (abs(aPart0 - float(SKIRT_PART)) < 0.5 ? 1.0 - aWeight : 0.0)
+    + (abs(aPart1 - float(SKIRT_PART)) < 0.5 ? aWeight : 0.0);
+  bool spread = uSkirtFlare > 0.0 && onSkirt > 0.0;
+  if (spread) {
+    float span = max(uSkirt.y - uSkirt.x, 1e-3);
+    float down = clamp((uSkirt.y - rest.y) / span, 0.0, 1.0);
+    float flare = uSkirtFlare * onSkirt;
+    float grow = 1.0 + flare * down * down;
+    // Its normal bent with it (the spread's inverse transpose), the outside's turning up, the inside's down: left
+    // upright, the outline was pushed up the screen onto the skirt's further parts and drew over them as a dark band.
+    float slope = rest.y < uSkirt.y && rest.y > uSkirt.x ? -2.0 * flare * down / span : 0.0;
+    restNormal = normalize(vec3(normal.x / grow, normal.y - slope * dot(rest.xz, normal.xz) / grow, normal.z / grow));
+    rest.xz *= grow;
+  }
   // Two-bone blend: each vertex follows up to two parts (head + ear, ear + ear tip...).
   mat4 m = uParts[int(aPart0 + 0.5)] * (1.0 - aWeight) + uParts[int(aPart1 + 0.5)] * aWeight;
-  vec3 p = bowed(softBody((m * vec4(position, 1.0)).xyz));
-  vec3 n = normalize(mat3(m) * normal);
+  vec3 p = bowed(softBody((m * vec4(rest, 1.0)).xyz));
+  // A spread skirt is also shortened (Character's skirtSeat): its normals by the inverse transpose there too.
+  vec3 n = spread ? normalize(transpose(inverse(mat3(m))) * restNormal) : normalize(mat3(m) * normal);
   float s = max(uSquash, 0.3);
   float k = inversesqrt(s);
   n = bowedNormal(normalize(vec3(n.x / k, n.y / s, n.z / k)));
@@ -238,6 +270,12 @@ void main() {
   // Inverted hull. Solid parts (arms, legs) pull their hull toward the camera so their
   // outline shows where they overlap the body, like the inner lines of the drawings.
   mvPosition.xyz += normalize(-mvPosition.xyz) * (uLineBias * aLift);
+  // A skirt spread out seated is nearly flat, its inside squashed to within millimetres of its top: its hull goes
+  // a little back behind it, as far as it is spread; its inside's (facing in, toward their middle), which only
+  // ever drew over the skirt and the gap round their waist as a dark band, far back out of sight.
+  bool inside = dot(normal.xz, position.xz) < 0.0;
+  float back = inside ? SKIRT_INSIDE_BACK * min(1.0, uSkirtFlare * 8.0) : SKIRT_HULL_BACK * uSkirtFlare;
+  mvPosition.xyz -= normalize(-mvPosition.xyz) * (back * onSkirt);
   vec4 clip = projectionMatrix * mvPosition;
   vec2 dir = (projectionMatrix * vec4(nV, 0.0)).xy * uResolution;
   float len = length(dir);
@@ -550,14 +588,14 @@ export function createCharacterMaterials(
     uniforms: { ...THREE.UniformsUtils.clone(THREE.UniformsLib.fog), ...uniforms },
     vertexShader: VERT,
     fragmentShader: FRAG,
-    defines: { MAX_PARTS, FIRE_LIGHTS: CHARACTER_LIGHTS, ...extra },
+    defines: { MAX_PARTS, SKIRT_PART: PART.SKIRT, FIRE_LIGHTS: CHARACTER_LIGHTS, ...extra },
     fog: true,
   });
   const outline = new THREE.ShaderMaterial({
     uniforms: { ...THREE.UniformsUtils.clone(THREE.UniformsLib.fog), ...uniforms },
     vertexShader: VERT,
     fragmentShader: OUTLINE_FRAG,
-    defines: { MAX_PARTS, FIRE_LIGHTS: CHARACTER_LIGHTS, OUTLINE: 1, ...extra },
+    defines: { MAX_PARTS, SKIRT_PART: PART.SKIRT, FIRE_LIGHTS: CHARACTER_LIGHTS, OUTLINE: 1, ...extra },
     side: THREE.BackSide,
     fog: true,
   });

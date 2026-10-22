@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { CharacterDef, ExpressionId } from './types';
 import { MAX_PARTS, PART, type AnchorName, type CharacterModel, type OutfitModel } from './Model';
+import { ArmRig, type ArmPose, type ArmTurns } from './Arms';
 import {
   createCharacterMaterials,
   FOG_FRAGMENT,
@@ -139,20 +140,34 @@ const SWORD_BACK_TURN = (() => {
   const across = new THREE.Vector3().crossVectors(SWORD_BACK_WAY, out);
   return new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(across, SWORD_BACK_WAY, out));
 })();
-/** Only now and then he holds it (the 'sword' action): up point first, as the film has it (`[anime] rakko 1`), but
- * in his right paw, as his stubby arms reach no further in than his sides and his head is too big for a blade held
- * up before it. Its grip this far ahead of the paw's tip and in toward his middle (metres); its point leaning this
- * far forward and this far out to his right, clear of his head (radians). */
+/** Only now and then he holds it (the 'sword' action): up point first, as the film has it (`[anime] rakko 1`), in
+ * both paws before him (REACH_SWORD in Actions.ts). Its grip's middle there, in his body's own frame at rest
+ * (metres), under his chin; its point leaning this far forward and this far out to his left (radians), clear of
+ * his head. Held in one paw, as before arms bent, by a model whose arms do not: its grip this far ahead of the
+ * paw's tip and in toward his middle (metres). */
+const SWORD_HOLD = new THREE.Vector3(0, 0.235, 0.32);
+const SWORD_FORWARD = 0.6;
+const SWORD_OUT = 0.35;
 const SWORD_AHEAD = 0.03;
 const SWORD_INWARD = 0.02;
-const SWORD_FORWARD = 0.4;
-const SWORD_OUT = 0.3;
 /** Where his ukulele is held while he plays it, in his body's own frame at rest (metres): across his tummy, out in
- * front of his cape's roll, where his paws are, its body to his right; tipped this far back (radians) and its
- * neck this far up to his left. */
-const UKULELE_AT = new THREE.Vector3(-0.03, 0.27, 0.42);
+ * front of his cape's roll, in his paws (REACH_UKULELE in Actions.ts), its body to his right; tipped this far back
+ * (radians) and its neck this far up to his left. */
+const UKULELE_AT = new THREE.Vector3(-0.03, 0.27, 0.34);
 const UKULELE_BACK = -0.25;
 const UKULELE_UP = 0.45;
+/** How much wider a grass skirt's hem spreads as they sit (a share of its radius standing), as the film's skirts
+ * pool on the ground round them by the bonfire (`[anime] chiikawa 5`): shorter only, the skirt read as their
+ * sinking into the ground (the user, 2026-10-23). */
+const SKIRT_FLARE = 0.5;
+/** A seat this much higher than the floor under it (metres) is raised: a stool, a log, a bed (see seatedHigh). */
+const RAISED_SEAT = 0.06;
+/** How arms that bend hang at rest (see locomotionPose): this much lower than built (radians), bent this much at
+ * the elbow and the wrist. */
+const REST_ARM = { raise: -0.3, swing: 0.2, bend: 0.5, paw: 0.25 };
+/** An arm whose paw holds a thing: swung forward and bent so the thing is before them; the cave's torch raised
+ * this high. */
+const HOLD_ARM = { swing: 0.55, bend: 0.75, paw: 0.25, torchRaise: 0.55 };
 /** Turning to face what they watch, the body stops this near it (radians) and turns this fast (a second). */
 const TURN_DONE = 0.08;
 const TURN_RATE = 4;
@@ -298,6 +313,15 @@ export class Character implements EmoteHost {
   private unseen = false;
   private readonly uniforms: CharacterUniforms;
   private readonly parts: THREE.Matrix4[];
+  /** Their arms, if they bend (see Arms.ts), and how each is turned this frame. */
+  private readonly armRig: ArmRig | null;
+  private readonly armTurns: [ArmTurns, ArmTurns] = [0, 1].map(() => ({
+    upper: new THREE.Quaternion(),
+    fore: new THREE.Quaternion(),
+    paw: new THREE.Quaternion(),
+    shoulder: new THREE.Vector3(),
+  })) as [ArmTurns, ArmTurns];
+  private readonly armPose: ArmPose = { raise: 0, swing: 0, bend: 0, pawBend: 0, reach: 0, x: 0, y: 0, z: 0 };
   private readonly shadow: THREE.Mesh;
   /** The shadow the strongest firelight casts after dark, leaning away from it along the ground. */
   private readonly fireShadow: THREE.Mesh;
@@ -320,6 +344,8 @@ export class Character implements EmoteHost {
   private readonly instrument: THREE.Object3D | null;
   /** Where they sit while riding in the boat, or null on their own feet. */
   ride: Ride | null = null;
+  /** Whether what they sit on is raised off the floor under it (see RAISED_SEAT). */
+  private seatedHigh = false;
   private readonly outfit: THREE.Group | null = null;
   /** Their own clothes, worn instead of the island outfit (see CharacterOptions.own), or none. */
   private readonly ownOutfit: THREE.Group | null = null;
@@ -395,6 +421,7 @@ export class Character implements EmoteHost {
     const layers = options.crowd ? null : model.faceLayers;
     this.face = new Face(def.face, options.crowd ? 256 : 768, layers);
     this.parts = Array.from({ length: MAX_PARTS }, () => new THREE.Matrix4());
+    this.armRig = ArmRig.of(model);
     this.uniforms = makeCharacterUniforms(model.rig, this.parts, this.face.texture, model.maskTexture);
     this.uniforms.uLineBias.value = 0.045 * model.rig.headR / 0.45;
     // Which parts are their head (see uHeadParts): the head and all that hangs from it; the whole of them for a
@@ -769,8 +796,11 @@ export class Character implements EmoteHost {
   /** A rig anchor in the body's own frame (its mesh's), following the current pose and squash as its
    * shader does, but not its bow (see setBow). */
   private anchorLocal(name: AnchorName, out: THREE.Vector3): THREE.Vector3 {
-    // The rest are on the head, which is the body but for a head of its own (see headPitch).
-    const part = name === 'handL' ? PART.ARM_L : name === 'handR' ? PART.ARM_R : PART.HEAD;
+    // The hands' are the tips of their paws (or of the arm, where it does not bend); the rest are on the head,
+    // which is the body but for a head of its own (see headPitch).
+    const bends = !!this.armRig;
+    const part =
+      name === 'handL' ? (bends ? PART.PAW_L : PART.ARM_L) : name === 'handR' ? (bends ? PART.PAW_R : PART.ARM_R) : PART.HEAD;
     return this.partPoint(out.copy(this.model.anchors[name]), part);
   }
 
@@ -810,6 +840,9 @@ export class Character implements EmoteHost {
     this.velocity.add(_v);
 
     const pos = this.root.position;
+    // A seat raised off the floor under it (a stool, a log, a bed, the pier's edge, the boat), not the ground.
+    this.seatedHigh =
+      !!this.ride && this.ride.y - ctx.groundHeight(this.ride.x, this.ride.z, this.ride.y) > RAISED_SEAT;
     if (this.ride) {
       // Riding: they sit where the boat carries them.
       pos.set(this.ride.x, this.ride.y, this.ride.z);
@@ -926,6 +959,30 @@ export class Character implements EmoteHost {
     const tm = this.time;
     p.squash = 1 + 0.014 * Math.sin(tm * 2.3);
     p.armLRaise = p.armRRaise = 0.04 * Math.sin(tm * 2.3 + 0.8);
+    if (this.armRig) {
+      // Arms that bend hang a little lower than the stubs did, soft at the elbow and the wrist, their paws in by
+      // their sides as the plush's are.
+      p.armLRaise = p.armRRaise = REST_ARM.raise + 0.04 * Math.sin(tm * 2.3 + 0.8);
+      p.armLSwing = p.armRSwing = REST_ARM.swing;
+      p.armLBend = p.armRBend = REST_ARM.bend;
+      p.pawLBend = p.pawRBend = REST_ARM.paw;
+      // A paw that holds a thing brings it up before them (see placeHand), and the cave's torch higher.
+      if (this.torch) {
+        p.armRRaise = HOLD_ARM.torchRaise;
+        p.armRSwing = HOLD_ARM.swing;
+        p.armRBend = HOLD_ARM.bend;
+      } else if (this.hand && !this.instrument?.visible) {
+        p.armRSwing = HOLD_ARM.swing;
+        p.armRBend = HOLD_ARM.bend;
+        p.pawRBend = HOLD_ARM.paw;
+      }
+      if (this.carried) {
+        // Kurimanju's can, in the other paw.
+        p.armLSwing = HOLD_ARM.swing;
+        p.armLBend = HOLD_ARM.bend;
+        p.pawLBend = HOLD_ARM.paw;
+      }
+    }
     const speed = this.speed();
     const walk = smoothstep(0.05, 0.5, speed);
     if (walk <= 0) return;
@@ -1049,6 +1106,47 @@ export class Character implements EmoteHost {
     this.headPitch += (pitch - this.headPitch) * k;
   }
 
+  /** Arm i (0 left, 1 right) of an arm that bends, posed by its angles and reach (see ArmRig.solve). */
+  private poseArm(
+    i: 0 | 1,
+    raise: number,
+    swing: number,
+    bend: number,
+    pawBend: number,
+    reach: number,
+    x: number,
+    y: number,
+    z: number,
+  ): void {
+    const rig = this.armRig as ArmRig;
+    const a = this.armPose;
+    a.raise = raise;
+    a.swing = swing;
+    a.bend = bend;
+    a.pawBend = pawBend;
+    a.reach = reach;
+    a.x = x;
+    a.y = y;
+    a.z = z;
+    // The head is turned before the arms (see updateParts), so points by the face can go with it.
+    const turns = rig.solve(i, a, this.armTurns[i], this.model.hasHead ? this.parts[PART.HEAD] : null);
+    const [upper, fore, paw] = rig.parts(i);
+    this.setPartTurn(upper, turns.upper, turns.shoulder);
+    this.setPartTurn(fore, turns.fore);
+    this.setPartTurn(paw, turns.paw);
+  }
+
+  /** Turns part i by `q` about its pivot (as setPart, given a turn instead of angles), its pivot moved to `at` if
+   * given (an arm's shoulder, slid round the body). */
+  private setPartTurn(i: number, q: THREE.Quaternion, at?: THREE.Vector3): void {
+    const pivot = this.model.pivots[i];
+    const m = this.parts[i];
+    m.compose(at ?? pivot, q, _s.set(1, 1, 1));
+    m.multiply(_m.makeTranslation(-pivot.x, -pivot.y, -pivot.z));
+    const parent = this.model.parents[i];
+    if (parent >= 0) m.premultiply(this.parts[parent]);
+  }
+
   /** Turns part i about its pivot, moves it by (ox, oy, oz) and scales its height by sy. */
   private setPart(i: number, rx: number, ry: number, rz: number, ox = 0, oy = 0, oz = 0, sy = 1): void {
     const pivot = this.model.pivots[i];
@@ -1102,11 +1200,17 @@ export class Character implements EmoteHost {
     this.parts[PART.BODY].identity();
     // Before the parts that hang from it (the ears, the leaves).
     this.setPart(PART.HEAD, this.headPitch, this.headYaw, 0);
-    // Left is the model's -x side. Raise lifts the arm sideways, swing moves it forward.
+    // Left is the model's -x side. Raise lifts the arm sideways, swing moves it forward; an arm that bends
+    // also folds at its elbow and wrist, and reaches its paw to a point (see Arms.ts).
     const [raiseL, swingL] = this.armAngles(p.armLRaise, p.armLSwing);
     const [raiseR, swingR] = this.armAngles(p.armRRaise, p.armRSwing);
-    this.setPart(PART.ARM_L, 0, swingL, -raiseL);
-    this.setPart(PART.ARM_R, 0, -swingR, raiseR);
+    if (this.armRig) {
+      this.poseArm(0, raiseL, swingL, p.armLBend, p.pawLBend, p.reachL, p.reachLX, p.reachLY, p.reachLZ);
+      this.poseArm(1, raiseR, swingR, p.armRBend, p.pawRBend, p.reachR, p.reachRX, p.reachRY, p.reachRZ);
+    } else {
+      this.setPart(PART.ARM_L, 0, swingL, -raiseL);
+      this.setPart(PART.ARM_R, 0, -swingR, raiseR);
+    }
     this.setFoot(PART.FOOT_L, 0, p.footLX, p.footLY, p.footLZ);
     this.setFoot(PART.FOOT_R, 1, p.footRX, p.footRY, p.footRZ);
     this.setPart(PART.EAR_L, this.earPitch[0].value, 0, this.earRoll[0].value);
@@ -1115,6 +1219,9 @@ export class Character implements EmoteHost {
     this.setPart(PART.EAR_R2, this.earBend[1].value, 0, 0);
     const skirtHeight = 1 - (1 - this.skirtSeat) * p.sit;
     this.setPart(PART.SKIRT, this.skirtX.value, this.skirtY.value, this.skirtZ.value, 0, 0, 0, skirtHeight);
+    // Sitting on the ground, the skirt's hem also spreads out round them on it (see CharacterMaterial's VERT); not
+    // on a raised seat, where there is no ground round them for it to lie on.
+    this.uniforms.uSkirtFlare.value = this.seatedHigh ? 0 : SKIRT_FLARE * p.sit;
     this.setPart(PART.TAIL, 0, 0, 0, p.tailX, 0, 0);
     this.setPart(PART.SPROUT, 0, 0, this.sprout.value);
     // Sitting lowers the body until its bottom rests on the ground.
@@ -1233,7 +1340,11 @@ export class Character implements EmoteHost {
       // With their own clothes (Rakko's sword): on their back, or held up by its grip in the same hand as the
       // can is, its point leaning forward and out.
       this.ownCarried.visible = !!this.ownOutfit?.visible;
-      if (this.holdsOwn) {
+      if (this.holdsOwn && this.armRig) {
+        // In both paws before him (see REACH_SWORD).
+        this.ownCarried.position.copy(this.bodyPoint(SWORD_HOLD, _v));
+        this.ownCarried.rotation.set(SWORD_FORWARD, this.facing, -SWORD_OUT, 'YXZ');
+      } else if (this.holdsOwn) {
         this.getAnchor('handL', _v);
         this.ownCarried.position.set(_v.x + s * SWORD_AHEAD + c * SWORD_INWARD, _v.y, _v.z + c * SWORD_AHEAD - s * SWORD_INWARD);
         this.ownCarried.rotation.set(SWORD_FORWARD, this.facing, SWORD_OUT, 'YXZ');

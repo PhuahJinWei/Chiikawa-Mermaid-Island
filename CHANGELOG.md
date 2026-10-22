@@ -826,6 +826,48 @@ outlined is drawn twice, once for its pen line. To get there:
 
 **Changed**
 
+- The characters' arms bend (the user, 2026-10-22: the stubs were "too
+  short and there are no joins", so a wave, holding a thing or a paw below
+  the mouth was almost impossible). This was studied from the user's
+  sprites, the film, the official figures and 3D ad, and how others rig
+  Chiikawa (see `src/characters/Arms.ts`).
+  - The converter replaces each downloaded stub with a round mitten arm
+    in three parts: upper arm, forearm and paw. It is as thick and as long
+    as the stub ("revert back to the original length, but now they have
+    joins", the user said, after 1.6 and 1.2 times as long were both too
+    long). Each joint bends across a soft band, so a bend reads as a
+    curve; on so short an arm the two bands are kept from meeting.
+  - The arm's root is not fixed to the body's side (the user's idea, after
+    the drawings, whose paws sit on the face under the mouth). As a paw
+    reaches before them, the root goes round the body toward the front
+    and up it, under the head's edge, to under the mouth. It goes only as
+    far as it must for the short arm to reach, along a way measured on
+    each model (`armRoots`). Points by the face, and a root on the head,
+    turn with the head as it watches you.
+  - The points paws reach for are measured by the face: how far ahead its
+    mouth is. Momonga's head is wide with its fluffy cheeks but its face
+    is as far forward as Chiikawa's, and measured by its head's width its
+    paws fell short. Each point is checked in the game to be within reach
+    of every cast member.
+  - Poses can reach a paw to a point as well as turn the arm by its
+    angles. The motions use this:
+    - eating and crying: both paws up under the mouth;
+    - talking: a paw before the chest;
+    - startled: both paws up held before the chest;
+    - bowing: paws together before the chest;
+    - sitting: paws on the tummy;
+    - waving: a paw up at the side, wagging at the wrist;
+    - cheering: both arms flung up and out;
+    - the hula and the hop: elbows and wrists flowing;
+    - at rest: arms soft at the elbow; anything held is brought up before
+      them.
+  - Rakko holds his sword in both paws and plays his ukulele with both:
+    one paw strums, the other is on its neck.
+  - A paw's line is pulled further toward the camera than the arm's, so
+    its whole round line shows when it is held close before the body.
+  - Every cast member, both named islanders and the background crowd have
+    these arms. The Siren's fin-hands and the little mermaids are as they
+    were.
 - Every character's face is baked again from the user's latest layers in
   `art/faces/` (the user, 2026-10-22), all of the cast, the islanders, the
   Siren and her little mermaids rebuilt. Their new sweat drops show on
@@ -2240,6 +2282,23 @@ outlined is drawn twice, once for its pen line. To get there:
 
 **Fixed**
 
+- Sitting on the ground in a grass skirt looks like sitting (the user,
+  2026-10-23: in the island outfit it "doesn't really look like the
+  character is actually sitting down"). The skirt only grew shorter as
+  they sat, as tall and narrow as before, so they read as sinking into the
+  ground.
+  - It now spreads out wide and low on the ground round them, as the
+    film's bonfire picture draws seated skirts (`[anime] chiikawa 5`): its
+    hem half again as wide, its fringe strokes fanning out, its waist snug,
+    the legs under it.
+  - The character shader spreads the skirt's lower part out from the
+    middle (`uSkirtFlare`, the more the further down), the islanders' own
+    skirts too, and bends its normals with it.
+  - The skirt's inside then lies within millimetres under its top, and its
+    line drew a dark band over the skirt and the gap round the waist, so
+    the inside's outline is now pushed out of sight.
+  - A raised seat (a stool, a log, a bed, the pier's edge, the boat) does
+    not spread the skirt, since there is no ground round them there.
 - After the user's play-through (2026-10-22):
   - **The plank hut wedged into the yard has moved.** It stood behind the
     yard's other two plank huts, its door onto their walls. It now stands on

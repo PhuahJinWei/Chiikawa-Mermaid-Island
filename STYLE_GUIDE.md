@@ -165,6 +165,15 @@ never pushed, because it is other people's artwork.
 - **Everyone is a round blob.** Head and body are one soft shape, wider at
   the head, with tiny stub arms and almost invisible feet. Heights are close
   to one head tall. This is a gift for procedural modelling.
+- **Short arms that bend, and that can come out of the front.** The arms
+  are short fingerless mittens, as long as the downloaded models' stubs
+  (longer read wrong, the user found). They bend softly at the shoulder,
+  elbow and wrist, never as hinges. A short arm is not fixed to the body's side. As the drawings
+  show, a paw reaching before them brings its arm out of the front of the
+  body, as far up as under the mouth, so both paws can sit on the face
+  under the mouth (the user's drawing of Hachiware), meet before the chest,
+  or hold a thing together. A paw goes no higher than that before the face.
+  Food goes up to the mouth, as on the official figures.
 
 ## 2. Shared costume: the island outfit
 
@@ -185,7 +194,12 @@ separate from the character model (see `art/blender/outfits.py`).
   fringe strokes drawn with the pen, with rounded ends, start a little
   above the hem and rise about halfway. There is no line along the hem: the grass simply ends, and
   the side outlines taper off just above it. The characters' arms rest on
-  top of the skirt, never inside it.
+  top of the skirt, never inside it. Seated on the ground, the skirt
+  spreads out wide and low on it round them, its fringe strokes fanning
+  out, the legs under it, as the film's bonfire picture draws it
+  (`[anime] chiikawa 5`). Kept as tall, only shorter, it read as the
+  character sinking into the ground. On a raised seat (a stool, a log, a
+  bed, the boat) it does not spread.
 
 On arrival day (pier scene) the trio wear their normal look: no crown, no
 skirt, Chiikawa with a pink bear pouch, weapons strapped on. That could be a
@@ -208,7 +222,7 @@ a villager's height, the big-leaved ones over them.
 | **Chiikawa** | 1.0 | Warm white #FBF7EE | Two small round ears on top | Pink #F9DCE1 / #FFF1F3 | Most expressive face; often teary or anxious. |
 | **Hachiware** | 1.0 | Warm white | Blue cap shape over top of head #5E8FC4 with two pointed cat ears; split down the forehead. Its edge sits about 0.4 head radii above the eyes, well clear of the brows | Pale aqua #D3F2EE / #EAFBF7 | Small blue tail tuft at the back. |
 | **Usagi** | 1.15 | Pale yellow #F8E4B4 | Two tall upright ears, pink inside #F3A9B8; two arched brow lines on forehead | Yellow #FBF5A8 / #FFFBD2, small, at ear base | Often carries a torch or food. Energetic, mid-jump poses. |
-| **Rakko-sensei** | 1.1 | Cream #F1E3C4, short fur ticks around the edge instead of a line, as the film draws him | Tiny dark brown ears #3E2A23 low on the head's sides (much smaller than Chiikawa's), dark brown paws and feet, tan 4-point star scar on forehead over his right eye (the user's painting, a face layer) | None: never the island outfit (white crown), which is his only from the Test panel | Calm half-lidded eyes. Always in his own clothes (the user, 2026-10-22): a white cape #DDE2DE wrapped round his neck in a flat band and hanging down his back, and his sword after the user's drawing of it (a broad grey faceted blade, modelled a cool #C6D0E6 so that it shows grey under the game's warm sun, white guard, banded white grip and pommel), which he carries slantwise on his back, its hilt over his right shoulder, and only now and then holds up in his right paw. Plays a small ukulele at the bonfire (a plain one until there is a frame of the film's). Chiikawa's model with only these differences, after the official plush (`[3d model] rakko`) and `[anime] rakko 1`: converted by `art/blender/import_characters.py`; the cape by `outfits.py`, the sword and ukulele by `build_props.py`. |
+| **Rakko-sensei** | 1.1 | Cream #F1E3C4, short fur ticks around the edge instead of a line, as the film draws him | Tiny dark brown ears #3E2A23 low on the head's sides (much smaller than Chiikawa's), dark brown paws and feet, tan 4-point star scar on forehead over his right eye (the user's painting, a face layer) | None: never the island outfit (white crown), which is his only from the Test panel | Calm half-lidded eyes. Always in his own clothes (the user, 2026-10-22): a white cape #DDE2DE wrapped round his neck in a flat band and hanging down his back, and his sword after the user's drawing of it (a broad grey faceted blade, modelled a cool #C6D0E6 so that it shows grey under the game's warm sun, white guard, banded white grip and pommel), which he carries slantwise on his back, its hilt over his right shoulder, and only now and then holds up before him in both paws. Plays a small ukulele at the bonfire (a plain one until there is a frame of the film's), one paw strumming, the other on its neck. Chiikawa's model with only these differences, after the official plush (`[3d model] rakko`) and `[anime] rakko 1`: converted by `art/blender/import_characters.py`; the cape by `outfits.py`, the sword and ukulele by `build_props.py`. |
 | **Momonga** | 1.0 | White, fluffy cheek tufts | Round ears with pale blue insides, small blue nose dot | Lavender #D4CEF4 / #E9E5FB | Huge fluffy pale-blue tail #BDE7EA behind. Sly, cute-acting. |
 | **Kurimanju** | 1.0 | Peach #F6D8B8 | Brown chestnut cap #7A4B2E covering top of head, its edge lowest in front and behind and rising to the sides; tiny round ears low on the head's sides | Pale green #CDEBB0 | Holds a drink, relaxed. Few expressions: the extreme ones (sobbing, shocked, angry) are his special face, mouth wide open; no brows but when serious (the user, 2026-10-22). Chiikawa's model with only these differences (the user, 2026-10-22), after the official plush (`[3d model] kurimanju`): converted by `art/blender/import_characters.py`, the cap drawn there as a mask. |
 | **Shisa** | 1.0 | Cream #F7EDCB | A mane of petals #F4AD82 (soft salmon orange), three a side down the head from under the ears, each the shape the user drew (a domed top, a little hooked tip, a full curve back), its straight edge along the head's outline so that the head's line runs over it, the upper over the lower, flat as felt, each outlined; ears the same petal only longer, cream, standing on the head's top corners; the drawing's little curl in each, in the pen (a short stroke out from the head's line in a petal, an arch in an ear), on their fronts only; thick orange brows (the face's to paint); a little tail tuft in the mane's colour | Peach #F6B99A | Cheerful. She is Hachiware's model with only these differences (2026-10-22), after the official plush (`[3d model] shisa`), the official drawing and the user's petal drawing. Converted by `art/blender/import_characters.py`, which builds the mane and ears (`PETAL_OUTLINE`). |

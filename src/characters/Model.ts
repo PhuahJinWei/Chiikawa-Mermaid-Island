@@ -19,8 +19,14 @@ export const PART = {
   /** A head that turns on its own about its neck (the Siren's, see Character.headPitch); the cast's heads
    * are their bodies. */
   HEAD: 12,
+  /** An arm that bends (art/blender/import_characters.py jointed_arm): ARM_* is its upper arm, from the
+   * shoulder; these its forearm, from the elbow, and its paw, from the wrist. */
+  ARM_L2: 13,
+  ARM_R2: 14,
+  PAW_L: 15,
+  PAW_R: 16,
 } as const;
-export const MAX_PARTS = 13;
+export const MAX_PARTS = 17;
 
 export type AnchorName = 'head' | 'top' | 'eyeL' | 'eyeR' | 'mouth' | 'sideL' | 'sideR' | 'handL' | 'handR';
 type Vec3Tuple = [number, number, number];
@@ -75,6 +81,9 @@ export interface Rig {
   maskTexture?: string | null;
   parts: { pivot: Vec3Tuple; parent: number }[];
   anchors: Partial<Record<AnchorName, Vec3Tuple>>;
+  /** Where each arm's root can go as its paw reaches in front (an arm that bends: see Arms.ts): from its shoulder
+   * round the body toward the front and up it to under the mouth; each point [x, y, z, 1 if on the head]. */
+  armRoots?: { L: [number, number, number, number][]; R: [number, number, number, number][] } | null;
   patterns?: {
     /** A grass skirt that is part of the model (the islanders'), not an outfit. */
     skirt?: SkirtPattern | null;

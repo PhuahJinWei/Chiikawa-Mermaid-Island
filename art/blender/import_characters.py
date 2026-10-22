@@ -71,6 +71,33 @@ INK = np.array([0x3B, 0x26, 0x20], dtype=np.float32) / 255.0  # film's dark brow
 LINE = "#66432F"                # outline brown sampled from the film
 ARM_DOWN = math.radians(30.0)  # the character cards hold the arms out almost level
 ARM_FORWARD = math.radians(15.0)
+# The arms bend (the user, 2026-10-22: the models' rigid stubs, too short and with no joints, could not wave,
+# hold a thing or bring a paw up under the mouth). After the official figures and the film: a fingerless mitten
+# arm in three, upper arm, forearm and paw, the whole of it this many times as long as the model's, root to tip:
+# as long as the stub ("revert back to the original length, but now they have joins", the user said, after 1.6
+# and 1.2 were both too long), its shoulder this far round the body toward the front.
+ARM_LONGER = 1.0
+SHOULDER_FORWARD = math.radians(15.0)
+# A short arm is not fixed to the body's side (the user: it can "come out from the front, near the mouth", as
+# Chiikawa's characters are drawn, their paws on the face under the mouth): as a paw reaches in front, the arm's
+# root goes round the body toward the front and up it, under the head's edge, to under the mouth, along a way of
+# `steps` points on the body's and head's surface (see arm_roots), round to `front` (degrees from the side) and up
+# to `up` face radii (see face_radius) below the eyes; the root `sink` arm radii under the surface, so the arm comes
+# out of it.
+ARM_ROOT = {"steps": 14, "front": 70.0, "up": 0.5, "sink": 1.0}
+# A face's size for where paws go by it: how far ahead of the body's middle the face is at the mouth's height, as
+# Chiikawa's mouth is this many head radii ahead (so hers is her head radius). Not the head's width: Momonga's is
+# wide with her fluffy cheeks, her face as far forward as Chiikawa's. The game measures it at the mouth (Arms.ts).
+MOUTH_AHEAD = 0.91
+# The paw, in the arm's radii: this long from the wrist to its tip, and a little fuller than the arm; the upper
+# arm this share of the rest, the forearm the remainder. Each joint bends across a band this wide either side of
+# it (arm radii), so that a bend is a curve, not a hinge; on a short arm, the two bands' sides toward each other
+# narrowed so that they never meet (see joint_bands).
+ARM_PAW = {"length": 1.3, "radius": 1.06}
+ARM_UPPER_SHARE = 0.55
+ARM_BEND = {"elbow": 0.8, "wrist": 0.5}
+# How far a paw's line is pulled toward the camera (see limb_lift: 1 is the most, about an arm's thickness).
+PAW_LIFT = 1.0
 
 BODY_KINDS = ("Head", "Body", "Arm", "Leg", "Ear", "Tail")
 DECAL_LAYERS = {
@@ -896,6 +923,132 @@ def pose_arms(arm_obj):
     bpy.context.view_layer.update()
 
 
+def arm_axis(bm, shoulder):
+    """A rigid stub arm's middle line: the point on it nearest its shoulder bone (whose bones stand a little in
+    front of the arms on the downloaded models), and its vertices' main direction, out from there."""
+    pts = np.array([v.co[:] for v in bm.verts])
+    middle = Vector(pts.mean(axis=0))
+    _, vecs = np.linalg.eigh(np.cov((pts - np.array(middle[:])).T))
+    way = Vector(vecs[:, -1]).normalized()
+    if (middle - shoulder).dot(way) < 0.0:
+        way = -way
+    return middle + way * (shoulder - middle).dot(way), way
+
+
+def arm_radius(bm, shoulder, way):
+    """How thick a straight arm is round its axis: its outer surface's distance from it along its middle half
+    (clear of its rounded ends), the 80th percentile of its points' (Momonga's arm, flatter and with points inside
+    it, would read too thin by their middle)."""
+    us = [(v.co - shoulder).dot(way) for v in bm.verts]
+    lo, hi = min(us), max(us)
+    near = [((v.co - shoulder) - way * u).length for v, u in zip(bm.verts, us)
+            if lo + 0.25 * (hi - lo) <= u <= lo + 0.75 * (hi - lo)]
+    return float(np.percentile(near, 80))
+
+
+def joint_bands(at_elbow, at_wrist, radius):
+    """Where along an arm (from its shoulder) its elbow and its wrist bend: ((lo, hi), (lo, hi)), each ARM_BEND arm
+    radii either side of its joint, but on the sides toward each other no more than 0.45 of the forearm between
+    them, so that no point of the arm is in both (a point follows two parts at most)."""
+    gap = 0.45 * (at_wrist - at_elbow)
+    e, w = ARM_BEND["elbow"] * radius, ARM_BEND["wrist"] * radius
+    return (at_elbow - e, at_elbow + min(e, gap)), (at_wrist - min(w, gap), at_wrist + w)
+
+
+def jointed_arm(stub, shoulder, side):
+    """An arm that bends, in place of a model's rigid stub: as thick as the stub, round, on the stub's middle
+    line, ARM_LONGER as long root to tip (its root as deep in the body as the stub's), its shoulder (its bone's
+    head, brought onto that line) SHOULDER_FORWARD round the body toward the front, ending in a fingerless mitten
+    paw a little fuller than the arm (ARM_PAW); straight, as the stub hung (see pose_arms). Returns the arm and its
+    shoulder, the way it runs (a unit vector), and its elbow, wrist and paw tip."""
+    shoulder, way = arm_axis(stub, shoulder)
+    r = arm_radius(stub, shoulder, way)
+    us = [(v.co - shoulder).dot(way) for v in stub.verts]
+    back, reach0 = -min(us), max(us)
+    turn = Matrix.Rotation(-side * SHOULDER_FORWARD, 3, "Z")
+    shoulder = turn @ shoulder
+    way = (turn @ way).normalized()
+    reach = ARM_LONGER * (back + reach0) - back
+    r_paw = ARM_PAW["radius"] * r
+    at_wrist = reach - ARM_PAW["length"] * r
+    at_elbow = ARM_UPPER_SHARE * at_wrist
+
+    # Rings round the arm from the root's round end, inside the body, to the paw's round tip.
+    rings = []  # (distance along it from the shoulder, radius)
+    c0, c1 = -back + r, reach - r_paw
+    for j in range(1, 7):
+        a = math.radians(90.0 * j / 6)
+        rings.append((c0 - r * math.cos(a), r * math.sin(a)))
+    steps = max(2, int(math.ceil((c1 - c0) / (r / 3.0))))
+    for j in range(1, steps):
+        u = c0 + (c1 - c0) * j / steps
+        rings.append((u, r + (r_paw - r) * L.smoothstep(at_wrist - 0.5 * r, at_wrist + 0.8 * r, u)))
+    for j in range(0, 8):
+        a = math.radians(90.0 * j / 8)
+        rings.append((c1 + r_paw * math.sin(a), r_paw * math.cos(a)))
+    across = way.cross(Vector((0.0, 0.0, 1.0)))
+    if across.length < 1e-6:
+        across = way.cross(Vector((0.0, 1.0, 0.0)))
+    across.normalize()
+    up = across.cross(way).normalized()
+    around = 18
+    bm = bmesh.new()
+    root = bm.verts.new(shoulder - way * back)
+    loops = []
+    for u, rad in rings:
+        loops.append([bm.verts.new(shoulder + way * u + (across * math.cos(t) + up * math.sin(t)) * rad)
+                      for t in (2.0 * math.pi * k / around for k in range(around))])
+    tip = bm.verts.new(shoulder + way * reach)
+    for k in range(around):
+        bm.faces.new((root, loops[0][(k + 1) % around], loops[0][k]))
+        bm.faces.new((tip, loops[-1][k], loops[-1][(k + 1) % around]))
+    for ring_a, ring_b in zip(loops, loops[1:]):
+        for k in range(around):
+            bm.faces.new((ring_a[k], ring_a[(k + 1) % around], ring_b[(k + 1) % around], ring_b[k]))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    for f in bm.faces:
+        f.smooth = True
+    return (bm, shoulder, way, shoulder + way * at_elbow, shoulder + way * at_wrist, shoulder + way * reach)
+
+
+def face_radius(head_bm, eye_z, rf):
+    """A face's size (see MOUTH_AHEAD): how far ahead its front is at about the mouth's height, by Chiikawa's."""
+    hit = BVHTree.FromBMesh(head_bm).ray_cast(Vector((0.0, -5.0, eye_z - 0.2 * rf)), Vector((0.0, 1.0, 0.0)))[0]
+    return -hit.y / MOUTH_AHEAD if hit is not None else rf
+
+
+def arm_roots(shoulder, side, radius, head_bm, body_bms, eye_z, rf):
+    """The way an arm's root goes as its paw reaches in front (see ARM_ROOT): from its shoulder round the body
+    toward the front, then up the front under the head's edge to under the mouth, each point on the outer surface
+    of the body and head (a ray in to the body's upright middle, the first it meets), `sink` arm radii under it,
+    and whether it is on the head (which turns on its own: its root goes with it). [(point, on head)]."""
+    heads = BVHTree.FromBMesh(head_bm)
+    bodies = [BVHTree.FromBMesh(b) for b in body_bms]
+    az0 = math.atan2(-shoulder.y, side * shoulder.x)
+    az1 = math.radians(ARM_ROOT["front"])
+    z0, z1 = shoulder.z, eye_z - ARM_ROOT["up"] * face_radius(head_bm, eye_z, rf)
+    sink = ARM_ROOT["sink"] * radius
+    out = [(shoulder.copy(), 0.0)]
+    n = ARM_ROOT["steps"]
+    for k in range(1, n + 1):
+        t = k / n
+        az = az0 + (az1 - az0) * L.smoothstep(0.0, 0.65, t)
+        z = z0 + (z1 - z0) * L.smoothstep(0.35, 1.0, t)
+        d = Vector((side * math.cos(az), -math.sin(az), 0.0))
+        start = Vector((0.0, 0.0, z)) + d * 3.0 * rf
+        best = None
+        for tree, on_head in [(heads, 1.0)] + [(b, 0.0) for b in bodies]:
+            hit, normal, _, dist = tree.ray_cast(start, -d)
+            if hit is not None and (best is None or dist < best[2]):
+                best = (hit, normal, dist, on_head)
+        if best is None:
+            continue
+        hit, normal, _, on_head = best
+        normal = normal.normalized() if normal.dot(d) > 0.0 else -normal.normalized()
+        out.append((hit - normal * sink, on_head))
+    return out
+
+
 def head_join(head_bm, body_bms, eye_z, dz=0.01, gap=0.012):
     """Height where the head grows wider than the body below it: the visible join."""
     head_prof = radial_profile([head_bm], dz)
@@ -1130,6 +1283,35 @@ def convert(cfg, source):
                             for lo, hi in boxes[layer]]
         log(f"SHORTEN {cid}: head joins the body at {join:.3f} m, lowered {drop:.3f} m")
 
+    # The skirt is tied just below where the hands hung on the model it is built from (see the waist below):
+    # measured before the arms grow longer.
+    hands_z = min((min(v.co.z for v in src[o].verts) for o, k in body_objs.items() if k == "Arm"), default=None)
+    # Arms that bend, in place of the model's rigid stubs (the user, 2026-10-22): see jointed_arm.
+    arm_ways = {}
+    for o, k in body_objs.items():
+        if k != "Arm":
+            continue
+        side = -1 if sum(v.co.x for v in src[o].verts) < 0 else 1
+        idx, idx2, paw = (L.ARM_L, L.ARM_L2, L.PAW_L) if side < 0 else (L.ARM_R, L.ARM_R2, L.PAW_R)
+        new_bm, shoulder, way, elbow, wrist, tip = jointed_arm(src[o], parts[idx]["pivot"], side)
+        src[o].free()
+        src[o] = new_bm
+        parts[idx]["pivot"] = shoulder
+        parts[idx2]["pivot"], parts[idx2]["parent"] = elbow, idx
+        parts[paw]["pivot"], parts[paw]["parent"] = wrist, idx2
+        radius = arm_radius(new_bm, shoulder, way)
+        arm_ways[side] = (shoulder, way, (elbow - shoulder).length, (wrist - shoulder).length, tip, radius)
+        log(f"ARM {o.name}: {(tip - shoulder).length:.3f} m from shoulder to paw tip, elbow at "
+            f"{(elbow - shoulder).length:.3f}, wrist at {(wrist - shoulder).length:.3f}, {radius:.3f} m thick")
+    # Where each arm's root can go (see arm_roots), on the head and body in their final shapes.
+    arm_root_ways = {}
+    for side, (shoulder, way, _, _, _, radius) in arm_ways.items():
+        arm_root_ways[side] = arm_roots(shoulder, side, radius, src[head_obj],
+                                        [src[o] for o, k in body_objs.items() if k == "Body"], eye_z, rf)
+        last, on_head = arm_root_ways[side][-1]
+        log(f"ARM ROOTS side {side}: {len(arm_root_ways[side])} points, from {L.to_three(shoulder)} to "
+            f"{L.to_three(last)} ({'head' if on_head else 'body'})")
+
     head_bm = src[head_obj]
 
     # The mask image the game samples, now that the head is in its final shape, with the
@@ -1312,15 +1494,28 @@ def convert(cfg, source):
             def attr(co, i, col=col):
                 return L.attrs(col, L.BODY, outline=line)
         elif k == "Arm":
-            idx = L.ARM_L if side < 0 else L.ARM_R
-            shoulder = parts[idx]["pivot"]
-            tip = max(bm.verts, key=lambda v: (v.co - shoulder).length).co.copy()
+            # Upper arm, forearm and paw, each point following one or, across the elbow and the wrist, two
+            # of them, by how far it is along the arm (see jointed_arm).
+            parts3 = (L.ARM_L, L.ARM_L2, L.PAW_L) if side < 0 else (L.ARM_R, L.ARM_R2, L.PAW_R)
+            shoulder, way, at_elbow, at_wrist, tip, radius = arm_ways[side]
             anchors["handL" if side < 0 else "handR"] = tip
-            lift = limb_lift(lo, hi, rf)
-            log(f"outline lift {o.name}: {lift:.2f}")
+            # As thick as the arm, not as long: its line pulled as a limb's is; the paw's further, as far as the paw
+            # is thick, so that its whole round line shows held close before the body's round front (pulled less,
+            # the body hid its inner side).
+            lift = limb_lift(Vector((0.0, 0.0, 0.0)), Vector((2.0, 2.0, 2.0)) * radius, rf)
+            paw_lift = PAW_LIFT
+            log(f"outline lift {o.name}: {lift:.2f}, paw {paw_lift:.2f}")
+            elbow_band, wrist_band = joint_bands(at_elbow, at_wrist, radius)
 
-            def attr(co, i, col=col, idx=idx, lift=lift):
-                return L.attrs(col, idx, lift=lift)
+            def attr(co, i, col=col, parts3=parts3, shoulder=shoulder, way=way, elbow_band=elbow_band,
+                     wrist_band=wrist_band, lift=lift, paw_lift=paw_lift):
+                upper, fore, paw = parts3
+                u = (co - shoulder).dot(way)
+                e = L.smoothstep(*elbow_band, u)
+                if e < 1.0:
+                    return L.attrs(col, upper, fore, e, lift=lift)
+                p = L.smoothstep(*wrist_band, u)
+                return L.attrs(col, fore, paw, p, lift=lift + (paw_lift - lift) * p)
         elif k == "Leg":
             idx = L.FOOT_L if side < 0 else L.FOOT_R
             lift = limb_lift(lo, hi, rf)
@@ -1415,9 +1610,8 @@ def convert(cfg, source):
             zz = hlo_f.z - 0.05 + i * 0.01
             log(f"  z {zz:.3f}  head r {radius_at(head_prof, zz, dz, 0):.3f}  body r {radius_at(body_prof, zz, dz, 0):.3f}"
                 f"  legs r {radius_at(leg_prof, zz, dz, 0):.3f}")
-    # The skirt is tied just below the hands, as in the film.
-    hands = min(min(v.co.z for v in src[o].verts) for o, k in body_objs.items() if k == "Arm")
-    waist = hands - SKIRT["below_hands"]
+    # The skirt is tied just below the hands, as in the film (where they hung before the arms grew: hands_z).
+    waist = hands_z - SKIRT["below_hands"]
     parts[L.SKIRT]["pivot"] = Vector((0.0, 0.0, waist))
 
     def envelope(zz):
@@ -1475,6 +1669,9 @@ def convert(cfg, source):
         "maskTexture": f"models/masks/{cid}.webp" if mask_texture else None,
         "parts": [{"pivot": L.to_three(p["pivot"]), "parent": p["parent"]} for p in parts],
         "anchors": {k: L.to_three(v) for k, v in anchors.items()},
+        # Where each arm's root can go as its paw reaches in front (see arm_roots): [x, y, z, on head].
+        **({"armRoots": {("L" if side < 0 else "R"): [L.to_three(p) + [on_head] for p, on_head in way]
+                         for side, way in arm_root_ways.items()}} if arm_root_ways else {}),
         "patterns": {"skirt": own_skirt},
         **({"fur": fur} if fur else {}),
         "face": face,

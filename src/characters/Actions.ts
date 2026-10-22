@@ -79,10 +79,61 @@ const crossed = (prev: number, t: number, at: number) => prev < at && t >= at;
 const every = (prev: number, t: number, period: number, offset: number) =>
   t >= offset && Math.floor((t - offset) / period) > Math.floor((prev - offset) / period);
 
+type Point = readonly [number, number, number];
+
+/**
+ * Where paws reach (see Pose.reachL and Arms.ts), in face radii (Arms.ts MOUTH_AHEAD: Chiikawa's head radius, and
+ * as much on everyone's face, Momonga's wide head or not): out from the middle on the paw's own side, up from the
+ * eyes, forward from the body's middle. The arms are as short as the models' stubs (the user), reaching about a
+ * quarter of a face radius from their root, the root going round the body and up its front as they reach in; each
+ * point measured to be within reach on every cast member (a straight arm flung toward the wave's and the cheer's).
+ * As the drawings, the official figures and the film have them: both paws up on the face under the mouth (the
+ * user's drawing of Hachiware), or a little lower under the chin; together before the chest, under the head's
+ * edge, where a thing is held; resting on the tummy sitting (no lower: reaching down to the legs, the arms stood
+ * like pillars); up at the side for a wave; and flung up and out round the head's sides for a cheer (the head too
+ * big for paws over it).
+ */
+export const REACH: Record<'mouth' | 'chin' | 'chest' | 'lap' | 'wave' | 'cheer', Point> = {
+  mouth: [0.2, -0.42, 0.92],
+  chin: [0.18, -0.55, 0.88],
+  chest: [0.12, -0.9, 0.72],
+  lap: [0.34, -1.0, 0.6],
+  wave: [0.8, -0.56, 0.32],
+  cheer: [1.1, -0.45, 0.2],
+};
+
+/** Rakko's paws on what he holds, as REACH: on his ukulele, where Character.ts holds it (UKULELE_AT), his right
+ * paw (the model's -x side) strumming over its body and his left up its neck; and both on his sword's grip
+ * (SWORD_HOLD), his right paw below his left. */
+export const REACH_UKULELE: Record<'strum' | 'neck', Point> = {
+  strum: [0.02, -0.75, 0.88],
+  neck: [0.31, -0.6, 0.87],
+};
+export const REACH_SWORD: Record<'lower' | 'upper', Point> = {
+  lower: [0.06, -0.91, 0.81],
+  upper: [0.06, -0.81, 0.87],
+};
+
+/** Reaches the left paw (the model's -x side) `w` of the way to `at`, moved by (dx, dy, dz). */
+function reachL(p: Pose, w: number, at: Point, dx = 0, dy = 0, dz = 0): void {
+  p.reachL = w;
+  p.reachLX = at[0] + dx;
+  p.reachLY = at[1] + dy;
+  p.reachLZ = at[2] + dz;
+}
+
+/** Reaches the right paw (the model's +x side) `w` of the way to `at`, moved by (dx, dy, dz). */
+function reachR(p: Pose, w: number, at: Point, dx = 0, dy = 0, dz = 0): void {
+  p.reachR = w;
+  p.reachRX = at[0] + dx;
+  p.reachRY = at[1] + dy;
+  p.reachRZ = at[2] + dz;
+}
+
 /**
  * Sitting on the ground with the legs stretched out in front, as the film's characters sit:
  * the body settles onto its bottom with a little bounce, leaning back slightly, and keeps its
- * shape. The paws rest in front of the tummy.
+ * shape. The paws rest on the lap.
  */
 function sitPose(t: number, p: Pose): void {
   const s = smooth(t / 0.35);
@@ -92,6 +143,8 @@ function sitPose(t: number, p: Pose): void {
   p.leanZ = -0.015 * s;
   p.armLRaise = p.armRRaise = -0.05;
   p.armLSwing = p.armRSwing = 0.9;
+  reachL(p, s, REACH.lap);
+  reachR(p, s, REACH.lap);
 }
 
 export const ACTIONS: Record<ActionId, ActionDef> = {
@@ -102,8 +155,13 @@ export const ACTIONS: Record<ActionId, ActionDef> = {
     expression: () => 'happy',
     pose(t, p) {
       const up = smooth(t / 0.25) * (1 - smooth((t - 2.05) / 0.3));
-      p.armRRaise = up * (2.1 + 0.32 * Math.sin(t * 13));
+      const wag = Math.sin(t * 13);
+      // A stub's wave, for a model whose arms do not bend; a paw up beside the head, wagged side to side from the
+      // elbow and the wrist, for one whose do (the short arm reaching no higher than the head's lower side).
+      p.armRRaise = up * (2.1 + 0.32 * wag);
       p.armRSwing = up * 0.35;
+      reachR(p, up, REACH.wave, 0.15 * wag, 0.04 * Math.abs(wag));
+      p.pawRBend = up * 0.6 * wag;
       p.leanX = -0.025 * up;
       p.squash = 1 + 0.02 * Math.sin(t * 6.5);
       p.rootY = 0.012 * Math.abs(Math.sin(t * 6.5));
@@ -123,6 +181,8 @@ export const ACTIONS: Record<ActionId, ActionDef> = {
       p.rootY = 0.16 * h * env;
       p.squash = 1 + (0.03 * h - 0.05 * (1 - h) * (1 - h)) * env;
       p.armLRaise = p.armRRaise = (0.4 + 0.8 * h) * env;
+      // The elbows giving with each landing.
+      p.armLBend = p.armRBend = (0.5 - 0.35 * h) * env;
       p.footLY = p.footRY = 0.03 * h * env;
     },
   },
@@ -138,6 +198,11 @@ export const ACTIONS: Record<ActionId, ActionDef> = {
       p.rootY = 0.15 * h;
       p.squash = 1 + 0.1 * h - 0.06 * (1 - up);
       p.armLRaise = p.armRRaise = up * (2.5 + 0.12 * Math.sin(t * 16));
+      // Both paws flung up and out round the head's sides, shaking.
+      const shake = 0.05 * Math.sin(t * 16);
+      reachL(p, up, REACH.cheer, 0, shake);
+      reachR(p, up, REACH.cheer, 0, -shake);
+      p.pawLBend = p.pawRBend = -0.3 * up;
       p.leanZ = -0.02 * up;
       p.earLRoll = p.earRRoll = 0.15 * up;
     },
@@ -159,6 +224,9 @@ export const ACTIONS: Record<ActionId, ActionDef> = {
       p.squash = 1 - 0.05 * b;
       p.armLRaise = p.armRRaise = -0.25 * b;
       p.armLSwing = p.armRSwing = -0.35 * b;
+      // The paws together before the chest as they bow.
+      reachL(p, b, REACH.chest, -0.02, -0.06);
+      reachR(p, b, REACH.chest, -0.02, -0.06);
       p.earLPitch = p.earRPitch = 0.25 * b;
     },
   },
@@ -202,6 +270,12 @@ export const ACTIONS: Record<ActionId, ActionDef> = {
     pose(t, p) {
       p.armLRaise = p.armRRaise = 0.7;
       p.armLSwing = p.armRSwing = 1.3;
+      // Both paws up under the chin round what they eat, held up at the mouth (see Character's prop), bobbing
+      // with each bite.
+      const bite = 0.025 * Math.sin(t * 8.6);
+      const up = smooth(t / 0.3);
+      reachL(p, up, REACH.mouth, -0.04, bite);
+      reachR(p, up, REACH.mouth, -0.04, bite);
       p.squash = 1 + 0.015 * Math.sin(t * 8.6);
       p.leanZ = 0.02 + 0.01 * Math.sin(t * 8.6);
     },
@@ -223,6 +297,10 @@ export const ACTIONS: Record<ActionId, ActionDef> = {
       const g = Math.max(0, Math.sin(t * 1.9));
       p.armRRaise = 0.25 + 0.6 * g * g;
       p.armRSwing = 0.3 * g;
+      // A paw talking with them before the chest, the other resting there.
+      reachR(p, 0.85, REACH.chest, 0.28 + 0.1 * Math.sin(t * 2.3), 0.12 * g * g, 0.04 * g);
+      p.pawRBend = 0.3 * g;
+      reachL(p, 0.5, REACH.chest, 0.18, -0.08);
       p.rootY = 0.006 * Math.abs(Math.sin(t * 6.3));
     },
     tick(t, prev, ctx) {
@@ -258,6 +336,11 @@ export const ACTIONS: Record<ActionId, ActionDef> = {
       p.squash = t < 0.05 ? 0.86 : jt < 1 ? 1.12 : 1 - 0.04 * Math.exp(-(t - 0.32) * 8);
       p.leanZ = -0.06 * smooth(t * 6);
       p.armLRaise = p.armRRaise = 0.35 + 1.1 * h;
+      // Flung out with the jump, then held up close before the chest, elbows in, as a startled paw is.
+      p.armLBend = p.armRBend = 0.2 + 0.5 * (1 - h);
+      const held = smooth((t - 0.3) / 0.25) * (1 - smooth((t - 1.45) / 0.3));
+      reachL(p, held, REACH.chin, 0.1, -0.06, 0.06);
+      reachR(p, held, REACH.chin, 0.1, -0.06, 0.06);
       if (t > 0.35) p.leanX = Math.sin(t * 40) * 0.006;
       p.earLRoll = p.earRRoll = 0.3 * h;
       p.earBend = -0.3 * h;
@@ -280,6 +363,10 @@ export const ACTIONS: Record<ActionId, ActionDef> = {
       p.armLRaise = 0.4 + 0.05 * Math.sin(t * 30);
       p.armRRaise = 0.4 + 0.05 * Math.sin(t * 31);
       p.armLSwing = p.armRSwing = 0.55;
+      // Both paws up on the face under the mouth, trembling, as the drawings' sobbing characters hold them.
+      const up = smooth(t / 0.3);
+      reachL(p, up, REACH.mouth, 0.02, 0.02 * Math.sin(t * 30));
+      reachR(p, up, REACH.mouth, 0.02, 0.02 * Math.sin(t * 31));
       p.earLPitch = p.earRPitch = 0.15;
       p.earBend = 0.5;
     },
@@ -308,6 +395,12 @@ export const ACTIONS: Record<ActionId, ActionDef> = {
       p.armRRaise = 1.0 - 0.6 * s;
       p.armLSwing = 0.4 * c;
       p.armRSwing = -0.4 * c;
+      // The arms flowing as the hula's do: each elbow and wrist bending as its arm goes down and giving as it
+      // rises.
+      p.armLBend = 0.45 - 0.35 * s;
+      p.armRBend = 0.45 + 0.35 * s;
+      p.pawLBend = 0.3 * c;
+      p.pawRBend = -0.3 * c;
       p.earLRoll = 0.1 * s;
       p.earRRoll = -0.1 * s;
       p.sprout = 0.2 * s;
@@ -333,6 +426,10 @@ export const ACTIONS: Record<ActionId, ActionDef> = {
       p.armLSwing = 0.85;
       p.armRRaise = 0.45;
       p.armRSwing = 1.15;
+      // His right paw strumming at its body, his left on its neck (see UKULELE_AT in Character.ts).
+      reachL(p, 1, REACH_UKULELE.strum, 0, 0.06 * strum);
+      reachR(p, 1, REACH_UKULELE.neck, 0, 0.015 * Math.sin(TAU * 1.1 * t));
+      p.pawLBend = 0.25 * strum;
       p.leanX = 0.02 * sway;
       p.rootYaw = 0.04 * sway;
       p.squash = 1 + 0.008 * Math.sin(TAU * 1.1 * t);
@@ -351,6 +448,9 @@ export const ACTIONS: Record<ActionId, ActionDef> = {
     pose(t, p) {
       p.armLRaise = 0.3;
       p.armLSwing = 0.6;
+      // Both paws on its grip before him, one above the other (see SWORD_HOLD in Character.ts).
+      reachL(p, 1, REACH_SWORD.lower);
+      reachR(p, 1, REACH_SWORD.upper);
       p.squash = 1 + 0.008 * Math.sin(t * 2.0);
     },
   },
