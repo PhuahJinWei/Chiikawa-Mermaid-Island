@@ -5,6 +5,7 @@ import { t, type StringKey } from '../i18n/I18n';
 import type { Input } from './Input';
 import type { Hud, IconSpot, PouchView } from '../ui/Hud';
 import { BITE, type HandView } from './HandView';
+import type { Focus } from './Focus';
 import { ITEMS, itemName, type Carried, type ItemId } from '../life/Items';
 import { Hands, type SavedHands } from '../life/Hands';
 import { Things, type Thing } from '../life/Things';
@@ -28,13 +29,25 @@ import type { Sound } from './Sound';
  * goes back where it lay by the morning; what you put down is yours, which they may borrow in turn. And what
  * they do you may: behind a stall's counter no one keeps today you keep it (みせばん), handing its goods to
  * whoever lines up at it (わたす), till you walk off.
+ *
+ * What you look at is what is nearest the middle of your view within reach, kept while it is still before you
+ * (see aim), and shown (see Focus): the pen draws it bolder in a warmer ink, a seat gets a ring, and where you
+ * would put down what you hold lies a sketch of it.
  */
 
 /** How far you reach from your eyes for what you look at (metres), and for a seat from your feet. */
 const REACH = 2.1;
 const SEAT_REACH = 1.9;
-/** How near the middle of your view something must be to be what you look at (the angle's cosine). */
-const AIM = Math.cos(0.38);
+/** How near the middle of your view something must be to be what you look at (the angle's cosine), and how
+ * far from the middle what you look at may drift before you have looked away from it (the user, 2026-10-23:
+ * what you look at should be what is in the middle of your view, and stay so). */
+const AIM = Math.cos(0.26);
+const AIM_KEEP = Math.cos(0.34);
+/** Of two things as near the middle of your view, the nearer: how much a metre further off counts against a
+ * thing (radians off the middle). */
+const NEAR = 0.012;
+/** What you look at changes only for something this much nearer the middle of your view (radians). */
+const SWITCH = 0.05;
 /** Where you put something down: where your view meets the ground, between these from your feet. */
 const PUT_FAR = 1.9;
 const PUT_NEAR = 0.35;
@@ -108,6 +121,7 @@ export class Play {
     private readonly life: Life,
     private readonly hud: Hud,
     private readonly view: HandView,
+    private readonly focus: Focus,
     private readonly input: Input,
     me: Character,
     private readonly sound: Sound | null = null,
@@ -181,6 +195,9 @@ export class Play {
     // (In the cave your paw holds its torch: what you hold waits till you are out.)
     this.target = f.free && !this.sleeping && !f.inCave ? this.aim(f) : null;
     this.label = this.sleeping || !f.free ? null : this.labelFor(this.target);
+    // What you look at, shown: the ▽ over it, and the sketch of what you would put down (see Focus).
+    const held = this.hands.hand ? { item: this.hands.hand.item, nibbled: this.hands.nibbled } : null;
+    this.focus.update(f.dt, this.target, held, me);
     const use = this.hand ? ITEMS[this.hand].use : null;
     const useLabel = f.free && !this.sleeping && !f.inCave && use ? t(this.using ? 'hud.stop' : (`hud.${use}` as StringKey)) : null;
     this.hud.setUse(useLabel);
@@ -348,22 +365,31 @@ export class Play {
     const stall = keeping ?? (this.hand || this.seat ? null : this.life.stallBehind(me.position));
     if (keeping) return this.life.atCounter(keeping) ? { kind: 'stall', stall: keeping, serve: true } : null;
     if (stall) return { kind: 'stall', stall, serve: false };
+    // What is nearest the middle of your view, within reach: by how far off the middle it is, the nearer of two
+    // as near. What you looked at last frame is kept while it is still before you (AIM_KEEP), unless something
+    // else is clearly nearer the middle (SWITCH), so what you look at does not flicker as you sway.
     let best: Target | null = null;
     let bestScore = Infinity;
-    const consider = (p: THREE.Vector3, reach: number, target: Target, bias = 0, far = 0.12) => {
+    let kept: Target | null = null;
+    let keptScore = Infinity;
+    const consider = (p: THREE.Vector3, reach: number, target: Target, bias = 0) => {
       _to.subVectors(p, eye);
       const d = _to.length();
       if (d > reach || d < 0.05) return;
       const cos = _to.dot(_fwd) / d;
-      if (cos < AIM) return;
-      const score = (1 - cos) * 10 + d * far + bias;
+      const same = this.sameTarget(target);
+      if (cos < (same ? AIM_KEEP : AIM)) return;
+      const score = Math.acos(Math.min(1, cos)) + d * NEAR + bias;
+      if (same) {
+        kept = target;
+        keptScore = score;
+      }
       if (score < bestScore) {
         bestScore = score;
         best = target;
       }
     };
-    // Someone: the point of them nearest where you look, from their feet to the top of their head; of two
-    // you look at, the nearer, who stands before the other.
+    // Someone: the point of them nearest where you look, from their feet to the top of their head.
     const level = _fwd.x * _fwd.x + _fwd.z * _fwd.z;
     for (const r of this.life.residents) {
       if (r.far || !r.ch.shown || r.ch === me) continue;
@@ -371,7 +397,7 @@ export class Play {
       const along = level > 1e-6 ? ((p.x - eye.x) * _fwd.x + (p.z - eye.z) * _fwd.z) / level : 0;
       const feet = r.ch.feetY;
       _eyes.set(p.x, THREE.MathUtils.clamp(eye.y + along * _fwd.y, feet + 0.1, feet + r.ch.height), p.z);
-      consider(_eyes, REACH + 0.3, { kind: 'resident', r }, -0.15, 0.25);
+      consider(_eyes, REACH + 0.3, { kind: 'resident', r });
     }
     for (const thing of this.things.list) {
       if (!thing.shown) continue;
@@ -380,15 +406,33 @@ export class Play {
     if (!this.seat && !f.inCave) {
       for (const seat of this.seats) {
         if (seat.taken || flat(me.position, seat.at) > SEAT_REACH || Math.abs(seat.at.y - me.feetY) > 1.2) continue;
-        consider(_p.copy(seat.at).setY(seat.at.y + 0.2), REACH + 0.6, { kind: 'seat', seat, bed: seat === this.bed }, 0.1);
+        // (A thing lying on a seat before the seat.)
+        consider(_p.copy(seat.at).setY(seat.at.y + 0.2), REACH + 0.6, { kind: 'seat', seat, bed: seat === this.bed }, 0.03);
       }
     }
+    if (kept && bestScore > keptScore - SWITCH) return kept;
     if (best) return best;
     if (this.hand && !this.seat && !f.inCave && !this.using) {
       const at = this.groundAhead(f);
       if (at) return { kind: 'place', at };
     }
     return null;
+  }
+
+  /** Whether `target` is what you looked at last frame: the same thing, person or seat. */
+  private sameTarget(target: Target): boolean {
+    const was = this.target;
+    if (!was) return false;
+    switch (target.kind) {
+      case 'thing':
+        return was.kind === 'thing' && was.thing === target.thing;
+      case 'resident':
+        return was.kind === 'resident' && was.r === target.r;
+      case 'seat':
+        return was.kind === 'seat' && was.seat === target.seat;
+      default:
+        return false;
+    }
   }
 
   /** Where your view meets the ground before you, within PUT_NEAR to PUT_FAR of your feet (not under water),

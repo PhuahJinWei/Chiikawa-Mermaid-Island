@@ -60,6 +60,11 @@ You see the island out of your own eyes, as a nameless islander.
 | Notebook (ノート) button | | Where everyone is and what they are doing (みんな), your photos (しゃしん), the sound on or off |
 | Test (テスト) button | Test (テスト) button | Test panel: actions, expressions, lineup, whose eyes, the follow camera from behind (三人称カメラ) |
 
+What the action button would act on is whatever is nearest the middle of your view within reach,
+and it stays so until you clearly look at something else. A small cream ▽ floats over it, bobbing,
+and glides to the next thing you look at; holding something, a paper sketch of it lies where おく
+would put it, as it would lie, the ▽ over that.
+
 The island keeps itself as you left it (the hour and the day, where you stood, where everyone who
 lives here stood, sat or slept, what you and they hold and keep, how fond each is of you, what lies
 where) in the browser; open the game with `?fresh` to start anew, with the welcome on the beach.

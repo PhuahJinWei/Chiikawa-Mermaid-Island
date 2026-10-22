@@ -68,6 +68,21 @@ stage, and along every path. Not yet checked on a real phone.
   - A stall hands over nothing to you with no room for it in your paws:
     its keeper says 「ごめんね、手がいっぱいみたい…」 and you step out of the
     line, to come back once you have made room.
+- What you look at is shown (the user, 2026-10-23: what the button would
+  act on, and where おく would put a thing, felt random), `src/core/Focus.ts`:
+  a small cream ▽ with the pen's line, drawn as the marks over heads are,
+  floats over the thing, person or seat you look at, bobbing, and glides to
+  the next one you look at rather than popping; holding something, where
+  it would be put down lies a sketch of it, flat paper with the pen's line,
+  as it would lie, the ▽ over that. (An orange halo round the thing's own
+  line was tried first and dropped the same day: the user, "overkill", a
+  thing "suddenly wrapped by an orange thick outline". A mark apart from
+  the thing, the same for everything, was the right shape.)
+- What you look at is steadier: it is whatever is nearest the middle of
+  your view (within 15°, not 22° as before), the nearer of two as near;
+  people no longer have a head start over things; and what you looked at
+  last frame is kept until it has left the middle (19°) or something else
+  is clearly nearer it, so the button no longer flickers as you sway.
   - What they do next out and about is chosen as they go
     (`src/life/Choices.ts`), by what they need (something to eat, company,
     fun, growing with the hours), what they like and what is about them:
@@ -2429,6 +2444,12 @@ outlined is drawn twice, once for its pen line. To get there:
     - It is a deck over the bed that reaches a body's width (0.25 m) round
       it, so a jump that comes down at its edge is on it (`furnish_hut` in
       `art/blender/houses.py`).
+- The game no longer breaks when it loads in a window with no size yet (a
+  tab opened in the background, a pane folded away): the camera's aspect
+  became NaN from a zero width over a zero height, and that poisoned the
+  eyes' direction and the player's facing for good, even once the window
+  had a size (found 2026-10-23). The camera and the picture now stay as
+  they are until the window has a size.
     - The stilt huts and the plank hut were rebuilt; only their decks and
       their night bakes changed.
     - It stands higher than a step, so no one walks onto it.

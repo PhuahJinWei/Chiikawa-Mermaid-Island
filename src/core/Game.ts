@@ -45,6 +45,7 @@ import { ISLANDERS } from '../life/profiles';
 import { ItemModels, STALL_ITEM, carried, itemName } from '../life/Items';
 import { Things, loadThingsPlan } from '../life/Things';
 import { HAND_LAYER, HandView } from './HandView';
+import { Focus } from './Focus';
 import { Play } from './Play';
 import { loadSave, writeSave, type SaveData } from './Save';
 import { Sound, type Hearing } from './Sound';
@@ -476,7 +477,9 @@ export class Game {
     if (!life || !things) return;
     const view = new HandView(items, this.scene);
     this.handView = view;
-    const play = new Play(things, life, this.hud, view, this.input, this.me(), this.sound);
+    // What you look at, shown (the ▽ over it, the sketch of what you would put down).
+    const focus = new Focus(items, this.scene, FILM ? (x, y, z) => this.stage.shadeAt(x, y, z) : null);
+    const play = new Play(things, life, this.hud, view, focus, this.input, this.me(), this.sound);
     play.onSleep = () => void this.sleepThrough();
     this.play = play;
     // Only the game's camera draws your paw before your eyes.
@@ -986,6 +989,9 @@ export class Game {
   /** Advance the whole simulation by dt seconds, without drawing. */
   private step(dt: number): void {
     this.time += dt;
+    // The window's size is looked at each step as well as on its resize event: a window that loaded with
+    // no size got its first one without the event reaching the game (seen 2026-10-23 in the browser pane).
+    if (window.innerWidth !== this.sizedW || window.innerHeight !== this.sizedH) this.resize();
     this.input.update();
     const me = this.me();
     const lookingOut = this.lookingOut;
@@ -1206,7 +1212,8 @@ export class Game {
     const w = window.innerWidth;
     const h = window.innerHeight;
     const k = this.viewLift * this.viewLift * (3 - 2 * this.viewLift);
-    if (k <= 0) this.camera.clearViewOffset();
+    // (A window with no size yet would make the offset NaN: see resize.)
+    if (k <= 0 || !(w > 0 && h > 0)) this.camera.clearViewOffset();
     else this.camera.setViewOffset(w, h, 0, h * 0.3 * k, w, h);
   }
 
@@ -1264,9 +1271,19 @@ export class Game {
     );
   }
 
+  /** The window's size the camera and the picture were last set to (see resize). */
+  private sizedW = 0;
+  private sizedH = 0;
+
   private resize = () => {
     const w = window.innerWidth;
     const h = window.innerHeight;
+    // A window with no size yet (a tab opened in the background, a pane folded away) leaves the camera and
+    // the picture as they are till it has one: a zero size made the aspect NaN, which poisoned the eyes'
+    // direction and the player's facing for good (found 2026-10-23).
+    if (!(w > 0 && h > 0)) return;
+    this.sizedW = w;
+    this.sizedH = h;
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
     this.applyViewLift();
@@ -1278,10 +1295,14 @@ export class Game {
 
   /** Draws at `ratio` device pixels per CSS pixel; the pen keeps its width on screen. */
   private setPixelRatio(ratio: number): void {
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    // (No size yet: as it is, till the window has one: see resize.)
+    if (!(w > 0 && h > 0)) return;
     this.pixelRatio = ratio;
     this.renderer.setPixelRatio(ratio);
-    this.renderer.setSize(window.innerWidth, window.innerHeight, false);
-    this.post?.setSize(window.innerWidth, window.innerHeight, ratio);
+    this.renderer.setSize(w, h, false);
+    this.post?.setSize(w, h, ratio);
     this.renderer.getDrawingBufferSize(sharedUniforms.uResolution.value);
     this.ctx.pixelRatio = ratio;
   }
