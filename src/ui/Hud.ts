@@ -17,10 +17,10 @@ export interface IconSpot {
   rows: number;
 }
 
-/** The pouch: what is in your paw and in each of its slots, by name and icon (null: empty). */
+/** The pouch: what is in your paw and in each of its slots, by name, icon and how many (null: empty). */
 export interface PouchView {
-  hand: { name: string; icon: IconSpot } | null;
-  slots: ({ name: string; icon: IconSpot } | null)[];
+  hand: { name: string; icon: IconSpot; count: number } | null;
+  slots: ({ name: string; icon: IconSpot; count: number } | null)[];
 }
 
 const ICONS = 'models/props/item_icons.webp';
@@ -290,6 +290,8 @@ export class Hud implements JoystickView {
       node.title = what?.name ?? '';
       node.setAttribute('aria-label', what?.name ?? t('hud.empty'));
       node.classList.toggle('empty', !what);
+      // How many a slot's stack has, on its corner (none for one).
+      node.dataset.count = what && what.count > 1 ? String(what.count) : '';
       if (!what) {
         node.style.backgroundImage = '';
         return;

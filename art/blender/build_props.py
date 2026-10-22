@@ -9,8 +9,8 @@ Outputs:
     art/previews/prop_<id>.png      one three-quarter render per prop
 
 Coordinates are Blender's: Z up, props face -Y. Each prop's origin is where it
-touches the ground, except the hand-held ones (the onigiri, Kurimanju's can,
-Rakko's sword and ukulele), whose origin is their centre or where they are held.
+touches the ground, except the hand-held ones (Kurimanju's can, Rakko's sword
+and ukulele), whose origin is their centre or where they are held.
 """
 
 import json
@@ -43,7 +43,6 @@ C = {k: L.hex_color(v) for k, v in {
     "logEnd": "#D9B98C",
     "logRing": "#C49A6C",
     "white": "#FFFFFF",
-    "rice": "#FFFDF8",
     "nori": "#22302A",
     "wing": "#3E8EE8",
     "wingLight": "#8CC4F7",
@@ -275,40 +274,6 @@ def build_starfish(collection):
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
     starfish = L.assemble_colored("starfish", [(bm, C["white"])], collection)
     return [starfish], {"sink": -0.005}
-
-
-def rounded_triangle_slab(corner_radius, round_radius, depth, arc_steps=8):
-    """Equilateral triangle with rounded corners in the XZ plane, extruded along Y."""
-    outline = []
-    for k in range(3):
-        a = math.pi / 2 + k * 2 * math.pi / 3
-        px, pz = math.cos(a) * corner_radius, math.sin(a) * corner_radius
-        for i in range(arc_steps + 1):
-            t = a - math.pi / 3 + (2 * math.pi / 3) * i / arc_steps
-            outline.append((px + math.cos(t) * round_radius, pz + math.sin(t) * round_radius))
-    bm = bmesh.new()
-    front = [bm.verts.new((x, -depth / 2, z)) for x, z in outline]
-    back = [bm.verts.new((x, depth / 2, z)) for x, z in outline]
-    bm.faces.new(front)
-    bm.faces.new(list(reversed(back)))
-    n = len(outline)
-    for i in range(n):
-        j = (i + 1) % n
-        bm.faces.new((front[i], front[j], back[j], back[i]))
-    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
-    return bm
-
-
-def build_onigiri(collection):
-    """Rice ball with a strip of nori. Faces -Y; origin at its centre."""
-    slab = rounded_triangle_slab(0.045, 0.03, 0.058)
-    rice = L.fuse([slab], voxel=0.003, smooth_iterations=10, smooth_lambda=0.9, target_tris=900)
-
-    nori = bmesh.new()
-    bmesh.ops.create_cube(nori, size=1.0)
-    bmesh.ops.bevel(nori, geom=nori.edges[:], offset=0.12, segments=2, affect="EDGES", profile=0.5)
-    L.transformed(nori, Matrix.Translation((0.0, 0.0, -0.038)) @ L.scale4(0.05, 0.064, 0.042))
-    return L.assemble_colored("onigiri", [(rice, C["rice"]), (nori, C["nori"])], collection)
 
 
 # Kurimanju's can of drink (the user, 2026-10-22), at the cast's size, as a can's shape is to a person's:
@@ -913,7 +878,6 @@ BUILDERS = {
     "palm": build_palm,
     "log": build_log,
     "starfish": build_starfish,
-    "onigiri": build_onigiri,
     "can": build_can,
     "sword": build_sword,
     "ukulele": build_ukulele,

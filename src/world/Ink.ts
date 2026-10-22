@@ -109,6 +109,11 @@ ${SWAY_GLSL}
 #ifdef FLAP
 ${FLAP_GLSL}
 #endif
+#ifdef USE_INSTANCING_COLOR
+// Each copy's own colour, for the fragment shader: its shade, for things lying about drawn at once (see
+// Props' lyingMaterials).
+flat varying vec3 vShade;
+#endif
 void main() {
   vec3 p = position;
   vec3 n = normal;
@@ -126,6 +131,9 @@ void main() {
 #ifdef USE_INSTANCING
   p = (instanceMatrix * vec4(p, 1.0)).xyz;
   n = mat3(instanceMatrix) * n;
+#endif
+#ifdef USE_INSTANCING_COLOR
+  vShade = instanceColor;
 #endif
 #ifdef WORLD
   vWorld = (modelMatrix * vec4(p, 1.0)).xyz;

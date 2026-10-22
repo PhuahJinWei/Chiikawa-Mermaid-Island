@@ -35,19 +35,18 @@ export interface CharacterUniforms {
    * the island's lights; none in the forbidden cave, lit by its own. Shared with their outfit. */
   uOpenAir: THREE.IUniform<number>;
   /** Bent over to look into the water (see Character.setBow): turned forward about their own x axis
-   * (the sine and cosine of how far) and carried up and forward (z, w), in their own frame. Shared
-   * with their outfit. */
+   * (the sine and cosine of how far) and carried up and forward (z, w), in their own frame; and before
+   * that their head bowed forward about its neck (the sine and cosine of how far, and where the neck is,
+   * y and z). Shared with their outfit. */
   uBow: THREE.IUniform<THREE.Vector4>;
+  uBowHead: THREE.IUniform<THREE.Vector4>;
   /** What they mark themselves with in the film look's picture (its alpha): a half, as every one of the
    * cast; 2, beyond anything else, for the one whose eyes the camera looks out of, so the water knows
-   * their own mirror image from the rest (see Character.setUnseen). Only their head takes it (uHeadParts):
-   * the rest of them marks itself a half all the same. Shared with their outfit. */
+   * their own mirror image from the rest (see Character.setUnseen). Shared with their outfit. */
   uMark: THREE.IUniform<number>;
-  /** Which of their parts are their head, as bits (the head and what hangs from it: ears, sprout, crown); and the
-   * ball of their head at rest (its middle, x y z, and how far round it reaches), out from which the head's
-   * mark fades away over the body below it, round, rather than stopping at the head's seam. */
+  /** Which of their parts are their head, as bits (the head and what hangs from it: ears, sprout, crown),
+   * which bow with it (uBowHead). */
   uHeadParts: THREE.IUniform<number>;
-  uHeadBall: THREE.IUniform<THREE.Vector4>;
   /** How far a grass skirt's hem spreads out round them on the ground as they sit (0 standing): its lower part
    * pushed out from their middle, the more the further down it is, its waist staying snug (see VERT). Shared
    * with their outfit. */
@@ -87,8 +86,8 @@ export function makeCharacterUniforms(
     uOpenAir: { value: 1 },
     uBow: { value: new THREE.Vector4(0, 1, 0, 0) },
     uMark: { value: 0.5 },
+    uBowHead: { value: new THREE.Vector4(0, 1, 0, 0) },
     uHeadParts: { value: 0 },
-    uHeadBall: { value: new THREE.Vector4(0, 0, 0, 0) },
     uSkirtFlare: { value: 0 },
     uMaskOn: { value: mask ? 1 : 0 },
     // Whether the pen draws along the second colour's edge (1), or it only changes colour there (0, Furuhonya's cap).
@@ -149,7 +148,7 @@ uniform float uSkirtFlare;
 const float SKIRT_HULL_BACK = 0.06;
 const float SKIRT_INSIDE_BACK = 1.0;
 uniform int uHeadParts;
-uniform vec4 uHeadBall;
+uniform vec4 uBowHead;
 uniform float uHeight;
 uniform float uOutlineWidth;
 uniform float uLineBias;
@@ -163,7 +162,6 @@ varying float vMask;
 varying vec2 vMaskUv;
 varying float vFacing;
 varying vec3 vFireNormal;
-varying float vHead;
 #ifdef FUR
 uniform vec4 uFurHead;
 uniform vec4 uFurBody;
@@ -194,6 +192,16 @@ vec3 bowed(vec3 p) {
 vec3 bowedNormal(vec3 n) {
   return vec3(n.x, n.y * uBow.y - n.z * uBow.x, n.y * uBow.x + n.z * uBow.y);
 }
+// Before that, their head bowed forward about its neck, as much as a point is their head (share).
+vec3 headBowed(vec3 p, float share) {
+  if (uBowHead.x == 0.0) return p;
+  vec2 q = p.yz - uBowHead.zw;
+  return mix(p, vec3(p.x, q.x * uBowHead.y - q.y * uBowHead.x + uBowHead.z, q.x * uBowHead.x + q.y * uBowHead.y + uBowHead.w), share);
+}
+vec3 headBowedNormal(vec3 n, float share) {
+  if (uBowHead.x == 0.0) return n;
+  return normalize(mix(n, vec3(n.x, n.y * uBowHead.y - n.z * uBowHead.x, n.y * uBowHead.x + n.z * uBowHead.y), share));
+}
 
 void main() {
   // Sitting, a grass skirt spreads out on the ground round them as the film's do (the bonfire's, [anime]
@@ -218,12 +226,14 @@ void main() {
   }
   // Two-bone blend: each vertex follows up to two parts (head + ear, ear + ear tip...).
   mat4 m = uParts[int(aPart0 + 0.5)] * (1.0 - aWeight) + uParts[int(aPart1 + 0.5)] * aWeight;
-  vec3 p = bowed(softBody((m * vec4(rest, 1.0)).xyz));
+  // How much of this point is their head (see uHeadParts), to bow with it.
+  float headShare = float((uHeadParts >> int(aPart0 + 0.5)) & 1) * (1.0 - aWeight) + float((uHeadParts >> int(aPart1 + 0.5)) & 1) * aWeight;
+  vec3 p = bowed(headBowed(softBody((m * vec4(rest, 1.0)).xyz), headShare));
   // A spread skirt is also shortened (Character's skirtSeat): its normals by the inverse transpose there too.
   vec3 n = spread ? normalize(transpose(inverse(mat3(m))) * restNormal) : normalize(mat3(m) * normal);
   float s = max(uSquash, 0.3);
   float k = inversesqrt(s);
-  n = bowedNormal(normalize(vec3(n.x / k, n.y / s, n.z / k)));
+  n = bowedNormal(headBowedNormal(normalize(vec3(n.x / k, n.y / s, n.z / k)), headShare));
 
   vec4 mvPosition = modelViewMatrix * vec4(p, 1.0);
   vec3 nV = normalize(normalMatrix * n);
@@ -234,10 +244,10 @@ void main() {
     // Pulling them toward the camera along the view ray keeps them where they are on screen
     // but draws them over the curve of the head.
     float scale = length(modelViewMatrix[0].xyz);
-    vec4 c = modelViewMatrix * vec4(bowed(softBody((m * vec4(aCenter, 1.0)).xyz)), 1.0);
+    vec4 c = modelViewMatrix * vec4(bowed(headBowed(softBody((m * vec4(aCenter, 1.0)).xyz), headShare)), 1.0);
     // The film draws a crown arching over the head from whichever side it is seen: flowers
     // toward the edges of the head, as the camera sees it, sit lower.
-    vec4 axis = modelViewMatrix * vec4(bowed(softBody((m * vec4(0.0, aCenter.y, 0.0, 1.0)).xyz)), 1.0);
+    vec4 axis = modelViewMatrix * vec4(bowed(headBowed(softBody((m * vec4(0.0, aCenter.y, 0.0, 1.0)).xyz), headShare)), 1.0);
     float ring = length(aCenter.xz) * scale;
     float side = (c.x - axis.x) / max(ring, 1e-4);
     c.y -= CROWN_ARCH * ring * side * side;
@@ -249,17 +259,14 @@ void main() {
   // 1 where the surface faces the camera, 0 where it turns away at the silhouette.
   vFacing = abs(dot(nV, normalize(-mvPosition.xyz)));
   vFireNormal = transpose(mat3(viewMatrix)) * nV;
-  // How much of this point is their head (see uHeadParts): its parts, and round its ball, fading over the body.
-  vHead = float((uHeadParts >> int(aPart0 + 0.5)) & 1) * (1.0 - aWeight) + float((uHeadParts >> int(aPart1 + 0.5)) & 1) * aWeight;
-  vHead = max(vHead, 1.0 - smoothstep(uHeadBall.w, uHeadBall.w * 1.3, distance(position, uHeadBall.xyz)));
 #ifdef FUR
   // Fur where the pen draws no line (the head and body, aOutline 0; see furStrokes): its strokes are laid round
   // the middle of the head, or of the body, as the part is posed now; with the pixels a metre is at each.
   bool onHead = aPart0 > float(HEAD_PART) - 0.5;
   vFur = aOutline < 0.01 ? (onHead ? 2.0 : 1.0) : 0.0;
   vec4 furPart = onHead ? uFurHead : uFurBody;
-  vec4 furAt = modelViewMatrix * vec4(bowed(softBody((m * vec4(furPart.xyz, 1.0)).xyz)), 1.0);
-  vec4 furHead = modelViewMatrix * vec4(bowed(softBody((uParts[HEAD_PART] * vec4(uFurHead.xyz, 1.0)).xyz)), 1.0);
+  vec4 furAt = modelViewMatrix * vec4(bowed(headBowed(softBody((m * vec4(furPart.xyz, 1.0)).xyz), onHead ? 1.0 : 0.0)), 1.0);
+  vec4 furHead = modelViewMatrix * vec4(bowed(headBowed(softBody((uParts[HEAD_PART] * vec4(uFurHead.xyz, 1.0)).xyz), 1.0)), 1.0);
   vFurCentre = projectionMatrix * furAt;
   float perMetre = projectionMatrix[1][1] * 0.5 * uResolution.y * length(modelViewMatrix[0].xyz);
   vFurScale = vec2(furPart.w / max(-furAt.z, 1e-3), uFurHead.w / max(-furHead.z, 1e-3)) * perMetre;
@@ -381,7 +388,6 @@ varying float vPaint;
 varying float vMask;
 varying vec2 vMaskUv;
 varying float vFacing;
-varying float vHead;
 
 // 1 inside a line of the given half-width in pixels, anti-aliased by one pixel.
 float lineMask(float dist, float halfPx, float fw) {
@@ -536,7 +542,7 @@ void main() {
 
   gl_FragColor = vec4(col * uAmbient * uShade * fireTint(), 1.0);
   #ifdef FILM_MASK
-  gl_FragColor.a = mix(0.5, uMark, vHead);
+  gl_FragColor.a = uMark;
   #endif
   #include <tonemapping_fragment>
   #include <colorspace_fragment>

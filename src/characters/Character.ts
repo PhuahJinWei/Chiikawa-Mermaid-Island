@@ -30,7 +30,7 @@ export interface CharacterOptions {
    * CharacterDef.own), and what they carry with them (his sword), made by createHeld. */
   own?: { outfit: OutfitModel; carry?: THREE.Object3D };
   /** What they always have in their left hand (Kurimanju's can: see CharacterDef.carries), made by
-   * createHeld; put down while they hold the onigiri. */
+   * createHeld. */
   carry?: THREE.Object3D;
   /** What they play in its action (Rakko's ukulele: see CharacterDef.plays), made by createHeld. */
   instrument?: THREE.Object3D;
@@ -162,6 +162,10 @@ const UKULELE_UP = 0.45;
 const SKIRT_FLARE = 0.5;
 /** A seat this much higher than the floor under it (metres) is raised: a stool, a log, a bed (see seatedHigh). */
 const RAISED_SEAT = 0.06;
+/** For a model without feet of its own, how far out each foot stands from their middle and how big it is, for
+ * their width: as the cast's are (see sole). */
+const FOOT_APART = 0.1;
+const FOOT_SIZE = 0.104;
 /** How arms that bend hang at rest (see locomotionPose): this much lower than built (radians), bent this much at
  * the elbow and the wrist. */
 const REST_ARM = { raise: -0.3, swing: 0.2, bend: 0.5, paw: 0.25 };
@@ -171,6 +175,11 @@ const HOLD_ARM = { swing: 0.55, bend: 0.75, paw: 0.25, torchRaise: 0.55 };
 /** Turning to face what they watch, the body stops this near it (radians) and turns this fast (a second). */
 const TURN_DONE = 0.08;
 const TURN_RATE = 4;
+/** Bent over the water to look into it (see setBow), how much of their face's turn down is their head's own, bowing
+ * about its neck, the rest their body's leaning: their head with their body under it, as one leaning over a pond
+ * shows in it, rather than all of them turned over flat (a flat picture of them, seen from below) or their head
+ * alone (a head with nothing under it), both of which the user found wrong (2026-10-22, 2026-10-23). */
+const BOW_HEAD_SHARE = 0.52;
 
 const _v = new THREE.Vector3();
 const _w = new THREE.Vector3();
@@ -329,7 +338,6 @@ export class Character implements EmoteHost {
    * one burns. */
   private readonly fireSeen = new Map<number, number>();
   private readonly fireFrom = new THREE.Vector3();
-  private readonly prop: THREE.Object3D;
   /** A torch held up in the right hand (in the cave), or none. */
   private torch: THREE.Object3D | null = null;
   /** What they hold in their right paw (one of the things one carries: see life/Items.ts), held flat on it
@@ -412,8 +420,7 @@ export class Character implements EmoteHost {
     },
   };
 
-  /** `prop` is the hand-held item shown by actions that use one (the onigiri). */
-  constructor(def: CharacterDef, model: CharacterModel, prop: THREE.Object3D, options: CharacterOptions = {}) {
+  constructor(def: CharacterDef, model: CharacterModel, options: CharacterOptions = {}) {
     this.def = def;
     this.model = model;
     this.height = model.rig.height;
@@ -424,29 +431,15 @@ export class Character implements EmoteHost {
     this.armRig = ArmRig.of(model);
     this.uniforms = makeCharacterUniforms(model.rig, this.parts, this.face.texture, model.maskTexture);
     this.uniforms.uLineBias.value = 0.045 * model.rig.headR / 0.45;
-    // Which parts are their head (see uHeadParts): the head and all that hangs from it; the whole of them for a
-    // model whose head is not a part of its own.
+    // Which parts are their head (see uHeadParts): the head and all that hangs from it; none for a model whose
+    // head is not a part of its own (it bows with its body).
     let head = 0;
     for (let i = 0; i < MAX_PARTS; i++) {
       for (let p = i, depth = 0; p >= 0 && depth < MAX_PARTS; p = model.parents[p] ?? -1, depth++) {
         if (p === PART.HEAD) head |= 1 << i;
       }
     }
-    this.uniforms.uHeadParts.value = model.hasHead ? head : (1 << MAX_PARTS) - 1;
-    // Their head's ball: between its sides, halfway from its seam up to its top (or a head's breadth over its
-    // seam, for a model without its sides marked).
-    const { sideL, sideR, top } = model.anchors;
-    const seam = model.pivots[PART.HEAD]?.y ?? 0;
-    if (sideL && sideR && top) {
-      this.uniforms.uHeadBall.value.set(
-        (sideL.x + sideR.x) / 2,
-        (seam + top.y) / 2,
-        (sideL.z + sideR.z) / 2,
-        Math.max(Math.abs(sideR.x - sideL.x) / 2, (top.y - seam) / 2),
-      );
-    } else {
-      this.uniforms.uHeadBall.value.set(0, seam + model.rig.headR, 0, model.rig.headR);
-    }
+    this.uniforms.uHeadParts.value = model.hasHead ? head : 0;
     if (options.crowd) {
       const c = new THREE.Color(options.crowd.color);
       this.uniforms.uColorOverride.value.set(c.r, c.g, c.b, 0.86);
@@ -481,11 +474,9 @@ export class Character implements EmoteHost {
     this.fireShadow = makeCastShadow();
     fogInOpenAir(this.shadow, this.uniforms.uOpenAir);
     fogInOpenAir(this.fireShadow, this.uniforms.uOpenAir);
-    this.prop = prop;
-    this.prop.visible = false;
     this.carried = options.carry ?? null;
     // What they hold is lit as their hand is.
-    for (const thing of [prop, this.carried, this.ownCarried, this.instrument]) {
+    for (const thing of [this.carried, this.ownCarried, this.instrument]) {
       const held = thing?.userData.light as HeldLight | undefined;
       if (held) {
         held.uShade = this.uniforms.uShade;
@@ -553,7 +544,7 @@ export class Character implements EmoteHost {
   }
 
   attach(scene: THREE.Object3D, emotes: EmoteSystem): void {
-    this.all.add(this.root, this.shadow, this.fireShadow, this.prop);
+    this.all.add(this.root, this.shadow, this.fireShadow);
     for (const thing of [this.carried, this.ownCarried, this.instrument]) if (thing) this.all.add(thing);
     scene.add(this.all);
     this.emotes = emotes;
@@ -563,7 +554,7 @@ export class Character implements EmoteHost {
       this.mesh.layers.enable(MIRROR_LAYER);
       this.outfit?.children[0].layers.enable(MIRROR_LAYER);
       this.ownOutfit?.children[0].layers.enable(MIRROR_LAYER);
-      for (const thing of [this.prop, this.carried, this.ownCarried, this.instrument]) {
+      for (const thing of [this.carried, this.ownCarried, this.instrument]) {
         thing?.traverse((o) => {
           const m = o as THREE.Mesh;
           if (m.isMesh && (m.material as THREE.Material).side !== THREE.BackSide) m.layers.enable(MIRROR_LAYER);
@@ -604,7 +595,7 @@ export class Character implements EmoteHost {
     }
     // What they hold and play too: out of their own eyes, you see it in your paw before you (HandView), not
     // here, where it would show again under the camera.
-    for (const thing of [this.hand, this.prop, this.instrument]) {
+    for (const thing of [this.hand, this.instrument]) {
       thing?.traverse((o) => {
         if (!(o as THREE.Mesh).isMesh) return;
         if (on) o.layers.disable(0);
@@ -624,12 +615,14 @@ export class Character implements EmoteHost {
    */
   setBow(at: THREE.Vector3 | null, toward: THREE.Vector3 | null = null, amount = 0): void {
     const bow = this.uniforms.uBow.value;
+    const nod = this.uniforms.uBowHead.value;
     const standing = !at || !toward || amount <= 1e-3;
     // Bent, the body is carried out past the bounds it is culled by (which the shader cannot move).
     this.mesh.frustumCulled = standing;
     for (const o of [...(this.outfit?.children ?? []), ...(this.ownOutfit?.children ?? [])]) o.frustumCulled = standing;
     if (standing) {
       bow.set(0, 1, 0, 0);
+      nod.set(0, 1, 0, 0);
       this.bowAmount = 0;
       return;
     }
@@ -641,14 +634,26 @@ export class Character implements EmoteHost {
     const eyes = this.anchorLocal('eyeL', _eyes).add(this.anchorLocal('eyeR', _v)).multiplyScalar(0.5);
     const to = _v.copy(at).applyMatrix4(_toLocal);
     const way = _way.copy(toward).transformDirection(_toLocal);
-    // Turned about their own x so that their front faces that way, as far as `amount` goes.
+    // Their face turned that way, as far as `amount` goes: their head bowing its share about its neck, their body
+    // leaning the rest (a model whose head is no part of its own turns as one).
     const turn = Math.atan2(-way.y, way.z) * amount;
-    const s = Math.sin(turn);
-    const c = Math.cos(turn);
+    const neck = this.model.pivots[PART.HEAD];
+    const headTurn = this.model.hasHead && neck ? turn * BOW_HEAD_SHARE : 0;
+    const sn = Math.sin(headTurn);
+    const cn = Math.cos(headTurn);
+    const ny = neck?.y ?? 0;
+    const nz = neck?.z ?? 0;
+    nod.set(sn, cn, ny, nz);
+    // Where the bowed head puts their eyes.
+    const ey = ny + (eyes.y - ny) * cn - (eyes.z - nz) * sn;
+    const ez = nz + (eyes.y - ny) * sn + (eyes.z - nz) * cn;
+    const lean = turn - headTurn;
+    const s = Math.sin(lean);
+    const c = Math.cos(lean);
     // Their eyes carried along the straight way to `at` as they bend.
     const y = eyes.y + (to.y - eyes.y) * amount;
     const z = eyes.z + (to.z - eyes.z) * amount;
-    bow.set(s, c, y - (eyes.y * c - eyes.z * s), z - (eyes.y * s + eyes.z * c));
+    bow.set(s, c, y - (ey * c - ez * s), z - (ey * s + ez * c));
   }
 
   setDesiredVelocity(v: THREE.Vector3): void {
@@ -702,8 +707,7 @@ export class Character implements EmoteHost {
     if ((prop === 'ukulele' && !this.instrument) || (prop === 'sword' && !this.ownCarried)) return;
     this.startBlend(ACTIONS[id].fadeIn);
     this.action = { id, t: 0 };
-    // Eating what they hold, it goes to their mouth; with nothing in hand, the rice ball.
-    this.prop.visible = prop === 'onigiri' && !this.hand;
+    // (Eating what they hold, it goes to their mouth: see placeHand.)
     if (this.instrument) this.instrument.visible = prop === 'ukulele';
   }
 
@@ -740,7 +744,6 @@ export class Character implements EmoteHost {
       if (this.unseen) m.layers.disable(0);
       else m.layers.enable(0);
     });
-    if (this.prop.visible) this.prop.visible = false;
   }
 
   /** What they hold in their right paw (see hold), or null. */
@@ -758,7 +761,6 @@ export class Character implements EmoteHost {
     if (!this.action) return;
     this.startBlend(ACTIONS[this.action.id].fadeOut);
     this.action = null;
-    this.prop.visible = false;
     if (this.instrument) this.instrument.visible = false;
   }
 
@@ -952,6 +954,27 @@ export class Character implements EmoteHost {
   /** Height of the character's feet when not jumping: what they stand on. */
   get feetY(): number {
     return Number.isNaN(this.feet) ? this.root.position.y : this.feet;
+  }
+
+  /** Steps taken so far as they walk: one more each time a foot comes down (see locomotionPose), the left
+   * foot's on odd counts. For the prints they leave (see world/Footprints.ts). */
+  get steps(): number {
+    return Math.floor(this.phase / Math.PI + 0.5);
+  }
+
+  /** Where their left (side 0) or right (1) foot stands now, in the world (`at`, its y their feet's height),
+   * and how wide and long it is (`size`). A model without feet of its own (the crowd's, yours) stands on feet
+   * as far apart and as big for its width as the cast's. */
+  sole(side: 0 | 1, at: THREE.Vector3, size: THREE.Vector2): void {
+    const foot = this.model.seat.feet[side];
+    const x = foot ? foot.hip.x : (side === 0 ? -FOOT_APART : FOOT_APART) * this.width;
+    const z = (foot ? foot.hip.z : 0) + (side === 0 ? this.pose.footLZ : this.pose.footRZ);
+    const c = Math.cos(this.facing);
+    const s = Math.sin(this.facing);
+    const p = this.root.position;
+    at.set(p.x + x * c + z * s, this.feetY, p.z - x * s + z * c);
+    if (foot) size.copy(foot.sole);
+    else size.setScalar(FOOT_SIZE * this.width);
   }
 
   private locomotionPose(): void {
@@ -1313,24 +1336,11 @@ export class Character implements EmoteHost {
       this.torch.position.copy(_v);
       this.torch.rotation.set(0.25, this.facing, -0.18, 'YXZ');
     }
-    if (this.prop.visible) {
-      // Held up just under the mouth, in front of the face.
-      this.getAnchor('mouth', _v);
-      const out = 0.075;
-      this.prop.position.set(
-        _v.x + Math.sin(this.facing) * out,
-        _v.y - 0.11,
-        _v.z + Math.cos(this.facing) * out,
-      );
-      this.prop.rotation.set(-0.15, this.facing, 0);
-    }
     const s = Math.sin(this.facing);
     const c = Math.cos(this.facing);
     if (this.hand) this.placeHand(s, c);
     if (this.carried) {
-      // Upright in the left hand, its side against the hand's tip, a little out and forward of it; put
-      // down while the onigiri is in hand.
-      this.carried.visible = !this.prop.visible;
+      // Upright in the left hand, its side against the hand's tip, a little out and forward of it.
       this.getAnchor('handL', _v);
       this.carried.position.set(_v.x - c * CARRY_OUT + s * CARRY_AHEAD, _v.y, _v.z + s * CARRY_OUT + c * CARRY_AHEAD);
       this.carried.rotation.set(0, this.facing, 0);

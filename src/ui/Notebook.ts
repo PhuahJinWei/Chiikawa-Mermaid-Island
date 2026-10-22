@@ -7,12 +7,16 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, te
   return node;
 }
 
-/** Someone on the "where is everyone" page: their name, the place they are in, what they are doing. */
+/** Someone on the "where is everyone" page: their name, the place they are in, what they are doing, and how
+ * fond of you they are, in hearts out of five (see Life.hearts). */
 export interface Whereabout {
   name: string;
   place: string;
   doing: string;
+  hearts?: number;
 }
+
+const HEARTS = 5;
 
 /** A photo in the album: its picture's address (an object URL) and when it was taken. */
 export interface AlbumPhoto {
@@ -118,7 +122,12 @@ export class Notebook {
     const list = el('div', 'people');
     for (const who of cast) {
       const row = el('div', 'people-row');
-      row.append(el('div', 'people-name', who.name), el('div', 'people-place', who.place), el('div', 'people-doing', who.doing));
+      const name = el('div', 'people-name', who.name);
+      if (who.hearts !== undefined) {
+        const n = Math.max(0, Math.min(HEARTS, who.hearts));
+        name.append(el('div', 'people-hearts', '♥'.repeat(n) + '♡'.repeat(HEARTS - n)));
+      }
+      row.append(name, el('div', 'people-place', who.place), el('div', 'people-doing', who.doing));
       list.append(row);
     }
     const rest = el('div', 'people-islanders', islanders);

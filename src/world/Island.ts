@@ -5,7 +5,7 @@ import { fireLights } from './Firelight';
 import { PEN_GLSL, inkUniforms } from './Ink';
 import { FILM, coverTrees, hazeClearing, paintedRamp, shadeUnderTrees } from './Look';
 import type { CaveGrid } from './Cave';
-import { addCircle, addPad, blocked, cameraBlocked, deckUnder, outlineAt } from './Obstacles';
+import { addCircle, addPad, blocked, blockedInAir, cameraBlocked, deckUnder, deeper, outlineAt } from './Obstacles';
 
 /** What art/blender/build_island.py writes into the ground's glTF extras. */
 export interface TerrainInfo {
@@ -208,6 +208,10 @@ export class Terrain {
   readonly texture: THREE.DataTexture;
   /** Each rock's foot, with its furthest reach for a quick first test. */
   private readonly rocks: { x: number; z: number; outline: number[]; reach: number; top: number }[];
+  /** Sand's share of the ground on a grid over the map, 0 to 255, and how many samples it has across (see
+   * readKinds); null until read. */
+  private sand: Uint8Array | null = null;
+  private sandSize = 0;
 
   constructor(
     readonly info: TerrainInfo,
@@ -249,6 +253,44 @@ export class Terrain {
     const a = h[j * n + i] + (h[j * n + i + 1] - h[j * n + i]) * fx;
     const b = h[(j + 1) * n + i] + (h[(j + 1) * n + i + 1] - h[(j + 1) * n + i]) * fx;
     return a + (b - a) * fz;
+  }
+
+  /** How much of the ground at (x, z) is sand, 0 to 1, by the map of kinds the film look paints it by (see
+   * readKinds), and down by the water where the map gives out (PRINT_SHORE): where prints show (see
+   * Footprints.ts). None off the map, or before the map has been read. */
+  sandAt(x: number, z: number): number {
+    const sand = this.sand;
+    if (!sand) return 0;
+    const n = this.sandSize;
+    const i = Math.floor(((x - this.info.origin[0]) / this.info.size) * n);
+    const j = Math.floor(((z - this.info.origin[1]) / this.info.size) * n);
+    if (i < 0 || j < 0 || i >= n || j >= n) return 0;
+    const share = sand[j * n + i];
+    if (share === KINDLESS) return this.height(x, z) - this.info.water < PRINT_SHORE.to ? 1 : 0;
+    return share / (KINDLESS - 1);
+  }
+
+  /** Reads where the sand lies from the map of kinds' picture (see TerrainInfo.kinds), as GROUND_PAINT reads
+   * it: sand's share of the bare ground, where there is no grass; KINDLESS where the map has none at all. */
+  readKinds(image: HTMLImageElement | ImageBitmap): void {
+    const n = image.width;
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = n;
+    const context = canvas.getContext('2d', { willReadFrequently: true });
+    if (!context) return;
+    context.drawImage(image, 0, 0, n, n);
+    const data = context.getImageData(0, 0, n, n).data;
+    const sand = new Uint8Array(n * n);
+    for (let k = 0; k < n * n; k++) {
+      const grass = data[4 * k];
+      const earth = data[4 * k + 1];
+      const bare = data[4 * k + 2];
+      // (As GROUND_PAINT: none of the kinds is under 5% of them all together.)
+      if (grass + earth + bare < 13) sand[k] = KINDLESS;
+      else sand[k] = earth + bare > 3 ? Math.round(((255 - grass) * bare * (KINDLESS - 1)) / ((earth + bare) * 255)) : 0;
+    }
+    this.sand = sand;
+    this.sandSize = n;
   }
 
   /** The surface of whatever water is at (x, z): the waterfall pool's, or the sea's. */
@@ -386,14 +428,51 @@ function groundMaterial(colours: THREE.Texture, info: TerrainInfo, floor: THREE.
 }
 
 /**
+ * In the film look, the prints walked into the ground round the camera, which the ground paints where it is
+ * sand (see GROUND_PAINT; Footprints.ts keeps them): their map, the middle of the square of ground it holds
+ * (x, z) and where in the map that middle lies (u, v), and how many metres across the square is (0: none).
+ */
+export const printUniforms = {
+  uPrints: { value: null as THREE.Texture | null },
+  uPrintWindow: { value: new THREE.Vector4() },
+  uPrintSpan: { value: 0 },
+};
+/** Sand from this far above the water up to this far is damp, from dry (metres): there prints are clearer, and
+ * gone sooner (see Footprints.ts). */
+export const PRINT_DAMP = { from: 0.15, to: 0.55 };
+/** Down by the water the map of kinds gives out (the build leaves the wet edges of the shores, as of the
+ * river, without any): there the ground is sand from this far above the water down (metres, fading in over
+ * the first of them). */
+export const PRINT_SHORE = { from: 0.45, to: 0.6 };
+/** In Terrain's grid of sand (see readKinds), where the map of kinds has none at all. */
+const KINDLESS = 255;
+/** How much a fresh print darkens the sand, dry and damp. */
+const PRINT_DRY = 0.1;
+const PRINT_WET = 0.24;
+
+/**
  * GLSL: the film's grass and earth, painted over the ground's colours where its map of kinds (see
  * TerrainInfo.kinds) says they lie. The lawn is clumps of grass, each a crown of blade tips, the
  * nearer over the farther; packed earth has long soft sweeps of the brush and a scatter of pebbles;
  * where the two meet, the border follows the clumps' tufted outlines. Bare ground painted grey (the
- * gorge's floor) is a bank of rounded pebbles.
+ * gorge's floor) is a bank of rounded pebbles. Prints walked into the sand (see printUniforms).
  */
 const GROUND_PAINT_GLSL = /* glsl */ `
 uniform sampler2D uKinds;
+uniform sampler2D uPrints;
+uniform vec4 uPrintWindow;
+uniform float uPrintSpan;
+// How deep a print walked into the ground at p is, 0 to 1, as fresh as it is (see printUniforms): its sole's
+// edge is halfway down the slope its map holds round it, so it is drawn smooth however few texels it spans,
+// and as it fades it shallows from its edge in. None toward the edge of the square the map holds, nor where
+// a print is too small in the picture to draw without shimmering.
+float printAt(vec2 p, float px) {
+  vec2 d = p - uPrintWindow.xy;
+  float reach = 0.5 * uPrintSpan;
+  float seen = (1.0 - smoothstep(reach - 2.0, reach - 0.5, max(abs(d.x), abs(d.y)))) * (1.0 - smoothstep(0.04, 0.11, px));
+  if (seen <= 0.0) return 0.0;
+  return seen * smoothstep(0.25, 0.75, textureLod(uPrints, d / uPrintSpan + uPrintWindow.zw, 0.0).r);
+}
 vec3 groundHash(vec2 p) {
   vec3 q = vec3(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)), dot(p, vec2(419.2, 371.9)));
   return fract(sin(q) * 43758.5453);
@@ -687,6 +766,9 @@ const GROUND_PAINT = /* glsl */ `
   float hold = smoothstep(0.45, 0.75, level);
   float grass = kind.r;
   float bare = kind.g + kind.b;
+  // How much of the ground here takes prints: its sand, not the pebbles; and down by the water, where the
+  // map of kinds gives out, the wet sand at its edge.
+  float printable = 1.0 - smoothstep(uSea + ${PRINT_SHORE.from.toFixed(2)}, uSea + ${PRINT_SHORE.to.toFixed(2)}, vGroundWorld.y);
   if (grass + bare > 0.05) {
     // The small clumps near the camera, the large ones on out into the middle distance, each fading
     // before it is small enough to shimmer.
@@ -720,6 +802,7 @@ const GROUND_PAINT = /* glsl */ `
     if (earth > 0.01) tone *= mix(vec3(1.0), earthTone(p, kind.g, px), earth);
     // Bare ground painted grey, not sand's warm colour, is the gorge's pebble bank.
     float sand = (1.0 - grassy) * kind.b / max(bare, 1e-3);
+    printable = 0.0;
     if (sand > 0.01) {
       vec3 c = diffuseColor.rgb;
       float hi = max(c.r, max(c.g, c.b));
@@ -728,8 +811,16 @@ const GROUND_PAINT = /* glsl */ `
         float wet = 1.0 - smoothstep(uSea + 0.1, uSea + 0.55, vGroundWorld.y);
         tone *= mix(vec3(1.0), pebbleTone(p, px, wet), sand * grey * hold);
       }
+      printable = sand * (1.0 - grey);
     }
     diffuseColor.rgb *= tone;
+  }
+  // Prints walked into it: faint where the sand is dry, clearer on the damp sand by the water, a little
+  // warm, as the sand's shade is.
+  float print = printable > 0.01 ? printAt(p, px) * printable : 0.0;
+  if (print > 0.0) {
+    float damp = 1.0 - smoothstep(uSea + ${PRINT_DAMP.from.toFixed(2)}, uSea + ${PRINT_DAMP.to.toFixed(2)}, vGroundWorld.y);
+    diffuseColor.rgb *= 1.0 - print * mix(${PRINT_DRY.toFixed(2)}, ${PRINT_WET.toFixed(2)}, damp) * vec3(0.85, 1.0, 1.15);
   }
   #ifdef SCREE
   // Stones fallen from the rocks (see screeStones), over whatever ground they lie on; a little darker
@@ -773,6 +864,7 @@ function filmGroundMaterial(
       uPool: { value: poolUniform(info) },
       uKinds: { value: kinds },
       uScree: { value: scree },
+      ...printUniforms,
     });
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vGroundWorld;')
@@ -933,6 +1025,7 @@ export async function loadTerrain(): Promise<Terrain> {
   found.scale.set(1, 1, 1);
 
   terrain = new Terrain(info, heights, found);
+  if (kinds) terrain.readKinds(kinds.image as HTMLImageElement | ImageBitmap);
   found.material = FILM ? filmGroundMaterial(colours, info, terrain.texture, kinds, scree) : groundMaterial(colours, info, terrain.texture);
   found.receiveShadow = FILM;
   // The stepping stones: their tops and the rims' ledges to stand on, their bodies to bump into.
@@ -1012,46 +1105,68 @@ export function eyeLimit(p: THREE.Vector3, feet: number): void {
 export function clampToWalkable(p: THREE.Vector3, from: THREE.Vector3): void {
   const feet = from.y;
   if (!terrain || canStand(p.x, p.z, feet)) return;
-  // Someone already somewhere they could not walk to (placed there) may walk out of it.
-  if (!canStand(from.x, from.z, feet)) return;
-  if (canStand(p.x, from.z, feet)) p.z = from.z;
-  else if (canStand(from.x, p.z, feet)) p.x = from.x;
+  // Someone already somewhere they could not walk to (placed there) may walk out of it, though never deeper
+  // into what stands in their way, nor into anything else: not on through a wall.
+  const stuck = !canStand(from.x, from.z, feet);
+  if (stuck && mayStep(p.x, p.z, from, feet, true)) return;
+  if (mayStep(p.x, from.z, from, feet, stuck)) p.z = from.z;
+  else if (mayStep(from.x, p.z, from, feet, stuck)) p.x = from.x;
   else {
     p.x = from.x;
     p.z = from.z;
   }
 }
 
+/** Whether someone whose feet were at `feet` at `from` may step to (x, z): onto what they can stand on, or,
+ * `stuck` where they could not stand, anywhere that takes them no deeper into what is in their way. */
+function mayStep(x: number, z: number, from: THREE.Vector3, feet: number, stuck: boolean): boolean {
+  return stuck ? !deeper(from.x, from.z, x, z, PROP_MARGIN, feet) : canStand(x, z, feet);
+}
+
 /** Whether someone in the air with their feet at `y` can be at (x, z): not in a rock, nor in a prop
- * or a stepping stone's body at their height, nor over the cave skylight's opening, nor in ground
- * more than a step above their feet. */
+ * or a stepping stone's body at their height, nor over a prop they would come down inside (see
+ * blockedInAir), nor over the cave skylight's opening, nor in ground more than a step above their feet. */
 function clearInAir(x: number, z: number, y: number): boolean {
   if (!terrain) return true;
   if (cave) {
     // In the cave: over its floor, under its ceiling, clear of what stands in it.
     if (cave.holds(x, z, y)) {
       const k = cave.at(x, z);
-      return cave.floor[k] <= y + STEP_UP && y + 0.75 < cave.ceiling[k] && !blocked(x, z, PROP_MARGIN, y);
+      return (
+        cave.floor[k] <= y + STEP_UP && y + 0.75 < cave.ceiling[k] && !blockedInAir(x, z, PROP_MARGIN, y, groundHeight(x, z, y))
+      );
     }
     if (cave.walled(x, z, y)) return false;
   }
-  if (terrain.nearRock(x, z, ROCK_MARGIN) || terrain.nearSkylight(x, z, EDGE_MARGIN) || blocked(x, z, PROP_MARGIN, y)) return false;
+  if (terrain.nearRock(x, z, ROCK_MARGIN) || terrain.nearSkylight(x, z, EDGE_MARGIN)) return false;
+  if (blockedInAir(x, z, PROP_MARGIN, y, groundHeight(x, z, y))) return false;
   return terrain.height(x, z) <= y + STEP_UP;
 }
 
 /**
  * Keeps a character in the air (their feet at `y`) who moved from `from` to `p` from passing into
- * anything standing higher than their feet: over a gap, a drop or water they carry on; against a
- * rock, a prop, a stepping stone's side or a bank they slide along it, or stay where they were.
+ * anything standing higher than their feet, or over what they would come down inside: over a gap, a drop
+ * or water they carry on; against a rock, a prop, a stepping stone's side or a bank they slide along it,
+ * or stay where they were.
  */
 export function clampInAir(p: THREE.Vector3, from: THREE.Vector3, y: number): void {
-  if (!terrain || clearInAir(p.x, p.z, y) || !clearInAir(from.x, from.z, y)) return;
-  if (clearInAir(p.x, from.z, y)) p.z = from.z;
-  else if (clearInAir(from.x, p.z, y)) p.x = from.x;
+  if (!terrain || clearInAir(p.x, p.z, y)) return;
+  // Someone already where they could not be (put there) may move out of it, though never deeper into what
+  // is in their way, nor into anything else.
+  const stuck = !clearInAir(from.x, from.z, y);
+  if (stuck && mayFly(p.x, p.z, from, y, true)) return;
+  if (mayFly(p.x, from.z, from, y, stuck)) p.z = from.z;
+  else if (mayFly(from.x, p.z, from, y, stuck)) p.x = from.x;
   else {
     p.x = from.x;
     p.z = from.z;
   }
+}
+
+/** Whether someone in the air at `from`, their feet at `y`, may move to (x, z): where they are clear, or,
+ * `stuck` where they were not, anywhere that takes them no deeper into what is in their way. */
+function mayFly(x: number, z: number, from: THREE.Vector3, y: number, stuck: boolean): boolean {
+  return stuck ? !deeper(from.x, from.z, x, z, PROP_MARGIN, y, groundHeight(x, z, y)) : clearInAir(x, z, y);
 }
 
 /**

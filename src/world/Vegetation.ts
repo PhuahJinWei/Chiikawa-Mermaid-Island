@@ -89,6 +89,7 @@ interface UnderPatch {
   copies: [THREE.BufferGeometry, THREE.Matrix4][];
   vertices: number;
   indices: number;
+  box: THREE.Box3;
   centre: THREE.Vector3;
   radius: number;
   objects: THREE.Object3D[];
@@ -347,6 +348,9 @@ export class Vegetation {
     patch.objects = FILM ? [mesh] : [mesh, addOutline(mesh)];
     for (const o of patch.objects) {
       const geometry = (o as THREE.Mesh).geometry;
+      // Its box too (the outline's the same, its vertices the mesh's), as nothing can work it out once
+      // the arrays are let go of: releaseOnUpload in Stage asks after it if the patch is drawn first.
+      geometry.boundingBox = patch.box.clone();
       for (const attribute of [...Object.values(geometry.attributes), geometry.index]) (attribute as THREE.BufferAttribute | null)?.onUpload(release);
     }
     return budget;
@@ -420,7 +424,7 @@ function underPatch(copies: [THREE.BufferGeometry, THREE.Matrix4][]): UnderPatch
     const dz = centre.z - z;
     furthest = Math.max(furthest, dx * dx + dy * dy + dz * dz);
   });
-  return { copies, vertices, indices, centre, radius: Math.sqrt(furthest), objects: [], work: null };
+  return { copies, vertices, indices, box, centre, radius: Math.sqrt(furthest), objects: [], work: null };
 }
 
 /** A geometry with room for every vertex of `patch`'s plants, its arrays of the kinds its first

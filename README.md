@@ -52,16 +52,39 @@ You see the island out of your own eyes, as a nameless islander.
 | Drag on the right half | Drag with the mouse | Look around |
 | Pinch on the right half | Mouse wheel | Narrow the view toward the film's lens, and back |
 | Jump button | Space | Jump (whoever is near may hop or wave back) |
-| Action button (ひろう, おく, あげる, はなす, すわる, ねる, たつ) | E or Enter | What you look at: pick it up, put down what you hold, give it, talk, sit, sleep through the night in your own bed, get up |
+| Action button (ひろう, かりる, おく, あげる, はなす, すわる, ねる, たつ, みせばん, わたす, たべきる, のみきる) | E or Enter | What you look at: pick it up (borrow it, if it is someone's), put down what you hold, give it, talk, sit, sleep through the night in your own bed, get up; behind a stall's counter no one keeps today, keep it, and hand its goods to whoever lines up. What you have bitten into cannot be put down or given: たべきる / のみきる finishes it |
 | Use button (たべる, のむ, ひく) | F | Eat, drink or play what you hold |
-| Pouch (ふくろ) button, then a slot | Tab, or 1 to 6 | Your pouch of six: a slot and your paw change places |
+| Pouch (ふくろ) button, then a slot | Tab, or 1 to 6 | Your pouch of six slots, each a stack of one kind (up to 99, its count on its corner): what is in your paw goes into the pouch (onto its own stack if there is one) and one thing of the slot comes into your paw. Something you have bitten into goes into no pouch: put away, it is gone, eaten up |
 | きもち button (top right), then one of its nine | R, then 1 to 9 | Do something yourself: wave, bow, cheer, hop, dance, chat, look about, start, cry. Whoever is near may answer it |
 | Camera (カメラ) button | | Take a photo |
 | Notebook (ノート) button | | Where everyone is and what they are doing (みんな), your photos (しゃしん), the sound on or off |
 | Test (テスト) button | Test (テスト) button | Test panel: actions, expressions, lineup, whose eyes, the follow camera from behind (三人称カメラ) |
 
-The island keeps itself as you left it (the hour and the day, where you stood, what you hold and
-keep, what you put down) in the browser; open the game with `?fresh` to start anew.
+The island keeps itself as you left it (the hour and the day, where you stood, where everyone who
+lives here stood, sat or slept, what you and they hold and keep, how fond each is of you, what lies
+where) in the browser; open the game with `?fresh` to start anew, with the welcome on the beach.
+
+## Things lying about
+
+Everyone on the island, you and the islanders alike, can take up what lies about, keep it, give it,
+eat it, play it or put it down. Everyone's paws are the same (`src/life/Hands.ts`): one thing in the
+right paw and a pouch of six slots, each a stack of up to 99 things of one kind, each thing keeping
+whose it is. A stall hands over nothing to someone with no room for it: its keeper says so. What lies
+about comes from `public/data/things.json`:
+
+- `kept`: things with a place of their own, back there each morning from wherever they lie (or made
+  anew if no one has one): an `id` of its own, the `item`, where (`x`, `z`), `y` if it lies on
+  something above the ground's top (a deck, a porch), and its turn (`yaw`, radians).
+- `daily`: what each morning lays about an area, gone the next morning if no one took it up: how many
+  of each thing (`items`), within a `box` (`[x from, x to, z from, z to]`), outside any of the `avoid`
+  boxes, only on the sand's band above the water if `shore` gives one (`[from, to]` metres; else
+  anywhere one can stand on dry ground), at least `apart` metres from one another.
+
+Nothing else needs changing: the islanders see whatever lies about each time they choose what to do,
+and choose by what a thing is for (eaten, drunk, played or kept), never by its name. A new kind of
+thing is built in `art/blender/build_items.py` (its icon comes with it) and named in
+`src/locales/ja.json` as `item.<id>`. With no entry in `src/life/Items.ts` it is a keepsake that lies
+on its side; give it one there to make it something eaten, drunk or played, or held flat.
 
 ## Rebuild the models
 
@@ -91,8 +114,8 @@ Every model comes out of Blender, driven by a Python script:
   It also grows the jungle, the fields' crops and the flowers round the
   village (`art/blender/plants.py` shapes the plants), keeping them clear of
   the props placed in `public/data/layout.json`.
-- `art/blender/build_props.py` builds the palm, log, starfish, onigiri, the
-  No Entry sign and the butterfly into `public/models/props/`.
+- `art/blender/build_props.py` builds the palm, log, starfish, the No Entry
+  sign and the butterfly into `public/models/props/`.
 - `art/blender/build_village.py` builds the village and the festival into
   `public/models/props/`: the huts you can walk into, the stage, torches,
   round thatched huts, the festival's stalls, arch, banners, bunting and

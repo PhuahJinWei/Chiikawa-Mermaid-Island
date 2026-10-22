@@ -18,6 +18,15 @@ export interface Habit {
   chance?: number;
 }
 
+/** How much someone likes things by what they are for (see Choices): eaten, drunk, played, or kept; 1 if not
+ * said. By what a thing is for, never its name, so a new kind of thing is liked as its kind is. */
+export interface Taste {
+  eat?: number;
+  drink?: number;
+  play?: number;
+  keep?: number;
+}
+
 export interface Profile {
   /** The places they stroll to, and how much they like each. */
   spots: Partial<Record<SpotId, number>>;
@@ -32,7 +41,27 @@ export interface Profile {
   feast?: 'ukulele' | 'dance';
   /** They run rather than walk when going somewhere. */
   runs?: boolean;
+  /** How curious they are about what lies about (0 to 1; 0.5 if not said): how often they go to look at it,
+   * and now and then take it up (see Choices). */
+  curious?: number;
+  /** What they like (see Taste). */
+  likes?: Taste;
 }
+
+/** Who the cast count as friends besides whoever they live and go about with (see Choices.friendsOf): to give
+ * their keepsakes to and go over to for a word. */
+export const FRIENDS: Record<string, string[]> = {
+  chiikawa: ['hachiware', 'usagi'],
+  hachiware: ['chiikawa', 'usagi'],
+  usagi: ['chiikawa', 'hachiware', 'momonga'],
+  momonga: ['usagi', 'furuhonya'],
+  kurimanju: ['shisa', 'rakko'],
+  rakko: ['kurimanju'],
+  shisa: ['kurimanju', 'hitoha'],
+  furuhonya: ['momonga'],
+  hitoha: ['futaba', 'shisa'],
+  futaba: ['hitoha'],
+};
 
 /**
  * Where everyone sleeps (the user, 2026-10-22): Hitoha and Futaba in the raised villager's hut nearest the
@@ -97,6 +126,7 @@ export const PROFILES: Record<string, Profile> = {
     with: 'hachiware',
     weight: 0.8,
     hungry: 0.9,
+    curious: 0.6,
   },
   // Out on the pier's end at dawn, as PLAN.md has Hachiware fishing then.
   hachiware: {
@@ -104,6 +134,7 @@ export const PROFILES: Record<string, Profile> = {
     habits: [{ from: 6.4, to: 7.6, spot: 'pierEnd', sit: true, chance: 0.8 }],
     weight: 0.9,
     hungry: 0.9,
+    curious: 0.8,
   },
   // Wherever there is food, running.
   usagi: {
@@ -111,12 +142,17 @@ export const PROFILES: Record<string, Profile> = {
     weight: 1,
     hungry: 1,
     runs: true,
+    // Grabs what is going, food above all.
+    curious: 0.9,
+    likes: { eat: 2, drink: 1.5 },
   },
   // Up where everyone can see her.
   momonga: {
     spots: { stage: 3, plaza: 2, street: 1, glade: 1, arch: 1 },
     weight: 0.7,
     hungry: 0.8,
+    curious: 0.7,
+    likes: { keep: 1.5, play: 1.5 },
   },
   // Sitting with a drink in the afternoon.
   kurimanju: {
@@ -124,6 +160,8 @@ export const PROFILES: Record<string, Profile> = {
     habits: [{ from: 14, to: 17.3, spot: 'beachWest', sit: true }],
     weight: 1.1,
     hungry: 0.7,
+    curious: 0.3,
+    likes: { drink: 2.5 },
   },
   // Practising with his sword on the beach in the morning, playing at the feast.
   rakko: {
@@ -132,12 +170,17 @@ export const PROFILES: Record<string, Profile> = {
     weight: 1.3,
     hungry: 0.6,
     feast: 'ukulele',
+    curious: 0.4,
+    likes: { play: 2 },
   },
   // At home on the night beach (PLAN.md).
   furuhonya: {
     spots: { nightBeach: 6, beachEast: 2, pierEnd: 1 },
     weight: 1,
     hungry: 0.6,
+    // A beachcomber: what the sea leaves.
+    curious: 0.8,
+    likes: { keep: 2 },
   },
   shisa: {
     spots: { street: 2, plaza: 2, arch: 1, stage: 1, beachEast: 1 },
@@ -145,18 +188,22 @@ export const PROFILES: Record<string, Profile> = {
     weight: 1,
     hungry: 0.9,
     feast: 'dance',
+    curious: 0.7,
   },
   // Inseparable: Futaba keeps by Hitoha.
   hitoha: {
     spots: { plaza: 2, fields: 2, lane: 2, street: 1, yard: 1, arch: 1 },
     weight: 1,
     hungry: 0.8,
+    // Timid but curious (PLAN.md).
+    curious: 0.85,
   },
   futaba: {
     spots: { plaza: 2, fields: 2, lane: 2, street: 1, yard: 1 },
     with: 'hitoha',
     weight: 1,
     hungry: 0.8,
+    curious: 0.5,
   },
 };
 
@@ -164,7 +211,12 @@ export const PROFILES: Record<string, Profile> = {
  * with whoever they live with (`mate`). */
 export function islanderProfile(index: number, mate: string | null = null): Profile {
   const way = ISLANDER_WAYS[index % ISLANDER_WAYS.length];
-  return { ...way, feast: index % 4 === 1 ? 'dance' : undefined, with: mate && index % 3 === 0 ? mate : undefined };
+  return {
+    ...way,
+    feast: index % 4 === 1 ? 'dance' : undefined,
+    with: mate && index % 3 === 0 ? mate : undefined,
+    curious: 0.3 + 0.5 * seeded(index * 31 + 7)(),
+  };
 }
 
 /** A number from 0 to 1 that is the same for the same seed (mulberry32). */

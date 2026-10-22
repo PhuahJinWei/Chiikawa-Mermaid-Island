@@ -1534,6 +1534,10 @@ FURNITURE = 0.68
 # eyes), so a villager sees out of them. They had stood at 0.92 m (the stilt huts) and 0.85 m (the plank
 # huts), over a villager's head.
 WINDOW_SILL = 0.6
+# How far a body reaches round its middle: the game keeps walkers this far from what blocks them
+# (PROP_MARGIN in src/world/Island.ts), so a top to stand on reaches this far round what it tops, and whoever
+# comes down at its edge from a jump is on it.
+REACH = 0.25
 
 
 def furnish_hut(floor, xi, yi, wall_h, window):
@@ -1551,11 +1555,11 @@ def furnish_hut(floor, xi, yi, wall_h, window):
     books; toward the door a potted monstera on a little table, and two brown woven vases in the front
     left corner. In the room's front half, before the door, a round cream rug patterned in blue round
     a white flower, two domed straw cushions on it. Returns its pieces, the blocks that keep walkers
-    out of it (not the camera, which may look over it), and where it stands against each wall (x or y
+    out of it (not the camera, which may look over it), where it stands against each wall (x or y
     from, to, and whether it reaches the window sill's height), for the logs along the walls' feet
-    (see inner_rail)."""
+    (see inner_rail), and the decks on it to stand on (the bed's mattress)."""
     f = floor
-    out, blocks = [], []
+    out, blocks, tops = [], [], []
     against = {"front": [], "back": [], "left": [], "right": []}
 
     def box(c, size, colour, bevel=0.0, grain=None):
@@ -1605,6 +1609,9 @@ def furnish_hut(floor, xi, yi, wall_h, window):
     shrink(start, kept, V(bx1, by1, f))
     drawn = bx0
     bx0 = along(bx0, bx1)
+    # Its mattress's top, to jump onto and stand on (higher than a step up from the floor, so never walked
+    # onto), reaching a body's reach round it.
+    tops.append(deck_box(bx0 - REACH, bx1 + REACH, along(by0, by1) - REACH, by1 + REACH, round(f + 0.53 * FURNITURE, 3)))
     against["back"].append((bx0 - 0.02, bx1 + 0.02, False))
     # A stool by the bed's head, between it and the counter: a stump, its top cut to show its rings, on
     # three stubby legs.
@@ -1870,7 +1877,7 @@ def furnish_hut(floor, xi, yi, wall_h, window):
     for x, y in ((rx + 0.39, ry + 0.6), (rx - 0.4, ry - 0.6)):
         straw_cushion(V(x, y, f + 0.017), 0.32, 0.17, out)
         keep_out_round(x, y, 0.28, 0.17)
-    return out, blocks, against
+    return out, blocks, against, tops
 
 
 def villager_door(door, yo, floor, tall, pieces):
@@ -1913,7 +1920,8 @@ def villager_room(walls, xi, yi, t, floor, wall_h, sill, pieces, inside, glow):
     them); overhead the straw's underside rising to a peak on rafters, the paper lantern hanging from
     their hub over the middle of the room, lit at night; and furnished as a villager's home (see
     furnish_hut). The floor's planks go into `pieces`, the rest into `inside` and the lantern's glow
-    into `glow`. Returns the blocks that keep walkers out of the furniture."""
+    into `glow`. Returns the blocks that keep walkers out of the furniture, and the decks on it to stand
+    on (the bed's mattress)."""
     front, back, left, right = walls
     xo = xi + t
     eave = floor + wall_h
@@ -1940,7 +1948,7 @@ def villager_room(walls, xi, yi, t, floor, wall_h, sill, pieces, inside, glow):
         inside.append((quad(V(x, y, seam), V(1, 0, 0), UP, 2 * xi / planks - 0.02, PEN), C["hutFloorLine"]))
 
     window = left.openings[0]
-    furniture, kept_out, against = furnish_hut(floor, xi, yi, wall_h, yi - (window[0] + window[1]) / 2)
+    furniture, kept_out, against, tops = furnish_hut(floor, xi, yi, wall_h, yi - (window[0] + window[1]) / 2)
     inside.extend(furniture)
 
     side = {front: ("front", lambda p: xo + p), back: ("back", lambda p: xo - p),
@@ -1984,7 +1992,7 @@ def villager_room(walls, xi, yi, t, floor, wall_h, sill, pieces, inside, glow):
     # hub over the middle of the room, lit at night.
     hub = hut_ceiling(xi, yi, eave, eave + 1.45, inside)
     paper_lantern(hub.x, hub.y, hub.z, floor + wall_h - 0.3, inside, glow)
-    return kept_out
+    return kept_out, tops
 
 
 def build_stilt_hut(name, pattern, collection):
@@ -2053,7 +2061,7 @@ def build_stilt_hut(name, pattern, collection):
     for at, make in pots:
         make(at, pieces)
 
-    kept_out = villager_room(walls, xi, yi, t, floor, wall_h, sill, pieces, inside, glow)
+    kept_out, tops = villager_room(walls, xi, yi, t, floor, wall_h, sill, pieces, inside, glow)
 
     # The roof: the film's beehive of straw, centred over the walls, oval to hang out about as far over
     # each, its underside flat from the walls' middles out to its rim; rough as straw is (see
@@ -2111,7 +2119,7 @@ def build_stilt_hut(name, pattern, collection):
     # The porch's pots.
     blocks += [{"circle": [*g(at.x, at.y), 0.2], "y": [floor - 0.1, floor + 0.6], "walk": True, "camera": False}
                for at, _ in pots]
-    decks = [deck_box(-xo + 0.1, xo - 0.1, porch, yi, floor), deck_box(-0.62, 0.62, stairs_end, porch, floor, 0.02)]
+    decks = [deck_box(-xo + 0.1, xo - 0.1, porch, yi, floor), deck_box(-0.62, 0.62, stairs_end, porch, floor, 0.02)] + tops
     info = {"blocks": blocks, "decks": decks, "height": round(eave + 5.3, 3), "openings": openings_of(walls)}
     info.update(bake_night(name, [body, room], lights, info["openings"]))
     info.update(painter.finish(P.OUT_MODELS))
@@ -2158,7 +2166,7 @@ def build_plank_hut(name, collection):
         make(at, pieces)
     pieces.append((P.box_bm(V(0.0, (step + yo) / 2, floor - 0.06), (2 * xo, yo - step, 0.12)), C["floor"]))
     pieces.append((P.box_bm(V(0.0, (step + ramp_end) / 2, 0.06), (1.6, step - ramp_end, 0.14)), C["log"]))
-    kept_out = villager_room(walls, xi, yi, t, floor, wall_h, sill, pieces, inside, glow)
+    kept_out, tops = villager_room(walls, xi, yi, t, floor, wall_h, sill, pieces, inside, glow)
     eave = floor + wall_h
     roof = (-xo - 0.84, xo + 0.84, -yo - 1.14, yo + 0.84, eave, eave + 0.28, eave + 2.73, 1.1)
     pieces.append(hip_roof(*roof, hole=((-xo + t / 2, xo - t / 2), (-yo + t / 2, yo - t / 2))))
@@ -2180,7 +2188,7 @@ def build_plank_hut(name, collection):
     ] + kept_out + door_blocks
     blocks += [{"circle": [*g(at.x, at.y), 0.2], "y": [floor - 0.1, floor + 0.6], "walk": True, "camera": False}
                for at, _ in pots]
-    decks = [deck_box(-xo + 0.1, xo - 0.1, step, yi, floor), deck_box(-0.8, 0.8, ramp_end, step, floor, 0.02)]
+    decks = [deck_box(-xo + 0.1, xo - 0.1, step, yi, floor), deck_box(-0.8, 0.8, ramp_end, step, floor, 0.02)] + tops
     info = {"blocks": blocks, "decks": decks, "height": roof[6], "openings": openings_of(walls)}
     info.update(bake_night(name, [body, room], lights, info["openings"]))
     info.update(painter.finish(P.OUT_MODELS))

@@ -53,9 +53,9 @@ export interface ActionDef {
   allowMove?: boolean;
   talking?: boolean;
   chewing?: boolean;
-  /** What they hold while it plays: the onigiri, what they play (CharacterOptions.instrument), or the sword they
-   * carry on their back (CharacterOptions.own). */
-  prop?: 'onigiri' | 'ukulele' | 'sword';
+  /** What they hold while it plays: what they play (CharacterOptions.instrument), or the sword they carry on
+   * their back (CharacterOptions.own). */
+  prop?: 'ukulele' | 'sword';
   /** The action's own face, shown over any expression chosen in the Test panel. */
   expression: (t: number) => ExpressionId;
   /** Shuts the eyes (bowing), whatever the expression. */
@@ -265,12 +265,11 @@ export const ACTIONS: Record<ActionId, ActionDef> = {
     fadeIn: 0.25,
     fadeOut: 0.3,
     chewing: true,
-    prop: 'onigiri',
     expression: () => 'happy',
     pose(t, p) {
       p.armLRaise = p.armRRaise = 0.7;
       p.armLSwing = p.armRSwing = 1.3;
-      // Both paws up under the chin round what they eat, held up at the mouth (see Character's prop), bobbing
+      // Both paws up under the chin round what they eat, held up at the mouth (see Character.placeHand), bobbing
       // with each bite.
       const bite = 0.025 * Math.sin(t * 8.6);
       const up = smooth(t / 0.3);

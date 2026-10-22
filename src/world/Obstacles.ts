@@ -9,6 +9,12 @@
 const CELL = 8;
 /** A character's height, for what their body bumps into. */
 const BODY = 0.9;
+/** How far over a block's top a deck or pad may lie and still top it: a step (a stepping stone's pad lies
+ * 0.15 m over its body's top). */
+const CAP = 0.35;
+/** How far in from the edge of a deck or pad a block's middle must lie for it to top the block: a body's
+ * reach, so the top of a bed, reaching that far round it, does not top the stool beside it. */
+const INSET = 0.25;
 
 export interface BlockOptions {
   /** Stops characters walking into it. */
@@ -33,6 +39,8 @@ interface Block extends Shape {
   y1: number;
   walk: boolean;
   camera: boolean;
+  /** Whether a deck or pad tops it (see capped), once asked. */
+  capped?: boolean;
 }
 
 interface Deck extends Shape {
@@ -209,11 +217,78 @@ function inside(b: Block, x: number, z: number, margin: number): boolean {
   return Math.abs(lx) < b.hx + margin && Math.abs(lz) < b.hz + margin;
 }
 
+/** Whether block `b` is in the way of someone whose feet are at `feet`: it stands at their height. */
+function atHeight(b: Block, feet: number): boolean {
+  return b.walk && b.y1 > feet + 0.1 && b.y0 < feet + BODY;
+}
+
+/** Whether a deck or pad tops block `b` (a stepping stone's pad, a bed's mattress), for whoever comes down
+ * on it to stand on: one at its top that its middle lies well inside. Asked once everything on the island
+ * is in place, and kept. */
+function capped(b: Block): boolean {
+  if (b.capped === undefined) {
+    const low = b.y1 - 0.1;
+    const high = b.y1 + CAP;
+    b.capped = false;
+    for (const d of decks.at(b.x, b.z)) {
+      const [lx, lz] = local(d, b.x, b.z);
+      const h = d.back + (d.front - d.back) * ((lz + d.hz) / (2 * d.hz));
+      if (h >= low && h <= high && Math.min(d.hx - Math.abs(lx), d.hz - Math.abs(lz)) >= INSET) b.capped = true;
+    }
+    for (const p of pads.at(b.x, b.z)) {
+      const dx = b.x - p.x;
+      const dz = b.z - p.z;
+      if (p.top >= low && p.top <= high && outlineAt(p.outline, dx, dz) - Math.hypot(dx, dz) >= INSET) b.capped = true;
+    }
+  }
+  return b.capped;
+}
+
+/**
+ * Whether block `b` is in the way of someone in the air, their feet at `feet`, who would come down at
+ * `under` where they are: it stands at their height, or it is under their feet, higher than they would come
+ * down, with nothing on its top to hold them (a bed, a stool, a stall's counter, a porch's edge), so they
+ * would come down inside it. They jump onto what a deck or pad tops, and over nothing else.
+ */
+function inTheWay(b: Block, feet: number, under: number): boolean {
+  if (!b.walk || b.y0 >= feet + BODY) return false;
+  return b.y1 > feet + 0.1 || (b.y1 > under + 0.1 && !capped(b));
+}
+
 /** Whether a character standing at (x, z) with their feet at `feet` bumps into something. */
 export function blocked(x: number, z: number, margin: number, feet: number): boolean {
+  for (const b of blocks.at(x, z)) if (atHeight(b, feet) && inside(b, x, z, margin)) return true;
+  return false;
+}
+
+/** Whether a character in the air at (x, z), their feet at `feet`, who would come down at `under` there,
+ * bumps into something (see inTheWay). */
+export function blockedInAir(x: number, z: number, margin: number, feet: number, under: number): boolean {
+  for (const b of blocks.at(x, z)) if (inTheWay(b, feet, under) && inside(b, x, z, margin)) return true;
+  return false;
+}
+
+/** How far inside block `b`, and `margin` round it, (x, z) is: how far from there to its edge (less than 0
+ * outside it). */
+function depth(b: Block, x: number, z: number, margin: number): number {
+  if (b.r > 0) return b.r + margin - Math.hypot(x - b.x, z - b.z);
+  const [lx, lz] = local(b, x, z);
+  return Math.min(b.hx + margin - Math.abs(lx), b.hz + margin - Math.abs(lz));
+}
+
+/**
+ * Whether moving from (fx, fz) to (x, z) takes a character, their feet at `feet`, deeper into something in
+ * their way than they were, or into something they were not in: on their feet (see blocked), or, given where
+ * they would come down (`under`), in the air (see blockedInAir). Whoever is already inside something (put
+ * there) walks out of it any way but these, never on through a wall. Onto what a deck or pad tops they may
+ * go on: come down beside a stepping stone's top, they get onto it, a step up.
+ */
+export function deeper(fx: number, fz: number, x: number, z: number, margin: number, feet: number, under = Number.NaN): boolean {
+  const air = !Number.isNaN(under);
   for (const b of blocks.at(x, z)) {
-    if (!b.walk || b.y1 <= feet + 0.1 || b.y0 >= feet + BODY) continue;
-    if (inside(b, x, z, margin)) return true;
+    if (!(air ? inTheWay(b, feet, under) : atHeight(b, feet)) || capped(b)) continue;
+    const d = depth(b, x, z, margin);
+    if (d > 0 && d > depth(b, fx, fz, margin) + 1e-9) return true;
   }
   return false;
 }

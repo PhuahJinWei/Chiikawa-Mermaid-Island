@@ -2,7 +2,7 @@
 
 Run (from the project root):
     "C:/Program Files/Blender Foundation/Blender 5.2/blender.exe" --background --factory-startup
-        --disable-autoexec --python art/blender/import_characters.py -- [--only chiikawa] [--no-previews]
+        --disable-autoexec --python art/blender/import_characters.py -- [--only chiikawa[,usagi...]] [--no-previews]
         [--source <folder with Chiikawa/, Hachiware/, Usagi/, Momonga/>]
 
 Inputs: the four rigged .blend files from the downloaded "Chiikawa Models" folder. They are
@@ -219,7 +219,8 @@ CHARACTERS = [
         "body": "#FBE5E1",
         "shorten": 0.09,
         "drop": ("Ear", "Tail"),
-        "cap": {"color": "#F2B0B3", "front": 0.5, "side": 0.44, "line": False},
+        # Its edge a little lower than first drawn, the cap taller (the user, 2026-10-23).
+        "cap": {"color": "#F2B0B3", "front": 0.42, "side": 0.36, "line": False},
         "claws": {"color": "#F2B0B3", "width": 0.62, "thick": 0.32, "x": 0.66, "z": 0.8, "back": 0.12, "tilt": 10.0},
         # Thin as a pen's strokes (the user, 2026-10-22: "much thinner").
         "antennae": {"color": "#4A3026", "x": 0.07, "size": (0.011, 0.011, 0.055), "lean": 0.35, "sink": 0.015},
@@ -323,13 +324,38 @@ CROWD_SKIRT = {"rows": 5, "segments": 40}
 CROWD_STEPS = 16  # outline points per crown flower
 
 
-def generic_islander(cid, cast_id):
+# What grows on a generic islander's head where ears would (the user, 2026-10-23: more variety, now that there are
+# twenty-one of them), each as the film's crowds have it: the welcome crowd from behind ("bay 1", "bay 5") and the
+# festival's ("festival 1", "festival stall 1-4"). Each piece where a ray out from the head's middle at `at`
+# (degrees round from the front toward the model's +x side, and up from level) meets the head: a "horn" (or a
+# spike), round, `radius` head radii at its foot sunk `sink` of its radius into the head, `length` head radii long,
+# curving `bend` of its length toward `bend_way`; or a "ball", `radius` head radii, `sink` of it into the head.
+HEAD_TOPS = {
+    # A single point on top, curving a little over to one side, as a drop's tip ("bay 5").
+    "spike": [{"shape": "horn", "at": (0.0, 90.0), "radius": 0.13, "length": 0.34, "sink": 0.6, "bend": 0.35,
+               "bend_way": (-1.0, 0.0, 0.0)}],
+    # A small round knob on top ("bay 1", "bay 5").
+    "knob": [{"shape": "ball", "at": (0.0, 90.0), "radius": 0.12, "sink": 0.3}],
+    # Two little horns at the head's top corners, pointing up and out ("bay 1").
+    "horns": [{"shape": "horn", "at": (az, 58.0), "radius": 0.1, "length": 0.24, "sink": 0.6, "bend": 0.12,
+               "bend_way": (0.0, 0.0, 1.0)} for az in (-90.0, 90.0)],
+    # One horn, to one side ("bay 1").
+    "horn": [{"shape": "horn", "at": (90.0, 52.0), "radius": 0.11, "length": 0.27, "sink": 0.6, "bend": 0.15,
+              "bend_way": (0.0, 0.0, 1.0)}],
+}
+
+
+def generic_islander(cid, cast_id, **shape):
     """A generic islander built from a cast member's model: its head, body and ears, without
     the tail, in the islanders' grey with a grey flower crown. Only the model's shape settings
-    (subdivision, two-part ears) come from the cast member, not its colours, masks or crown."""
+    (subdivision, two-part ears) come from the cast member, not its colours, masks or crown.
+    `shape` changes its head: `drop_ears` (none), `ears` (moved and sized, as the cast's option) or
+    `head_top` (what grows there instead: HEAD_TOPS)."""
     cast = next(c for c in CHARACTERS if c["id"] == cast_id)
-    cfg = dict(ISLANDER, id=cid, file=cast["file"], drop=("Tail",), sprout=None, crown=GREY_CROWN, crowd=True)
+    drop = ("Ear", "Tail") if shape.get("drop_ears") or shape.get("head_top") else ("Tail",)
+    cfg = dict(ISLANDER, id=cid, file=cast["file"], drop=drop, sprout=None, crown=GREY_CROWN, crowd=True)
     cfg.update({k: cast[k] for k in ("levels", "long_ears") if k in cast})
+    cfg.update({k: shape[k] for k in ("ears", "head_top") if k in shape})
     return cfg
 
 
@@ -338,10 +364,18 @@ CHARACTERS += [
     dict(ISLANDER, id="islander_hitoha"),
     dict(ISLANDER, id="islander_futaba", sprout=dict(ISLANDER["sprout"], leans=[-0.6, 0.6])),
     # The background crowd: generic islanders with ears instead of leaves, as in the film's
-    # crowds, as light copies.
+    # crowds, as light copies: round ears, cat ears, long and short bunny ears, none, or a spike,
+    # a knob, two horns or one on top instead (HEAD_TOPS).
     generic_islander("islander_round_crowd", "chiikawa"),
     generic_islander("islander_cat_crowd", "hachiware"),
     generic_islander("islander_bunny_crowd", "usagi"),
+    generic_islander("islander_plain_crowd", "chiikawa", drop_ears=True),
+    generic_islander("islander_spike_crowd", "chiikawa", head_top="spike"),
+    generic_islander("islander_knob_crowd", "chiikawa", head_top="knob"),
+    generic_islander("islander_horns_crowd", "chiikawa", head_top="horns"),
+    generic_islander("islander_horn_crowd", "chiikawa", head_top="horn"),
+    # Short bunny ears, as the festival's dango keeper's ("festival stall 3").
+    generic_islander("islander_stubby_crowd", "usagi", ears={"turn": 0.0, "scale": 0.5}),
 ]
 
 
@@ -946,6 +980,30 @@ def arm_radius(bm, shoulder, way):
     return float(np.percentile(near, 80))
 
 
+def horn_bm(base, way, radius, length, bend=0.0, bend_way=(0.0, 0.0, 1.0), segments=16, rings=10):
+    """A horn or a spike (HEAD_TOPS): round, from `radius` at its foot (`base`, deep in the head) narrowing to a
+    rounded point `length` along `way`, its belly fuller near the foot, curving `bend` of its length toward
+    `bend_way` (the more the nearer its tip)."""
+    way = Vector(way).normalized()
+    side = Vector(bend_way)
+    side = (side - way * side.dot(way))
+    side = side.normalized() if side.length > 1e-6 else Vector((1.0, 0.0, 0.0))
+    profile = []
+    for k in range(rings + 1):
+        t = k / rings
+        profile.append((radius * (1.0 - t) ** 0.8 * (1.0 + 0.15 * math.sin(math.pi * t)), length * t))
+    profile[-1] = (radius * 0.12, length * 0.97)
+    profile.append((0.0, length))
+    bm = L.lathe_bm([(0.0, -radius * 0.3)] + profile, segments)
+    turn = Vector((0.0, 0.0, 1.0)).rotation_difference(way).to_matrix().to_4x4()
+    for v in bm.verts:
+        h = max(0.0, v.co.z) / length
+        v.co = (turn @ v.co) + side * bend * length * h * h
+    L.transformed(bm, Matrix.Translation(base))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    return bm
+
+
 def joint_bands(at_elbow, at_wrist, radius):
     """Where along an arm (from its shoulder) its elbow and its wrist bend: ((lo, hi), (lo, hi)), each ARM_BEND arm
     radii either side of its joint, but on the sides toward each other no more than 0.45 of the forearm between
@@ -1436,6 +1494,28 @@ def convert(cfg, source):
             extra.append((L.ellipsoid_bm(middle, (hx, hy, hz), lean, u=12, v=8), ant_cfg["color"], idx, False))
             parts[idx]["pivot"] = foot
             parts[idx]["parent"] = L.HEAD
+    head_top = cfg.get("head_top")
+    if head_top:
+        # What grows on a generic islander's head in place of ears (HEAD_TOPS): a spike, a knob or horns, as the
+        # film's crowds have them; each where a ray out from the head's middle meets it, sunk into it, in the
+        # body's colour, on the head, outlined.
+        hlo, hhi = bounds([head_bm])
+        middle = (hlo + hhi) / 2.0
+        heads = BVHTree.FromBMesh(head_bm)
+        for piece in HEAD_TOPS[head_top]:
+            az, el = (math.radians(a) for a in piece["at"])
+            way = Vector((math.cos(el) * math.sin(az), -math.cos(el) * math.cos(az), math.sin(el)))
+            hit = heads.ray_cast(middle + way * 3.0 * rf, -way)[0]
+            if hit is None:
+                continue
+            r = piece["radius"] * rf
+            if piece["shape"] == "ball":
+                bm = L.ellipsoid_bm(hit + way * r * (1.0 - 2.0 * piece["sink"]), (r, r, r), u=16, v=10)
+            else:
+                bm = horn_bm(hit - way * piece["sink"] * r, way, r, piece["length"] * rf, piece.get("bend", 0.0),
+                             piece.get("bend_way", (0.0, 0.0, 1.0)))
+            extra.append((bm, cfg["body"], L.HEAD, True))
+        log(f"head top {head_top}: {len(HEAD_TOPS[head_top])} pieces")
 
     if (cap or ear_cfg or extra) and cfg.get("painted_face", True):
         # The guide baked from the model it is built from shows that model's head: draw this one's as the
@@ -1800,12 +1880,13 @@ def render_previews(results):
 
 def main():
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
-    only = argv[argv.index("--only") + 1] if "--only" in argv else None
+    # One id, or several separated by commas.
+    only = set(argv[argv.index("--only") + 1].split(",")) if "--only" in argv else None
     previews = "--no-previews" not in argv
     source = argv[argv.index("--source") + 1] if "--source" in argv else DEFAULT_SOURCE
     results = []
     for cfg in CHARACTERS:
-        if only and cfg["id"] != only:
+        if only and cfg["id"] not in only:
             continue
         results.append(convert(cfg, source))
     if previews and results:

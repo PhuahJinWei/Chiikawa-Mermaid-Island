@@ -42,8 +42,8 @@ import { zoneName, type ZoneId } from '../world/Zones';
 import { Clock } from '../world/DayNight';
 import { Life } from '../life/Life';
 import { ISLANDERS } from '../life/profiles';
-import { ItemModels, STALL_ITEM, itemName } from '../life/Items';
-import { Things } from '../life/Things';
+import { ItemModels, STALL_ITEM, carried, itemName } from '../life/Items';
+import { Things, loadThingsPlan } from '../life/Things';
 import { HAND_LAYER, HandView } from './HandView';
 import { Play } from './Play';
 import { loadSave, writeSave, type SaveData } from './Save';
@@ -71,8 +71,7 @@ const HOMES: Record<CharacterId, [number, number, number]> = {
   futaba: [0.25, -3.25, 0.35],
 };
 /**
- * Background islanders on the beach: x, z, facing, one of each kind in CROWD_KINDS. Tinted
- * grey-teal like the film's extras.
+ * Where the islanders stand before their day starts (see life/Life.ts): x, z, facing, on the beach, in turn.
  */
 const CROWD: [number, number, number][] = [
   [-2.9, -3.8, 0.5],
@@ -81,9 +80,11 @@ const CROWD: [number, number, number][] = [
   [-4.2, -1.6, 1.3],
   [2.3, -6.3, 2.7],
 ];
-const CROWD_COLOR = '#6E8783';
-/** How far the islanders' tints wander from CROWD_COLOR, each its own: in hue, saturation and lightness. */
-const CROWD_TINTS = [0.025, 0.05, 0.07];
+/** Every islander is the one islander grey, Hitoha's and Futaba's (the user, 2026-10-23: "their colors should
+ * all be the same islander grey color"), their crowns too; their heads tell them apart (CROWD_KINDS). */
+const CROWD_COLOR = '#988584';
+/** About this share of them go without a crown, as some of the film's welcome crowd ("bay 5"). */
+const CROWD_BARE = 0.25;
 /** How far out from the Siren toward the water the Test panel's visit puts you, between your middles. */
 const SIREN_VISIT = 2.4;
 const LINEUP_SPACING = 1.0;
@@ -176,11 +177,6 @@ const SHORE_RINGS: [number, number][] = [
   [25, 0.45],
   [45, 0.2],
 ];
-/** The stage's ukulele: where it lies on the stage's boards (x, z) and which way; the torch by your door,
- * this far along the porch from the door to your right. */
-const UKULELE_AT: [number, number, number] = [9.0, -87.3, 0.6];
-const TORCH_BESIDE = 0.7;
-
 /** The drawing resolution a `width` × `height` window starts at: `best`, or the step below it that keeps it within START_PIXELS. */
 function startRatio(width: number, height: number, best: number): number {
   let ratio = best;
@@ -400,16 +396,16 @@ export class Game {
     try {
       const outfitFor = (url?: string): Promise<OutfitModel | undefined> =>
         url ? loadOutfitModel(url) : Promise.resolve(undefined);
-      const [models, outfits, owns, onigiri, can, sword, ukulele, crowdKinds, items] = await Promise.all([
+      const [models, outfits, owns, can, sword, ukulele, crowdKinds, items, thingsPlan] = await Promise.all([
         Promise.all(CHARACTER_IDS.map((id) => loadCharacterModel(DEFINITIONS[id].model))),
         Promise.all(CHARACTER_IDS.map((id) => outfitFor(DEFINITIONS[id].outfit))),
         Promise.all(CHARACTER_IDS.map((id) => outfitFor(DEFINITIONS[id].own?.outfit))),
-        loadProp('onigiri'),
         loadProp('can'),
         loadProp('sword'),
         loadProp('ukulele'),
         Promise.all(CROWD_KINDS.map((k) => Promise.all([loadCharacterModel(k.model), outfitFor(k.outfit)]))),
         ItemModels.load(),
+        loadThingsPlan(),
         this.stage.load(),
       ]);
       CHARACTER_IDS.forEach((id, i) => {
@@ -419,27 +415,26 @@ export class Game {
         const own = ownOutfit
           ? { outfit: ownOutfit, carry: def.own?.carries === 'sword' ? createHeld(sword) : undefined }
           : undefined;
-        // You play the stage's ukulele, once you have it, as Rakko plays his.
-        const instrument = def.plays === 'ukulele' || id === 'player' ? createHeld(ukulele) : undefined;
-        const ch = new Character(def, models[i], createHeld(onigiri), { outfit: outfits[i], own, carry, instrument });
+        // Rakko plays his own ukulele; anyone (you too) the stage's, once they have it.
+        const instrument = createHeld(ukulele);
+        const ch = new Character(def, models[i], { outfit: outfits[i], own, carry, instrument });
         const [x, z, yaw] = HOMES[id];
         ch.teleport(x, z, yaw);
         ch.attach(this.scene, this.emotes);
         this.characters.set(id, ch);
       });
-      // The islanders who live here (see life/Life.ts), each a little different in tint.
-      const tint = new THREE.Color();
-      const hsl = { h: 0, s: 0, l: 0 };
-      new THREE.Color(CROWD_COLOR).getHSL(hsl);
+      // The islanders who live here (see life/Life.ts), each their own head (CROWD_KINDS, in turn), some without
+      // a crown; all the islander grey.
       for (let i = 0; i < ISLANDERS; i++) {
         const [x, z, yaw] = CROWD[i % CROWD.length];
         const [model, outfit] = crowdKinds[i % crowdKinds.length];
-        const wander = (k: number, salt: number) => (((Math.sin((i + 1) * 12.9898 + salt * 78.233) * 43758.5453) % 1) + 1) % 1 * 2 * k - k;
-        tint.setHSL(hsl.h + wander(CROWD_TINTS[0], 1), hsl.s + wander(CROWD_TINTS[1], 2), hsl.l + wander(CROWD_TINTS[2], 3));
+        const bare = (((Math.sin((i + 1) * 12.9898 + 5 * 78.233) * 43758.5453) % 1) + 1) % 1 < CROWD_BARE;
         // They share the islanders' face and pace.
-        const extra = new Character(DEFINITIONS.hitoha, model, new THREE.Group(), {
-          crowd: { color: tint.clone() },
-          outfit,
+        const extra = new Character(DEFINITIONS.hitoha, model, {
+          crowd: { color: CROWD_COLOR },
+          outfit: bare ? undefined : outfit,
+          // The stage's ukulele, once they have it.
+          instrument: createHeld(ukulele),
         });
         extra.teleport(x, z, yaw);
         extra.attach(this.scene, this.emotes);
@@ -450,9 +445,13 @@ export class Game {
       if (this.stage.cave) this.siren = await Siren.load(this.stage.cave, this.emotes);
       // Out of the cave, to the sea, she is drawn in the open air.
       this.siren?.setOutside(this.scene);
-      this.life = await Life.create(this.characters, this.crowd, this.emotes);
+      // What lies about (public/data/things.json), there for everyone who lives here as for you.
+      this.things = new Things(items, this.scene, thingsPlan, FILM ? (x, y, z) => this.stage.shadeAt(x, y, z) : null);
+      this.life = await Life.create(this.characters, this.crowd, this.emotes, this.things);
       this.makePlay(items);
-      this.life.settle(this.clock.hours, this.me());
+      // Everyone where you left them; on a new island, at its welcome (the cast as HOMES has them).
+      const cast = Object.fromEntries(Object.entries(HOMES).filter(([id]) => id !== 'player'));
+      this.life.settle(this.clock.hours, this.me(), this.saved ? 'saved' : 'welcome', cast);
       await this.stage.warmShaders(this.renderer, this.camera);
     } catch (err) {
       console.error(err);
@@ -467,29 +466,17 @@ export class Game {
   }
 
   /**
-   * What lies about the island and what you do with your paws (see Play), your paw before your eyes, and
-   * the island as you left it last time (see Save): the hour and the day, where you stood, what you held
-   * and kept, what lay where. The things with places of their own: the stage's ukulele, the torch by your
-   * door.
+   * What you do with your paws (see Play), your paw before your eyes, and the island as you left it last
+   * time (see Save): the hour and the day, where you stood, what you and everyone who lives here held and
+   * kept, what lay where.
    */
   private makePlay(items: ItemModels): void {
     const life = this.life;
-    if (!life) return;
-    const things = new Things(items, this.scene, FILM ? (x, y, z) => this.stage.shadeAt(x, y, z) : null);
-    life.things = things;
-    this.things = things;
-    const [ux, uz, uyaw] = UKULELE_AT;
-    things.homes.set('ukulele', { item: 'ukulele', at: new THREE.Vector3(ux, groundHeight(ux, uz, 3), uz), yaw: uyaw });
-    const home = life.playerHome;
-    if (home) {
-      const right = home.yaw - Math.PI / 2;
-      const x = home.door.x + Math.sin(right) * TORCH_BESIDE;
-      const z = home.door.z + Math.cos(right) * TORCH_BESIDE;
-      things.homes.set('torch', { item: 'torch', at: new THREE.Vector3(x, groundHeight(x, z, home.door.y), z), yaw: home.yaw + 1.2 });
-    }
+    const things = this.things;
+    if (!life || !things) return;
     const view = new HandView(items, this.scene);
     this.handView = view;
-    const play = new Play(things, life, this.hud, view, this.input, this.sound);
+    const play = new Play(things, life, this.hud, view, this.input, this.me(), this.sound);
     play.onSleep = () => void this.sleepThrough();
     this.play = play;
     // Only the game's camera draws your paw before your eyes.
@@ -499,7 +486,9 @@ export class Game {
       this.clock.set(saved.hours);
       life.day = saved.day;
       play.restore(saved.play);
+      life.restore(saved.residents);
       things.restore(saved.things ?? [], saved.beachDay ?? -1);
+      life.adoptHomes();
       const at = saved.me;
       // Back where you stood, if one can stand there (else on the pier, where everyone starts).
       if (at && [at.x, at.y, at.z, at.yaw].every(Number.isFinite) && this.canStand(at.x, at.y, at.z)) {
@@ -507,7 +496,7 @@ export class Game {
       }
     }
     this.morningDay = life.day;
-    things.morning(life.day, (item) => play.holds(item));
+    life.morning(life.day);
     const save = () => this.save();
     window.addEventListener('pagehide', save);
     document.addEventListener('visibilitychange', () => {
@@ -523,7 +512,16 @@ export class Game {
     if (!life || !play || !things || !this.running || this.staged) return;
     this.sinceSave = 0;
     const me = Number.isNaN(this.standing.x) ? null : { x: this.standing.x, y: this.standing.y, z: this.standing.z, yaw: this.standingYaw };
-    writeSave({ v: 1, hours: this.clock.hours, day: life.day, me, play: play.save(), things: things.save(), beachDay: things.beachDay });
+    writeSave({
+      v: 1,
+      hours: this.clock.hours,
+      day: life.day,
+      me,
+      play: play.save(),
+      residents: life.save(),
+      things: things.save(),
+      beachDay: things.beachDay,
+    });
   }
 
   /** Asleep in your bed at night: the night goes by while the screen is dark, and you wake to the morning,
@@ -539,7 +537,7 @@ export class Game {
     this.clock.set(WAKE);
     life.settle(this.clock.hours, me);
     this.morningDay = life.day;
-    this.things?.morning(life.day, (item) => play.holds(item));
+    life.morning(life.day);
     play.wake(me);
     // Sitting up, looking out over the room.
     this.eyes.lookFrom(me);
@@ -1055,7 +1053,7 @@ export class Game {
         life.playerServed = null;
         const item = STALL_ITEM[stall.goods];
         if (item) {
-          this.play?.receive(item, me);
+          this.play?.receive(carried(item, 'player'), me);
           this.hud.toast(t('toast.served').replace('{0}', t(itemName(item))));
         }
       }
@@ -1117,6 +1115,7 @@ export class Game {
     this.stage.setHour(this.clock.hours);
     this.stage.setWaders(this.time);
     this.stage.update(this.camera, this.time);
+    this.stage.tread(this.renderer, this.camera, dt, me);
     this.updateReflections();
     this.updateInk();
   }
@@ -1151,7 +1150,7 @@ export class Game {
     if (!life || !this.play || this.staged || this.lineup) return;
     if (life.day !== this.morningDay) {
       this.morningDay = life.day;
-      this.things?.morning(life.day, (item) => this.play?.holds(item) ?? false);
+      life.morning(life.day);
     }
     // Kept only where you stand on your own feet on firm ground: not in the air (whose feetY is the ground
     // under you, the sea's floor off the pier), nor in deep water.

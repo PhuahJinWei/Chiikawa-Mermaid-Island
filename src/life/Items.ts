@@ -8,8 +8,9 @@ import type { StringKey } from '../i18n/I18n';
 /**
  * The things one carries on the island (the user, 2026-10-22: hold, grab, store in the pouch, put down):
  * what the festival's stalls hand over, the beach's shells and starfish, a torch, the stage's ukulele,
- * Kurimanju's cans. Each is a prop built in Blender (art/blender/build_items.py, the rice ball, the can and
- * the ukulele build_props.py's), made into as many copies as are held or lying about.
+ * Kurimanju's cans. Each is a prop built in Blender (art/blender/build_items.py, the can and the ukulele
+ * build_props.py's), made into as many copies as are held; what lies about is drawn a kind at once (see
+ * Things).
  */
 
 export type ItemId =
@@ -38,7 +39,6 @@ export type ItemId =
   | 'juice'
   | 'ramune'
   | 'beer'
-  | 'onigiri'
   | 'can'
   | 'torch'
   | 'ukulele'
@@ -62,6 +62,40 @@ export interface ItemDef {
    * prop's frame) in the paw's grip, as a ukulele is held by its neck, upright. */
   turn?: [number, number, number];
   grip?: [number, number, number];
+  /** Burns in the paw by night (the torch): only you carry one, its light being the one carried light (see
+   * Firelight.setHeld), so no one else takes it up. */
+  light?: boolean;
+}
+
+/** A thing as someone has it (see Hands), or as it lies (see Things): what it is, and where it belongs. */
+export interface Carried {
+  readonly item: ItemId;
+  /** Its own place (things.json's `kept`), which it goes back to each morning from wherever it lies. */
+  home: string | null;
+  /** Whose it is: 'player' or someone's id, from putting it down or being given it; null for anyone's (the
+   * sea's shells, what a stall hands over, a thing with a place of its own). */
+  owner: string | null;
+  /** Taken up by someone not its owner: where it lay (x, y, z and its turn), to go back there before the
+   * night (or to its owner); null if not lent. */
+  lent: [number, number, number, number] | null;
+}
+
+/** A thing just come by: no one's, from nowhere in particular (or `owner`'s). */
+export function carried(item: ItemId, owner: string | null = null): Carried {
+  return { item, home: null, owner, lent: null };
+}
+
+/** A carried thing as a save keeps it; a save from before things were kept with where they belong has the
+ * thing's name only. */
+export type SavedCarried = Carried | ItemId;
+
+export function restoreCarried(saved: unknown): Carried | null {
+  if (isItem(saved)) return carried(saved);
+  if (!saved || typeof saved !== 'object') return null;
+  const s = saved as Partial<Carried>;
+  if (!isItem(s.item)) return null;
+  const lent = Array.isArray(s.lent) && s.lent.length === 4 && s.lent.every(Number.isFinite) ? (s.lent as Carried['lent']) : null;
+  return { item: s.item, home: typeof s.home === 'string' ? s.home : null, owner: typeof s.owner === 'string' ? s.owner : null, lent };
 }
 
 const food = (rest: ItemRest, flat = false): ItemDef => ({ use: 'eat', rest, flat });
@@ -93,16 +127,26 @@ export const ITEMS: Record<ItemId, ItemDef> = {
   juice: drink(),
   ramune: drink(),
   beer: drink(),
-  onigiri: { use: 'eat', rest: 'stand', model: 'onigiri' },
   can: { use: 'drink', rest: 'stand', model: 'can' },
-  torch: { use: null, rest: 'lie' },
+  torch: { use: null, rest: 'lie', light: true },
   // By its neck, upright, its body below (the prop's neck runs out along +x).
   ukulele: { use: 'play', rest: 'lie', model: 'ukulele', turn: [0, 0, Math.PI / 2], grip: [0.2, 0, 0] },
   seashell: { use: null, rest: 'lie' },
   starfish: { use: null, rest: 'flat', flat: true },
 };
 
+/** Every thing there is: those above, and any other the things' build makes (art/blender/build_items.py, its
+ * icon sheet's order), taken in at load as a keepsake lying on its side (see registerItems). */
 export const ITEM_IDS = Object.keys(ITEMS) as ItemId[];
+
+/** Takes in a thing the build made that has no entry above: kept, not eaten, lying on its side, held upright.
+ * Everyone who lives here takes it up, keeps it and gives it as they would a shell (see Life's chooser), as
+ * nothing they do asks what a thing is by its name. */
+function registerItem(id: string): void {
+  if (id in ITEMS || id === 'paw') return;
+  (ITEMS as Record<string, ItemDef>)[id] = { use: null, rest: 'lie' };
+  ITEM_IDS.push(id as ItemId);
+}
 
 export function isItem(id: unknown): id is ItemId {
   return typeof id === 'string' && id in ITEMS;
@@ -175,11 +219,11 @@ export class ItemModels {
   ) {}
 
   static async load(): Promise<ItemModels> {
+    // Every thing the build made, those this file has no entry for among them (see registerItem).
+    const icons = await fetch('models/props/item_icons.json').then((r) => r.json() as Promise<{ size: number; columns: number; order: string[] }>);
+    for (const id of icons.order) registerItem(id);
     const ids: (ItemId | 'paw')[] = [...ITEM_IDS, 'paw'];
-    const [models, icons] = await Promise.all([
-      Promise.all(ids.map((id) => loadPropModel(id === 'paw' ? 'item_paw' : (ITEMS[id].model ?? `item_${id}`)))),
-      fetch('models/props/item_icons.json').then((r) => r.json() as Promise<{ size: number; columns: number; order: string[] }>),
-    ]);
+    const models = await Promise.all(ids.map((id) => loadPropModel(id === 'paw' ? 'item_paw' : (ITEMS[id].model ?? `item_${id}`))));
     const bodies = new Map<string, THREE.BufferGeometry>();
     const flames = new Map<string, THREE.BufferGeometry>();
     const feet = new Map<string, Record<ItemRest, number>>();
@@ -194,12 +238,17 @@ export class ItemModels {
     return new ItemModels(bodies, flames, feet, { ...icons, rows: Math.ceil(icons.order.length / icons.columns) });
   }
 
+  /** A thing's shape, as it is held (see heldMatrix): what every copy of it is made of. */
+  shape(id: ItemId | 'paw'): THREE.BufferGeometry {
+    const body = this.bodies.get(id);
+    if (!body) throw new Error(`No thing ${id}`);
+    return body;
+  }
+
   /** A copy of a thing, lit as `light` gives (fresh, white and in the open air, if not given); `mark` for
    * what you see in your own paw (see createHeld). */
   make(id: ItemId | 'paw', mark = false): ItemCopy {
-    const body = this.bodies.get(id);
-    if (!body) throw new Error(`No thing ${id}`);
-    const copy = createHeld(body, { mark }) as ItemCopy;
+    const copy = createHeld(this.shape(id), { mark }) as ItemCopy;
     copy.userData.item = id;
     const flame = this.flames.get(id);
     if (flame) {

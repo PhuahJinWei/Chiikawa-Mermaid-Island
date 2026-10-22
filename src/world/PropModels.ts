@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { loadGltf } from '../core/gltf';
 
 /** Props the game's code asks for by name (the rest are placed by the layout file). */
-export type PropId = 'onigiri' | 'can' | 'sword' | 'ukulele';
+export type PropId = 'can' | 'sword' | 'ukulele';
 
 /** A face for painted words: its size in metres, whether they run down rather than across, their
  * colour, the face whose words it repeats (a stall's side boards repeat its front's), and how many

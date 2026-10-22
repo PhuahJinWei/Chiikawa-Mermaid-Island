@@ -1,5 +1,6 @@
 import type { SavedPlay } from './Play';
 import type { SavedThing } from '../life/Things';
+import type { SavedResident } from '../life/Life';
 
 /**
  * Your island as you left it, kept in the browser (localStorage) and taken up again when you come back: the
@@ -15,6 +16,8 @@ export interface SaveData {
   /** Where you stood (your feet) and which way you faced. */
   me: { x: number; y: number; z: number; yaw: number } | null;
   play: SavedPlay;
+  /** What everyone who lives here holds and keeps, and how they are (not in saves from before they did). */
+  residents?: Record<string, SavedResident>;
   things: SavedThing[];
   /** The last morning the sea left things on the beaches. */
   beachDay: number;

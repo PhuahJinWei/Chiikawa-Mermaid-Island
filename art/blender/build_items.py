@@ -13,7 +13,7 @@ Outputs:
 What the festival's stalls hand over, as their goods show it (stall_goods.py, whose pieces these are made
 with): a candied apple on its stick, a boat of takoyaki, a crepe, a cup of shaved ice...; the beach's shells
 and starfish; a torch to carry, its flame a part of its own (`_flame`), lit at night; and the paw you see
-them in from your own eyes, the islanders' grey-mauve. Kurimanju's can, the rice ball and Rakko's ukulele
+them in from your own eyes, the islanders' grey-mauve. Kurimanju's can and Rakko's ukulele
 are build_props.py's, and only drawn here for their icons.
 
 Each stands upright (Blender's Z), its front -Y, at the cast's size (a can 0.17 m tall); its origin is where
@@ -342,7 +342,7 @@ ITEMS = {
     "torch": torch, "seashell": seashell, "starfish": starfish, "paw": paw,
 }
 # build_props' hand-held things, drawn here only for their icons.
-BORROWED = {"onigiri": P.build_onigiri, "can": P.build_can, "ukulele": P.build_ukulele}
+BORROWED = {"can": P.build_can, "ukulele": P.build_ukulele}
 # The icons' order in the sheet (src/life/Items.ts reads it from item_icons.json): every item but the paw.
 ICONS = [i for i in ITEMS if i != "paw"] + list(BORROWED)
 

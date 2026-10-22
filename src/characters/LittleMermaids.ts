@@ -98,7 +98,7 @@ export class LittleMermaids {
     const c = Math.cos(spot.yaw);
     const s = Math.sin(spot.yaw);
     const two = LEDGE.map(([lx, lz], i): Mermaid => {
-      const character = new Character(MERMAID, model, new THREE.Group());
+      const character = new Character(MERMAID, model);
       character.attach(cave.group, emotes);
       const x = spot.x + lx * c + lz * s;
       const z = spot.z - lx * s + lz * c;

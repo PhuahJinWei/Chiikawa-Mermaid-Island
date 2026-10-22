@@ -28,8 +28,9 @@ minutes, drift around, bump into Chiikawa and friends, and leave feeling calm.
 3. **One thumb.** Everything works in portrait on a phone with one hand.
    Desktop is a bonus, never the target.
 
-**Not goals.** Story campaign, progression systems, crafting, inventory beyond
-a few keepsakes, multiplayer, monetisation, app-store release.
+**Not goals.** Story campaign, progression systems, crafting, multiplayer,
+monetisation, app-store release. (The pouch was to hold only a few keepsakes;
+since 2026-10-23 it stacks, the user planning many more things to find.)
 
 ---
 
@@ -296,7 +297,7 @@ cheaper bob-only animation so phones stay smooth.
 | **Furuhonya** (crab) | Visiting guest. Seen at the night beach. | Soft pink, coral claws on head, white crown. |
 | **Hitoha** | Islander. Timid but curious. Always with Futaba. | Islander body with **one** leaf sprout. |
 | **Futaba** | Islander. Steady, friendly. Always with Hitoha. | Islander body with **two** leaf sprouts. The two share a schedule. |
-| **Islanders** (10–20 generic) | Village life, stalls, feast, singing. | Same grey-mauve mesh with different head shapes: rabbit ears, cat ears, round ears, spike. Never leaves: only Hitoha and Futaba have those. Can be instanced. |
+| **Islanders** (21 generic) | Village life, stalls, feast, singing. | All the same islander grey, told apart by their heads as the film's crowds are: no ears, round ears, cat ears, long or short bunny ears, a spike, a knob, two horns or one; some without crowns. Never leaves: only Hitoha and Futaba have those. Can be instanced. |
 | **Food-shop owner** | Runs the food stall, toasts at the feast. | Large mustached figure in a 味自慢 loincloth, about twice Chiikawa's height. Name to be confirmed. |
 | **Small mermaids** (2) | Rare sightings in the deep and the cave. | White round head with rust cap and antennae, startled O mouth, pink band, rust scaled tail. Shy: dart away if approached fast. |
 | **Siren** (optional) | Silhouette with red eyes peeking from the sea at night. | Large, about 2.5× Chiikawa. Only if you choose option (b) or (c). |
@@ -535,7 +536,7 @@ the stick; in your own bed at night ねる sleeps through to six. Pick things
 up (ひろう): the shells and starfish the sea leaves on the beaches each
 morning, the stage's ukulele, the torch by your door, whatever was put down.
 What you hold shows in your right paw at the bottom right of the screen,
-out of your own eyes; your pouch keeps six more. Put it down where you look
+out of your own eyes; your pouch keeps more. Put it down where you look
 (おく), give it to whoever you look at (あげる: Kurimanju gives you one of his
 cans back, the crab who keeps the book shop a shell), eat or drink it (a bite
 at a time), play the ukulele, carry the torch (it lights your way at night).
@@ -549,6 +550,31 @@ dance, chat, look about, start or cry; whoever is near may answer, waving
 back, bowing back, dancing along, or coming over to ask if you are all
 right. Out of your own eyes your view and your paw move with it, and your
 own words and marks show low on the screen.
+
+**Built so far (2026-10-23):** everyone who lives here can do what you can
+(the user: the same authority as the player), and you what they do. They
+have paws and a pouch as yours are, take things up (rarely), keep them, give
+them to friends and to you, eat and drink them, play the stage's ukulele
+(others gathering to listen and dance), borrow what is someone else's and
+give it back, and put keepsakes down in their own rooms; what they do next
+out and about is chosen by what they need, what they like and what is about
+them. They grow fond of you (hearts in the notebook), remember what you gave
+them, come over to greet you, and ask for what you have to eat when hungry.
+You can keep a stall no one keeps today and serve whoever lines up. What
+lies about the island comes from `public/data/things.json`, so things can
+be added and scattered with nothing else to change. The pouch's six slots
+each stack up to 99 things of one kind. What has been bitten into goes into
+no pouch, down nowhere and to no one: put away it is gone, eaten up (たべきる).
+A stall hands nothing to someone with no room for it; its keeper says so
+and they step out of the line. The onigiri is gone from the game.
+
+**Built so far (2026-10-23, `world/Footprints.ts`):** footprints in the sand,
+yours and everyone's walking near you: a print of each foot as it comes
+down, faint on dry sand and clearer on the damp sand by the water, gone in
+about two minutes (forty seconds by the water). The film never shows them,
+so they are kept subtle. Painted into the ground's own shader from a map of
+the ground round the camera, not drawn as decals: no draw calls for them,
+and 2.4 MB on the graphics card.
 
 ### 6.8 Saving
 
@@ -578,7 +604,7 @@ art/
     build_island.py    * the island: the ground's heights, painted colours and mesh; the landmarks; the plants
     karst.py           * the rock landmarks: karst pillars and mesas, sea spires, a cave's skylight (for the cave, still to be placed); the waterfall, its vines and spray; the sea cliffs
     plants.py          * the jungle's plants: canopy clumps, palms, ferns, bushes, monstera, crops
-    build_props.py     * palm, log, starfish, onigiri, No Entry sign, butterfly
+    build_props.py     * palm, log, starfish, No Entry sign, butterfly
     build_village.py   * the village and the festival: huts, stage, torches, stalls, arch, banners, bunting, pier, ferry
     build_signs.py     * the signboards' templates; copies their hand-lettered paintings into the game
     houses.py          * houses you can walk into, the watchtower stage, the festival's arch and banners
@@ -611,6 +637,7 @@ src/
     Ink.ts             * the world's pen: one stroke width for every outline; swaying and flapping hulls
     PropModels.ts      * loads Blender props and what they tell the game: footprint, deck, label
     Island.ts          * the island's ground: height grid, walking, the waterline; the rocks' feet
+    Footprints.ts      * prints walked into the sand round the camera, which the ground paints
     Landmarks.ts       * the rock landmarks, the sea cliffs; the waterfall and its spray
     Props.ts           * placement from layout.json, merged by patch, painted signs, the bobbing ferry
     Obstacles.ts       * what blocks walking and the camera: prop feet, decks, trunks, crowns
@@ -629,7 +656,7 @@ src/
     Springs.ts         * damped springs for follow-through
     Actions.ts         * procedural action library
     Emotes.ts          * symbols, speech bubbles
-    Props.ts           * hand-held props (the Blender onigiri) with outlines
+    Props.ts           * hand-held props (Kurimanju's can, what one carries) with outlines
     PlayerController.ts* joystick to camera-relative movement
     definitions.ts     * per-character face style and speeds
     types.ts           *

@@ -189,15 +189,27 @@ export interface CrowdKind {
   outfit?: string;
 }
 
-/** A generic islander: ears instead of leaves, and a grey flower crown. */
-const generic = (ears: string): CrowdKind => ({
-  model: `models/islander_${ears}_crowd.glb`,
-  outfit: `models/outfits/island_islander_${ears}_crowd.glb`,
+/** A generic islander: ears (or what grows in their place) instead of leaves, and a grey flower crown. */
+const generic = (head: string): CrowdKind => ({
+  model: `models/islander_${head}_crowd.glb`,
+  outfit: `models/outfits/island_islander_${head}_crowd.glb`,
 });
 
 /**
- * The background crowd, in turn: generic islanders with round, cat or bunny ears and grey
- * flower crowns, as in the film's crowds. Never leaves: those are Hitoha's and Futaba's alone.
- * All are light copies, built for being seen from a distance.
+ * The background crowd, in turn (the user, 2026-10-23: more variety, now there are twenty-one), each head as the
+ * film's crowds have them (the welcome crowd, the festival's): none, the most common; cat ears; a knob on top;
+ * round ears; two little horns; long bunny ears; a spike on top; short bunny ears; one horn to the side. In this
+ * order no two next to each other share one, so neither do housemates (Life fills houses two at a time). Never
+ * leaves: those are Hitoha's and Futaba's alone. All are light copies, built for being seen from a distance.
  */
-export const CROWD_KINDS: CrowdKind[] = [generic('round'), generic('cat'), generic('bunny')];
+export const CROWD_KINDS: CrowdKind[] = [
+  generic('plain'),
+  generic('cat'),
+  generic('knob'),
+  generic('round'),
+  generic('horns'),
+  generic('bunny'),
+  generic('spike'),
+  generic('stubby'),
+  generic('horn'),
+];

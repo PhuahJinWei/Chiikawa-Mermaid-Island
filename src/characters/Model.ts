@@ -111,6 +111,8 @@ export interface SeatFoot {
   yaw: number;
   /** How far a seated foot pulls back to hide under a skirt, as the film's skirts cover the feet. */
   tuck: number;
+  /** The foot's width (x) and length (y), standing: the size of the print it leaves (see world/Footprints.ts). */
+  sole: THREE.Vector2;
 }
 
 /** How the model sits on the ground, measured from its geometry when it loads. */
@@ -351,6 +353,7 @@ function measureSeat(geometry: THREE.BufferGeometry): Seat {
       pitch,
       yaw,
       tuck: (SEAT_SHOW + SEAT_TUCK) * r,
+      sole: new THREE.Vector2(2 * r, box.max.z - box.min.z),
     };
   });
   return { drop, feet: [feet[0], feet[1]] };

@@ -5,6 +5,7 @@ import { Cave } from './Cave';
 import { FilmClouds } from './Clouds';
 import { MOON_RADIUS, newSkyLook, skyAt, SUN_RADIUS } from './DayNight';
 import { Firelight, fireUniforms } from './Firelight';
+import { Footprints } from './Footprints';
 import { glowUniforms } from './Glow';
 import { inkUniforms, windUniforms } from './Ink';
 import {
@@ -194,6 +195,8 @@ export class Stage {
   /** Who stands on the island (see setCast): for the rings round who wades, the calm water's mirror,
    * and what the pool's mirror leaves out. */
   private cast: Character[] = [];
+  /** In the film look, the prints those walking near the camera leave in the sand (see tread). */
+  private prints: Footprints | null = null;
   /** In the film look, the calm water's mirror of what stands by it (see drawMirror): the camera
    * under the water that sees it, the picture it draws, and what the water reads it by: the picture,
    * from where on the water to where in the picture, and the level of the water it mirrors (far
@@ -308,6 +311,7 @@ export class Stage {
     const terrain = await loadTerrain();
     this.world.add(terrain.mesh);
     this.setSeaFloor(terrain);
+    if (FILM) this.prints = new Footprints(terrain);
     this.landmarks = await Landmarks.load(terrain.info);
     this.world.add(this.landmarks.group);
     if (terrain.info.cave) {
@@ -634,6 +638,13 @@ export class Stage {
     }
     island.end(time);
     cave?.waders.end(time);
+  }
+
+  /** In the film look, the prints those of the cast walking near the camera leave in the sand, `me` (whose eyes
+   * you see out of, or whom the camera follows) among them (see Footprints). Called each frame once everyone
+   * and the camera have moved, before the frame is drawn. */
+  tread(renderer: THREE.WebGLRenderer, camera: THREE.Camera, dt: number, me: Character): void {
+    this.prints?.update(renderer, camera.position, dt, this.cast, me);
   }
 
   /**

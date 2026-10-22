@@ -32,3 +32,11 @@ export const NIGHT_LINES = keys('night', 2);
 export const WORK_LINES = keys('work', 3);
 export const FEAST_LINES = keys('feast', 2);
 export const FIELD_LINES = keys('fields', 1);
+
+/** Anyone's who is fond of you (see Life.fondness): talking with you, and coming over to greet you. */
+export const FOND_LINES = keys('fond', 3);
+export const GREET_LINES = Array.from({ length: 3 }, (_, i) => `greet.${i + 1}` as StringKey);
+
+/** The islanders' at the welcome on your first day (see Life.welcomeWord); the cast have their own,
+ * welcome.<id>. */
+export const WELCOME_LINES = Array.from({ length: 4 }, (_, i) => `welcome.${i + 1}` as StringKey);

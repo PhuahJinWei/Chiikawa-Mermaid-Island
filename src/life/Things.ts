@@ -1,26 +1,44 @@
 import * as THREE from 'three';
+import { lyingMaterials } from '../characters/Props';
+import { outlineGeometry } from '../world/Ink';
 import { CANOPY_SHADE } from '../world/Look';
-import { groundHeight, waterLevelAt } from '../world/Island';
-import { ITEMS, restingTurn, type ItemCopy, type ItemId, type ItemModels } from './Items';
+import { groundHeight, standAt, waterLevelAt } from '../world/Island';
+import { ITEMS, carried, isItem, restingTurn, restoreCarried, type Carried, type ItemCopy, type ItemId, type ItemModels } from './Items';
 import { seeded } from './profiles';
 
 /**
- * Things lying about the island (see Items): what you put down, where you put it, for good; the shells and
- * starfish the sea leaves on the beaches each morning, gone the next if no one picks them up; and the few
- * that have a place of their own (the stage's ukulele, the torch by your door), back there each morning if
- * they have been given away or lost.
+ * Things lying about the island (see Items), as public/data/things.json lays them out and as everyone moves
+ * them about:
+ * - those with places of their own (its `kept`: the stage's ukulele, the torch by your door), back there
+ *   each morning from wherever they lie, or made anew if no one has them;
+ * - what each morning leaves about (its `daily`: the shells and starfish the sea leaves on the beaches),
+ *   gone the next morning if no one has taken it up;
+ * - whatever anyone puts down, where they put it: theirs, for good.
+ *
+ * Each keeps where it belongs and whose it is (see Carried), so what is lent goes back where it lay, each
+ * morning at the latest (see morning). Whoever lives here sees what lies about as it lies (Life's chooser
+ * looks over `list` each time it chooses), so a thing laid down by the data, by you or by anyone else is
+ * there for anyone to take up at once, whatever it is.
+ *
+ * What lies near the camera is drawn a kind at once, however many of it lie there (see draw); what anyone
+ * holds is a copy of its own (see copyOf).
  */
 
-export interface Thing {
-  readonly item: ItemId;
-  /** Where it lies: its origin, on the ground. */
+export interface Thing extends Carried {
+  /** Where it lies (its origin, on the ground) and its turn. */
   readonly at: THREE.Vector3;
   readonly yaw: number;
-  readonly copy: ItemCopy;
-  /** The day the sea left it on the beach (gone the next), or null for kept where it lies. */
+  /** Where a paw takes it up as it lies (its prop's origin): what you reach for (see Play). */
+  readonly grip: THREE.Vector3;
+  /** The trees' shade it lies in as the light falls now (white in the sun), following the sun and the moon
+   * over the day (see reshade). */
+  readonly shade: THREE.Color;
+  /** Drawn now, near enough the camera (see update). */
+  shown: boolean;
+  /** The morning that left it about (gone the next if no one takes it up), or null for kept where it lies. */
   readonly day: number | null;
-  /** Its place of its own (a key of Things.homes), if it has one. */
-  readonly home: string | null;
+  /** Whoever is on their way to take it up (see Life's chooser), so two do not go for one; or null. */
+  sought: unknown;
 }
 
 /** A thing as kept in a save. */
@@ -32,42 +50,96 @@ export interface SavedThing {
   yaw: number;
   day: number | null;
   home: string | null;
+  owner?: string | null;
+  lent?: [number, number, number, number] | null;
+}
+
+/**
+ * What public/data/things.json lays about the island:
+ * - `kept`: things with a place of their own, each by a name of its own (`id`): what it is, where it lies
+ *   (x, z, and `y`, the height of what it lies on if not the ground's top: the stage's deck, a porch), and
+ *   its turn (radians).
+ * - `daily`: what each morning leaves about an area: how many of each thing (`items`), within a box (`box`:
+ *   x from, to, z from, to), out of any of the boxes in `avoid`, only where the ground stands so high over
+ *   the water (`shore`, metres, from, to: a beach's sand) if given (else anywhere one stands on dry ground),
+ *   and so far apart (`apart`, metres).
+ * A thing named there that the game has no model for is left out.
+ */
+export interface ThingsPlan {
+  kept: { id: string; item: ItemId; x: number; z: number; y?: number; yaw: number }[];
+  daily: { items: Record<string, number>; box: [number, number, number, number]; avoid?: [number, number, number, number][]; shore?: [number, number]; apart?: number }[];
+}
+
+export async function loadThingsPlan(): Promise<ThingsPlan> {
+  const response = await fetch('data/things.json');
+  if (!response.ok) throw new Error('Could not load data/things.json');
+  const plan = (await response.json()) as Partial<ThingsPlan>;
+  return { kept: plan.kept ?? [], daily: plan.daily ?? [] };
 }
 
 /** Things are drawn only this near the camera (metres). */
 const SHOWN_WITHIN = 55;
-/** The beaches the sea leaves shells and starfish on (x from, to; z from, to: the main beach south of the
- * festival's stalls, along its quay, and the night beach sloping into the sea), how high over the water
- * (metres: the main beach stands 0.82 over it behind its timber wall), the pier's way up the beach they keep
- * clear of (half its width, from z on), how many it leaves each morning (shells, starfish), and how far apart. */
-const BEACH = { x: [-46, 82], z: [-26, 10], over: [0.03, 0.9] };
-const STALLS_SOUTH = -11;
-const PIER_WAY = { half: 3.5, from: -9 };
-const SHELLS = 6;
-const STARFISH = 3;
-const APART = 3;
+/** Put down within this of where it lay when lent, it is back (metres). */
+const BACK_WITHIN = 0.6;
+/** A morning's tries at laying out each area's things. */
+const TRIES = 600;
+/** Room in a kind's drawing for so many things near the camera at first (see Kind), twice as many each time
+ * more lie there. */
+const ROOM = 16;
+/** The trees' shade on what lies near the camera is looked at again for so many things a frame, in turn (see
+ * reshade); a change in it smaller than this (over its colour's three parts) is not drawn. */
+const RESHADE = 24;
+const SHADE_STEP = 1 / 512;
+
+/** A kind of thing lying about near the camera, drawn at once (see Things.draw): its things' bodies and their
+ * pen, each thing a copy (an instance) of the kind's shape, where it lies and in its shade. */
+interface Kind {
+  body: THREE.InstancedMesh;
+  hull: THREE.InstancedMesh;
+  /** Its things drawn, in their copies' order. */
+  near: Thing[];
+  /** What of it lies near the camera has changed (put down, taken up, come near or gone far): drawn anew. */
+  changed: boolean;
+  /** The shade on some of them has changed (see reshade): their colours drawn anew. */
+  shaded: boolean;
+}
 
 const _q = new THREE.Quaternion();
 const _turn = new THREE.Quaternion();
 const _up = new THREE.Vector3(0, 1, 0);
+const _v = new THREE.Vector3();
+const _m = new THREE.Matrix4();
+const _one = new THREE.Vector3(1, 1, 1);
+const _shade = new THREE.Color();
 
 export class Things {
   readonly list: Thing[] = [];
   readonly group = new THREE.Group();
   /** The places some things have of their own (see Thing.home): where each lies and which way. */
   readonly homes = new Map<string, { item: ItemId; at: THREE.Vector3; yaw: number }>();
-  /** The last morning the sea left things on the beaches. */
+  /** The last morning that left things about. */
   beachDay = -1;
-  /** Copies no longer lying about, kept to be used again. */
-  private readonly spare = new Map<ItemId, ItemCopy[]>();
+  /** Copies no longer held, kept to be used again. */
+  private readonly spare = new Map<string, ItemCopy[]>();
+  /** Each kind lying about, drawn at once (see draw), and what it is drawn with. */
+  private readonly kinds = new Map<ItemId, Kind>();
+  private readonly materials = lyingMaterials();
+  /** Where in `list` the shade was last looked at again (see reshade). */
+  private reshaded = 0;
 
   constructor(
     readonly models: ItemModels,
     scene: THREE.Object3D,
+    private readonly plan: ThingsPlan,
     private readonly shade: ((x: number, y: number, z: number) => number) | null,
   ) {
     this.group.name = 'things';
     scene.add(this.group);
+    for (const k of plan.kept) {
+      if (!isItem(k.item)) continue;
+      const at = new THREE.Vector3(k.x, groundHeight(k.x, k.z, k.y ?? Infinity), k.z);
+      this.homes.set(k.id, { item: k.item, at, yaw: k.yaw });
+    }
   }
 
   /** A copy of a thing, fresh or used again. */
@@ -88,87 +160,230 @@ export class Things {
     this.spare.set(item, list);
   }
 
-  /** Lays `item` on the ground at `at` (x, z; y the ground under it), turned `yaw`, as it rests (see
-   * ItemDef.rest). */
-  put(item: ItemId, at: THREE.Vector3, yaw: number, day: number | null = null, home: string | null = null): Thing {
-    const copy = this.copyOf(item);
-    const rest = ITEMS[item].rest;
-    const y = at.y + this.models.footOf(item, rest) + 0.004;
-    copy.position.set(at.x, y, at.z);
-    copy.quaternion.copy(_q.setFromAxisAngle(_up, yaw)).multiply(restingTurn(rest, _turn));
-    copy.updateMatrixWorld(true);
-    // Lit as the ground under it: in the trees' shade if it is; never burning.
-    const light = copy.userData.light;
-    const shade = this.shade?.(at.x, y, at.z) ?? 0;
-    light.uShade.value.setRGB(1, 1, 1).lerp(CANOPY_SHADE, shade);
-    light.uOpenAir.value = 1;
-    if (copy.userData.flame) copy.userData.flame.visible = false;
-    copy.traverse((o) => o.layers.set(0));
-    this.group.add(copy);
-    const thing: Thing = { item, at: new THREE.Vector3(at.x, at.y, at.z), yaw, copy, day, home };
+  /** Lays `c` on the ground at `at` (x, z; y the ground under it), turned `yaw`, as it rests (see
+   * ItemDef.rest); left by the morning `day` if it is one of the day's. */
+  put(c: Carried, at: THREE.Vector3, yaw: number, day: number | null = null): Thing {
+    const item = c.item;
+    const y = at.y + this.models.footOf(item, ITEMS[item].rest) + 0.004;
+    const thing: Thing = {
+      item,
+      home: c.home,
+      owner: c.owner,
+      lent: c.lent,
+      at: new THREE.Vector3(at.x, at.y, at.z),
+      yaw,
+      grip: new THREE.Vector3(at.x, y, at.z),
+      shade: new THREE.Color(1, 1, 1),
+      shown: false,
+      day,
+      sought: null,
+    };
+    // Lit as the ground under it: in the trees' shade if it is; never burning (drawn without its flame).
+    this.shadeOf(thing);
     this.list.push(thing);
+    // Drawn from the next frame on, if it lies near the camera (see update); its kind's drawing made now if
+    // it is the first of its kind, so the game's shaders are made with the rest as it starts.
+    this.kindOf(item);
     return thing;
   }
 
-  /** Picks `thing` up: off the ground, its copy let go. */
-  take(thing: Thing): ItemId {
+  /** Takes `thing` up: off the ground; what it is and where it belongs. */
+  take(thing: Thing): Carried {
     const i = this.list.indexOf(thing);
     if (i >= 0) this.list.splice(i, 1);
-    this.release(thing.copy);
-    return thing.item;
+    if (thing.shown) this.kindOf(thing.item).changed = true;
+    return { item: thing.item, home: thing.home, owner: thing.owner, lent: thing.lent };
   }
 
-  /** Only what is near the camera is drawn. */
+  /** Whether `thing` still lies about (not taken up since it was seen). */
+  lies(thing: Thing): boolean {
+    return this.list.includes(thing);
+  }
+
+  /** Whether `c`, put down at `at`, is back where it lay when it was lent (see Carried.lent). */
+  static backWhereItLay(c: Carried, at: THREE.Vector3): boolean {
+    return !!c.lent && Math.hypot(c.lent[0] - at.x, c.lent[2] - at.z) < BACK_WITHIN && Math.abs(c.lent[1] - at.y) < 0.5;
+  }
+
+  /** Only what is near the camera is drawn: each kind's things there at once (see draw), in the trees' shade
+   * as the light falls now (see reshade). */
   update(camera: THREE.Vector3): void {
     for (const t of this.list) {
-      t.copy.visible = Math.hypot(t.at.x - camera.x, t.at.z - camera.z) < SHOWN_WITHIN;
+      const shown = Math.hypot(t.at.x - camera.x, t.at.z - camera.z) < SHOWN_WITHIN;
+      if (shown === t.shown) continue;
+      t.shown = shown;
+      // (Out of sight its shade was let be.)
+      if (shown) this.shadeOf(t);
+      this.kindOf(t.item).changed = true;
     }
+    this.reshade();
+    for (const [item, kind] of this.kinds) {
+      if (kind.changed) this.draw(item, kind);
+      else if (kind.shaded) this.colour(kind);
+      kind.changed = kind.shaded = false;
+    }
+  }
+
+  /** The trees' shade on `t` as the light falls now, from the sun or the moon (see Thing.shade); whether it
+   * changed enough to be drawn. */
+  private shadeOf(t: Thing): boolean {
+    _shade.setRGB(1, 1, 1).lerp(CANOPY_SHADE, this.shade?.(t.grip.x, t.grip.y, t.grip.z) ?? 0);
+    const was = t.shade;
+    if (Math.abs(_shade.r - was.r) + Math.abs(_shade.g - was.g) + Math.abs(_shade.b - was.b) < SHADE_STEP) return false;
+    was.copy(_shade);
+    return true;
+  }
+
+  /** The trees' shade on what lies near the camera looked at again as the sun (and by night the moon) moves
+   * over, so many things a frame, in turn (RESHADE): a pile of them in a few frames, a thing here and there
+   * every frame. */
+  private reshade(): void {
+    if (!this.shade) return;
+    const n = this.list.length;
+    let looked = 0;
+    for (let k = 0; k < n && looked < RESHADE; k++) {
+      this.reshaded = (this.reshaded + 1) % n;
+      const t = this.list[this.reshaded];
+      if (!t.shown) continue;
+      looked++;
+      if (this.shadeOf(t)) this.kindOf(t.item).shaded = true;
+    }
+  }
+
+  /** The drawing of what lies about of `item`'s kind (see Kind), made the first time one lies about. */
+  private kindOf(item: ItemId): Kind {
+    let kind = this.kinds.get(item);
+    if (!kind) {
+      kind = { ...this.drawing(item, ROOM), near: [], changed: false, shaded: false };
+      this.kinds.set(item, kind);
+    }
+    return kind;
+  }
+
+  /** Bodies and pen for so many (`room`) things of `item`'s kind drawn at once, none yet. */
+  private drawing(item: ItemId, room: number): { body: THREE.InstancedMesh; hull: THREE.InstancedMesh } {
+    const shape = this.models.shape(item);
+    const body = new THREE.InstancedMesh(shape, this.materials.body, room);
+    body.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    body.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(room * 3), 3).setUsage(THREE.DynamicDrawUsage);
+    // The pen's hull shares where the bodies lie, their shades and their bounds (see addOutline).
+    const hull = new THREE.InstancedMesh(outlineGeometry(shape), this.materials.ink, room);
+    hull.instanceMatrix = body.instanceMatrix;
+    hull.instanceColor = body.instanceColor;
+    hull.boundingSphere = body.boundingSphere = new THREE.Sphere();
+    body.count = hull.count = 0;
+    body.visible = hull.visible = false;
+    body.name = hull.name = `things:${item}`;
+    this.group.add(body, hull);
+    return { body, hull };
+  }
+
+  /** Draws `item`'s things lying near the camera, each where it lies, turned as it rests, in its shade: made
+   * room for if there are more than its drawing has (twice as many, the old drawing let go). */
+  private draw(item: ItemId, kind: Kind): void {
+    const near = this.list.filter((t) => t.item === item && t.shown);
+    const room = kind.body.instanceMatrix.count;
+    if (near.length > room) {
+      for (const mesh of [kind.body, kind.hull]) {
+        mesh.removeFromParent();
+        mesh.dispose();
+      }
+      Object.assign(kind, this.drawing(item, Math.max(near.length, room * 2)));
+    }
+    const { body, hull } = kind;
+    const rest = ITEMS[item].rest;
+    near.forEach((t, i) => {
+      _q.setFromAxisAngle(_up, t.yaw).multiply(restingTurn(rest, _turn));
+      body.setMatrixAt(i, _m.compose(t.grip, _q, _one));
+    });
+    kind.near = near;
+    this.colour(kind);
+    body.count = hull.count = near.length;
+    body.visible = hull.visible = near.length > 0;
+    body.instanceMatrix.needsUpdate = true;
+    body.computeBoundingSphere();
+  }
+
+  /** Draws the shade on each of `kind`'s things as it is now (see Thing.shade). */
+  private colour(kind: Kind): void {
+    const { body, near } = kind;
+    near.forEach((t, i) => body.setColorAt(i, t.shade));
+    if (body.instanceColor) body.instanceColor.needsUpdate = true;
   }
 
   /**
-   * Each morning (`day`): the sea takes back what it left on the beaches yesterday and no one picked up, and
-   * leaves new shells and starfish along the water's edge; what has a place of its own and is nowhere
-   * (`elsewhere`: in your paw or pouch) goes back to it.
+   * Each morning (`day`): what the last morning left about and no one took up goes; what was lent and lies
+   * elsewhere goes back where it lay; what has a place of its own goes back to it from wherever it lies, or
+   * is made anew there if no one has it (`held`: whether anyone carries the thing with that place); and the
+   * morning leaves its things about (see ThingsPlan.daily).
    */
-  morning(day: number, elsewhere: (item: ItemId) => boolean): void {
+  morning(day: number, held: (home: string) => boolean): void {
     if (day === this.beachDay) return;
     this.beachDay = day;
     for (const t of [...this.list]) if (t.day !== null && t.day !== day) this.take(t);
-    const rng = seeded(day * 7349 + 11);
-    const placed: THREE.Vector3[] = [];
-    const want = SHELLS + STARFISH;
-    for (let tries = 0; tries < 600 && placed.length < want; tries++) {
-      const x = BEACH.x[0] + rng() * (BEACH.x[1] - BEACH.x[0]);
-      const z = BEACH.z[0] + rng() * (BEACH.z[1] - BEACH.z[0]);
-      // On the sand up from the water's edge, south of the stalls (except on the night beach, out east), off
-      // the pier's way up the beach, apart from the others.
-      if (z < STALLS_SOUTH && x < 40) continue;
-      if (Math.abs(x) < PIER_WAY.half && z > PIER_WAY.from) continue;
-      const ground = groundHeight(x, z);
-      const over = ground - waterLevelAt(x, z);
-      if (!(over > BEACH.over[0] && over < BEACH.over[1])) continue;
-      if (placed.some((p) => Math.hypot(p.x - x, p.z - z) < APART)) continue;
-      const at = new THREE.Vector3(x, ground, z);
-      placed.push(at);
-      this.put(placed.length <= SHELLS ? 'seashell' : 'starfish', at, rng() * Math.PI * 2, day);
+    for (const t of [...this.list]) {
+      if (!t.lent) continue;
+      const c = this.take(t);
+      const [x, y, z, yaw] = c.lent as [number, number, number, number];
+      c.lent = null;
+      this.put(c, _v.set(x, y, z), yaw);
     }
     for (const [key, home] of this.homes) {
-      if (this.list.some((t) => t.home === key) || elsewhere(home.item)) continue;
-      this.put(home.item, home.at, home.yaw, null, key);
+      const lying = this.list.find((t) => t.home === key);
+      if (lying) {
+        if (lying.at.distanceTo(home.at) > 0.3) this.put(this.take(lying), home.at, home.yaw);
+        continue;
+      }
+      if (held(key)) continue;
+      this.put({ ...carried(home.item), home: key }, home.at, home.yaw);
+    }
+    const rng = seeded(day * 7349 + 11);
+    for (const area of this.plan.daily) this.scatter(area, day, rng);
+  }
+
+  /** Lays a morning's things about an area (see ThingsPlan.daily). */
+  private scatter(area: ThingsPlan['daily'][number], day: number, rng: () => number): void {
+    const want: ItemId[] = [];
+    for (const [item, n] of Object.entries(area.items)) if (isItem(item)) for (let k = 0; k < n; k++) want.push(item);
+    const [x0, x1, z0, z1] = area.box;
+    const apart = area.apart ?? 2;
+    const placed: THREE.Vector3[] = [];
+    for (let tries = 0; tries < TRIES && placed.length < want.length; tries++) {
+      const x = x0 + rng() * (x1 - x0);
+      const z = z0 + rng() * (z1 - z0);
+      if (area.avoid?.some(([ax0, ax1, az0, az1]) => x > ax0 && x < ax1 && z > az0 && z < az1)) continue;
+      const ground = groundHeight(x, z);
+      const over = ground - waterLevelAt(x, z);
+      if (area.shore ? !(over > area.shore[0] && over < area.shore[1]) : over < 0.05 || Number.isNaN(standAt(x, z, ground))) continue;
+      if (placed.some((p) => Math.hypot(p.x - x, p.z - z) < apart)) continue;
+      const at = new THREE.Vector3(x, ground, z);
+      placed.push(at);
+      this.put(carried(want[placed.length - 1]), at, rng() * Math.PI * 2, day);
     }
   }
 
   /** What lies about, for a save. */
   save(): SavedThing[] {
-    return this.list.map((t) => ({ item: t.item, x: t.at.x, y: t.at.y, z: t.at.z, yaw: t.yaw, day: t.day, home: t.home }));
+    return this.list.map((t) => ({
+      item: t.item,
+      x: t.at.x,
+      y: t.at.y,
+      z: t.at.z,
+      yaw: t.yaw,
+      day: t.day,
+      home: t.home,
+      owner: t.owner,
+      lent: t.lent,
+    }));
   }
 
   /** Everything as a save had it (what lay about before is taken away). */
   restore(saved: SavedThing[], beachDay: number): void {
     for (const t of [...this.list]) this.take(t);
     for (const s of saved) {
-      if (!(s.item in ITEMS)) continue;
-      this.put(s.item, new THREE.Vector3(s.x, s.y, s.z), s.yaw, s.day, s.home);
+      const c = restoreCarried(s);
+      if (!c) continue;
+      this.put(c, new THREE.Vector3(s.x, s.y, s.z), s.yaw, s.day);
     }
     this.beachDay = beachDay;
   }

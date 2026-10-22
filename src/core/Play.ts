@@ -5,11 +5,12 @@ import { t, type StringKey } from '../i18n/I18n';
 import type { Input } from './Input';
 import type { Hud, IconSpot, PouchView } from '../ui/Hud';
 import { BITE, type HandView } from './HandView';
-import { ITEMS, isItem, itemName, type ItemCopy, type ItemId } from '../life/Items';
-import type { Thing, Things } from '../life/Things';
+import { ITEMS, itemName, type Carried, type ItemId } from '../life/Items';
+import { Hands, type SavedHands } from '../life/Hands';
+import { Things, type Thing } from '../life/Things';
 import type { Life } from '../life/Life';
 import type { Resident } from '../life/Resident';
-import type { Seat } from '../life/Places';
+import type { Seat, Stall } from '../life/Places';
 import { groundHeight, waterLevelAt } from '../world/Island';
 import { glowUniforms } from '../world/Glow';
 import type { Sound } from './Sound';
@@ -17,14 +18,18 @@ import type { Sound } from './Sound';
 /**
  * What you do on the island with your paws (the user, 2026-10-22): pick up what lies about, hold it in
  * your right paw (seen out of your own eyes at the bottom right of the screen: see HandView), keep it in
- * your pouch of six, put it down where you look, give it to whoever you look at, eat or drink it, play the
+ * your pouch of six slots (each a stack of one kind, up to 99), put it down where you look, give it to whoever you look at, eat or drink it, play the
  * ukulele; sit on whatever one sits on, and in your own bed at night sleep through to the morning (the
  * user: the bed skips the night). What you look at, near the middle of your view and within reach, is what
  * the action button does something with. From the きもち button you wave, bow, cheer, dance and the rest
  * (EMOTES), which those near answer.
+ *
+ * Your paws are Hands, as everyone's who lives here are: what is someone else's you borrow (かりる), and it
+ * goes back where it lay by the morning; what you put down is yours, which they may borrow in turn. And what
+ * they do you may: behind a stall's counter no one keeps today you keep it (みせばん), handing its goods to
+ * whoever lines up at it (わたす), till you walk off.
  */
 
-export const POUCH_SIZE = 6;
 /** How far you reach from your eyes for what you look at (metres), and for a seat from your feet. */
 const REACH = 2.1;
 const SEAT_REACH = 1.9;
@@ -33,14 +38,13 @@ const AIM = Math.cos(0.38);
 /** Where you put something down: where your view meets the ground, between these from your feet. */
 const PUT_FAR = 1.9;
 const PUT_NEAR = 0.35;
-/** Bites to eat what you hold (or sips to drink it), one each BITE seconds. */
-const BITES = 4;
 /** From this hour to this, your bed is for sleeping through the night. */
 const SLEEP_FROM = 19.5;
 const SLEEP_TO = 5;
 
 /** What you look at, that the action button would do something with. */
 export type Target =
+  | { kind: 'stall'; stall: Stall; serve: boolean }
   | { kind: 'thing'; thing: Thing }
   | { kind: 'seat'; seat: Seat; bed: boolean }
   | { kind: 'resident'; r: Resident }
@@ -64,12 +68,9 @@ export interface PlayFrame {
   speed: number;
 }
 
-/** What a save keeps of your paws and pouch. */
-export interface SavedPlay {
-  hand: ItemId | null;
-  pouch: (ItemId | null)[];
-  bites: number;
-}
+/** What a save keeps of your paws and pouch (a save from before your paws were Hands kept the things' names
+ * only: see Hands.restore). */
+export type SavedPlay = SavedHands;
 
 const _fwd = new THREE.Vector3();
 const _to = new THREE.Vector3();
@@ -79,13 +80,8 @@ const _flame = new THREE.Vector3(0, 0.3, 0);
 const flat = (a: THREE.Vector3, b: THREE.Vector3) => Math.hypot(a.x - b.x, a.z - b.z);
 
 export class Play {
-  /** What is in your right paw, and in your pouch. */
-  hand: ItemId | null = null;
-  readonly pouch: (ItemId | null)[] = new Array<ItemId | null>(POUCH_SIZE).fill(null);
-  /** Bites taken of what you hold (see BITES). */
-  private bites = 0;
-  /** Its copy in your paw, as others see it and the water mirrors it. */
-  private handCopy: ItemCopy | null = null;
+  /** Your paw and pouch (see Hands). */
+  readonly hands: Hands;
   /** Eating, drinking or playing what you hold, and for how long. */
   private using: { kind: 'eat' | 'drink' | 'play'; t: number } | null = null;
   /** The seat you sit on, if you do. */
@@ -99,13 +95,13 @@ export class Play {
   sleeping = false;
   /** To sleep through the night: the game takes you to the morning. */
   onSleep: () => void = () => {};
-  /** Something changed that a save should keep. */
-  changed = false;
   private label: string | null = null;
   /** In the forbidden cave, where your paw holds its torch instead (see Game.updateCave). */
   private inCave = false;
   /** Picked from the きもち panel, to do on the next frame (see emote). */
   private emoteQueued: ActionId | null = null;
+  /** What your paw and pouch showed last (to show them again when they change). */
+  private shownPouch = '';
 
   constructor(
     private readonly things: Things,
@@ -113,18 +109,39 @@ export class Play {
     private readonly hud: Hud,
     private readonly view: HandView,
     private readonly input: Input,
+    me: Character,
     private readonly sound: Sound | null = null,
   ) {
+    this.hands = new Hands('player', me, things);
+    life.playerHands = this.hands;
     const places = life.places;
     this.seats = [...places.seats, ...places.feast.seats, ...places.homes.flatMap((h) => [...h.beds, ...h.seats])];
     this.bed = life.playerHome?.beds[0] ?? null;
     hud.onSlot = (slot) => this.swap(slot);
     hud.onEmote = (id) => (this.emoteQueued = id);
-    life.onGiftBack = (item) => {
-      this.receive(item);
-      this.hud.toast(t('toast.given').replace('{0}', t(itemName(item))));
+    life.onGiftBack = (c) => {
+      this.receive(c);
+      this.hud.toast(t('toast.given').replace('{0}', t(itemName(c.item))));
     };
+    life.onGivenBack = (c) => this.hud.toast(t('toast.givenBack').replace('{0}', t(itemName(c.item))));
+    life.onGivenYou = (c, from) =>
+      this.hud.toast(t('toast.givenYou').replace('{0}', life.nameOf(from.id)).replace('{1}', t(itemName(c.item))));
+    life.onKeeping = (stall, keeping) => this.hud.toast(t(keeping ? 'toast.keeping' : 'toast.closed').replace('{0}', t(stall.label)));
     this.showPouch();
+  }
+
+  /** What is in your paw. */
+  get hand(): ItemId | null {
+    return this.hands.hand?.item ?? null;
+  }
+
+  /** Something changed that a save should keep. */
+  get changed(): boolean {
+    return this.hands.changed;
+  }
+
+  set changed(on: boolean) {
+    this.hands.changed = on;
   }
 
   /** Whether you are playing what you hold (the ukulele). */
@@ -135,11 +152,6 @@ export class Play {
   /** Your paw before your eyes shown or not (not in a photo). */
   set viewShown(on: boolean) {
     this.view.group.visible = on && this.view.group.visible;
-  }
-
-  /** Whether `item` is in your paw or your pouch. */
-  holds(item: ItemId): boolean {
-    return this.hand === item || this.pouch.includes(item);
   }
 
   /** The label the action button would have (null: none), worked out by update. */
@@ -158,7 +170,7 @@ export class Play {
     // (Put out while a staged shot or the lineup has you elsewhere.)
     const lit = this.hand === 'torch' && night && !f.inCave && f.free;
     this.view.lit = lit;
-    const flame = this.handCopy?.userData.flame;
+    const flame = this.hands.copy?.userData.flame;
     if (flame) flame.visible = lit;
 
     this.inCave = f.inCave;
@@ -207,7 +219,7 @@ export class Play {
   /** Where the torch you carry has its flame, while it burns (for its light: see Firelight.setHeld); else
    * null. */
   torchFlame(out: THREE.Vector3): THREE.Vector3 | null {
-    const copy = this.handCopy;
+    const copy = this.hands.copy;
     if (!copy || this.hand !== 'torch' || !copy.userData.flame?.visible) return null;
     copy.updateMatrixWorld(true);
     return out.copy(_flame).applyMatrix4(copy.matrixWorld);
@@ -219,69 +231,62 @@ export class Play {
   }
 
   // ---------------------------------------------------------------- what you hold
-  /** Its copy in your paw as the world sees it, and before your eyes, as `hand` says. */
+  /** Its copy in your paw as the world sees it (in whoever's paws you are), and before your eyes; the pouch
+   * on the screen as it is. */
   private keepHand(me: Character): void {
-    const id = this.hand;
-    const has = this.handCopy?.userData.item ?? null;
-    if (has !== id) {
-      if (this.handCopy) {
-        me.hold(null);
-        this.things.release(this.handCopy);
-        this.handCopy = null;
-      }
-      if (id) {
-        this.handCopy = this.things.copyOf(id);
-        me.hold(this.handCopy, !!ITEMS[id].flat);
-      }
-      this.view.set(id);
+    const hands = this.hands;
+    hands.attach(me);
+    hands.keep();
+    this.view.set(this.hand);
+    this.view.left = hands.left;
+    const shown = [hands.hand?.item ?? '', ...hands.pouch.map((s) => (s ? `${s[0].item}×${s.length}` : ''))].join(',');
+    if (shown !== this.shownPouch) {
+      this.shownPouch = shown;
       this.showPouch();
+      if (!hands.hand && this.using) this.stopUsing(me);
     }
-    const left = 1 - (this.bites / BITES) * 0.7;
-    this.view.left = left;
-    if (this.handCopy) this.handCopy.scale.setScalar(left);
-  }
-
-  /** Puts `id` in your paw, a fresh one (no bites taken). */
-  private setHand(id: ItemId | null): void {
-    if (this.using) this.using = null;
-    this.hand = id;
-    this.bites = 0;
-    this.changed = true;
   }
 
   /** Something handed to you (by a stall, given back for a gift): into your paw if it is empty, else your
-   * pouch; with both full, it is put down at your feet. */
-  receive(item: ItemId, me: Character | null = null): void {
-    if (!this.hand) this.setHand(item);
-    else if (this.pouch.includes(null)) this.pouch[this.pouch.indexOf(null)] = item;
-    else if (me) {
-      const at = me.position;
-      this.things.put(item, _p.set(at.x + Math.sin(me.facing) * 0.6, groundHeight(at.x, at.z, me.feetY), at.z + Math.cos(me.facing) * 0.6), me.facing);
-    }
-    this.changed = true;
-    this.showPouch();
+   * pouch; with both full, it is put down at your feet, yours. */
+  receive(c: Carried, me: Character | null = null): void {
+    if (this.hands.receive(c)) return;
+    if (!me) return;
+    const at = me.position;
+    c.owner ??= 'player';
+    this.things.put(c, _p.set(at.x + Math.sin(me.facing) * 0.6, groundHeight(at.x, at.z, me.feetY), at.z + Math.cos(me.facing) * 0.6), me.facing);
   }
 
-  /** What is in pouch slot `slot` and what is in your paw change places. */
+  /** Pouch slot `slot`: what is in your paw into the pouch, one of the slot's into your paw (see Hands.swap).
+   * What you have bitten into goes into no pouch: it is gone, eaten up (the user, 2026-10-23). */
   swap(slot: number): void {
-    if (slot < 0 || slot >= POUCH_SIZE || this.sleeping) return;
-    const held = this.hand;
-    // (What is half eaten goes into the pouch as it is, and comes out whole: the pouch keeps no bites.)
-    this.setHand(this.pouch[slot]);
-    this.pouch[slot] = held;
+    if (this.sleeping) return;
+    if (this.using) this.stopUsing(this.hands.ch);
+    const eaten = this.hands.nibbled ? this.hands.hand : null;
+    if (!this.hands.swap(slot)) {
+      this.hud.toast(t('toast.full'));
+      return;
+    }
+    if (eaten) this.eatenUp(eaten);
     this.sound?.pouch();
-    this.showPouch();
   }
 
   private showPouch(): void {
     const models = this.things.models;
-    const shown = (id: ItemId | null): PouchView['hand'] => {
-      if (!id) return null;
-      const [column, row] = models.iconAt(id);
+    const shown = (stack: Carried[] | null): PouchView['hand'] => {
+      const c = stack?.[0];
+      if (!stack || !c) return null;
+      const [column, row] = models.iconAt(c.item);
       const icon: IconSpot = { column, row, columns: models.icons.columns, rows: models.icons.rows };
-      return { name: t(itemName(id)), icon };
+      return { name: t(itemName(c.item)), icon, count: stack.length };
     };
-    this.hud.setPouch({ hand: shown(this.hand), slots: this.pouch.map(shown) });
+    this.hud.setPouch({ hand: shown(this.hands.hand ? [this.hands.hand] : null), slots: this.hands.pouch.map(shown) });
+  }
+
+  /** Says that `c`, bitten into, is gone: eaten (or drunk) up. */
+  private eatenUp(c: Carried): void {
+    const drunk = ITEMS[c.item].use === 'drink';
+    this.hud.toast(t(drunk ? 'toast.drankUp' : 'toast.ateUp').replace('{0}', t(itemName(c.item))));
   }
 
   // ---------------------------------------------------------------- eating, drinking, playing
@@ -296,6 +301,7 @@ export class Play {
     if (use === 'play') {
       me.play('ukulele');
       this.view.play('play');
+      this.life.performing(me.position, 'player');
     } else {
       me.play('eat');
       this.view.play(use);
@@ -319,17 +325,16 @@ export class Play {
     }
     const before = Math.floor(using.t / BITE);
     using.t += f.dt;
-    if (using.kind === 'play') return;
+    if (using.kind === 'play') {
+      // Those near come to listen, now and then (see Life.performing).
+      if (Math.floor(using.t / 8) > Math.floor((using.t - f.dt) / 8)) this.life.performing(f.me.position, 'player');
+      return;
+    }
     // A bite as each comes back from the mouth.
     if (Math.floor(using.t / BITE) > before) {
-      this.bites++;
       if (using.kind === 'drink') this.sound?.sip();
       else this.sound?.bite();
-      if (this.bites >= BITES) {
-        this.stopUsing(f.me);
-        this.setHand(null);
-      }
-      this.changed = true;
+      if (this.hands.bite()) this.stopUsing(f.me);
     }
   }
 
@@ -338,6 +343,11 @@ export class Play {
     const eye = f.camera.position;
     f.camera.getWorldDirection(_fwd);
     const me = f.me;
+    // Behind a stall's counter: keeping it (handing its goods to whoever is at it), or to keep it.
+    const keeping = this.life.playerKeeps;
+    const stall = keeping ?? (this.hand || this.seat ? null : this.life.stallBehind(me.position));
+    if (keeping) return this.life.atCounter(keeping) ? { kind: 'stall', stall: keeping, serve: true } : null;
+    if (stall) return { kind: 'stall', stall, serve: false };
     let best: Target | null = null;
     let bestScore = Infinity;
     const consider = (p: THREE.Vector3, reach: number, target: Target, bias = 0, far = 0.12) => {
@@ -364,8 +374,8 @@ export class Play {
       consider(_eyes, REACH + 0.3, { kind: 'resident', r }, -0.15, 0.25);
     }
     for (const thing of this.things.list) {
-      if (!thing.copy.visible) continue;
-      consider(thing.copy.position, REACH, { kind: 'thing', thing });
+      if (!thing.shown) continue;
+      consider(thing.grip, REACH, { kind: 'thing', thing });
     }
     if (!this.seat && !f.inCave) {
       for (const seat of this.seats) {
@@ -401,13 +411,19 @@ export class Play {
   private labelFor(target: Target | null): string | null {
     if (!target) return this.seat ? t('hud.stand') : null;
     switch (target.kind) {
+      case 'stall':
+        return t(target.serve ? 'hud.serve' : 'hud.keepStall');
       case 'thing':
-        return t('hud.pickUp');
+        // Someone else's you borrow.
+        return target.thing.owner && target.thing.owner !== 'player' ? t('hud.borrow') : t('hud.pickUp');
       case 'resident':
-        return this.hand ? t('hud.give') : t('hud.talk');
+        // (What you have bitten into you cannot give.)
+        return this.hand && !this.hands.nibbled ? t('hud.give') : t('hud.talk');
       case 'seat':
         return target.bed && this.night() ? t('hud.sleep') : t('hud.sit');
       case 'place':
+        // Bitten into, it is not put down but eaten (or drunk) up.
+        if (this.hand && this.hands.nibbled) return t(ITEMS[this.hand].use === 'drink' ? 'hud.drinkUp' : 'hud.eatUp');
         return t('hud.put');
     }
   }
@@ -425,11 +441,17 @@ export class Play {
       return;
     }
     switch (target.kind) {
+      case 'stall':
+        if (target.serve) {
+          this.life.handOver(target.stall);
+          this.sound?.give();
+        } else this.life.keepStall(target.stall);
+        break;
       case 'thing':
         this.pickUp(target.thing);
         break;
       case 'resident':
-        if (this.hand) this.give(target.r, me);
+        if (this.hand && !this.hands.nibbled) this.give(target.r, me);
         else this.life.talk(target.r, me.position);
         break;
       case 'seat':
@@ -443,36 +465,45 @@ export class Play {
   }
 
   private pickUp(thing: Thing): void {
-    if (this.hand && !this.pouch.includes(null)) {
-      this.hud.toast(t('toast.full'));
+    if (this.using) this.stopUsing(this.hands.ch);
+    const c = this.hands.pickUp(thing);
+    if (!c) {
+      if (!this.hands.fits(thing.item)) this.hud.toast(t('toast.full'));
       return;
     }
-    const item = this.things.take(thing);
-    if (!this.hand) this.setHand(item);
-    else this.pouch[this.pouch.indexOf(null)] = item;
     this.view.play('reach');
     this.sound?.pickUp();
-    this.hud.toast(t('toast.picked').replace('{0}', t(itemName(item))));
-    this.changed = true;
-    this.showPouch();
+    const name = t(itemName(c.item));
+    if (c.lent && c.owner && c.owner !== 'player') {
+      this.hud.toast(t('toast.borrowed').replace('{0}', this.life.nameOf(c.owner)).replace('{1}', name));
+      this.life.borrowedFrom(c, 'player');
+    } else this.hud.toast(t('toast.picked').replace('{0}', name));
   }
 
   private putDown(at: THREE.Vector3, me: Character): void {
-    const item = this.hand;
-    if (!item) return;
-    this.setHand(null);
-    this.things.put(item, at, me.facing);
+    const c = this.hands.hand;
+    if (!c) return;
+    if (this.hands.nibbled) {
+      // Bitten into: eaten (or drunk) up, not put down (see Hands.putDown).
+      if (this.using) this.stopUsing(me);
+      this.hands.drop();
+      this.eatenUp(c);
+      return;
+    }
+    const back = Things.backWhereItLay(c, at);
+    this.hands.putDown(at, me.facing);
     this.sound?.putDown();
-    this.changed = true;
+    if (back) this.hud.toast(t('toast.returned').replace('{0}', t(itemName(c.item))));
   }
 
   private give(r: Resident, me: Character): void {
-    const item = this.hand;
-    if (!item) return;
-    this.setHand(null);
-    this.life.give(r, item, me.position);
+    const c = this.hands.give(r.hands);
+    if (!c) {
+      if (this.hands.hand) this.hud.toast(t('toast.noRoom').replace('{0}', this.life.nameOf(r.id)));
+      return;
+    }
+    this.life.gave(r, c, me.position, 'player');
     this.sound?.give();
-    this.changed = true;
   }
 
   // ---------------------------------------------------------------- sitting and sleeping
@@ -512,14 +543,11 @@ export class Play {
 
   // ---------------------------------------------------------------- saving
   save(): SavedPlay {
-    return { hand: this.hand, pouch: [...this.pouch], bites: this.bites };
+    return this.hands.save();
   }
 
   restore(saved: SavedPlay | undefined): void {
-    if (!saved) return;
-    this.hand = isItem(saved.hand) ? saved.hand : null;
-    this.bites = this.hand ? Math.max(0, Math.min(BITES - 1, saved.bites | 0)) : 0;
-    for (let i = 0; i < POUCH_SIZE; i++) this.pouch[i] = isItem(saved.pouch?.[i]) ? (saved.pouch[i] as ItemId) : null;
+    this.hands.restore(saved);
     this.showPouch();
   }
 }

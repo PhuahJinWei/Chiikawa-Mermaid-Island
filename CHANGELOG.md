@@ -47,6 +47,82 @@ stage, and along every path. Not yet checked on a real phone.
 - Talking (はなす): whoever you talk with stops and says a line like them,
   for the hour and what they are doing; a first set of lines in
   `locales/ja.json` for the user to look over.
+- Everyone who lives here can do what you can (the user, 2026-10-23: the
+  same authority as the player).
+  - Their paws are yours: a thing in the right paw and a pouch of six
+    slots (`src/life/Hands.ts`), taken up, put down, given, eaten, drunk,
+    played and kept by the same verbs as yours, under the same rules of
+    whose a thing is. What lies about as no one's is whoever takes it up.
+    What someone put down is theirs: anyone else borrows it (かりる), and it
+    goes back where it lay by the next morning, or is handed back to its
+    owner. What is given is its taker's. What has a place of its own (the
+    stage's ukulele, the torch by your door) goes back there each morning.
+  - The pouch stacks (the user, 2026-10-23): each slot holds up to 99
+    things of one kind, its count on its corner, each thing keeping whose
+    it is. A slot tapped (or 1 to 6) takes what is in your paw onto its
+    own stack, else into the pouch, and gives one of the slot's into your
+    paw; what you pick up goes onto its stack first.
+  - What has been bitten into goes into no pouch (the user): put away, it
+    is gone, eaten up. Nor can it be put down or given: the action button
+    says たべきる (のみきる) and finishes it. The same for everyone.
+  - A stall hands over nothing to you with no room for it in your paws:
+    its keeper says 「ごめんね、手がいっぱいみたい…」 and you step out of the
+    line, to come back once you have made room.
+  - What they do next out and about is chosen as they go
+    (`src/life/Choices.ts`), by what they need (something to eat, company,
+    fun, growing with the hours), what they like and what is about them:
+    one of their places, eating what they have, playing what they have
+    (up on the stage if it is near, those about coming to listen and
+    dance), a word with a friend, a keepsake for a friend, a keepsake put
+    down in their own room, giving back what they borrowed, a look at
+    something lying about, or, rarely (the user: not a common behaviour),
+    taking it up: at most once a day each, and not soon after anyone else.
+  - They choose by what a thing is for and whose it is, never by its name:
+    whatever lies about is part of their choosing as soon as it lies there.
+  - Gifts are kept: what you give them that is not eaten goes into their
+    pouch, where it was let go of before.
+  - They grow fond of you (hearts in your notebook) for gifts (more for
+    what they like), for words, for answering what you do, for being
+    served at your stall, a little less for being pushed. They remember
+    what you gave them and speak of it. Fond of you, they come over to
+    greet you once a day, now and then with a keepsake for you; hungry,
+    they come to ask for what you have to eat.
+- And you can do what they do: behind the counter of a stall no one keeps
+  today you keep it (みせばん), and whoever comes to eat may line up at it
+  for you to hand them its goods (わたす), till you walk off. Playing the
+  ukulele, those about come to listen and dance.
+- What lies about comes from `public/data/things.json` (the user,
+  2026-10-23: to add and scatter things across the island with nothing else
+  to change): things with places of their own, and what each morning lays
+  about an area. A new kind of thing from the build
+  (`art/blender/build_items.py`) is taken in at load as a keepsake if
+  `src/life/Items.ts` has no entry for it.
+- Everyone where you left them (the user, 2026-10-23). The island's clock is
+  kept and goes on from the same hour, so a save now keeps where each who
+  lives here stands and which way they face, the seat they sit on (a bed, a
+  seat in their room, a log, a seat by the feast's fire) and whether they
+  are inside their round hut. Loading it, they are back there and take up
+  their day from there: sleepers asleep, sitters seated, walkers walking on.
+  Anyone whose place cannot be stood on now is put where the hour has them.
+- The welcome on a new island (the film's arrival, `bay 5`), on your first
+  day (or with `?fresh`): the cast gathered under the welcome arch as the
+  game has long had them, which the hour's placing had been undoing at once,
+  and the islanders lining the way up the beach from the pier in two rows on
+  either side, all turned to you. They wave and cheer, each of the cast with
+  a welcome of their own (Chiikawa's ワァ…！, Usagi's ヤハ〜！), cheering you as
+  you come past; once you are up the beach, they go off into their day one
+  after another.
+- Footprints in the sand (the user, 2026-10-23), `src/world/Footprints.ts`:
+  everyone walking on sand near you, you among them, leaves a print of each
+  foot as it comes down, the size of their foot and turned the way they
+  walk, and both feet where they land from a jump. Faint on dry sand,
+  clearer and darker on the damp sand by the water; gone in about two
+  minutes, forty seconds by the water. Painted into the ground itself from a
+  map of the 24 metres round the camera, which costs next to nothing (under
+  0.05 ms a frame on the desktop, 2.4 MB on the graphics card). None on
+  grass, earth, pebbles, decks, in the water or in the forbidden cave. Once
+  there are 300 of others' prints, only those walking nearest you leave more
+  (yours always), so the beach is never trodden all over.
 - The きもち button (the user, 2026-10-22), up by the test toggle, or R:
   wave, bow, cheer, hop, dance, chat, look about, start or cry yourself
   (1 to 9 on the keyboard while it is open). Whoever is near may answer it.
@@ -823,9 +899,62 @@ outlined is drawn twice, once for its pen line. To get there:
   BatchedMesh) was tried first: 2 MB, but on the festival street each
   frame took 2 to 3 ms more of the graphics card, the browser drawing each
   copy on its own.
+- What lies about (the sea's shells and starfish, the torch by your door,
+  whatever anyone puts down) is drawn a kind at once: near the camera, one
+  draw of a kind's bodies and one of their pen lines, however many of it
+  lie there, each in the trees' shade where it lies (`src/life/Things.ts`).
+  Each thing had been two draws of its own, and a hundred on screen had
+  cost 1 to 3 ms a frame. With 127 things lying about the festival its view
+  takes 146 draw calls against 294, and with 327 still 146. Drawn both ways
+  in one page, seven views differ in at most 347 pixels in 786,432, single
+  pixels scattered over the things themselves where their shading turns
+  (the graphics card rounding one way of placing them differently from the
+  other). What anyone holds is drawn as before.
+- The trees' shade on what lies about follows the sun, and by night the
+  moon, as the characters' does (the user's, 2026-10-23): it had stayed as
+  it was when the thing was put down. Each frame 24 things near the camera
+  are looked at again in turn, so over half an hour of the island's day 49
+  things in the jungle's dappled shade changed by at most 0.2% of a full
+  shade a step, never further than that from the shade they lie in. With
+  355 things near, all that lies about takes 10 to 15 µs a frame.
 
 **Changed**
 
+- Put where the hour has them (after a night's sleep, a staged shot), no two
+  of those out and about stand on top of each other (1.5 m apart where there
+  is room), they face the way their place looks out (the sea, the stage)
+  rather than anywhere, and by the feast's fire they sit straight down where
+  they are put, where they had all got up again to go to other seats.
+- Furuhonya's coral cap is a little taller (the user, 2026-10-23): its edge
+  now sits 0.42 head radii over her eyes in front, just over her brows, and
+  0.36 at the sides (it was 0.5 and 0.44). Her crown sits on the edge, so
+  it came down with it. Her face guide (`art/faces/furuhonya/_guide.png`)
+  is redrawn with the new cap.
+- The island's twenty-one islanders no longer look alike (the user,
+  2026-10-23: more variety, now that there are more of them). Only three
+  heads took turns before (round, cat and long bunny ears), each islander
+  under the same crown. Their heads now vary as the film's crowds do: the
+  welcome crowd from behind (`bay 1`, `bay 5`) and the festival's
+  (`festival 1`, `festival stall 1-4`).
+  - Nine kinds of head:
+    - no ears, the most common;
+    - round ears;
+    - cat ears;
+    - long bunny ears;
+    - short bunny ears, as the festival's dango keeper's;
+    - a spike curving over to one side;
+    - a small knob on top;
+    - two little horns;
+    - one horn to the side.
+  - They take turns, so no two neighbours or housemates share a head.
+  - About one in four goes without a crown, as some of the welcome crowd
+    do.
+  - Every islander is the same islander grey, Hitoha's and Futaba's
+    #988584, crowns too (the user). The crowd was a teal grey before.
+  - The six new kinds are light copies as the rest of the crowd are
+    (2,600 to 3,800 triangles, about 30 KB each with its crown). The
+    converter's `head_top` option builds the spike, knob and horns
+    (`HEAD_TOPS`), and `--only` now takes several ids at once.
 - The characters' arms bend (the user, 2026-10-22: the stubs were "too
   short and there are no joins", so a wave, holding a thing or a paw below
   the mouth was almost impossible). This was studied from the user's
@@ -953,17 +1082,19 @@ outlined is drawn twice, once for its pen line. To get there:
     じぶん (you) among them.
   - You can see yourself in the water. Looking down into calm water you
     stand in or beside, you lean over it as you would over a pond: your
-    eyes go forward to your face, and looking straight down you see your
-    head just under you, your face, crown and ears looking back up at you,
-    round as seen from below, clearly, the ripples waving it a little and
-    the sun's glints on it, in the light there (golden in the golden hour,
-    the night's blue by night). The rest of you shows only as faintly as
-    everyone else does, behind your head as it would be. At first the
-    water could show you only the underside of your skirt, right under
+    eyes go forward to your face, and looking straight down you see
+    yourself just under you: your face, crown and ears looking back up at
+    you, your head bowed over the water about its neck and your body
+    leaning under it, your grass skirt under your chin, clearly, the
+    ripples waving you a little and the sun's glints on you, in the light
+    there (golden in the golden hour, the night's blue by night). At first
+    the water could show you only the underside of your skirt, right under
     your eyes and as faint as everything it mirrors, so you saw nothing of
     yourself (the user noticed); then all of you, turned over flat and out
     where you looked, which the user found looked like a flat picture of you
-    floating on the water before you. Everyone else's reflections stay as
+    floating on the water before you; then only your head clear and the
+    rest of you faint, which looked like a head floating with nothing under
+    it (the user again). Everyone else's reflections stay as
     faint as before. The waterfall's pool, calm, waves you and everything
     in it less than the sea does. At a deck's edge over the water, the
     pier's end or the quay, you lean further out over it as you look down,
@@ -2255,6 +2386,10 @@ outlined is drawn twice, once for its pen line. To get there:
 
 **Removed**
 
+- The onigiri (the user, 2026-10-23: it makes no sense in the game now):
+  the thing to hold and its icon, its name, its model from
+  `build_props.py`, and the rice ball the eat action showed in an empty
+  paw. An onigiri in an old save is gone when it loads.
 - The M0 test beach, a small disc of sand.
 - Diving, swimming and everything underwater, from the plan (none of it
   had been built): you wade in the shallows, and only the rowboat goes
@@ -2282,6 +2417,71 @@ outlined is drawn twice, once for its pen line. To get there:
 
 **Fixed**
 
+- Jumping over a bed no longer takes you through it and the wall behind it
+  and out of the house, and a jump now lands you on the bed (the user,
+  2026-10-23: "players are able to clip through the bed & wall, and fall out
+  of the house"; then "Let a jump land on beds"). Two things went wrong. A
+  jump carried you over anything lower than your feet, the bed among them,
+  and you came down inside it, with nothing on its top to hold you. And
+  whoever stood inside something could walk out of it any way at all, on
+  through the wall.
+  - The bed's mattress is now something to stand on, 0.36 m up.
+    - It is a deck over the bed that reaches a body's width (0.25 m) round
+      it, so a jump that comes down at its edge is on it (`furnish_hut` in
+      `art/blender/houses.py`).
+    - The stilt huts and the plank hut were rebuilt; only their decks and
+      their night bakes changed.
+    - It stands higher than a step, so no one walks onto it.
+    - Sitting and sleeping on it work as before, and getting up you stand
+      on the floor beside it.
+  - In the air you now go over only what a deck or pad tops, such as the
+    bed and the stepping stones, and come down on it. Anything else you
+    would come down inside stops a jump as it stops a walk: a stool, a
+    stall's counter, a porch's edge, a log (`blockedInAir` in
+    `src/world/Obstacles.ts`).
+    - A deck tops a block only if the block's middle lies well inside it,
+      so the bed's top does not count for the stool beside it.
+  - Whoever is inside something, put there, still walks out of it, but
+    never deeper into what is in their way nor into anything else
+    (`deeper`), on their feet or in the air.
+  - Checked by driving the player in the game, against the same moves
+    under the old rules:
+    - 900 jumps at the bed in your hut, from five places, at nine headings,
+      walking and running, jumping once or again and again.
+      - With the old rules and the bed as it was, 459 ended outside the hut
+        and 484 came down inside the bed. The old rules with the bed's new
+        top still let 78 out.
+      - Now 362 land on the bed, and none leave the hut or come down inside
+        it.
+      - Straight at the bed, every jump lands on it.
+      - Jumping over the stool onto the bed is stopped by the stool.
+    - 144 jumps from the bed every way: none went through a wall (6 ran out
+      of the door). Walking on it, you step off into the room or stop at
+      the walls.
+    - The 420 jumps between the stepping stones land exactly as before.
+    - Of 300 running jumps round the village and the festival, 21 end
+      differently, each over something low at a stall (a counter), a hut's
+      furniture or a log.
+      - Under the old rules 20 of the 300 ended stuck inside something.
+      - Under the new ones 3 did, all in the sea off the quay, just as
+        under the old rules.
+    - Everyone's day ran through the feast, midnight and the morning,
+      sleeping in these beds and getting up, and no one was left stuck.
+    - No faces would flicker in the rebuilt huts (`check_flicker.py`).
+- The shader warm-up at the start no longer stops partway with "Cannot
+  read properties of null" (seen once on a `?dev&fresh` load, 2026-10-23).
+  It works out the bounds of every shape on the island before the shape
+  lets go of its vertices on the GPU. The jungle's undergrowth patches are
+  built as the camera comes near and let go of their own, and were given
+  only a bounding sphere, no box. A patch already drawn before the
+  warm-up had nothing left to work its box out from, and the warm-up
+  threw, leaving the rest unwarmed.
+  - Each patch now keeps the exact box it is listed with and is given it
+    together with its sphere (its outline the same in the `?toon` look),
+    the same box three.js would find from its vertices.
+  - Checked by drawing frames before warming up again, in both looks.
+    What drew first on the failing load could not be found again; nothing
+    in the game draws before the warm-up.
 - Sitting on the ground in a grass skirt looks like sitting (the user,
   2026-10-23: in the island outfit it "doesn't really look like the
   character is actually sitting down"). The skirt only grew shorter as

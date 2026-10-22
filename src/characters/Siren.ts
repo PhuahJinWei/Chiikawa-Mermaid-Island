@@ -106,7 +106,7 @@ export class Siren {
     const chamber = cave.info.chamber;
     if (!chamber) return null;
     const model = await loadCharacterModel(SIREN.model);
-    const character = new Character(SIREN, model, new THREE.Group());
+    const character = new Character(SIREN, model);
     const [cx, cz] = chamber.centre;
     const x = cx + REST.distance * Math.cos(REST.angle);
     const z = cz + REST.distance * Math.sin(REST.angle);
