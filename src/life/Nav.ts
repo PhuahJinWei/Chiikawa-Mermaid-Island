@@ -48,6 +48,10 @@ const LINE_STEP = 0.2;
 /** A way is pulled straight over at most this many of its cells at a time (40 m). */
 const PULL = 80;
 const DIAGONAL = Math.SQRT2;
+/** What a step costs within reach of someone a way keeps clear of (see seek), as metres walked: dear
+ * enough to go a good way round, not so dear a narrow way they stand in is never taken (they are squeezed
+ * past there, see Life.part). */
+const AVOID_COST = 6;
 
 const NEIGHBOURS: [number, number, number][] = [
   [1, 0, 1],
@@ -88,6 +92,13 @@ interface Portal {
   joined: boolean;
 }
 
+/** Someone a way keeps clear of (see Nav.seek): where they stand, and how near it stays clear of them. */
+export interface Avoid {
+  x: number;
+  z: number;
+  r: number;
+}
+
 /** A way being sought (see Nav.seek): its ends, then the way, or that there is none. */
 export interface Way {
   readonly from: THREE.Vector3;
@@ -104,6 +115,7 @@ interface Search {
   goal: number;
   goalAt: THREE.Vector3;
   started: boolean;
+  avoid: readonly Avoid[];
 }
 
 /** A small binary heap of nodes by cost. */
@@ -399,10 +411,11 @@ export class Nav {
   }
 
   // ---------------------------------------------------------------- seeking
-  /** Starts seeking the way from `from` (someone's feet) to `to`; worked a little each frame (see work). */
-  seek(from: THREE.Vector3, to: THREE.Vector3): Way {
+  /** Starts seeking the way from `from` (someone's feet) to `to`, round those in `avoid` (people standing in
+   * the way) if it can; worked a little each frame (see work). */
+  seek(from: THREE.Vector3, to: THREE.Vector3, avoid: readonly Avoid[] = []): Way {
     const way: Way = { from: from.clone(), to: to.clone(), status: 'seeking', points: [] };
-    this.queue.push({ way, stamp: 0, start: -1, goal: -1, goalAt: to.clone(), started: false });
+    this.queue.push({ way, stamp: 0, start: -1, goal: -1, goalAt: to.clone(), started: false, avoid });
     return way;
   }
 
@@ -471,7 +484,7 @@ export class Nav {
       const id = this.heap.pop();
       if (this.state(id, search.stamp) === 2) continue;
       if (id === search.goal) {
-        way.points = this.pull(this.trace(search.goal, search.stamp), way.from, way.to);
+        way.points = this.pull(this.trace(search.goal, search.stamp), way.from, way.to, search.avoid);
         way.status = 'found';
         return budget;
       }
@@ -522,6 +535,7 @@ export class Nav {
   private relax(to: number, g: number, from: number, search: Search): void {
     const state = this.state(to, search.stamp);
     if (state === 2) return;
+    if (search.avoid.length > 0 && this.near(this.nodePoint(to, _a), search.avoid)) g += AVOID_COST;
     if (state === 1 && this.g(to, search.stamp) <= g) return;
     this.setG(to, g, from, search.stamp);
     this.heap.push(to, g + this.guess(to, search.goalAt));
@@ -600,7 +614,12 @@ export class Nav {
    * grid's cells (at most PULL nodes on), and so on to `to`; a portal's two ends are kept, the narrow place
    * between them crossed as it is.
    */
-  private pull(nodes: { at: THREE.Vector3; portal: boolean }[], from: THREE.Vector3, to: THREE.Vector3): THREE.Vector3[] {
+  private pull(
+    nodes: { at: THREE.Vector3; portal: boolean }[],
+    from: THREE.Vector3,
+    to: THREE.Vector3,
+    avoid: readonly Avoid[] = [],
+  ): THREE.Vector3[] {
     const all = [{ at: from.clone(), portal: false }, ...nodes, { at: to.clone(), portal: false }];
     const out = [all[0].at];
     let i = 0;
@@ -610,6 +629,7 @@ export class Nav {
         for (let k = i + 2; k < all.length && k - i <= PULL; k++) {
           // Never across a portal's end: the way goes through it as it is.
           if (all[k - 1].portal || !this.gridStraight(all[i].at, all[k].at)) break;
+          if (avoid.length > 0 && this.passes(all[i].at, all[k].at, avoid)) break;
           j = k;
         }
       }
@@ -659,6 +679,30 @@ export class Nav {
       h = this.heightAt(gi, gj, l);
     }
     return Math.abs(h - b.y) < STEP_UP;
+  }
+
+  /** Whether `p` is within reach of anyone in `avoid`. */
+  private near(p: THREE.Vector3, avoid: readonly Avoid[]): boolean {
+    for (const o of avoid) if ((p.x - o.x) ** 2 + (p.z - o.z) ** 2 < o.r * o.r) return true;
+    return false;
+  }
+
+  /** Whether going straight from `a` to `b` passes within reach of anyone in `avoid`. */
+  private passes(a: THREE.Vector3, b: THREE.Vector3, avoid: readonly Avoid[]): boolean {
+    const dx = b.x - a.x;
+    const dz = b.z - a.z;
+    const length2 = dx * dx + dz * dz;
+    for (const o of avoid) {
+      const t = length2 > 1e-6 ? Math.max(0, Math.min(1, ((o.x - a.x) * dx + (o.z - a.z) * dz) / length2)) : 0;
+      if ((a.x + dx * t - o.x) ** 2 + (a.z + dz * t - o.z) ** 2 < o.r * o.r) return true;
+    }
+    return false;
+  }
+
+  /** Whether `p` is within `reach` of either end of a portal (a doorway, a stall's open side). */
+  nearDoor(p: THREE.Vector3, reach: number): boolean {
+    for (const portal of this.portals) if (portal.p.distanceToSquared(p) < reach * reach && Math.abs(portal.p.y - p.y) < 1) return true;
+    return false;
   }
 
   /** Where the cell under (x, z) lets someone at height `feet` stand: its nearest height within a step, or

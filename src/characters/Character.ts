@@ -935,6 +935,11 @@ export class Character implements EmoteHost {
     this.root.rotation.y = this.facing;
   }
 
+  /** Squeezed past by someone, or squeezing past them (see life/Life.ts): a little squash, soft as they are. */
+  jostle(): void {
+    this.squash.velocity -= 1.4;
+  }
+
   /** Coming down on their feet: a squash and a bounce of the ears, as hard as they came down. */
   private land(): void {
     const impact = Math.min(1.4, -this.vy / JUMP_SPEED);

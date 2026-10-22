@@ -138,6 +138,18 @@ stage, and along every path. Not yet checked on a real phone.
   grass, earth, pebbles, decks, in the water or in the forbidden cave. Once
   there are 300 of others' prints, only those walking nearest you leave more
   (yours always), so the beach is never trodden all over.
+- No one held up by anyone for long (the user, 2026-10-23: they push one
+  another too, as you push them). Someone standing about steps aside, as
+  slowly as their weight lets, when a walker keeps walking into them; of two
+  walking into each other face to face, the lighter steps aside and waits a
+  moment; held up all the same (by someone seated or keeping their stall, in
+  a crowd), a walker squeezes past, the two of them a little squashed. Stuck,
+  they seek their way again round whoever stands in it, and no one stops to
+  stand about in a doorway or a narrow way. They never move you: standing in
+  someone's way, they ask you to let them by (ちょっと通るね) and go round you,
+  or wait at a door you stand in. In three minutes each of the morning, lunch
+  and the feast, the walkers held up for more than five seconds went from 18,
+  19 and 12 to none, the longest from 45 seconds to 4.
 - The きもち button (the user, 2026-10-22), up by the test toggle, or R:
   wave, bow, cheer, hop, dance, chat, look about, start or cry yourself
   (1 to 9 on the keyboard while it is open). Whoever is near may answer it.
@@ -2432,6 +2444,12 @@ outlined is drawn twice, once for its pen line. To get there:
 
 **Fixed**
 
+- The game no longer breaks when it loads in a window with no size yet (a
+  tab opened in the background, a pane folded away): the camera's aspect
+  became NaN from a zero width over a zero height, and that poisoned the
+  eyes' direction and the player's facing for good, even once the window
+  had a size (found 2026-10-23). The camera and the picture now stay as
+  they are until the window has a size.
 - Jumping over a bed no longer takes you through it and the wall behind it
   and out of the house, and a jump now lands you on the bed (the user,
   2026-10-23: "players are able to clip through the bed & wall, and fall out
@@ -2444,12 +2462,6 @@ outlined is drawn twice, once for its pen line. To get there:
     - It is a deck over the bed that reaches a body's width (0.25 m) round
       it, so a jump that comes down at its edge is on it (`furnish_hut` in
       `art/blender/houses.py`).
-- The game no longer breaks when it loads in a window with no size yet (a
-  tab opened in the background, a pane folded away): the camera's aspect
-  became NaN from a zero width over a zero height, and that poisoned the
-  eyes' direction and the player's facing for good, even once the window
-  had a size (found 2026-10-23). The camera and the picture now stay as
-  they are until the window has a size.
     - The stilt huts and the plank hut were rebuilt; only their decks and
       their night bakes changed.
     - It stands higher than a step, so no one walks onto it.

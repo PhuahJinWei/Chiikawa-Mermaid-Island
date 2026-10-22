@@ -126,6 +126,31 @@ export class Resident {
   /** How long you have been pushing into them (see Life.push), and since when they were last pushed. */
   pressed = 0;
   pushedAt = -Infinity;
+  /**
+   * Making way (see Life.part): who they walked into this frame and could not get past (you: 'player'), and
+   * for how long they have been held up, going no faster than `going` (metres a second, their way over the
+   * last moments, `drift`, from where they were each frame before, `lastAt`); whom they squeeze past (till
+   * when), having been held up too long;
+   * how long someone has been walking into them as they stand about (they step aside); till when they give
+   * way to someone walking at them face to face, stepping aside (`wayAside`, metres a second) first; when
+   * they last asked you to let them by; and that they are to seek their way again, round whoever is in it.
+   */
+  blocker: Resident | 'player' | null = null;
+  blockedFor = 0;
+  going = 0;
+  readonly drift = new THREE.Vector3();
+  readonly lastAt = new THREE.Vector3();
+  readonly squeezing = new Set<Resident>();
+  squeezeUntil = 0;
+  crowded = 0;
+  crowdedAt = -Infinity;
+  givingWay = -Infinity;
+  readonly wayAside = new THREE.Vector3();
+  askedPassAt = -Infinity;
+  reroute = false;
+  /** Stepping round someone in their way: on which side (see Life.avoid), and till when they keep to it. */
+  passing = 0;
+  passingUntil = -Infinity;
   /** Kept far from the camera: moved without being drawn or worked out in full (see Life.detail). */
   far = false;
   /** Frames left before their next full update, and the seconds saved up for it. */
@@ -343,7 +368,8 @@ export class Resident {
   *walk(to: THREE.Vector3, speed = this.speed()): Brain<boolean> {
     if (flat(this.pos, to) < ARRIVE && Math.abs(this.pos.y - to.y) < 0.4) return true;
     for (let attempt = 0; attempt <= RETRIES; attempt++) {
-      const way = this.life.nav.seek(this.feet(_v), to);
+      // Sought again after getting stuck: round whoever stands in the way.
+      const way = this.life.nav.seek(this.feet(_v), to, attempt > 0 ? this.life.inTheWayOf(this) : []);
       try {
         while (way.status === 'seeking') {
           this.halt();
@@ -372,10 +398,14 @@ export class Resident {
         if (d < best - 0.04) {
           best = d;
           still = 0;
-        } else {
+        } else if (this.life.now >= this.givingWay) {
+          // (Not while they stand aside to let someone by.)
           still += dt;
         }
-        if (still > STUCK) break;
+        if (still > STUCK || this.reroute) {
+          this.reroute = false;
+          break;
+        }
       }
       this.halt();
       if (i >= points.length) return true;
@@ -405,8 +435,11 @@ export class Resident {
 
   /** Stands still for `seconds`, facing `yaw` if given (NaN: as they are), doing `action` if given: once they
    * have stopped (still walking, an action stops at once), and again after anything else stops it (a word
-   * with someone, a push). */
+   * with someone, a push). Out of a doorway or a narrow way first, where they would be in anyone's way. */
   *wait(seconds: number, yaw = NaN, action: ActionId | null = null): Brain {
+    // Not standing about in a doorway or a narrow way: a step out of it first.
+    const out = !this.seat && !this.line && !this.indoors && this.block?.kind !== 'work' ? this.life.outOfTheWay(this) : null;
+    if (out) yield* this.walk(out);
     if (!Number.isNaN(yaw)) this.ch.setFacing(yaw);
     try {
       for (let t = 0; t < seconds; t += yield) {

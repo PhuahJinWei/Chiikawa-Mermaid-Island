@@ -3,7 +3,7 @@ import type { StringKey } from '../i18n/I18n';
 import type { Character, FrameContext } from '../characters/Character';
 import type { EmoteSystem } from '../characters/Emotes';
 import { clampToWalkable, standAt, terrainHeight } from '../world/Island';
-import { Nav } from './Nav';
+import { Nav, type Avoid } from './Nav';
 import { Places, type Home, type Seat, type Spot, type Stall } from './Places';
 import { FRIENDS, HOMES, ISLANDER_HOMES, PROFILES, hash, islanderProfile, seeded, type Profile } from './profiles';
 import { Resident, edible, type Answer, type Block, type Brain, type Memory } from './Resident';
@@ -23,6 +23,7 @@ import {
   ISLANDER_LINES,
   MORNING_LINES,
   NIGHT_LINES,
+  PASS_LINES,
   WELCOME_LINES,
   WORK_LINES,
 } from './lines';
@@ -60,6 +61,45 @@ const APART = 0.6;
 const PRESS = 0.4;
 const PUSH_SPEED = 0.75;
 const STARTLE_AGAIN = 4;
+/**
+ * Making way (see part): someone standing about steps aside once a walker has walked into them this long
+ * (seconds), at most this fast (metres a second, for weight 1). Of two face to face, the one who gives way
+ * steps aside for GIVE_WAY_STEP of GIVE_WAY_FOR (seconds), then stands aside. Held up this long, a walker
+ * squeezes past (for at most SQUEEZE_FOR); held up by you, they ask you after ASK_AFTER (not again before
+ * ASK_AGAIN) and seek a way round you.
+ */
+const MAKE_WAY = 0.4;
+const STEP_ASIDE = 0.9;
+const GIVE_WAY_FOR = 1.2;
+const GIVE_WAY_STEP = 0.5;
+const SQUEEZE_AFTER = 1.8;
+const SQUEEZE_FOR = 4;
+const ASK_AFTER = 0.6;
+const ASK_AGAIN = 8;
+/** Held up: walking at someone within this of straight at them (its cosine), going no faster than this share
+ * of the pace they walk at. */
+const HELD_UP = 0.2;
+const GETTING_ON = 0.35;
+/** A keeper within this of where they stand behind their counter stays put (metres). */
+const KEEPER_POST = 0.6;
+/** Seeking a way round those in it, those within this far count (metres). */
+const AROUND = 6;
+/** Standing about, out of the way: this far from either end of a doorway, and not walled in close on both
+ * sides, this far out to each side, along any of these ways through; else a step out of it first, to the
+ * nearest spot out of the way this far off (metres). */
+const DOOR_CLEAR = 1.0;
+const NARROW = 0.75;
+const ACROSS: [number, number][] = [
+  [1, 0],
+  [0, 1],
+  [Math.SQRT1_2, Math.SQRT1_2],
+  [Math.SQRT1_2, -Math.SQRT1_2],
+];
+const OUT_OF_THE_WAY = [1.0, 1.6, 2.2];
+/** Stepping round someone: within this of straight ahead (metres to either side), they pass them on the right,
+ * and they keep to the side they chose this long (seconds). */
+const DEAD_AHEAD = 0.25;
+const PASS_KEEP = 1.2;
 /** Who looks at whom: how far they notice others and what goes on; how long they keep looking. */
 const NOTICE = 6.5;
 const LOOK_FOR: [number, number] = [1.6, 4.2];
@@ -1336,10 +1376,17 @@ export class Life {
     } else r.focusing = false;
   }
 
-  /** Walkers step round whoever stands in their way, passing them on the right. */
+  /** Walkers step round whoever stands in their way, passing them on the right; one giving way to someone
+   * face to face steps aside and stands aside a moment instead (see faceToFace). */
   private avoid(me: Character): void {
     for (const r of this.residents) {
       const w = r.want;
+      if (this.now < r.givingWay && r.ch !== me) {
+        // Giving way to someone face to face: a step aside off their line, then standing aside (see faceToFace).
+        if (r.givingWay - this.now > GIVE_WAY_FOR - GIVE_WAY_STEP) w.copy(r.wayAside);
+        else w.set(0, 0, 0);
+        continue;
+      }
       const speed = Math.hypot(w.x, w.z);
       // (In a stall's line they walk up behind whoever is ahead, not round them.)
       if (speed < 0.05 || r.far || r.ch === me || r.line) continue;
@@ -1354,14 +1401,20 @@ export class Life {
         if (d < 1e-3 || d > reach) return;
         const ahead = (ox * dx + oz * dz) / d;
         if (ahead < 0.35) return;
-        // To their right of whoever is ahead (their right being (-dz, dx)'s other side).
+        // To their right of whoever is ahead (their right being (-dz, dx)'s other side); of someone straight
+        // ahead (within DEAD_AHEAD to either side), on the right.
         const across = ox * -dz + oz * dx;
-        side += (across >= 0 ? -1 : 1) * ahead * (1 - d / reach);
+        side += (across >= DEAD_AHEAD || Math.abs(across) < DEAD_AHEAD ? -1 : 1) * ahead * (1 - d / reach);
       };
       for (const o of this.residents) if (o !== r && !o.far && o.ch.shown) look(o.pos, o.ch.width * 0.5);
       look(me.position, me.width * 0.5);
       if (side === 0) continue;
-      const s = Math.max(-1, Math.min(1, side));
+      // Keeping to the side they chose a moment (PASS_KEEP), not swaying from one to the other.
+      if (this.now >= r.passingUntil) {
+        r.passing = Math.sign(side);
+        r.passingUntil = this.now + PASS_KEEP;
+      }
+      const s = r.passing * Math.min(1, Math.abs(side));
       w.x += -dz * s * speed * 0.9;
       w.z += dx * s * speed * 0.9;
       const k = speed / Math.max(Math.hypot(w.x, w.z), 1e-6);
@@ -1371,15 +1424,23 @@ export class Life {
   }
 
   /**
-   * No one stands in anyone: two who come too near part, the one walking giving way; someone you keep
-   * pushing into gives way to you slowly (not at once: the user, "not too easily pushed"), by their weight,
-   * startled the first time; someone seated, at a counter, or in a round hut does not.
+   * No one stands in anyone, and no one is held up by anyone for long (the user, 2026-10-23: they push one
+   * another too). Two who come too near part, the one walking giving way. Someone standing about whom a
+   * walker keeps walking into makes way, stepping aside off their line as slowly as their weight lets, as when
+   * you push them; of two walking into each other face to face, one gives way (see part). Held up all the same
+   * (by someone seated or keeping their stall, in a crowd), a walker squeezes past (see heldUp).
+   *
+   * You never stand in them, and they never move you: someone you hold up asks you to let them by and seeks a
+   * way round you. Someone you keep pushing into gives way to you slowly (not at once: the user, "not too
+   * easily pushed"), by their weight, startled the first time; someone seated, keeping their stall at its
+   * counter, or in a round hut does not.
    */
   private push(f: LifeFrame): void {
     const me = f.me;
     const all = this.residents.filter((r) => !r.far && r.ch.shown && r.ch !== me);
+    for (const r of all) r.blocker = null;
     for (let i = 0; i < all.length; i++) {
-      for (let j = i + 1; j < all.length; j++) this.part(all[i], all[j]);
+      for (let j = i + 1; j < all.length; j++) this.part(all[i], all[j], f.dt);
     }
     const want = f.myWant;
     const pushing = Math.hypot(want.x, want.z);
@@ -1393,17 +1454,12 @@ export class Life {
       const ox = (r.pos.x - me.position.x) / Math.max(d, 1e-4);
       const oz = (r.pos.z - me.position.z) / Math.max(d, 1e-4);
       const into = pushing > 0.3 ? (want.x * ox + want.z * oz) / pushing : 0;
-      const firm = !!r.seat || !!r.ch.ride || r.block?.kind === 'work' || r.indoors;
-      if (into > 0.5 && !firm) r.pressed += f.dt;
+      if (into > 0.5 && !this.firm(r)) r.pressed += f.dt;
       else r.pressed = Math.max(0, r.pressed - f.dt * 2);
       if (r.pressed > PRESS) {
         // Pushed along the way you push, as fast as their weight lets.
         const step = (Math.min(pushing, 2) / 2) * (PUSH_SPEED / r.profile.weight) * f.dt;
-        _from.set(r.pos.x, r.pos.y, r.pos.z);
-        _to.set(r.pos.x + ox * step, r.pos.y, r.pos.z + oz * step);
-        clampToWalkable(_to, _from);
-        r.pos.x = _to.x;
-        r.pos.z = _to.z;
+        this.shove(r, ox * step, oz * step);
         if (this.now - r.pushedAt > STARTLE_AGAIN) {
           this.befriend(r, 'player', FOND.pushed);
           this.notice(r.pos, r);
@@ -1415,18 +1471,41 @@ export class Life {
         }
         r.pushedAt = this.now;
       }
-      // You never stand in them, pushing or not.
-      this.keepOff(me, r.pos, reach);
+      const intoYou = into <= 0.5 && this.walksInto(r, me.position);
+      if (!this.firm(r) && (intoYou || pushing < 0.3)) {
+        // Walking into you, not you into them, or you standing still: they keep off you, held up by you if
+        // they walk into you.
+        if (intoYou && d < reach + 0.05) r.blocker = 'player';
+        this.keepOff(r.ch, me.position, reach);
+      } else {
+        // You never stand in them, pushing or not.
+        this.keepOff(me, r.pos, reach);
+      }
     }
+    for (const r of all) this.heldUp(r, f.dt);
   }
 
-  /** Two too near part: whoever walks gives way, or both a little. */
-  private part(a: Resident, b: Resident): void {
+  /**
+   * Two too near part: whoever walks gives way, or both a little; but not someone squeezing past the other.
+   * Walking into someone standing about, they make way; walking into each other face to face, one gives way.
+   * Whoever walks into someone is held up by them (see heldUp) till they are past.
+   */
+  private part(a: Resident, b: Resident, dt: number): void {
     const reach = (a.ch.width + b.ch.width) * APART;
     const d = flat(a.pos, b.pos);
-    if (d >= reach || Math.abs(a.pos.y - b.pos.y) > 0.8) return;
-    const firmA = !!a.ch.ride || a.block?.kind === 'work';
-    const firmB = !!b.ch.ride || b.block?.kind === 'work';
+    if (d >= reach + 0.05 || Math.abs(a.pos.y - b.pos.y) > 0.8) return;
+    if (a.squeezing.has(b) || b.squeezing.has(a)) return;
+    const intoB = this.walksInto(a, b.pos);
+    const intoA = this.walksInto(b, a.pos);
+    if (intoB && intoA) this.faceToFace(a, b);
+    else if (intoB) this.makeWay(b, a, dt);
+    else if (intoA) this.makeWay(a, b, dt);
+    // (Held up by whoever they head for at all, as when wedged between two.)
+    if (intoB || this.walksInto(a, b.pos, HELD_UP)) a.blocker = b;
+    if (intoA || this.walksInto(b, a.pos, HELD_UP)) b.blocker = a;
+    if (d >= reach) return;
+    const firmA = this.firm(a);
+    const firmB = this.firm(b);
     if (firmA && firmB) return;
     const movingA = a.want.lengthSq() > 0.01;
     const movingB = b.want.lengthSq() > 0.01;
@@ -1440,12 +1519,170 @@ export class Life {
     if (shareA > 0) this.shove(b, -ux * gap * shareA, -uz * gap * shareA);
   }
 
-  private shove(r: Resident, dx: number, dz: number): void {
+  /** Whether `r` stays put for anyone: seated, in their round hut, or keeping their stall at its counter. */
+  private firm(r: Resident): boolean {
+    const stall = r.block?.kind === 'work' ? r.block.stall : undefined;
+    return !!r.seat || !!r.ch.ride || r.indoors || (!!stall && flat(r.pos, stall.keeper) < KEEPER_POST);
+  }
+
+  /** Whether `r` walks toward `at`, more into it than past it (or within `cos` of straight at it). */
+  private walksInto(r: Resident, at: THREE.Vector3, cos = 0.5): boolean {
+    const w = r.want;
+    const speed = Math.hypot(w.x, w.z);
+    if (speed < 0.1) return false;
+    const dx = at.x - r.pos.x;
+    const dz = at.z - r.pos.z;
+    const d = Math.hypot(dx, dz);
+    return d > 1e-4 && (w.x * dx + w.z * dz) / (speed * d) > cos;
+  }
+
+  /**
+   * `r`, standing about, walked into by `by`: after a moment (MAKE_WAY), a step aside off their line, as fast as
+   * their weight lets (STEP_ASIDE), to whichever side there is room on, with a look round at who it is. Not
+   * someone who stays put (see firm), in a stall's line or on their way somewhere themselves.
+   */
+  private makeWay(r: Resident, by: Resident, dt: number): void {
+    if (this.firm(r) || r.line || r.want.lengthSq() > 0.01) return;
+    if (this.now - r.crowdedAt > 0.1) r.crowded = 0;
+    r.crowdedAt = this.now;
+    r.crowded += dt;
+    if (r.crowded < MAKE_WAY) return;
+    const speed = Math.hypot(by.want.x, by.want.z);
+    const nx = -by.want.z / speed;
+    const nz = by.want.x / speed;
+    const side = nx * (r.pos.x - by.pos.x) + nz * (r.pos.z - by.pos.z) >= 0 ? 1 : -1;
+    const step = (STEP_ASIDE / r.profile.weight) * dt;
+    if (this.shove(r, nx * side * step, nz * side * step) < step * 0.3) this.shove(r, -nx * side * step, -nz * side * step);
+    if (r.focusOn !== by) {
+      r.focusOn = by;
+      r.focusing = true;
+      r.focusUntil = this.now + 1.5;
+    }
+  }
+
+  /** Two walking into each other face to face: one gives way, stepping aside off the other's line and
+   * standing there a moment (GIVE_WAY_FOR, see avoid): the lighter, or of two alike the one whose name comes
+   * first. */
+  private faceToFace(a: Resident, b: Resident): void {
+    if (this.now < a.givingWay || this.now < b.givingWay || this.firm(a) || this.firm(b)) return;
+    const r = a.profile.weight !== b.profile.weight ? (a.profile.weight < b.profile.weight ? a : b) : a.id < b.id ? a : b;
+    const other = r === a ? b : a;
+    const speed = Math.hypot(r.want.x, r.want.z);
+    let nx = -r.want.z / speed;
+    let nz = r.want.x / speed;
+    if (nx * (r.pos.x - other.pos.x) + nz * (r.pos.z - other.pos.z) < 0) {
+      nx = -nx;
+      nz = -nz;
+    }
+    r.wayAside.set(nx * speed * 0.7, 0, nz * speed * 0.7);
+    r.givingWay = this.now + GIVE_WAY_FOR;
+  }
+
+  /**
+   * How long `r` has been held up by whoever they walk into (see push) without getting anywhere, and what
+   * comes of it: past SQUEEZE_AFTER they squeeze past them, the two of them a little squashed, the way kept open
+   * between them till they are past (wedged in, past one after another); held up by you, they ask you to let
+   * them by (ASK_AFTER) and seek a way round you.
+   */
+  private heldUp(r: Resident, dt: number): void {
+    // How fast they get anywhere, back and forth cancelling out (as when they slide along someone and back).
+    const k = 1 / Math.max(dt, 1e-4);
+    r.drift.lerp(_b.set((r.pos.x - r.lastAt.x) * k, 0, (r.pos.z - r.lastAt.z) * k), 0.06);
+    r.going = Math.hypot(r.drift.x, r.drift.z);
+    r.lastAt.copy(r.pos);
+    if (this.now > r.squeezeUntil) r.squeezing.clear();
+    for (const past of r.squeezing) {
+      if (flat(past.pos, r.pos) > (past.ch.width + r.ch.width) * APART + 0.15) r.squeezing.delete(past);
+    }
+    const by = r.blocker;
+    if (!by || r.going > GETTING_ON * Math.hypot(r.want.x, r.want.z)) {
+      r.blockedFor = 0;
+      return;
+    }
+    r.blockedFor += dt;
+    if (by === 'player') {
+      if (r.blockedFor > ASK_AFTER && this.now - r.askedPassAt > ASK_AGAIN) {
+        r.askedPassAt = this.now;
+        this.say(r, t(PASS_LINES[Math.floor(this.random() * PASS_LINES.length)]));
+        r.focusOn = 'player';
+        r.focusing = true;
+        r.focusUntil = this.now + 2;
+      }
+      if (r.blockedFor > SQUEEZE_AFTER) {
+        r.blockedFor = 0;
+        r.reroute = true;
+      }
+      return;
+    }
+    if (r.blockedFor > SQUEEZE_AFTER && !r.squeezing.has(by)) {
+      r.blockedFor = 0;
+      r.squeezing.add(by);
+      r.squeezeUntil = this.now + SQUEEZE_FOR;
+      r.ch.jostle();
+      by.ch.jostle();
+    }
+  }
+
+  /** Moves `r` by (dx, dz) as far as the ground lets them; how far they went. */
+  private shove(r: Resident, dx: number, dz: number): number {
     _from.set(r.pos.x, r.pos.y, r.pos.z);
     _to.set(r.pos.x + dx, r.pos.y, r.pos.z + dz);
     clampToWalkable(_to, _from);
+    const moved = Math.hypot(_to.x - r.pos.x, _to.z - r.pos.z);
     r.pos.x = _to.x;
     r.pos.z = _to.z;
+    return moved;
+  }
+
+  /** Those standing still in `r`'s way about them (or staying put, see firm), you among them, for seeking a
+   * way round them (see Resident.walk). */
+  inTheWayOf(r: Resident): Avoid[] {
+    const out: Avoid[] = [];
+    for (const o of this.residents) {
+      if (o === r || o.far || !o.ch.shown || flat(o.pos, r.pos) > AROUND) continue;
+      if (o.want.lengthSq() < 0.01 || this.firm(o)) out.push({ x: o.pos.x, z: o.pos.z, r: (o.ch.width + r.ch.width) * APART });
+    }
+    const you = this.playerAt;
+    if (you && flat(you, r.pos) < AROUND) out.push({ x: you.x, z: you.z, r: 2 * r.ch.width * APART });
+    return out;
+  }
+
+  /**
+   * Where `r`, about to stand a while, steps to first if where they stand is in the way (see inTheWay): the
+   * nearest spot round them that is not, which they can walk to straight and no one stands on; null if they
+   * are out of the way already, or nowhere near is.
+   */
+  outOfTheWay(r: Resident): THREE.Vector3 | null {
+    const p = r.pos;
+    const feet = r.ch.feetY;
+    if (!this.inTheWay(p.x, p.z, feet)) return null;
+    const turn = this.random() * Math.PI * 2;
+    _from.set(p.x, feet, p.z);
+    for (const out of OUT_OF_THE_WAY) {
+      for (let k = 0; k < 12; k++) {
+        const a = turn + (k / 12) * Math.PI * 2;
+        const x = p.x + Math.cos(a) * out;
+        const z = p.z + Math.sin(a) * out;
+        const y = standAt(x, z, feet, 0.1);
+        if (Number.isNaN(y) || Math.abs(y - feet) > 0.3 || this.inTheWay(x, z, y)) continue;
+        _to.set(x, y, z);
+        if (this.residents.some((o) => o !== r && flat(o.pos, _to) < 0.9) || !this.nav.straight(_from, _to)) continue;
+        return _to.clone();
+      }
+    }
+    return null;
+  }
+
+  /** Whether standing at (x, z), feet at `feet`, is in the way: by a doorway or a stall's open side (see
+   * Nav.addPortal), or walled in close on both sides along any way through (NARROW). */
+  private inTheWay(x: number, z: number, feet: number): boolean {
+    if (this.nav.nearDoor(_a.set(x, feet, z), DOOR_CLEAR)) return true;
+    for (const [dx, dz] of ACROSS) {
+      if (Number.isNaN(standAt(x + dx * NARROW, z + dz * NARROW, feet)) && Number.isNaN(standAt(x - dx * NARROW, z - dz * NARROW, feet))) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /** Keeps `ch` out of whoever stands at `at`: just short of touching, as far as the ground lets them. */

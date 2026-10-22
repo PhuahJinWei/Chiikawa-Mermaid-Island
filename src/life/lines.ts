@@ -37,6 +37,9 @@ export const FIELD_LINES = keys('fields', 1);
 export const FOND_LINES = keys('fond', 3);
 export const GREET_LINES = Array.from({ length: 3 }, (_, i) => `greet.${i + 1}` as StringKey);
 
+/** Anyone's whom you stand in the way of, asking you to let them by (see Life.heldUp). */
+export const PASS_LINES = Array.from({ length: 3 }, (_, i) => `pass.${i + 1}` as StringKey);
+
 /** The islanders' at the welcome on your first day (see Life.welcomeWord); the cast have their own,
  * welcome.<id>. */
 export const WELCOME_LINES = Array.from({ length: 4 }, (_, i) => `welcome.${i + 1}` as StringKey);

@@ -462,6 +462,13 @@ red, sinking from sight as you come near. Twenty-one islanders: one shares
 your house, the rest two to a house (four huts were built for them, the
 fields made smaller). Friendship is not built yet.
 
+**Built so far (2026-10-23):** no one held up by anyone for long. Someone
+standing about steps aside for a walker who keeps walking into them; of two
+face to face, one gives way; held up still, a walker squeezes past. Stuck,
+they seek a way round whoever stands in it; no one stands about in a
+doorway or a narrow way. They never move you: they ask you to let them by
+and go round you (or wait at a door you stand in).
+
 ### 6.5 Dialogue
 
 - Text box at the bottom, typewriter effect, tap to advance, tap-hold to
