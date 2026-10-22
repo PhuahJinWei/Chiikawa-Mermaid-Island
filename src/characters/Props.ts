@@ -36,21 +36,6 @@ export function lyingMaterials(): { body: THREE.MeshToonMaterial; ink: THREE.Sha
   return { body: heldBody(light, false, true), ink: heldInk(light, true) };
 }
 
-/** A sketch's paper: the HUD's cream. */
-const PAPER = '#FFF6E6';
-
-/** A sketch of a thing (see createHeld): its shape in flat paper, with the pen's line, lit as a held thing is
- * (userData.light): what shows where you would put something down (see core/Focus.ts). */
-export function createSketch(geometry: THREE.BufferGeometry): THREE.Group {
-  const light: HeldLight = { uShade: { value: new THREE.Color(1, 1, 1) }, uOpenAir: { value: 1 } };
-  const body = new THREE.Mesh(geometry, heldBody(light, false, false, true));
-  const hull = new THREE.Mesh(outlineGeometry(geometry), heldInk(light, false));
-  const group = new THREE.Group();
-  group.add(body, hull);
-  group.userData.light = light;
-  return group;
-}
-
 /** GLSL: the trees' shade on a held thing (HELD_SHADE): its holder's (uShade); for things lying about drawn at
  * once (LYING), each copy's own (vShade, its instance colour). */
 const SHADE_PARS = /* glsl */ `
@@ -62,10 +47,9 @@ flat varying vec3 vShade;
 #define HELD_SHADE uShade
 #endif`;
 
-/** A held thing's body (see createHeld); `lying`, things lying about's (see lyingMaterials); `paper`, a
- * sketch's, in flat paper instead of the thing's own colours (see createSketch). */
-function heldBody(light: HeldLight, mark: boolean, lying: boolean, paper = false): THREE.MeshToonMaterial {
-  const material = new THREE.MeshToonMaterial({ vertexColors: !paper, gradientMap: toonRamp(), ...(paper ? { color: PAPER } : {}) });
+/** A held thing's body (see createHeld); `lying`, things lying about's (see lyingMaterials). */
+function heldBody(light: HeldLight, mark: boolean, lying: boolean): THREE.MeshToonMaterial {
+  const material = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: toonRamp() });
   if (FILM && mark) material.defines = { FILM_MASK: '' };
   if (lying) material.defines = { ...material.defines, LYING: '' };
   material.onBeforeCompile = (shader) => {

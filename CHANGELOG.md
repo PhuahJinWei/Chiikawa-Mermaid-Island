@@ -73,11 +73,18 @@ stage, and along every path. Not yet checked on a real phone.
   a small cream ▽ with the pen's line, drawn as the marks over heads are,
   floats over the thing, person or seat you look at, bobbing, and glides to
   the next one you look at rather than popping; holding something, where
-  it would be put down lies a sketch of it, flat paper with the pen's line,
-  as it would lie, the ▽ over that. (An orange halo round the thing's own
+  it would be put down shows a ghost of it, as it would lie, the ▽ over
+  that: see-through, pale, its rim glowing softly, breathing a little,
+  drawn as one sheet (its own far side never showing through), and dimmed
+  by the night as everything is. It is marked as the cast are, so the film
+  look's paint and depth of field leave it as drawn: as scenery they had
+  smeared it into blotches, and a faint pen line round it showed through
+  its own creases as dark streaks (the user: "looks like it is glitching"). (An orange halo round the thing's own
   line was tried first and dropped the same day: the user, "overkill", a
   thing "suddenly wrapped by an orange thick outline". A mark apart from
-  the thing, the same for everything, was the right shape.)
+  the thing, the same for everything, was the right shape. The preview was
+  first a flat paper copy with the pen's full line, which the user found
+  looked "like a real thing placed".)
 - What you look at is steadier: it is whatever is nearest the middle of
   your view (within 15°, not 22° as before), the nearer of two as near;
   people no longer have a head start over things; and what you looked at
@@ -150,6 +157,11 @@ stage, and along every path. Not yet checked on a real phone.
   or wait at a door you stand in. In three minutes each of the morning, lunch
   and the feast, the walkers held up for more than five seconds went from 18,
   19 and 12 to none, the longest from 45 seconds to 4.
+- Talking with someone, they stay with you: walking into them while they
+  talk, thank or answer you only stops you (they had been pushed, startled
+  and a little less fond of you in the middle of a line), and after their
+  line they stay turned to you a moment before going back to what they were
+  doing, and its face.
 - The きもち button (the user, 2026-10-22), up by the test toggle, or R:
   wave, bow, cheer, hop, dance, chat, look about, start or cry yourself
   (1 to 9 on the keyboard while it is open). Whoever is near may answer it.

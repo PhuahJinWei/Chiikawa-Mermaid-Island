@@ -1,9 +1,9 @@
 import * as THREE from 'three';
 import type { Character } from '../characters/Character';
-import { createSketch, type HeldLight } from '../characters/Props';
+import { sharedUniforms } from '../characters/CharacterMaterial';
 import { ITEMS, restingTurn, type ItemId, type ItemModels } from '../life/Items';
 import { PEN_METRES } from '../world/Ink';
-import { CANOPY_SHADE } from '../world/Look';
+import { CANOPY_SHADE, FILM } from '../world/Look';
 import type { Target } from './Play';
 
 /**
@@ -11,13 +11,15 @@ import type { Target } from './Play';
  * put a thing, were anyone's guess): a small cream ▽ with the pen's line, made as the marks over heads are
  * (see Emotes), floats over the thing, the person or the seat you look at, bobbing a little, and glides over
  * to the next thing you look at rather than popping up on it; holding something, where it would be put down
- * lies a sketch of it, flat paper with the pen's line, as it would lie there (on its foot, on its side, or
- * flat), the ▽ over that. One mark, the same for everything, apart from what it marks: a bolder line round
+ * shows a ghost of it, as it would lie there (on its foot, on its side, or flat), the ▽ over that: see-through,
+ * pale, its rim glowing, breathing a little, so it never reads as the thing put down (the user, 2026-10-23: a
+ * flat paper copy with the pen's full line "look like a real thing placed"). One mark, the same for
+ * everything, apart from what it marks: a bolder line round
  * the thing itself was tried first, and the user found it "overkill", a thing "suddenly wrapped by an orange
  * thick outline". Nothing here changes what the button does: Play chooses, this only shows its choice.
  */
 
-/** The ▽: how tall (metres); how far it floats over the top of a head, over a thing (or its sketch) and over
+/** The ▽: how tall (metres); how far it floats over the top of a head, over a thing (or its ghost) and over
  * a seat; how it bobs (metres, over so many seconds); how quickly it glides to the next thing looked at (a
  * second); and how long it takes to come up, or to go (seconds). */
 const SIZE = 0.11;
@@ -31,8 +33,90 @@ const SHOW = 0.12;
 /** Its paper and its ink: the HUD's cream, the marks' ink (see Emotes). */
 const CREAM = '#FFF7E8';
 const INK = '#5A3A2E';
-/** A sketch lies as far over the ground as a thing put down does (see Things.put). */
-const PAPER_OVER = 0.004;
+/** A ghost lies as far over the ground as a thing put down does (see Things.put). */
+const GHOST_OVER = 0.004;
+/** A ghost: its pale colour, how much of it is seen (from, to, as it breathes, over so many seconds), and how
+ * much brighter its rim glows, where its surface turns away from you (its edge, in place of the pen's line,
+ * which, drawn faint, showed through its own creases as dark streaks). */
+const GHOST = '#F4FAFF';
+const GHOST_SEEN: [number, number] = [0.28, 0.42];
+const GHOST_BREATH = 1.6;
+const GHOST_RIM = 0.55;
+
+/** A ghost's look, shared by every kind's: its colour, how much of it is seen, and its light. */
+const ghostLook = {
+  uGhost: { value: new THREE.Color(GHOST) },
+  uSeen: { value: GHOST_SEEN[0] },
+  uRim: { value: GHOST_RIM },
+  uShade: { value: new THREE.Color(1, 1, 1) },
+};
+
+/** The ghost's materials, made once: its depth alone first (so it is one sheet, its own far side never
+ * showing through its near side), then its pale body, a glow at its rim.
+ *
+ * It is laid over the picture as much as it is seen (the blend's constant, `blendAlpha`, set each frame), its
+ * colour premultiplied, and in the film look it marks itself as the cast do (alpha a half: see
+ * CharacterMaterial), so the finishing passes leave it as drawn: as scenery, the paint and the depth of field
+ * smeared it into blotches (the user, 2026-10-23: "looks like it is glitching"). */
+let ghostMaterials: { depth: THREE.Material; body: THREE.ShaderMaterial } | null = null;
+function ghostMaterialsOf(): NonNullable<typeof ghostMaterials> {
+  if (ghostMaterials) return ghostMaterials;
+  const depth = new THREE.MeshBasicMaterial({ colorWrite: false });
+  const body = new THREE.ShaderMaterial({
+    uniforms: { ...ghostLook, uAmbient: sharedUniforms.uAmbient },
+    defines: FILM ? { FILM_MASK: '' } : {},
+    vertexShader: /* glsl */ `
+      varying vec3 vNormal;
+      varying vec3 vView;
+      void main() {
+        vec4 mv = modelViewMatrix * vec4(position, 1.0);
+        vNormal = normalize(normalMatrix * normal);
+        vView = -mv.xyz;
+        gl_Position = projectionMatrix * mv;
+      }`,
+    fragmentShader: /* glsl */ `
+      uniform vec3 uGhost;
+      uniform vec3 uAmbient;
+      uniform vec3 uShade;
+      uniform float uSeen;
+      uniform float uRim;
+      varying vec3 vNormal;
+      varying vec3 vView;
+      void main() {
+        float facing = abs(dot(normalize(vNormal), normalize(vView)));
+        float rim = pow(1.0 - facing, 2.0) * uRim;
+        // Premultiplied by how much of it is seen; the rim glows over that.
+        vec3 colour = uGhost * uAmbient * uShade * min(1.0, uSeen * (1.0 + rim * 2.5));
+        gl_FragColor = vec4(colour, 1.0);
+        #include <colorspace_fragment>
+        #ifdef FILM_MASK
+        gl_FragColor.a = 0.5;
+        #endif
+      }`,
+  });
+  body.transparent = true;
+  body.depthWrite = false;
+  // (Drawn where the depth alone was, not behind it.)
+  body.depthFunc = THREE.LessEqualDepth;
+  body.blending = THREE.CustomBlending;
+  body.blendSrc = THREE.OneFactor;
+  body.blendDst = THREE.OneMinusConstantAlphaFactor;
+  body.blendSrcAlpha = THREE.OneFactor;
+  body.blendDstAlpha = THREE.ZeroFactor;
+  body.blendAlpha = GHOST_SEEN[0];
+  ghostMaterials = { depth, body };
+  return ghostMaterials;
+}
+
+/** A ghost of a thing's shape (see ghostMaterialsOf). */
+function createGhost(geometry: THREE.BufferGeometry): THREE.Group {
+  const { depth, body } = ghostMaterialsOf();
+  const group = new THREE.Group();
+  const meshes = [new THREE.Mesh(geometry, depth), new THREE.Mesh(geometry, body)];
+  meshes.forEach((m, i) => (m.renderOrder = 30 + i));
+  group.add(...meshes);
+  return group;
+}
 
 const _turn = new THREE.Quaternion();
 const _up = new THREE.Vector3(0, 1, 0);
@@ -73,8 +157,8 @@ function pointerTexture(): THREE.CanvasTexture {
 export class Focus {
   readonly group = new THREE.Group();
   private readonly pointer: THREE.Sprite;
-  /** A sketch for each kind of thing held so far. */
-  private readonly sketches = new Map<ItemId, THREE.Group>();
+  /** A ghost for each kind of thing held so far. */
+  private readonly ghosts = new Map<ItemId, THREE.Group>();
   /** How far over its origin a thing of each kind reaches, lying as it rests. */
   private readonly tops = new Map<ItemId, number>();
   /** Where the ▽'s tip floats now (it glides from there to the next thing looked at), how far it is up (0
@@ -82,8 +166,8 @@ export class Focus {
   private readonly at = new THREE.Vector3();
   private shown = 0;
   private t = 0;
-  /** The sketch shown last frame, to be put away. */
-  private sketch: THREE.Group | null = null;
+  /** The ghost shown last frame, to be put away. */
+  private ghost: THREE.Group | null = null;
 
   constructor(
     private readonly models: ItemModels,
@@ -102,15 +186,19 @@ export class Focus {
   }
 
   /**
-   * One frame: the ▽ over what you look at (`target`, see Play.aim), and holding `held`, the sketch where it
+   * One frame: the ▽ over what you look at (`target`, see Play.aim), and holding `held`, its ghost where it
    * would be put down; `me` for the way you face, which a thing put down takes.
    */
   update(dt: number, target: Target | null, held: { item: ItemId; nibbled: boolean } | null, me: Character): void {
     this.t += dt;
-    if (this.sketch) {
-      this.sketch.visible = false;
-      this.sketch = null;
+    if (this.ghost) {
+      this.ghost.visible = false;
+      this.ghost = null;
     }
+    // The ghost breathes a little.
+    const breath = 0.5 + 0.5 * Math.sin((this.t * Math.PI * 2) / GHOST_BREATH);
+    ghostLook.uSeen.value = GHOST_SEEN[0] + (GHOST_SEEN[1] - GHOST_SEEN[0]) * breath;
+    if (ghostMaterials) ghostMaterials.body.blendAlpha = ghostLook.uSeen.value;
     const goal = target ? this.goalOf(target, held, me, _goal) : null;
     // Up over what you look at, where it is if it was gone, else gliding over from where it was; shrinking
     // away where it is when nothing is looked at.
@@ -128,7 +216,7 @@ export class Focus {
     pointer.position.y += BOB * Math.sin((this.t * Math.PI * 2) / BOB_EVERY);
   }
 
-  /** Where the ▽'s tip floats for `target` (into `out`), the sketch shown if there is one; null for nothing to
+  /** Where the ▽'s tip floats for `target` (into `out`), the ghost shown if there is one; null for nothing to
    * mark. */
   private goalOf(target: Target, held: { item: ItemId; nibbled: boolean } | null, me: Character, out: THREE.Vector3): THREE.Vector3 | null {
     switch (target.kind) {
@@ -148,15 +236,14 @@ export class Focus {
         if (!held || held.nibbled) return null;
         const item = held.item;
         const rest = ITEMS[item].rest;
-        const sketch = this.sketchOf(item);
+        const ghost = this.ghostOf(item);
         const at = target.at;
-        sketch.position.set(at.x, at.y + this.models.footOf(item, rest) + PAPER_OVER, at.z);
-        sketch.quaternion.setFromAxisAngle(_up, me.facing).multiply(restingTurn(rest, _turn));
-        const light = sketch.userData.light as HeldLight;
-        light.uShade.value.setRGB(1, 1, 1).lerp(CANOPY_SHADE, this.shadeAt?.(at.x, sketch.position.y, at.z) ?? 0);
-        sketch.visible = true;
-        this.sketch = sketch;
-        return out.set(at.x, sketch.position.y + this.topOf(item) + OVER_THING, at.z);
+        ghost.position.set(at.x, at.y + this.models.footOf(item, rest) + GHOST_OVER, at.z);
+        ghost.quaternion.setFromAxisAngle(_up, me.facing).multiply(restingTurn(rest, _turn));
+        ghostLook.uShade.value.setRGB(1, 1, 1).lerp(CANOPY_SHADE, this.shadeAt?.(at.x, ghost.position.y, at.z) ?? 0);
+        ghost.visible = true;
+        this.ghost = ghost;
+        return out.set(at.x, ghost.position.y + this.topOf(item) + OVER_THING, at.z);
       }
       case 'stall':
         return null;
@@ -176,15 +263,15 @@ export class Focus {
     return top;
   }
 
-  /** The sketch of a thing of `item`'s kind (one, kept). */
-  private sketchOf(item: ItemId): THREE.Group {
-    let sketch = this.sketches.get(item);
-    if (!sketch) {
-      sketch = createSketch(this.models.shape(item));
-      sketch.name = `sketch:${item}`;
-      this.group.add(sketch);
-      this.sketches.set(item, sketch);
+  /** The ghost of a thing of `item`'s kind (one, kept). */
+  private ghostOf(item: ItemId): THREE.Group {
+    let ghost = this.ghosts.get(item);
+    if (!ghost) {
+      ghost = createGhost(this.models.shape(item));
+      ghost.name = `ghost:${item}`;
+      this.group.add(ghost);
+      this.ghosts.set(item, ghost);
     }
-    return sketch;
+    return ghost;
   }
 }

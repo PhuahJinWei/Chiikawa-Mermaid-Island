@@ -575,8 +575,8 @@ no pouch, down nowhere and to no one: put away it is gone, eaten up (たべき�
 A stall hands nothing to someone with no room for it; its keeper says so
 and they step out of the line. The onigiri is gone from the game. What you
 look at is shown (`core/Focus.ts`): a small cream ▽ floats over the thing,
-person or seat you look at, gliding to the next, and a paper sketch of
-what you hold lies where it would be put down; what you look at is what is
+person or seat you look at, gliding to the next, and a see-through ghost
+of what you hold shows where it would be put down; what you look at is what is
 nearest the middle of your view, kept until you clearly look elsewhere.
 
 **Built so far (2026-10-23, `world/Footprints.ts`):** footprints in the sand,

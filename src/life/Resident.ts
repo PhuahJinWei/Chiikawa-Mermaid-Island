@@ -52,8 +52,10 @@ const LINE_NEAR = 3.5;
 /** Eating what they hold: a bite each so many seconds, from, to (a meal from a stall), and a gift's quicker. */
 const EAT_PACE: [number, number] = [4, 7];
 const GIFT_PACE = 3;
-/** How long they stop to talk with you (seconds). */
+/** How long they stop to talk with you (seconds), and stay turned to you after, before going back to what they
+ * were doing. */
 const TALK = 3.6;
+const LINGER = 1.5;
 /** Taking something up or putting it down: how far off it they stand (metres), and how long they bend down
  * to it, to their paw meeting it and back up (seconds). */
 const REACH_OFF = 0.42;
@@ -1121,10 +1123,18 @@ export class Resident {
   }
 
   /** You talk with them, standing at `you` (where you are as you go): they turn to you (if not seated or at a
-   * counter) and say `line`, talking a moment, their eyes following you if you walk off. */
+   * counter) and say `line`, talking a moment, their eyes following you if you walk off; then stay turned to
+   * you a moment more (LINGER), not straight back to what they were doing, its face with it. */
   *talk(you: THREE.Vector3, line: string): Brain {
     this.faceTo(you);
-    yield* this.withYou(this.sayTo(you, line));
+    const talking = function* (this: Resident): Brain {
+      yield* this.sayTo(you, line);
+      for (let t = 0; t < LINGER; t += yield) {
+        this.halt();
+        this.faceTo(you);
+      }
+    };
+    yield* this.withYou(talking.call(this));
   }
 
   /** You hopped at them, standing at `you`: after a moment they hop back, or wave. */

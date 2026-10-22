@@ -1454,7 +1454,8 @@ export class Life {
       const ox = (r.pos.x - me.position.x) / Math.max(d, 1e-4);
       const oz = (r.pos.z - me.position.z) / Math.max(d, 1e-4);
       const into = pushing > 0.3 ? (want.x * ox + want.z * oz) / pushing : 0;
-      if (into > 0.5 && !this.firm(r)) r.pressed += f.dt;
+      // (Not while they talk with you, thank or answer you: walking into them then only stops you.)
+      if (into > 0.5 && !this.firm(r) && !r.withPlayer) r.pressed += f.dt;
       else r.pressed = Math.max(0, r.pressed - f.dt * 2);
       if (r.pressed > PRESS) {
         // Pushed along the way you push, as fast as their weight lets.
