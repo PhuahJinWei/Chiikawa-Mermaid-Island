@@ -61,6 +61,7 @@ FACES_SRC = os.path.join(ROOT, "art", "faces")  # hand-paintable face layers, on
 OUT_OUTFITS = os.path.join(OUT_MODELS, "outfits")
 OUT_MASKS = os.path.join(OUT_MODELS, "masks")
 MASK_SIZE = 512
+CAP_SOFT = 0.03                 # how soft a drawn cap's mask edge is, in head radii either side of it
 OUT_PREVIEWS = os.path.join(ROOT, "art", "previews")
 OUT_BLEND = os.path.join(ROOT, "art", "blender", "cast.blend")
 
@@ -133,7 +134,142 @@ CHARACTERS = [
         # Momonga's head radius counts the cheek tufts, so its flowers are smaller in head radii.
         "crown": {"mode": "level", "frac": 0.72, "count": 18, "size": 0.23, "colors": ["#D4CEF4", "#E9E5FB"]},
     },
+    {
+        # Kurimanju, a visiting guest, after the official plush (`[3d model] kurimanju`): Chiikawa's model (the
+        # user, 2026-10-22: "use chiikawa's model as base, and just change the minor differences"), in peach,
+        # with a brown chestnut cap over the top of the head (its edge lowest in front and behind, rising to
+        # the sides), the tiny round ears low on the head's sides, and a pale green crown sitting on the cap.
+        "id": "kurimanju",
+        "file": "Chiikawa/Chiikawa.blend",
+        "body": "#F6D8B8",
+        "shorten": 0.09,
+        "cap": {"color": "#7A4B2E", "front": 0.23, "side": 0.67},
+        "ears": {"turn": 40.0, "scale": 0.8},
+        "crown": {"mode": "level", "frac": 0.6, "count": 18, "size": 0.28, "colors": ["#CDEBB0", "#E6F6DA"]},
+    },
+    {
+        # Rakko-sensei, a visiting guest, after the official plush (`[3d model] rakko`) and the film
+        # (`[anime] rakko 1`): Chiikawa's model, as Kurimanju's, a tenth taller (STYLE_GUIDE.md), in cream, with
+        # small dark brown ears low on the head's sides and dark brown paws and feet. His star scar is the
+        # user's own painting, a layer of his face (art/faces/rakko/scar.png, 2026-10-22).
+        # The film draws no line round his head and body, only short strokes of fur in from their edge: `fur`
+        # (the game draws them; see CharacterMaterial's FUR), in strokes round the head, their length and their
+        # gap from the edge in head radii, leaning up to `slant` (radians) off square to it.
+        # He wears his own clothes, never the island outfit (the user, 2026-10-22): his cape (`cape`, see
+        # outfits.cape_pieces), its roll's thickness and the sheet's hem radius in head radii and its front
+        # opening either side in degrees. The island outfit is his only from the Test panel (the user).
+        "id": "rakko",
+        "file": "Chiikawa/Chiikawa.blend",
+        "body": "#F1E3C4",
+        "scale": 1.1,
+        "shorten": 0.1,
+        "parts_color": {"Ear": "#3E2A23", "Arm": "#3E2A23", "Leg": "#3E2A23"},
+        # Tiny ears, as the official drawing and plush have them (the user, 2026-10-22: "much smaller").
+        "ears": {"turn": 48.0, "scale": 0.45},
+        "fur": {"count": 24, "length": 0.075, "gap": 0.02, "slant": 0.3},
+        # A flat band round his neck, not a thick roll hiding his lower body (the user, 2026-10-22): `roll` its half
+        # height and `roll_out` how far it stands out, in head radii.
+        "cape": {"roll": 0.055, "roll_out": 0.09, "hem": 0.9, "opening": 95.0},
+        "crown": {"mode": "level", "frac": 0.66, "count": 18, "size": 0.28, "colors": ["#FFFFFF", "#F2EFEA"]},
+    },
+    {
+        # Furuhonya (古本屋), the crab, a visiting guest seen at the night beach (PLAN.md), after the official plush
+        # (`[3d model] furuhonya`, front and back) and the user's close picture of her face (2026-10-22): Chiikawa's
+        # model (the user: "also using Chiikawa's model as base"), in a pale pink, with no round ears and no tail.
+        # - A soft coral-pink cap over the top of her head, as the user's picture has it: its edge half a head
+        #   radius over the eyes in front, a little lower at the sides, under the crown, with no line along it.
+        # - Two coral-pink claws standing up from her head's upper sides where the ears were (`claws`): plush, in
+        #   the shape the user drew them (CLAW_OUTLINE: round as a lily pad, a notch for the pincer's gap at the top
+        #   on the outer side, a wide foot), as big beside her head as the picture has them: so many head radii
+        #   across and thick, their middles this far out from the head's middle and up from the eyes and `back`
+        #   behind its middle, so that the head's outline runs in front of their feet as the user's drawing has it,
+        #   their lower part sunk in the head, leaning out this many degrees.
+        # - Two tiny dark antennae on its top (`antennae`): little lobes this far either side of the middle,
+        #   their half sizes, leaning out (radians), sunk this far in (head radii).
+        # - A white and pale blue crown sitting on the cap's edge.
+        "id": "furuhonya",
+        "file": "Chiikawa/Chiikawa.blend",
+        "body": "#FBE5E1",
+        "shorten": 0.09,
+        "drop": ("Ear", "Tail"),
+        "cap": {"color": "#F2B0B3", "front": 0.5, "side": 0.44, "line": False},
+        "claws": {"color": "#F2B0B3", "width": 0.62, "thick": 0.32, "x": 0.66, "z": 0.8, "back": 0.12, "tilt": 10.0},
+        # Thin as a pen's strokes (the user, 2026-10-22: "much thinner").
+        "antennae": {"color": "#4A3026", "x": 0.07, "size": (0.011, 0.011, 0.055), "lean": 0.35, "sink": 0.015},
+        "crown": {"mode": "cap", "count": 18, "size": 0.28, "colors": ["#FFFFFF", "#DDEFF5"]},
+    },
+    {
+        # Shisa, a visiting guest, cheerful (PLAN.md), after the official plush (`[3d model] shisa`, front and back)
+        # and the official drawing the user gave: Hachiware's model, the set's cat, in cream, a peach crown high on
+        # the head.
+        # - A mane of petals on each side of the head, as the official drawing has it (2026-10-22: "It should look
+        #   like soft flower petals"), three a side from under the ears down past the cheeks, each in the shape the
+        #   user drew ("the mane should shape like this", PETAL_OUTLINE) (`mane`): its straight edge along the
+        #   head's outline (seen from the front, the body's below the head) from its top down to its foot, [top,
+        #   foot] head radii up from the eyes, `out` head radii outside it, under the head's ink line, with a root
+        #   `sink` head radii into the head that holds it on out of sight; its dome, hooked tip and full curve
+        #   outside, as the user's close-up of the drawing has them, one below another down the head's side.
+        #   `thick` head radii, flat as felt, smoothed only `smooth` times to keep the tip
+        #   pointed, set `back` behind the head's middle, the lower ones `layer` head radii further back, behind
+        #   the upper ones as the drawing tucks them: further than a petal is thick, less its line's pull toward
+        #   the camera, so that each one's whole line shows over the one below, as drawn. In the drawing's soft salmon orange. The thick brows are the
+        #   face's to paint.
+        # - Ears the same petal, longer (the user: "her ears are petal shaped too (but longer)"), standing on the
+        #   head's top corners where the drawing's are, higher than Hachiware's (`petal_ears`, the model's own
+        #   dropped): each along the outline between the heights `base` [outer, inner], its tip at `tip`, the
+        #   drawing's, `thick` head radii, cream.
+        # - The drawing's little curl of a tail in the same colour: Hachiware's tail.
+        "id": "shisa",
+        "file": "Hachiware/Hachiware.blend",
+        "body": "#F7EDCB",
+        "shorten": 0.09,
+        "drop": ("Ear",),
+        "parts_color": {"Tail": "#F4AD82"},
+        "petal_ears": {"base": (0.6, 0.75), "tip": (0.67, 0.93), "thick": 0.12, "sink": 0.12},
+        "mane": {"color": "#F4AD82", "thick": 0.05, "back": 0.06, "smooth": 3, "layer": 0.045, "sink": 0.12,
+                 "out": 0.045, "petals": [(0.56, 0.22), (0.19, -0.2), (-0.17, -0.52)]},
+        "crown": {"mode": "level", "frac": 0.6, "count": 18, "size": 0.28, "colors": ["#F6B99A", "#FBD3BF"]},
+    },
 ]
+
+# Furuhonya's claw as the user drew it (2026-10-22): its outline traced off the drawing round its middle, as
+# wide as 1, from its foot (0) up; the claw on her right (the model's -x side), its notch, the pincer's gap, at
+# its top on the outer side (-x), between a small outer lobe and the big round rest. The notch is cut a little
+# deeper than the trace finds it, as the drawing's line draws it. Mirrored for the claw on her left.
+CLAW_OUTLINE = [
+    (-0.499, 0.498), (-0.497, 0.447), (-0.489, 0.396), (-0.475, 0.346), (-0.457, 0.298), (-0.437, 0.249),
+    (-0.409, 0.204), (-0.378, 0.161), (-0.336, 0.128), (-0.294, 0.096), (-0.251, 0.064), (-0.206, 0.036),
+    (-0.156, 0.013), (-0.103, 0.000), (-0.048, 0.014), (0.004, 0.050), (0.049, 0.074), (0.091, 0.098),
+    (0.131, 0.119), (0.169, 0.139), (0.206, 0.161), (0.242, 0.185), (0.286, 0.201), (0.330, 0.222),
+    (0.379, 0.245), (0.431, 0.273), (0.466, 0.315), (0.487, 0.365), (0.497, 0.418), (0.500, 0.471),
+    (0.489, 0.524), (0.485, 0.576), (0.472, 0.627), (0.455, 0.675), (0.440, 0.725), (0.419, 0.773),
+    (0.389, 0.816), (0.355, 0.856), (0.317, 0.892), (0.275, 0.923), (0.232, 0.954), (0.186, 0.982),
+    (0.138, 1.006), (0.087, 1.025), (0.032, 1.025), (-0.021, 1.004), (-0.055, 0.880), (-0.085, 0.820),
+    (-0.105, 0.800), (-0.130, 0.820), (-0.180, 0.860), (-0.240, 0.900), (-0.300, 0.920), (-0.356, 0.878),
+    (-0.387, 0.834), (-0.410, 0.787), (-0.432, 0.741), (-0.456, 0.697), (-0.475, 0.650), (-0.489, 0.600),
+    (-0.500, 0.550),
+]
+
+# One petal of Shisa's mane as the user drew it (2026-10-22), the centre line of their stroke traced, as it stands
+# on the left of the head as you face Shisa (Shisa's right, the model's -x side), the head to its right: its
+# straight edge from its foot (0, 0) up to PETAL_TOP lies along the head's outline (the user's line runs on past
+# the foot as the head's outline does); from there a gently domed top runs out to its tip, the little hooked step
+# at its outer top corner (-x), and a full curve comes back from the tip down to the foot, as the official
+# drawing's petals have it. Mirrored for the other side.
+PETAL_OUTLINE = [
+    (0.000, 0.000), (-0.100, 0.110), (-0.180, 0.235), (-0.235, 0.370), (-0.268, 0.510), (-0.281, 0.650),
+    (-0.278, 0.780), (-0.270, 0.899), (-0.190, 0.905), (-0.113, 0.918), (-0.045, 0.952), (0.040, 1.008),
+    (0.128, 1.042), (0.230, 1.055), (0.340, 1.056), (0.447, 1.047), (0.540, 1.022), (0.630, 0.985),
+    (0.719, 0.942), (0.530, 0.745), (0.339, 0.548), (0.200, 0.360), (0.090, 0.180),
+]
+PETAL_TOP = (0.719, 0.942)  # where its straight edge meets its top, against the head
+PETAL_TIP = (-0.270, 0.899)  # its hooked tip
+# The little curl the official drawing draws in each, traced off the user's close-ups (2026-10-22) and brought into
+# the petal's own frame through each one's foot, top and tip: in a mane petal, a short stroke out from the head's
+# line a third of the way across, rising a little; in an ear, an arch over its middle, as an inner ear's crease.
+PETAL_CURL = [(0.42, 0.51), (0.33, 0.53), (0.21, 0.568), (0.07, 0.59)]
+EAR_CURL = [(0.02, 0.57), (0.12, 0.61), (0.22, 0.62), (0.31, 0.57), (0.37, 0.47)]
+PEN = 0.02 * 0.9  # the world's pen in metres (src/world/Ink.ts PEN_METRES), the width a line inside a piece is drawn
 
 # The film's islanders are shaped like Chiikawa: a round head on a short body, stubby arms, a
 # fringed grass skirt in their own grey and leaves growing from the top of the head (Hitoha
@@ -274,6 +410,83 @@ def limb_lift(lo, hi, rf):
     return max(0.2, min(1.0, 0.55 * half / pull))
 
 
+def outline_x(bms, z):
+    """How far out from the middle the meshes reach at height z, seen from the front: their widest there."""
+    out = 0.0
+    for bm in bms:
+        for e in bm.edges:
+            a, b = e.verts[0].co, e.verts[1].co
+            if a.z != b.z and (a.z - z) * (b.z - z) <= 0.0:
+                out = max(out, abs(a.x + (b.x - a.x) * (z - a.z) / (b.z - a.z)))
+    return out
+
+
+def pen_stroke_bm(points, y, width=PEN):
+    """A line drawn with the pen through `points` [(x, z)] on a face in the XZ plane at `y`, facing the front (-y):
+    bent smoothly through them (Chaikin) as a hand's line, `width` wide with round ends. One-sided, as only its
+    front is ever seen, pressed to the face it is drawn on."""
+    pts = [Vector(p) for p in points]
+    for _ in range(2):
+        bent = [pts[0]]
+        for a, b in zip(pts, pts[1:]):
+            bent += [a.lerp(b, 0.25), a.lerp(b, 0.75)]
+        pts = bent + [pts[-1]]
+    r = width / 2.0
+    ways = [(pts[min(i + 1, len(pts) - 1)] - pts[max(i - 1, 0)]).normalized() for i in range(len(pts))]
+    sides = [Vector((-d.y, d.x)) for d in ways]
+    ends = 6
+    # Up its left, round its far end, back down its right and round its near end.
+    outline = [p + n * r for p, n in zip(pts, sides)]
+    outline += [pts[-1] + (sides[-1] * math.cos(a) + ways[-1] * math.sin(a)) * r
+                for a in (math.pi * k / ends for k in range(1, ends))]
+    outline += [p - n * r for p, n in reversed(list(zip(pts, sides)))]
+    outline += [pts[0] - (sides[0] * math.cos(a) + ways[0] * math.sin(a)) * r
+                for a in (math.pi * k / ends for k in range(1, ends))]
+    bm = bmesh.new()
+    face = bm.faces.new([bm.verts.new((p.x, y, p.y)) for p in outline])
+    face.normal_update()
+    if face.normal.y > 0.0:
+        face.normal_flip()
+    bmesh.ops.triangulate(bm, faces=bm.faces[:])
+    return bm
+
+
+def petal_piece(foot, top, side, y, thick, sink, smooth, tip=None, curl=None):
+    """PETAL_OUTLINE as a plush piece standing on a head `y` deep: its straight edge from `foot` to `top` (x + iz as
+    complex numbers), as drawn on the -x side (side -1) and mirrored on the +x side. With `tip`, the drawing's tip
+    drawn out to it and the rest following (an ear, longer than a petal), else only turned and sized. Its straight
+    edge moved `sink` into the head, a root out of sight that holds it on; `thick` thick, flat as felt (a face that
+    bends folds its ink over itself, which shows as hairlines), smoothed only `smooth` times to keep the tip
+    pointed. With `curl` (points in the drawing), that line drawn on its face with the pen, laid as the piece is:
+    returned as a piece of its own, (piece, line)."""
+    edge = PETAL_OUTLINE.index(PETAL_TOP)
+    p1, p2 = complex(-side * PETAL_TOP[0], PETAL_TOP[1]), complex(-side * PETAL_TIP[0], PETAL_TIP[1])
+    det = p1.real * p2.imag - p1.imag * p2.real
+
+    def lay(x, z):
+        q = complex(-side * x, z)
+        if tip is None:
+            return foot + (top - foot) * q / p1
+        # A point q = s p1 + t p2 of the drawing goes to foot + s (top - foot) + t (tip - foot).
+        return foot + ((q.real * p2.imag - q.imag * p2.real) * (top - foot)
+                       + (p1.real * q.imag - p1.imag * q.real) * (tip - foot)) / det
+
+    points = [lay(x, z) for x, z in PETAL_OUTLINE[: edge + 1]]
+    along = (top - foot) / abs(top - foot)
+    inward = along * complex(0.0, side) * sink
+    points += [top + inward, foot + inward]
+    slab = L.outline_slab_bm([(p.real, p.imag) for p in points], thick)
+    piece = L.fuse([slab], voxel=0.0025, smooth_iterations=smooth, smooth_lambda=0.5, target_tris=700)
+    slab.free()
+    for v in piece.verts:
+        v.co.y += y
+    if curl is None:
+        return piece
+    # On its front face, 3 mm off it (check_flicker.py), the pen's line where its hull draws none.
+    line = pen_stroke_bm([(p.real, p.imag) for p in (lay(x, z) for x, z in curl)], y - thick / 2.0 - 0.003)
+    return piece, line
+
+
 # ---------------------------------------------------------------------------- textures and masks
 _TEXTURES = {}
 
@@ -362,11 +575,96 @@ def write_mask(m, path):
     return path
 
 
-def surface_map(bm, size, dilate=4):
-    """For each texel of a size x size image in the mesh's UV space (bottom row first), the
-    mesh's 3D point there, NaN where no face covers it. Texels just outside the faces take
-    their neighbours' points, so a texture sampled across a UV seam stays consistent."""
-    uv_layer = bm.loops.layers.uv.active
+def drawn_mask(p, eye_z, rf, cfg):
+    """How far inside a character's drawn mask points of its head are, in metres ((n, 3) array; negative
+    outside it): its `cap` (see over_cap_edge) or its `mark` (see in_mark)."""
+    return over_cap_edge(p, eye_z, rf, cfg["cap"]) if cfg.get("cap") else in_mark(p, eye_z, rf, cfg["mark"])
+
+
+def in_mark(p, eye_z, rf, mark):
+    """How far inside a four-pointed star on the face (Rakko's scar) points of a head are, in metres
+    ((n, 3) array; negative outside it): seen from the front, its middle `at` (head radii across and
+    over the eye line), its points `size` from it and its waist `waist` of that between them, turned
+    `turn` radians; only on the head's front."""
+    u0, v0 = mark["at"]
+    a = mark.get("turn", 0.0)
+    outer, inner = mark["size"], mark["size"] * mark.get("waist", 0.36)
+    star = np.array([((outer if i % 2 == 0 else inner) * math.cos(a + i * math.pi / 4),
+                      (outer if i % 2 == 0 else inner) * math.sin(a + i * math.pi / 4)) for i in range(8)])
+    q = np.stack([p[:, 0] / rf - u0, (p[:, 2] - eye_z) / rf - v0], 1)
+    start, run = star, np.roll(star, -1, 0) - star
+    t = np.clip(((q[:, None, :] - start[None]) * run[None]).sum(2) / (run * run).sum(1)[None], 0.0, 1.0)
+    dist = np.sqrt(((q[:, None, :] - start[None] - t[..., None] * run[None]) ** 2).sum(2)).min(1)
+    inside = np.zeros(len(q), dtype=bool)
+    for (ax, ay), (bx, by) in zip(star, np.roll(star, -1, 0)):
+        crosses = (ay > q[:, 1]) != (by > q[:, 1])
+        xi = ax + (q[:, 1] - ay) * (bx - ax) / ((by - ay) if abs(by - ay) > 1e-12 else 1e-12)
+        inside ^= crosses & (q[:, 0] < xi)
+    signed = np.where(inside, dist, -dist) * rf
+    return np.where(p[:, 1] < 0.0, signed, -rf)
+
+
+def over_cap_edge(p, eye_z, rf, cap):
+    """How far over a drawn cap's edge (see the `cap` option) points of a head are, in metres ((n, 3)
+    array; negative under it): its edge `front` head radii over the eye line in front and behind and
+    `side` at the sides, rising between them as the square of the sine of the angle round the head."""
+    round_head = np.sin(np.arctan2(p[:, 0], -p[:, 1])) ** 2
+    return p[:, 2] - (eye_z + rf * (cap["front"] + (cap["side"] - cap["front"]) * round_head))
+
+
+def round_uv(bm, name="MaskUV", pad=0.02):
+    """Gives a head coordinates for a mask drawn on it evenly all round: round the head (its back at the
+    image's edges) and up it, each face unwrapped about its own angle so none spans the seam. The
+    downloaded models' own UVs crowd and stretch the head unevenly, which leaves a drawn mask's edge
+    ragged. Returns the heights the coordinates span."""
+    z0 = min(v.co.z for v in bm.verts) - pad
+    z1 = max(v.co.z for v in bm.verts) + pad
+    uv = bm.loops.layers.uv.new(name)
+    for f in bm.faces:
+        c = f.calc_center_median()
+        ac = math.atan2(c.x, -c.y)
+        for loop in f.loops:
+            co = loop.vert.co
+            a = math.atan2(co.x, -co.y) if math.hypot(co.x, co.y) > 1e-6 else ac
+            a += 2.0 * math.pi * round((ac - a) / (2.0 * math.pi))
+            loop[uv].uv = (a / (2.0 * math.pi) + 0.5, (co.z - z0) / (z1 - z0))
+    return z0, z1
+
+
+def front_view(bvhs, colour, rf, eye_z, size=512):
+    """Shapes (BVH trees of a character facing -Y, centred on the Z axis) seen from the front over the
+    face's canvas (two head radii, centred on the eye line), flat coloured, as the guide to paint a face
+    over: (FA.PAINT_SIZE square RGBA, top row first). colour(which, points) gives the colours (sRGB) where
+    the view meets the which-th of bvhs, at those points. For a head the downloaded models do not paint
+    as the game shows it (the Siren's, the little mermaids', Kurimanju's drawn cap)."""
+    which = np.full((size, size), -1, dtype=np.int32)
+    where = np.zeros((size, size, 3), dtype=np.float64)
+    for row in range(size):
+        z = eye_z + rf * (1.0 - 2.0 * (row + 0.5) / size)
+        for col in range(size):
+            x = rf * (2.0 * (col + 0.5) / size - 1.0)
+            best = None
+            for k, bvh in enumerate(bvhs):
+                hit = bvh.ray_cast(Vector((x, -10.0, z)), Vector((0.0, 1.0, 0.0)))
+                if hit[0] is not None and (best is None or hit[3] < best):
+                    best = hit[3]
+                    which[row, col] = k
+                    where[row, col] = hit[0][:]
+    img = np.zeros((size, size, 4), dtype=np.float32)
+    for k in range(len(bvhs)):
+        sel = which == k
+        if sel.any():
+            img[sel, :3] = colour(k, where[sel])
+            img[sel, 3] = 1.0
+    return FA.resample(img, FA.PAINT_SIZE)
+
+
+def surface_map(bm, size, dilate=4, uv=None):
+    """For each texel of a size x size image in the mesh's UV space (its `uv` layer, or its active
+    one; bottom row first), the mesh's 3D point there, NaN where no face covers it. Texels just
+    outside the faces take their neighbours' points, so a texture sampled across a UV seam stays
+    consistent."""
+    uv_layer = bm.loops.layers.uv[uv] if uv else bm.loops.layers.uv.active
     pos = np.full((size, size, 3), np.nan)
     for f in bm.faces:
         loops = f.loops
@@ -704,7 +1002,9 @@ def convert(cfg, source):
     hlo, hhi = bounds([src[head_obj]])
     alo, _ = bounds(src.values())
     c = Vector(((hlo.x + hhi.x) / 2, (hlo.y + hhi.y) / 2, alo.z))
-    G = Matrix.Scale(SCALE, 4) @ Matrix.Rotation(math.pi, 4, "Z") @ Matrix.Translation(-c)
+    # Metres a source unit; `scale` makes one taller than the model it is built from (Rakko).
+    metres = SCALE * cfg.get("scale", 1.0)
+    G = Matrix.Scale(metres, 4) @ Matrix.Rotation(math.pi, 4, "Z") @ Matrix.Translation(-c)
 
     # Face decal boxes in final space give the face layout.
     boxes = {}
@@ -714,7 +1014,7 @@ def convert(cfg, source):
             bm.transform(G)
             boxes.setdefault(layer, []).append(bounds([bm]))
             bm.free()
-    rf = SCALE * (hhi.x - hlo.x) / 2.0
+    rf = metres * (hhi.x - hlo.x) / 2.0
     eye_z = sum((lo.z + hi.z) / 2 for lo, hi in boxes["eyes"]) / len(boxes["eyes"])
 
     def face_boxes(layer):
@@ -740,8 +1040,8 @@ def convert(cfg, source):
         if cfg.get("skin_layer"):
             groups = {"skin": [head_obj], **groups}
         groups["_guide"] = list(body_objs)
-        center_src = Vector((c.x, c.y, eye_z / SCALE + c.z))
-        baked = bake_face(scene, groups, center_src, rf / SCALE,
+        center_src = Vector((c.x, c.y, eye_z / metres + c.z))
+        baked = bake_face(scene, groups, center_src, rf / metres,
                           skin_bg=srgb(cfg.get("mask", {}).get("background", "#FFFFFF")))
         # The face is painted by hand in art/faces/<id>/: layers, and an expressions.txt saying
         # which layers make up each expression. A folder without them starts from the model's own
@@ -842,13 +1142,153 @@ def convert(cfg, source):
             image, masks[head_obj] = raise_mask_edge(image, head_bm, masks[head_obj], lift)
             log(f"mask: edge raised {lift:.3f} m on the face")
         mask_texture = write_mask(image, os.path.join(OUT_MASKS, f"{cid}.webp"))
-    lo_all, hi_all = bounds(src.values())
+    cap = cfg.get("cap") or cfg.get("mark")
+    if cap:
+        # A cap or a mark the model it is built from does not paint (Kurimanju's chestnut cap, Rakko's star
+        # scar), drawn here as its mask (see drawn_mask), in coordinates of its own all round the head
+        # (round_uv), finer than a painted mask's for a mark's points.
+        round_uv(head_bm)
+        pos = surface_map(head_bm, 2 * MASK_SIZE, uv="MaskUV")
+        found = ~np.isnan(pos[..., 0])
+        image = np.zeros(pos.shape[:2])
+        image[found] = 0.5 + 0.5 * drawn_mask(pos[found], eye_z, rf, cfg) / (cap.get("soft", CAP_SOFT) * rf)
+        mask_texture = write_mask(np.clip(image, 0.0, 1.0), os.path.join(OUT_MASKS, f"{cid}.webp"))
+        masks[head_obj] = np.ones(len(head_bm.verts))
+
+    ear_cfg = cfg.get("ears")
+    if ear_cfg:
+        # Ears that sit elsewhere than on the model it is built from (Kurimanju's tiny ears, low on the head's
+        # sides): each turned about the head's middle, down its side, by `turn` degrees, as deep in the head as
+        # it was, and made `scale` as big about its root.
+        hlo, hhi = bounds([head_bm])
+        middle = (hlo + hhi) / 2.0
+        head_bvh = BVHTree.FromBMesh(head_bm)
+
+        def to_surface(way):
+            hit = head_bvh.ray_cast(middle, way)[0]
+            return (hit - middle).length if hit is not None else 0.0
+
+        for o, k in body_objs.items():
+            if k != "Ear":
+                continue
+            lo, hi = bounds([src[o]])
+            side = -1 if (lo.x + hi.x) / 2 < 0 else 1
+            idx = L.EAR_L if side < 0 else L.EAR_R
+            root = parts[idx]["pivot"].copy()
+            turn = Matrix.Rotation(math.radians(side * ear_cfg["turn"]), 4, "Y")
+            way0 = (root - middle).normalized()
+            way1 = turn.to_3x3() @ way0
+            sunk = (root - middle).length - to_surface(way0)
+            moved = middle + way1 * (to_surface(way1) + sunk)
+            src[o].transform(Matrix.Translation(moved) @ turn @ Matrix.Scale(ear_cfg.get("scale", 1.0), 4)
+                             @ Matrix.Translation(-root))
+            parts[idx]["pivot"] = moved
+    # Claws standing up from the head's upper sides where its ears were (Furuhonya's), on the ears' parts so they
+    # bob as ears do, and antennae on its top, on the ears' second parts: pieces of their own, on the head.
+    extra = []  # (bmesh, colour, part, whether its line is pulled toward the camera to show over what is behind)
+    claw_cfg, ant_cfg = cfg.get("claws"), cfg.get("antennae")
+    if claw_cfg or ant_cfg:
+        crest = BVHTree.FromBMesh(head_bm)
+    if claw_cfg:
+        cw, ct = claw_cfg["width"] * rf, claw_cfg["thick"] * rf
+        ch = cw * max(z for _, z in CLAW_OUTLINE)
+        for side, idx in ((-1, L.EAR_L), (1, L.EAR_R)):
+            # Its middle at the origin, the notch on the outer side.
+            outline = [(-side * x * cw, z * cw - ch / 2) for x, z in CLAW_OUTLINE]
+            flat = L.outline_slab_bm(outline if side < 0 else list(reversed(outline)), ct)
+            claw = L.fuse([flat], voxel=0.006, smooth_iterations=8, smooth_lambda=0.8, target_tris=900)
+            flat.free()
+            # Puffed like a pillow, thinner toward its edges, so that from the side it is round, not a slab.
+            for v in claw.verts:
+                d = min(1.0, math.hypot(v.co.x / (cw / 2), v.co.z / (ch / 2)))
+                v.co.y *= 0.45 + 0.55 * math.sqrt(1.0 - d * d)
+            at = Vector((side * claw_cfg["x"] * rf, claw_cfg.get("back", 0.0) * rf, eye_z + claw_cfg["z"] * rf))
+            lean = Matrix.Rotation(math.radians(side * claw_cfg["tilt"]), 4, "Y")
+            L.transformed(claw, Matrix.Translation(at) @ lean)
+            # It turns where it meets the head, under its middle.
+            foot = crest.ray_cast(at, lean.to_3x3() @ Vector((0.0, 0.0, -1.0)))[0]
+            parts[idx]["pivot"] = foot if foot is not None else at
+            parts[idx]["parent"] = L.HEAD
+            extra.append((claw, claw_cfg["color"], idx, True))
+    # Where the outline is, seen from the front (the body's below the head), for pieces laid along it.
+    seen = [head_bm] + [src[o] for o, k in body_objs.items() if k == "Body"]
+    mane_cfg = cfg.get("mane")
+    if mane_cfg:
+        # A mane either side of the head (Shisa's), on the head: petals in the shape the user drew (PETAL_OUTLINE),
+        # each laid with its straight edge along the outline between the heights [top, foot] in `petals` (see the
+        # config), `out` outside it: the drawing turned and sized to fit there. Each a piece of its own, outlined,
+        # the upper ones a little in front of the lower as the official drawing overlaps them, `layer` apart.
+        out = mane_cfg.get("out", 0.0) * rf
+        for side in (-1, 1):
+            for k, heights in enumerate(mane_cfg["petals"]):
+                top, foot = (complex(side * (outline_x(seen, eye_z + h * rf) + out), eye_z + h * rf) for h in heights)
+                y = (mane_cfg["back"] + k * mane_cfg.get("layer", 0.0)) * rf
+                petal, curl = petal_piece(foot, top, side, y, mane_cfg["thick"] * rf, mane_cfg["sink"] * rf,
+                                          mane_cfg.get("smooth", 3), curl=PETAL_CURL)
+                extra.append((petal, mane_cfg["color"], L.HEAD, True))
+                extra.append((curl, LINE, L.HEAD, False, 0.0))
+    petal_ears = cfg.get("petal_ears")
+    if petal_ears:
+        # Ears in the mane's petal shape, only longer (Shisa's), in place of the model's own: each the drawing's
+        # straight edge along the outline at the head's top corner between the heights `base` [outer, inner], its
+        # tip drawn up to `tip` (x out from the head's middle, z up from the eyes), as deep as the model's ears
+        # stood; on the ears' parts so that they twitch as ears do, turning where they stand on the head.
+        for side, idx in ((-1, L.EAR_L), (1, L.EAR_R)):
+            foot, top = (complex(side * outline_x(seen, eye_z + h * rf), eye_z + h * rf) for h in petal_ears["base"])
+            tip = complex(side * petal_ears["tip"][0] * rf, eye_z + petal_ears["tip"][1] * rf)
+            y = parts[idx]["pivot"].y
+            ear, curl = petal_piece(foot, top, side, y, petal_ears["thick"] * rf, petal_ears["sink"] * rf,
+                                    petal_ears.get("smooth", 3), tip, curl=EAR_CURL)
+            middle = (foot + top) / 2.0
+            parts[idx]["pivot"] = Vector((middle.real, y, middle.imag))
+            parts[idx]["parent"] = L.HEAD
+            extra.append((ear, cfg["body"], idx, True))
+            extra.append((curl, LINE, idx, False, 0.0))
+    if ant_cfg:
+        hx, hy, hz = (s * rf for s in ant_cfg["size"])
+        for side, idx in ((-1, L.EAR_L2), (1, L.EAR_R2)):
+            x = side * ant_cfg["x"] * rf
+            foot = crest.ray_cast(Vector((x, 0.0, 10.0)), Vector((0.0, 0.0, -1.0)))[0]
+            lean = Matrix.Rotation(side * ant_cfg["lean"], 3, "Y")
+            middle = foot + lean @ Vector((0.0, 0.0, hz - ant_cfg["sink"] * rf))
+            extra.append((L.ellipsoid_bm(middle, (hx, hy, hz), lean, u=12, v=8), ant_cfg["color"], idx, False))
+            parts[idx]["pivot"] = foot
+            parts[idx]["parent"] = L.HEAD
+
+    if (cap or ear_cfg or extra) and cfg.get("painted_face", True):
+        # The guide baked from the model it is built from shows that model's head: draw this one's as the
+        # game shows it, flat in its colours, the cap on it, the ears where they now are and the pieces added
+        # (claws, a mane, petal ears and their lines).
+        head_rgb, cap_rgb = srgb(cfg["body"]), srgb(cap["color"]) if cap else None
+        tints = cfg.get("parts_color", {})
+        groups = {}
+        for o, k in body_objs.items():
+            if k != "Head":
+                L.append_bm(groups.setdefault(tints.get(k, cfg["body"]), bmesh.new()), src[o])
+        shapes = [BVHTree.FromBMesh(head_bm)] + [BVHTree.FromBMesh(g) for g in groups.values()]
+        rgbs = [head_rgb] + [srgb(hexed) for hexed in groups]
+        for bm, hexed, *_ in extra:
+            shapes.append(BVHTree.FromBMesh(bm))
+            rgbs.append(srgb(hexed))
+        for g in groups.values():
+            g.free()
+
+        def guide_colour(k, pts):
+            if k == 0 and cap:
+                return np.where((drawn_mask(pts, eye_z, rf, cfg) > 0.0)[:, None], cap_rgb, head_rgb)
+            return np.broadcast_to(rgbs[k], (len(pts), 3))
+
+        FA.write_guide(os.path.join(FACES_SRC, cid, "_guide.png"), front_view(shapes, guide_colour, rf, eye_z))
+        log("face: guide drawn from its own head")
+    lo_all, hi_all = bounds(list(src.values()) + [piece[0] for piece in extra])
     hlo_f, hhi_f = bounds([head_bm])
     head_top = hhi_f.z
     body_col = L.hex_color(cfg["body"])
     colors = {k: L.hex_color(v) for k, v in cfg.get("parts_color", {}).items()}
 
     crowd = cfg.get("crowd", False)
+    # Furred (Rakko): no pen's line round the head and body, where the game draws strokes of fur instead.
+    line = 0.0 if cfg.get("fur") else 1.0
     pieces, anchors = [], {}
     ear_axes = {}
     for o, k in body_objs.items():
@@ -867,10 +1307,10 @@ def convert(cfg, source):
         if k == "Head":
             def attr(co, i, col=col, get_mask=get_mask):
                 uv = (0.5 + co.x / (2.0 * rf), 0.5 + (co.z - eye_z) / (2.0 * rf))
-                return L.attrs(col, L.HEAD, paint=L.PAINT_BODY, uv=uv, mask=get_mask(i))
+                return L.attrs(col, L.HEAD, paint=L.PAINT_BODY, uv=uv, mask=get_mask(i), outline=line)
         elif k == "Body":
             def attr(co, i, col=col):
-                return L.attrs(col, L.BODY)
+                return L.attrs(col, L.BODY, outline=line)
         elif k == "Arm":
             idx = L.ARM_L if side < 0 else L.ARM_R
             shoulder = parts[idx]["pivot"]
@@ -912,6 +1352,18 @@ def convert(cfg, source):
                 return L.attrs(col, L.TAIL)
         detail = CROWD_DETAIL.get(k, 1.0) if crowd else 1.0
         pieces.append(L.Piece(L.decimate_bm(bm, detail) if detail < 1.0 else bm.copy(), attr, indexed=True))
+
+    # The claws and antennae (Furuhonya's) and the mane's petals (Shisa's), the claws' and petals' lines pulled toward
+    # the camera as a limb's are, so that they show where they stand over the head or over one another.
+    # A fifth field 0 gives a piece no hull: a line drawn with the pen (Shisa's curls), the pen itself.
+    for bm, hexed, idx, lifted, *hull in extra:
+        lo, hi = bounds([bm])
+        lift = limb_lift(lo, hi, rf) if lifted else 0.0
+
+        def extra_attr(co, col=L.hex_color(hexed), idx=idx, lift=lift, outline=hull[0] if hull else 1.0):
+            return L.attrs(col, idx, lift=lift, outline=outline)
+
+        pieces.append(L.Piece(bm, extra_attr))
 
     # ------------------------------------------------------------------ leaf sprout
     # Islanders' leaves grow from the top of the head, each turned out to the side by its lean.
@@ -987,10 +1439,24 @@ def convert(cfg, source):
 
     collection = bpy.data.collections.new("export")
     scene.collection.children.link(collection)
-    obj = L.assemble(cid, pieces, collection, keep_uv="UVMap" if masks else None)
+    obj = L.assemble(cid, pieces, collection, keep_uv="MaskUV" if cap else "UVMap" if masks else None)
     tris = sum(len(p.vertices) - 2 for p in obj.data.polygons)
 
-    mask_color = mcfg["color"] if mcfg else None
+    # Where the head's underside meets the body's side: the neck, under the head's edge.
+    blo, _ = bounds(body_bms)
+    neck = blo.z
+    while neck < hlo_f.z + rf and radius_at(head_prof, neck, 0.01, 0) < radius_at(body_prof, neck, dz, 0):
+        neck += dz
+    fur = None
+    if cfg.get("fur"):
+        # The fur's strokes are laid round the middle of the head and of the body below it, measured in from
+        # their edges as on balls of their radii (see CharacterMaterial's FUR).
+        body_z = (blo.z + neck) / 2.0
+        fur = dict(cfg["fur"])
+        fur["head"] = L.to_three((hlo_f + hhi_f) / 2.0) + [round(rf, 5)]
+        fur["body"] = L.to_three(Vector((0.0, 0.0, body_z))) + [round(radius_at(body_prof, body_z, dz), 5)]
+
+    mask_color = mcfg["color"] if mcfg else cap["color"] if cap else None
     rig = {
         "version": 3,
         "id": cid,
@@ -1004,10 +1470,13 @@ def convert(cfg, source):
         # level they would sink into it: the game stops them here and brings them forward instead.
         "armReach": round(ARM_DOWN + math.radians(25.0), 4),
         "maskColor": mask_color,
+        # A drawn cap with no line along its edge (Furuhonya's, as the user's picture of her has it).
+        **({"maskLine": False} if cap and cap.get("line") is False else {}),
         "maskTexture": f"models/masks/{cid}.webp" if mask_texture else None,
         "parts": [{"pivot": L.to_three(p["pivot"]), "parent": p["parent"]} for p in parts],
         "anchors": {k: L.to_three(v) for k, v in anchors.items()},
         "patterns": {"skirt": own_skirt},
+        **({"fur": fur} if fur else {}),
         "face": face,
         "faceAtlas": face_atlas,
     }
@@ -1026,6 +1495,12 @@ def convert(cfg, source):
     thickness = 0.06 * rf
     if cr["mode"] == "level":
         zc = eye_z + cr["frac"] * (head_top - eye_z)
+
+        def height_at(theta, zc=zc):
+            return zc
+    elif cr["mode"] == "cap":
+        # Sitting on a drawn cap's level edge (Furuhonya's), its lower petals over it.
+        zc = eye_z + cfg["cap"]["front"] * rf + 0.4 * size
 
         def height_at(theta, zc=zc):
             return zc
@@ -1063,9 +1538,26 @@ def convert(cfg, source):
                   if skirt_info else "no skirt")
     log(f"OUTFIT {cid}: crown {cr['count']} flowers, {skirt_note}, {otris} tris -> {outfit_path}")
 
+    # ------------------------------------------------------------------ their own clothes
+    # What they wear instead of the island outfit (Rakko's cape), an asset of its own like it.
+    own_path = None
+    cape = cfg.get("cape")
+    if cape:
+        roll = cape["roll"] * rf
+        roll_out = cape.get("roll_out", cape["roll"]) * rf
+        # The band round the neck, its top tucked under the head's edge, snug round the body.
+        z_roll = neck - 0.4 * roll
+        ring = envelope(z_roll) + gap + 0.8 * roll_out
+        cape_parts = O.cape_pieces(envelope, z_roll, roll, ring, SKIRT["bottom"] + 0.005, waist,
+                                   max(cape["hem"] * rf, ring), gap, math.radians(cape["opening"]), roll_out=roll_out)
+        own_path = os.path.join(OUT_OUTFITS, f"cape_{cid}.glb")
+        own = O.export_outfit(f"cape_{cid}", cape_parts, own_path, cid, None, collection, kind="cape")
+        ctris = sum(len(p.vertices) - 2 for p in own.data.polygons)
+        log(f"OWN {cid}: cape, roll at {z_roll:.3f} m round r {ring:.3f}, {ctris} tris -> {own_path}")
+
     for bm in src.values():
         bm.free()
-    return {"id": cid, "model": model_path, "outfit": outfit_path}
+    return {"id": cid, "model": model_path, "outfit": outfit_path, "own": own_path}
 
 
 # ---------------------------------------------------------------------------- previews
@@ -1076,7 +1568,8 @@ def render_previews(results):
     chars, outfits = [], []
     for i, r in enumerate(results):
         x = (i - (len(results) - 1) / 2) * spacing
-        for path, bucket in ((r["model"], chars), (r["outfit"], outfits)):
+        # In what they wear: their own clothes if they have them (Rakko's cape), else the island outfit.
+        for path, bucket in ((r["model"], chars), (r.get("own") or r["outfit"], outfits)):
             if not path:
                 continue
             before = set(bpy.data.objects)

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { CHARACTER_LIGHTS } from '../world/Firelight';
 import { FILM } from '../world/Look';
-import { MAX_PARTS, type OutfitInfo, type Rig, type SkirtPattern } from './Model';
+import { MAX_PARTS, PART, type OutfitInfo, type Rig, type SkirtPattern } from './Model';
 
 /**
  * Uniforms every character shares: screen size and the day/night tint.
@@ -40,8 +40,14 @@ export interface CharacterUniforms {
   uBow: THREE.IUniform<THREE.Vector4>;
   /** What they mark themselves with in the film look's picture (its alpha): a half, as every one of the
    * cast; 2, beyond anything else, for the one whose eyes the camera looks out of, so the water knows
-   * their own mirror image from the rest (see Character.setUnseen). Shared with their outfit. */
+   * their own mirror image from the rest (see Character.setUnseen). Only their head takes it (uHeadParts):
+   * the rest of them marks itself a half all the same. Shared with their outfit. */
   uMark: THREE.IUniform<number>;
+  /** Which of their parts are their head, as bits (the head and what hangs from it: ears, sprout, crown); and the
+   * ball of their head at rest (its middle, x y z, and how far round it reaches), out from which the head's
+   * mark fades away over the body below it, round, rather than stopping at the head's seam. */
+  uHeadParts: THREE.IUniform<number>;
+  uHeadBall: THREE.IUniform<THREE.Vector4>;
 }
 
 const NO_TEXTURE = new THREE.Texture();
@@ -58,6 +64,7 @@ export function makeCharacterUniforms(
   maskTexture: THREE.Texture | null = null,
 ): CharacterUniforms {
   const mask = rig.maskColor ?? null;
+  const fur = rig.fur ?? null;
   return {
     ...sharedUniforms,
     uParts: { value: parts },
@@ -76,11 +83,20 @@ export function makeCharacterUniforms(
     uOpenAir: { value: 1 },
     uBow: { value: new THREE.Vector4(0, 1, 0, 0) },
     uMark: { value: 0.5 },
+    uHeadParts: { value: 0 },
+    uHeadBall: { value: new THREE.Vector4(0, 0, 0, 0) },
     uMaskOn: { value: mask ? 1 : 0 },
+    // Whether the pen draws along the second colour's edge (1), or it only changes colour there (0, Furuhonya's cap).
+    uMaskLine: { value: rig.maskLine === false ? 0 : 1 },
     uMaskColor: { value: new THREE.Color(mask ?? '#ffffff') },
     uMaskTex: { value: maskTexture ?? NO_TEXTURE },
     uMaskTexOn: { value: maskTexture ? 1 : 0 },
     uSkirt: skirtUniform(rig.patterns?.skirt),
+    // Fur's strokes (see FUR): how many round, their length, their gap from the edge, their most lean; the
+    // middles of the head and of the body they are laid round, with their radii.
+    uFur: { value: new THREE.Vector4(fur?.count ?? 0, fur?.length ?? 0, fur?.gap ?? 0, fur?.slant ?? 0) },
+    uFurHead: { value: new THREE.Vector4(...(fur?.head ?? [0, 0, 0, 1])) },
+    uFurBody: { value: new THREE.Vector4(...(fur?.body ?? [0, 0, 0, 1])) },
   };
 }
 
@@ -121,6 +137,8 @@ uniform mat4 uParts[MAX_PARTS];
 uniform float uSquash;
 uniform vec2 uLean;
 uniform vec4 uBow;
+uniform int uHeadParts;
+uniform vec4 uHeadBall;
 uniform float uHeight;
 uniform float uOutlineWidth;
 uniform float uLineBias;
@@ -134,6 +152,17 @@ varying float vMask;
 varying vec2 vMaskUv;
 varying float vFacing;
 varying vec3 vFireNormal;
+varying float vHead;
+#ifdef FUR
+uniform vec4 uFurHead;
+uniform vec4 uFurBody;
+varying vec4 vFurClip;
+varying vec4 vFurCentre;
+varying vec2 vFurScale;
+varying vec3 vFurNormal;
+varying vec3 vFurView;
+varying float vFur;
+#endif
 
 // Soft body: volume-keeping squash and stretch, plus a bend that grows with height.
 vec3 softBody(vec3 p) {
@@ -188,6 +217,23 @@ void main() {
   // 1 where the surface faces the camera, 0 where it turns away at the silhouette.
   vFacing = abs(dot(nV, normalize(-mvPosition.xyz)));
   vFireNormal = transpose(mat3(viewMatrix)) * nV;
+  // How much of this point is their head (see uHeadParts): its parts, and round its ball, fading over the body.
+  vHead = float((uHeadParts >> int(aPart0 + 0.5)) & 1) * (1.0 - aWeight) + float((uHeadParts >> int(aPart1 + 0.5)) & 1) * aWeight;
+  vHead = max(vHead, 1.0 - smoothstep(uHeadBall.w, uHeadBall.w * 1.3, distance(position, uHeadBall.xyz)));
+#ifdef FUR
+  // Fur where the pen draws no line (the head and body, aOutline 0; see furStrokes): its strokes are laid round
+  // the middle of the head, or of the body, as the part is posed now; with the pixels a metre is at each.
+  bool onHead = aPart0 > float(HEAD_PART) - 0.5;
+  vFur = aOutline < 0.01 ? (onHead ? 2.0 : 1.0) : 0.0;
+  vec4 furPart = onHead ? uFurHead : uFurBody;
+  vec4 furAt = modelViewMatrix * vec4(bowed(softBody((m * vec4(furPart.xyz, 1.0)).xyz)), 1.0);
+  vec4 furHead = modelViewMatrix * vec4(bowed(softBody((uParts[HEAD_PART] * vec4(uFurHead.xyz, 1.0)).xyz)), 1.0);
+  vFurCentre = projectionMatrix * furAt;
+  float perMetre = projectionMatrix[1][1] * 0.5 * uResolution.y * length(modelViewMatrix[0].xyz);
+  vFurScale = vec2(furPart.w / max(-furAt.z, 1e-3), uFurHead.w / max(-furHead.z, 1e-3)) * perMetre;
+  vFurNormal = nV;
+  vFurView = mvPosition.xyz;
+#endif
 #ifdef OUTLINE
   // Inverted hull. Solid parts (arms, legs) pull their hull toward the camera so their
   // outline shows where they overlap the body, like the inner lines of the drawings.
@@ -196,7 +242,12 @@ void main() {
   vec2 dir = (projectionMatrix * vec4(nV, 0.0)).xy * uResolution;
   float len = length(dir);
   dir = len > 1e-5 ? dir / len : vec2(0.0);
-  float push = uOutlineWidth * aOutline;
+  // Surfaces facing the camera stay put, as the world's pen leaves them (Ink.ts): pushed out the pen's
+  // whole width whichever way their normals lean, their triangles fold over where those turn (across a
+  // flat face such as Shisa's petals and ears, at a crease) and show through as hairlines. The
+  // silhouette, where the surface turns away, carries the line.
+  float facing = dot(nV, normalize(-mvPosition.xyz));
+  float push = uOutlineWidth * aOutline * (1.0 - smoothstep(0.3, 0.6, facing));
 #ifdef BILLBOARD
   // A crown flower's face stays put and only its back rim is pushed out to make the outline.
   // Pushed out, the face's fan of triangles folds over at the notches between the petals
@@ -207,6 +258,9 @@ void main() {
   gl_Position = clip;
 #else
   gl_Position = projectionMatrix * mvPosition;
+#endif
+#ifdef FUR
+  vFurClip = gl_Position;
 #endif
   vColor = aColor.rgb;
   vUv = uv;
@@ -276,6 +330,7 @@ uniform sampler2D uFace;
 uniform float uFaceOn;
 uniform vec4 uColorOverride;
 uniform float uMaskOn;
+uniform float uMaskLine;
 uniform vec3 uMaskColor;
 uniform sampler2D uMaskTex;
 uniform float uMaskTexOn;
@@ -288,6 +343,7 @@ varying float vPaint;
 varying float vMask;
 varying vec2 vMaskUv;
 varying float vFacing;
+varying float vHead;
 
 // 1 inside a line of the given half-width in pixels, anti-aliased by one pixel.
 float lineMask(float dist, float halfPx, float fw) {
@@ -311,6 +367,47 @@ float fringeStrokes(float coord, float count, float height01, float halfPx, floa
   return 1.0 - smoothstep(r, r + 1.0, length(vec2(dx, dy)));
 }
 
+#ifdef FUR
+uniform vec4 uFur;
+uniform vec2 uResolution;
+varying vec4 vFurClip;
+varying vec4 vFurCentre;
+varying vec2 vFurScale;
+varying vec3 vFurNormal;
+varying vec3 vFurView;
+varying float vFur;
+
+// The film draws no line round Rakko's head and body, only short strokes of fur in from their edge, square to it
+// or a little askew, unevenly spaced (\`[anime] rakko 1\`). On screen, uFur.x of them are laid round the middle of
+// the head (or of the body below it), each from uFur.z to uFur.z + uFur.y head radii in from the edge, as on a
+// ball of the part's radius, by how far the surface has turned from the camera; leaning up to uFur.w off square,
+// with rounded ends, in the pen. Each is a little longer or shorter, nearer or further, by a hash of its place.
+float furStrokes(float halfPx) {
+  if (vFur < 0.5) return 0.0;
+  float f = clamp(dot(normalize(vFurNormal), normalize(-vFurView)), 0.0, 1.0);
+  float d = (1.0 - sqrt(1.0 - f * f)) * vFurScale.x;
+  vec2 rel = (vFurClip.xy / vFurClip.w - vFurCentre.xy / vFurCentre.w) * 0.5 * uResolution;
+  float r = length(rel);
+  // On the body, only along its sides, as the film's (its top is under the head, its foot behind the feet): where
+  // the strokes run nearly level. The body is wide and short, so its rounded foot comes near level elsewhere.
+  if (vFur < 1.5 && abs(rel.x) < 0.88 * r) return 0.0;
+  float around = (atan(rel.y, rel.x) / 6.2831853 + 0.5) * uFur.x;
+  float ink = 0.0;
+  for (int k = -1; k <= 1; k++) {
+    float cell = floor(around) + float(k);
+    float id = mod(cell, uFur.x) + vFur * 17.0;
+    float at = cell + 0.5 + 0.5 * (hash1(id + 0.37) - 0.5);
+    float len = max(uFur.y * vFurScale.y * mix(0.7, 1.2, hash1(id + 1.91)), 2.5 * halfPx);
+    float gap = uFur.z * vFurScale.y * mix(0.5, 1.5, hash1(id + 3.13));
+    float lean = uFur.w * (2.0 * hash1(id + 5.77) - 1.0);
+    float across = (around - at) / uFur.x * 6.2831853 * r + (d - gap - 0.5 * len) * lean;
+    float along = max(max(gap - d, d - gap - len), 0.0);
+    ink = max(ink, 1.0 - smoothstep(halfPx, halfPx + 1.0, length(vec2(across, along))));
+  }
+  return ink;
+}
+#endif
+
 void main() {
   vec3 col = mix(vColor, uColorOverride.rgb, uColorOverride.a);
   int paint = int(vPaint + 0.5);
@@ -326,7 +423,7 @@ void main() {
     float fw = max(fwidth(m), 1e-4);
     vec3 maskCol = mix(uMaskColor, uColorOverride.rgb, uColorOverride.a);
     col = mix(col, maskCol, smoothstep(-fw, fw, f));
-    col = mix(col, uLineColor, lineMask(abs(f), halfPx, fw));
+    col = mix(col, uLineColor, lineMask(abs(f), halfPx, fw) * uMaskLine);
   }
 
   if (paint == 1) {
@@ -395,10 +492,13 @@ void main() {
     float fwY = max(fwidth(vUv.y), 1e-5);
     col = mix(col, uLineColor, max(lineMask(vUv.y, halfPx * 2.0, fwY), lineMask(1.0 - vUv.y, halfPx * 2.0, fwY)));
   }
+#ifdef FUR
+  col = mix(col, uLineColor, furStrokes(halfPx));
+#endif
 
   gl_FragColor = vec4(col * uAmbient * uShade * fireTint(), 1.0);
   #ifdef FILM_MASK
-  gl_FragColor.a = uMark;
+  gl_FragColor.a = mix(0.5, uMark, vHead);
   #endif
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
@@ -414,7 +514,14 @@ uniform float uOpenAir;
 uniform vec3 uLineColor;
 uniform vec3 uAmbient;
 uniform vec3 uShade;
+#ifdef FUR
+varying float vFur;
+#endif
 void main() {
+#ifdef FUR
+  // No line round the fur: its strokes are drawn instead (see furStrokes).
+  if (vFur > 0.5) discard;
+#endif
   gl_FragColor = vec4(uLineColor * uAmbient * uShade * fireTint(), 1.0);
   #ifdef FILM_MASK
   gl_FragColor.a = 0.5;
@@ -425,15 +532,17 @@ void main() {
 }
 `;
 
-/** billboard: the geometry carries aCenter/aBill, and those pieces face the camera. */
+/** billboard: the geometry carries aCenter/aBill, and those pieces face the camera. fur: the model's rig has fur
+ * (Rakko's): strokes of it where the pen draws no line (see furStrokes). */
 export function createCharacterMaterials(
   uniforms: CharacterUniforms,
-  options: { billboard?: boolean } = {},
+  options: { billboard?: boolean; fur?: boolean } = {},
 ): {
   body: THREE.ShaderMaterial;
   outline: THREE.ShaderMaterial;
 } {
   const extra: Record<string, number> = options.billboard ? { BILLBOARD: 1 } : {};
+  if (options.fur) Object.assign(extra, { FUR: 1, HEAD_PART: PART.HEAD });
   // In the film look characters mark themselves in the picture's alpha, so the scenery's
   // brushwork leaves them (and their lines) as drawn.
   if (FILM) extra.FILM_MASK = 1;

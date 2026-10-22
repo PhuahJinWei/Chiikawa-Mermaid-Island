@@ -110,7 +110,7 @@ BACKS = {"boxes": [((-7.45, -29.6), (0.6, 15.5)), ((7.45, -29.6), (0.6, 15.5)), 
 # them; and the village's lantern poles, baskets and the stage's torches. The jungle is planted round
 # these wherever the layout has them now, so it grows as it did; the alleys keep their ground clear.
 # The layout's own props of these kinds (PLANTED_KINDS) are left out: torches added since stand on
-# open ground, where nothing grows.
+# open ground, where nothing grows, as the night feast's bonfire does on the night beach's sand.
 PLANTED_ROUND = [("stall_pink", -6.5, -13.51, 1.6), ("stall_blue", 6.5, -13.51, -1.6),
                  ("stall_blue", -9.42, -13.4, 2.4), ("stall_pink", 9.42, -13.4, -2.4),
                  ("stall_red", -12.34, -13.26, 3.1), ("stall_orange", 12.34, -13.26, -3.1),
@@ -144,7 +144,7 @@ PLANTED_ROUND = [("stall_pink", -6.5, -13.51, 1.6), ("stall_blue", 6.5, -13.51, 
                  ("basket", 4.25, -39.16, 16.0), ("basket", 5.55, -88.91, 40.0), ("basket", 10.44, -84.61, 300.0),
                  ("torch", 3.05, -88.39, 0.0), ("torch", 5.05, -86.73, 0.0), ("torch", 8.59, -83.8, 0.0),
                  ("torch", 10.6, -82.14, 0.0)]
-PLANTED_KINDS = ("stall_", "banner", "bunting_", "lanterns", "basket", "torch")
+PLANTED_KINDS = ("stall_", "banner", "bunting_", "lanterns", "basket", "torch", "bonfire")
 # The village, as the film's: its houses in groups of their own, not round a ring. A sandy plaza
 # where the islanders gather, the watchtower stage at its north-east corner; the local houses' lane
 # to the fields, its stilt huts facing each other across it, and a yard to the north-west with the
@@ -215,7 +215,23 @@ PATH_GREENS = {"seed": 171, "line": [(-172.5, -158.6), (-167.5, -162.0), (-163.0
 # hangs from, reaching out over the path from its trunk; both where the sign's own build has them
 # (build_props.HANGING), so its cords and vines meet them. From a generator of its own (`seed`).
 SIGN_TREE = {"seed": 161}
-FIELDS = {"centre": (-45.0, -38.0), "half": (14.0, 12.0), "feather": 6.0, "height": 1.2}
+# The fields, made smaller from their east end (the user, 2026-10-22: room for the islanders' new houses, two
+# to a house: see LATE_HOUSES): the ground flat there and painted in rows. FIELDS_PLANTED is them as they were
+# when the jungle was planted, which it is still drawn round (see ground's `planted`), and whose crop rows are
+# still drawn, those now off the fields left out (see build_plants), so the rest of the island stands as it
+# did; the painted rows keep their places too.
+FIELDS = {"centre": (-54.5, -37.0), "half": (6.5, 11.0), "feather": 5.0, "height": 1.2}
+FIELDS_PLANTED = {"centre": (-45.0, -38.0), "half": (14.0, 12.0), "feather": 6.0, "height": 1.2}
+# The villagers' houses built after the jungle was planted (the user, 2026-10-22: two islanders to a house): the
+# third pair of stilt huts across the local houses' lane where it meets the fields, a beehive hut by the yard and a
+# plank hut on the grass west of it, its door to the yard (kind, x, z, turn, as the layout places them; the plank
+# hut stood first squeezed in behind the yard's other two, its door onto their walls, which the user found no way
+# into). The jungle is planted as it was round the
+# village before them, and what would grow in or over them is left out (see build_plants' in_late_house); they
+# have their own plants round them, from a generator of their own (LATE_GREENS).
+LATE_HOUSES = [("hut_green", -42.5, -61.6, 30.0), ("hut_warm", -40.1, -45.4, 210.0),
+               ("hut_plank", -35.5, -84.0, 90.0), ("beehive", -25.0, -85.5, 150.0)]
+LATE_GREENS = {"seed": 181}
 # The jungle waterfall, after the film's frame of it, in the middle of the island: the round water
 # the aerial shot shows through the trees in the middle of the ring of pillars is its pool. The
 # pool's water stands at `level` over a floor at `floor`; round it the ground lies in a gentle
@@ -618,6 +634,7 @@ PATHS = [
 TRODDEN = [
     ([(-167.5, -162.0), (-171.5, -159.0), (-173.45, -158.1)], 2.0),                    # on to 島二郎's step
     ([(-172.6, -154.8), (-172.55, -158.2), (-172.5, -162.0)], 4.2),                   # along its front
+    ([(-25.5, -91.5), (-28.6, -87.6), (-32.4, -84.3)], 1.5),                          # from the yard to the plank hut on the grass
 ]
 # The paths as trodden, not ruled, as the film's jungle paths are (`jungle 6`): each of PATHS rounded
 # at its corners and wandering a little from side to side (`wander`: how far, a share of its width, in
@@ -1419,8 +1436,9 @@ def ground(x, z, natural=False, ramps=True, mouth=True, planted=False):
     if not natural:
         h = h + (FESTIVAL["level"] - h) * festival_level(x, z) * inland
         h = h + (low["height"] + 0.04 * noise(x, z, 9.0, 4.0) - h) * m_village
-    m_fields = box_mask(x, z, FIELDS["centre"], FIELDS["half"], FIELDS["feather"]) * inland
-    h = h + (FIELDS["height"] - h) * m_fields
+    fields = FIELDS_PLANTED if planted else FIELDS
+    m_fields = box_mask(x, z, fields["centre"], fields["half"], fields["feather"]) * inland
+    h = h + (fields["height"] - h) * m_fields
 
     # The gorge's floor, between its walls: the river and its ledge, the ravine at its head.
     across, outside = gorge_across(x, z)
@@ -1559,7 +1577,8 @@ def paint(x, z, h, masks, normal_y, shade):
     kind = kind * (1.0 - np.maximum(inland_water, wet_edge))[..., None]
 
     # Fields: rows of crops on dark soil.
-    rows = 0.5 + 0.5 * np.cos((x - FIELDS["centre"][0]) * (2.0 * math.pi / FIELD_ROW))
+    # (In rows where they were when the crops were planted, see FIELDS.)
+    rows = 0.5 + 0.5 * np.cos((x - FIELDS_PLANTED["centre"][0]) * (2.0 * math.pi / FIELD_ROW))
     field = mix(c("soil"), c("crop"), smoothstep(0.45, 0.65, rows))
     t = smoothstep(0.6, 0.9, masks["fields"])
     col = mix(col, field, t)
@@ -2452,7 +2471,11 @@ def build_plants(collection, outlines):
     per patch of the map; the understory near only. Returns the objects, each trunk (x, z, radius),
     each crown (x, y, z, radius) and each butterfly's bush (x, y, z), in game coordinates."""
     rng = np.random.default_rng(17)
-    props = [p for p in layout_props() if not p[0].startswith(PLANTED_KINDS)] + PLANTED_ROUND
+
+    def late(p):
+        return any(p[0] == kind and abs(p[1] - x) < 0.05 and abs(p[2] - z) < 0.05 for kind, x, z, _ in LATE_HOUSES)
+
+    props = [p for p in layout_props() if not p[0].startswith(PLANTED_KINDS) and not late(p)] + PLANTED_ROUND
     # The rockfall in the gorge's head came after the jungle was planted: the plants are drawn round
     # the rocks as they stood before it, so the jungle stands as it did, and those that would grow in
     # it are left out (see in_rockfall).
@@ -2527,13 +2550,19 @@ def build_plants(collection, outlines):
                 return True
         return False
 
+    def in_late_house(x, z, more=0.0):
+        # In or under one of the houses built since the jungle was planted (see LATE_HOUSES): as near its
+        # middle as the jungle's own plants keep to the houses (PROP_ROOM, as plant_ground's `prop` keeps
+        # the understory), `more` further for a tree.
+        return any(math.hypot(x - hx_, z - hz_) < PROP_ROOM[kind] - 0.6 + more for kind, hx_, hz_, _ in LATE_HOUSES)
+
     def keep_out(x, z):
-        return in_rockfall(x, z) or kept_out(x, z) or in_boulder(x, z)
+        return in_rockfall(x, z) or kept_out(x, z) or in_boulder(x, z) or in_late_house(x, z)
 
     def since_planted(x, z):
-        # Left out only by what came to the gorge's head after the jungle was planted, the rockfall and
-        # the river running on: it would have grown before, when the water never reached there.
-        return (in_rockfall(x, z) or in_run_on(x, z)) and not kept_out(x, z, sea=False)
+        # Left out only by what came after the jungle was planted, the rockfall and the river running on in
+        # the gorge's head, the houses built since: it would have grown before, when they were not there.
+        return (in_rockfall(x, z) or in_run_on(x, z) or in_late_house(x, z)) and not kept_out(x, z, sea=False)
 
     variants.keep_out = keep_out
 
@@ -2578,7 +2607,7 @@ def build_plants(collection, outlines):
         grow = np.random.default_rng(int(rng.integers(1 << 31)))
         y = at(x, z)
         built, tops = PL.big_tree(grow, lambda dx, dy, x=x, z=z, y=y: at(x + dx, z - dy) - y)
-        if in_rockfall(x, z):
+        if in_rockfall(x, z) or in_late_house(x, z, more=3.0):
             left_out["trunks"].append([round(x, 2), round(z, 2), 1.9])
             left_out["crowns"] += [[round(x + lx, 2), round(y + lz, 2), round(z - ly, 2), round(r, 2)] for lx, ly, lz, r in tops]
             continue
@@ -2676,9 +2705,9 @@ def build_plants(collection, outlines):
             continue
         seed = int(rng.integers(1 << 31))
         base = at(cx, cz)
-        # None in the rockfall: their places are still drawn and taken, so the jungle round them
-        # stands as it did.
-        kept = [t for t in trees if not in_rockfall(t[0], t[1])]
+        # None in the rockfall, nor over a house built since: their places are still drawn and taken, so
+        # the jungle round them stands as it did.
+        kept = [t for t in trees if not in_rockfall(t[0], t[1]) and not in_late_house(t[0], t[1], more=1.2)]
         if len(kept) < len(trees):
             _, drawn, _ = PL.clump(np.random.default_rng(seed), [(tx - cx, -(tz - cz), height, at(tx, tz) - base)
                                                                  for tx, tz, height in trees])
@@ -2921,20 +2950,26 @@ def build_plants(collection, outlines):
 
     # Crops in the fields, along every other planted row of the painted soil.
     crops = [variants.shape("crop", PL.to_arrays(PL.crop(rng))) for _ in range(6)]
-    fx, fz = FIELDS["centre"]
-    hx, hz = FIELDS["half"]
+    # (Each drawn as when they were planted, over the fields as they were; only those on the fields now grow.)
+    fx, fz = FIELDS_PLANTED["centre"]
+    hx, hz = FIELDS_PLANTED["half"]
+    (nx, nz), (nhx, nhz) = FIELDS["centre"], FIELDS["half"]
     rows = 0
     for k in range(-int(hx / FIELD_ROW), int(hx / FIELD_ROW) + 1, 2):
         x = fx + k * FIELD_ROW
         if abs(x - fx) > hx - 1.0:
             continue
-        rows += 1
+        on_fields = abs(x - nx) <= nhx + 1.0
+        rows += on_fields
         for z in np.arange(fz - hz + 1.5, fz + hz - 1.5, 1.4):
             if rng.random() < 0.08:
                 continue
             zz = float(z) + rng.uniform(-0.2, 0.2)
-            variants.plant("under", crops[int(rng.integers(0, len(crops)))], x, at(x, zz) - 0.02, zz,
-                           rng.uniform(0, 2 * math.pi), rng.uniform(0.85, 1.2))
+            crop = crops[int(rng.integers(0, len(crops)))]
+            y = at(x, zz) - 0.02
+            turn, scale = rng.uniform(0, 2 * math.pi), rng.uniform(0.85, 1.2)
+            if on_fields and abs(zz - nz) <= nhz + 0.5:
+                variants.plant("under", crop, x, y, zz, turn, scale)
 
     # Round the backs and sides of the village's huts, as lush as the film's village: flowering
     # bushes, cycads, monstera, ferns and red ti, and a palm or two standing over each hut.
@@ -2953,8 +2988,12 @@ def build_plants(collection, outlines):
             shapes = kinds[pick]
             grown = variants.plant("under", shapes[int(rng.integers(0, len(shapes)))], x, y, z,
                                    rng.uniform(0, 2 * math.pi), rng.uniform(0.85, 1.25))
-            if pick == "bush" and grown:
+            # (One left out by a house built since still counts among the flowers, so the butterflies are
+            # drawn as before.)
+            if pick == "bush" and (grown or in_late_house(x, z)):
                 flowers.append((x, y, z))
+                if not grown:
+                    unplanted.add((x, y, z))
         if kind == "beehive":
             continue
         for k in range(2):
@@ -3239,6 +3278,42 @@ def build_plants(collection, outlines):
                               woods.uniform(0, 2 * math.pi), scale):
                 grown += 1
     print(f"PATH GREENS: {groves} clumps of trees, {palmed} palms and {grown} plants down 島二郎's path")
+
+    # Round the houses built since the jungle was planted (see LATE_HOUSES), as round the village's other
+    # huts: flowering bushes, cycads, monstera, ferns and red ti round their backs and sides, and a palm or two
+    # over the big huts; from a generator of their own, and none among the butterflies' flowers, which are
+    # drawn as before. (They grow nearer than the jungle's own plants keep to the houses.)
+    sprout = np.random.default_rng(LATE_GREENS["seed"])
+    variants.keep_out = lambda x, z: in_rockfall(x, z) or kept_out(x, z) or in_boulder(x, z)
+    late_grown = 0
+    for kind, hx_, hz_, turn in LATE_HOUSES:
+        room = HUT_ROOM[kind]
+        front = math.radians(turn)
+        for pick in ("bush", "cycad", "bush", "monstera", "fern", "ti", "bush", "cycad"):
+            a = front + math.radians(sprout.uniform(95.0, 265.0))
+            d = sprout.uniform(*room)
+            x, z = hx_ + d * math.sin(a), hz_ + d * math.cos(a)
+            if grid_at(G, "path", x, z) < 1.2 or any(math.hypot(x - ox, z - oz) < PROP_ROOM[k] - 0.6
+                                                     for k, ox, oz, _ in LATE_HOUSES if (ox, oz) != (hx_, hz_)):
+                continue
+            shapes = kinds[pick]
+            late_grown += bool(variants.plant("under", shapes[int(sprout.integers(0, len(shapes)))], x, at(x, z) - 0.04, z,
+                                              sprout.uniform(0, 2 * math.pi), sprout.uniform(0.85, 1.25)))
+        if kind == "beehive":
+            continue
+        for k in range(2):
+            a = front + math.radians(180.0 + (k - 0.5) * 70.0 + sprout.uniform(-15.0, 15.0))
+            d = room[1] + sprout.uniform(0.6, 1.6)
+            x, z = hx_ + d * math.sin(a), hz_ + d * math.cos(a)
+            if grid_at(G, "path", x, z) < 1.5 or not stems.free(x, z, 2.5):
+                continue
+            near, far = palms[int(sprout.integers(0, len(palms)))]
+            if variants.plant("palms", near, x, at(x, z) - 0.05, z, sprout.uniform(0, 2 * math.pi), sprout.uniform(0.85, 1.1), far):
+                stems.take(x, z)
+                trunks.append([round(x, 2), round(z, 2), 0.3])
+                late_grown += 1
+    variants.keep_out = keep_out
+    print(f"LATE HOUSES: {late_grown} plants round the {len(LATE_HOUSES)} houses built since the jungle was planted")
 
     # Blue butterflies flutter round flowering bushes, a few here and there; the nearer to the
     # festival and the village, the likelier.

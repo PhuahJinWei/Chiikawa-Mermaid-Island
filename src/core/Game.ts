@@ -1,6 +1,19 @@
 import * as THREE from 'three';
 import { Stage } from '../world/Stage';
-import { cameraClear, cameraLimit, caveStandable, clampInAir, clampToWalkable, eyeLimit, groundHeight, splashDown, terrainHeight } from '../world/Island';
+import {
+  cameraClear,
+  cameraLimit,
+  caveStandable,
+  clampInAir,
+  clampToWalkable,
+  climbOut,
+  eyeLimit,
+  groundHeight,
+  splashDown,
+  standAt,
+  terrainHeight,
+  waterLevelAt,
+} from '../world/Island';
 import { Boat } from '../world/Boat';
 import { TORCH_FLAME_UP, caveFlameMaterial, caveInkMaterial, caveThingMaterial } from '../world/Cave';
 import { Input } from './Input';
@@ -17,7 +30,7 @@ import { loadCharacterModel, loadOutfitModel, type OutfitModel } from '../charac
 import { EmoteSystem } from '../characters/Emotes';
 import { Siren } from '../characters/Siren';
 import { PlayerController, type Heading } from '../characters/PlayerController';
-import { createOnigiri } from '../characters/Props';
+import { createHeld } from '../characters/Props';
 import { loadProp } from '../world/PropModels';
 import { sharedUniforms } from '../characters/CharacterMaterial';
 import { addOutline, updatePen } from '../world/Ink';
@@ -27,6 +40,17 @@ import type { DevApi, StagedShot } from '../dev/DevTools';
 import { t } from '../i18n/I18n';
 import { zoneName, type ZoneId } from '../world/Zones';
 import { Clock } from '../world/DayNight';
+import { Life } from '../life/Life';
+import { ISLANDERS } from '../life/profiles';
+import { ItemModels, STALL_ITEM, itemName } from '../life/Items';
+import { Things } from '../life/Things';
+import { HAND_LAYER, HandView } from './HandView';
+import { Play } from './Play';
+import { loadSave, writeSave, type SaveData } from './Save';
+import { Sound, type Hearing } from './Sound';
+import { Album, SIDE } from './Album';
+import { Notebook } from '../ui/Notebook';
+import { glowUniforms } from '../world/Glow';
 
 /** Where each character stands when you are not controlling it: x, z, facing. */
 const HOMES: Record<CharacterId, [number, number, number]> = {
@@ -36,6 +60,12 @@ const HOMES: Record<CharacterId, [number, number, number]> = {
   hachiware: [-1.7, -1.3, 0.35],
   usagi: [1.8, -1.1, -0.3],
   momonga: [-0.9, -2.9, 0.2],
+  kurimanju: [2.7, 0.3, -0.5],
+  rakko: [-2.9, 0.2, 0.45],
+  // Furuhonya on the night beach (PLAN.md), the east end of the main beach, facing the sea.
+  furuhonya: [70.5, -19.5, 0.5],
+  // Shisa at the back on the left, beside Hachiware, the mane seen from the pier.
+  shisa: [-2.75, -2.5, 0.4],
   // Hitoha and Futaba stand together, turned a little toward each other.
   hitoha: [1.1, -3.1, -0.35],
   futaba: [0.25, -3.25, 0.35],
@@ -52,9 +82,8 @@ const CROWD: [number, number, number][] = [
   [2.3, -6.3, 2.7],
 ];
 const CROWD_COLOR = '#6E8783';
-/** Everyone keeps their eyes on you within this many metres (see Character.watch): their head turns to you,
- * and their body after it once the head has turned as far as it goes; past it, they turn back home. */
-const WATCH_FROM = 4;
+/** How far the islanders' tints wander from CROWD_COLOR, each its own: in hue, saturation and lightness. */
+const CROWD_TINTS = [0.025, 0.05, 0.07];
 /** How far out from the Siren toward the water the Test panel's visit puts you, between your middles. */
 const SIREN_VISIT = 2.4;
 const LINEUP_SPACING = 1.0;
@@ -73,20 +102,15 @@ const EYE_FOCUS = 3;
  * your face, so the ground at your feet stays sharp. */
 const FOLLOW_SHARP = 3.5;
 const EYE_SHARP = 0.6;
-/** How near anyone you walk up to you come, between your middles, as a share of your widths: just short
- * of touching (0.5), as you stop in front of someone, their face not filling your eyes. */
-const APART = 0.6;
 /**
- * Out of the eyes, looking down into the calm water you stand in or beside, you bend over it to see
- * yourself (see lookIntoWater): from looking this far down (radians) to this far, all the way; your face
- * kept this far over the water at the least, and carried out no further than this from your middle (from
- * the pier's end, far enough for the water to give it back past the deck's edge); and how quickly you
- * bend and straighten again, per second.
+ * Out of the eyes, looking down into the calm water you stand in or beside, you lean over it to see
+ * yourself in it, as one does over a pond (see lookIntoWater): from looking this far down (radians) to this
+ * far, all the way; your eyes going forward this far (metres), to just behind the front of your face; and how
+ * quickly you lean and straighten again, per second.
  */
-const BOW_FROM = 0.45;
-const BOW_FULL = 0.8;
-const BOW_OVER_WATER = 0.15;
-const BOW_REACH = 3;
+const BOW_FROM = 0.55;
+const BOW_FULL = 0.95;
+const LEAN_IN = 0.25;
 const BOW_EASE = 6;
 /**
  * At the edge of a deck over the water (the pier's end, the quay), looking down you lean out over it so
@@ -128,6 +152,34 @@ const _to = new THREE.Vector3();
 const _look = new THREE.Vector3();
 const _myEyes = new THREE.Vector3();
 const _myEyeR = new THREE.Vector3();
+const _torch = new THREE.Vector3();
+/** Kept every this many seconds of play (see save), and on leaving. */
+const SAVE_EVERY = 20;
+/** Sleeping through the night, you wake at this hour (the user: everyone wakes at 6:00). */
+const WAKE = 6.05;
+/** How far you walk between footsteps (metres). */
+const STRIDE = 0.55;
+/** Standing in water deeper than this (metres; wading goes to 0.25), you are taken out at the nearest shore
+ * (see keepFooting); a place kept for you (see save) must be no deeper, and within this much of the ground
+ * there. */
+const TOO_DEEP = 0.3;
+const FOOTING = 0.3;
+/** Where the feast's fire burns (see Places' FEAST_FIRE), the waterfall's foot, and the festival's street (x,
+ * from z, to z), for what you hear (see hearing). */
+const FIRE_AT: [number, number] = [75, -21];
+const FALL_AT: [number, number] = [2, -199];
+const STREET: [number, number, number] = [0, -10, -40];
+/** How near the sea is, out to these distances (metres) all round, and how near that counts (see shoreness). */
+const SHORE_RINGS: [number, number][] = [
+  [4, 1],
+  [12, 0.75],
+  [25, 0.45],
+  [45, 0.2],
+];
+/** The stage's ukulele: where it lies on the stage's boards (x, z) and which way; the torch by your door,
+ * this far along the porch from the door to your right. */
+const UKULELE_AT: [number, number, number] = [9.0, -87.3, 0.6];
+const TORCH_BESIDE = 0.7;
 
 /** The drawing resolution a `width` × `height` window starts at: `best`, or the step below it that keeps it within START_PIXELS. */
 function startRatio(width: number, height: number, best: number): number {
@@ -174,6 +226,30 @@ export class Game {
   private readonly crowd: Character[] = [];
   /** The Siren, resting on the forbidden cave's ledge, once she has loaded. */
   private siren: Siren | null = null;
+  /** Everyone's days on the island (see life/Life.ts), once it has loaded. */
+  private life: Life | null = null;
+  /** What lies about the island, and what you do with your paws (see Play), once loaded. */
+  private things: Things | null = null;
+  private play: Play | null = null;
+  /** The cave boat's word for the action button this frame, if it has one (see updateCave). */
+  private caveLabel: string | null = null;
+  /** The day the things lying about were last seen to for (see Things.morning). */
+  private morningDay = -1;
+  /** Seconds since the island was last kept (see save), and where you last stood on your own feet. */
+  private sinceSave = 0;
+  private readonly standing = new THREE.Vector3(Number.NaN, 0, 0);
+  private standingYaw = 0;
+  private readonly saved: SaveData | null = loadSave();
+  /** The island's sound, your album of photos and your notebook (where everyone is, the album). */
+  private readonly sound = new Sound();
+  private readonly album = new Album();
+  private readonly notebook: Notebook;
+  private handView: HandView | null = null;
+  /** How near the sea is where you hear from (see shoreness), looked at a few times a second; how far you
+   * have walked since your last footstep. */
+  private shore = 0;
+  private shoreTimer = 0;
+  private strideLeft = STRIDE;
   private staged: StagedShot | null = null;
   private readonly settings: Settings;
   private readonly focus = new THREE.Vector3();
@@ -182,6 +258,9 @@ export class Game {
   private lineup = false;
   /** Whether the cast wears the island outfit (it is a separate asset they can take off). */
   private outfitOn = true;
+  /** Testing: whether those with clothes of their own (Rakko) wear the island outfit instead, from the Test
+   * panel; never otherwise (the user, 2026-10-22). */
+  private islandForAll = false;
   private expression: ExpressionId | null = null;
   private time = 0;
   private fps = 60;
@@ -235,12 +314,16 @@ export class Game {
     this.freeCam = new FreeCamera(this.camera, groundHeight);
     this.player = new PlayerController(this.input);
     this.emotes = new EmoteSystem(this.scene);
+    this.emotes.camera = this.camera;
+    // Your own marks and words, out of your own eyes: on the screen.
+    this.emotes.own = { mark: (kind) => this.hud.ownMark(kind), words: (text) => this.hud.ownWords(text) };
     this.panel = new TestPanel(
       ui,
       {
         selectCharacter: (id) => this.selectCharacter(id),
         toggleLineup: () => this.setLineup(!this.lineup),
         toggleOutfit: () => this.setOutfit(!this.outfitOn),
+        toggleIslandForAll: () => this.setIslandForAll(!this.islandForAll),
         resetCamera: () => this.resetCamera(),
         toggleThirdPerson: () => this.setThirdPerson(!this.thirdPerson),
         action: (id) => this.playAction(id),
@@ -251,20 +334,40 @@ export class Game {
         moveHere: () => this.moveHere(),
         toggleReflections: () => (this.stage.reflections = !this.stage.reflections),
         sirenMood: (mood) => this.siren?.setMood(mood),
+        mermaids: (place) => this.siren?.mermaids.choose(place),
         visitSiren: () => this.visitSiren(),
       },
       () => ({
         character: this.controlled,
         lineup: this.lineup,
         outfit: this.outfitOn,
+        islandForAll: this.islandForAll,
         thirdPerson: this.thirdPerson,
         expression: this.expression,
         clockRunning: this.clock.running,
         freeCamera: this.freeCamOn,
         reflections: FILM ? this.stage.reflections : null,
         siren: this.siren?.currentMood ?? null,
+        mermaids: this.siren?.mermaids.where ?? null,
       }),
     );
+    this.notebook = new Notebook(ui);
+    this.notebook.setSound(this.sound.enabled);
+    this.notebook.onSound = (on) => this.sound.setOn(on);
+    this.notebook.onPeople = () => this.life?.whereabouts((p) => this.placeName(p)) ?? { cast: [], islanders: '' };
+    this.notebook.onAlbum = async () =>
+      (await this.album.list()).map((photo) => {
+        const h = Math.floor(photo.hours);
+        const m = String(Math.floor((photo.hours - h) * 60)).padStart(2, '0');
+        return {
+          id: photo.id,
+          url: URL.createObjectURL(photo.blob),
+          label: t('note.photoLabel').replace('{0}', String(photo.day + 1)).replace('{1}', `${h}:${m}`),
+        };
+      });
+    this.notebook.onDelete = (id) => void this.album.remove(id);
+    this.hud.onCamera = () => this.takePhoto();
+    this.hud.onNotebook = () => this.notebook.toggle();
     this.hud.onJump = () => this.input.queueJump();
     this.hud.onAction = () => this.input.queueAction();
     this.hud.onTest = () => this.panel.toggle();
@@ -297,25 +400,45 @@ export class Game {
     try {
       const outfitFor = (url?: string): Promise<OutfitModel | undefined> =>
         url ? loadOutfitModel(url) : Promise.resolve(undefined);
-      const [models, outfits, onigiri, crowdKinds] = await Promise.all([
+      const [models, outfits, owns, onigiri, can, sword, ukulele, crowdKinds, items] = await Promise.all([
         Promise.all(CHARACTER_IDS.map((id) => loadCharacterModel(DEFINITIONS[id].model))),
         Promise.all(CHARACTER_IDS.map((id) => outfitFor(DEFINITIONS[id].outfit))),
+        Promise.all(CHARACTER_IDS.map((id) => outfitFor(DEFINITIONS[id].own?.outfit))),
         loadProp('onigiri'),
+        loadProp('can'),
+        loadProp('sword'),
+        loadProp('ukulele'),
         Promise.all(CROWD_KINDS.map((k) => Promise.all([loadCharacterModel(k.model), outfitFor(k.outfit)]))),
+        ItemModels.load(),
         this.stage.load(),
       ]);
       CHARACTER_IDS.forEach((id, i) => {
-        const ch = new Character(DEFINITIONS[id], models[i], createOnigiri(onigiri), { outfit: outfits[i] });
+        const def = DEFINITIONS[id];
+        const carry = def.carries === 'can' ? createHeld(can) : undefined;
+        const ownOutfit = owns[i];
+        const own = ownOutfit
+          ? { outfit: ownOutfit, carry: def.own?.carries === 'sword' ? createHeld(sword) : undefined }
+          : undefined;
+        // You play the stage's ukulele, once you have it, as Rakko plays his.
+        const instrument = def.plays === 'ukulele' || id === 'player' ? createHeld(ukulele) : undefined;
+        const ch = new Character(def, models[i], createHeld(onigiri), { outfit: outfits[i], own, carry, instrument });
         const [x, z, yaw] = HOMES[id];
         ch.teleport(x, z, yaw);
         ch.attach(this.scene, this.emotes);
         this.characters.set(id, ch);
       });
-      for (const [i, [x, z, yaw]] of CROWD.entries()) {
+      // The islanders who live here (see life/Life.ts), each a little different in tint.
+      const tint = new THREE.Color();
+      const hsl = { h: 0, s: 0, l: 0 };
+      new THREE.Color(CROWD_COLOR).getHSL(hsl);
+      for (let i = 0; i < ISLANDERS; i++) {
+        const [x, z, yaw] = CROWD[i % CROWD.length];
         const [model, outfit] = crowdKinds[i % crowdKinds.length];
-        // Background islanders share the islanders' face and pace.
+        const wander = (k: number, salt: number) => (((Math.sin((i + 1) * 12.9898 + salt * 78.233) * 43758.5453) % 1) + 1) % 1 * 2 * k - k;
+        tint.setHSL(hsl.h + wander(CROWD_TINTS[0], 1), hsl.s + wander(CROWD_TINTS[1], 2), hsl.l + wander(CROWD_TINTS[2], 3));
+        // They share the islanders' face and pace.
         const extra = new Character(DEFINITIONS.hitoha, model, new THREE.Group(), {
-          crowd: { color: CROWD_COLOR },
+          crowd: { color: tint.clone() },
           outfit,
         });
         extra.teleport(x, z, yaw);
@@ -325,6 +448,11 @@ export class Game {
       this.stage.setCast([...this.characters.values(), ...this.crowd]);
       this.makeCave();
       if (this.stage.cave) this.siren = await Siren.load(this.stage.cave, this.emotes);
+      // Out of the cave, to the sea, she is drawn in the open air.
+      this.siren?.setOutside(this.scene);
+      this.life = await Life.create(this.characters, this.crowd, this.emotes);
+      this.makePlay(items);
+      this.life.settle(this.clock.hours, this.me());
       await this.stage.warmShaders(this.renderer, this.camera);
     } catch (err) {
       console.error(err);
@@ -336,6 +464,199 @@ export class Game {
     this.eyes.lookFrom(this.me());
     this.running = true;
     this.renderer.setAnimationLoop(this.frame);
+  }
+
+  /**
+   * What lies about the island and what you do with your paws (see Play), your paw before your eyes, and
+   * the island as you left it last time (see Save): the hour and the day, where you stood, what you held
+   * and kept, what lay where. The things with places of their own: the stage's ukulele, the torch by your
+   * door.
+   */
+  private makePlay(items: ItemModels): void {
+    const life = this.life;
+    if (!life) return;
+    const things = new Things(items, this.scene, FILM ? (x, y, z) => this.stage.shadeAt(x, y, z) : null);
+    life.things = things;
+    this.things = things;
+    const [ux, uz, uyaw] = UKULELE_AT;
+    things.homes.set('ukulele', { item: 'ukulele', at: new THREE.Vector3(ux, groundHeight(ux, uz, 3), uz), yaw: uyaw });
+    const home = life.playerHome;
+    if (home) {
+      const right = home.yaw - Math.PI / 2;
+      const x = home.door.x + Math.sin(right) * TORCH_BESIDE;
+      const z = home.door.z + Math.cos(right) * TORCH_BESIDE;
+      things.homes.set('torch', { item: 'torch', at: new THREE.Vector3(x, groundHeight(x, z, home.door.y), z), yaw: home.yaw + 1.2 });
+    }
+    const view = new HandView(items, this.scene);
+    this.handView = view;
+    const play = new Play(things, life, this.hud, view, this.input, this.sound);
+    play.onSleep = () => void this.sleepThrough();
+    this.play = play;
+    // Only the game's camera draws your paw before your eyes.
+    this.camera.layers.enable(HAND_LAYER);
+    const saved = this.saved;
+    if (saved) {
+      this.clock.set(saved.hours);
+      life.day = saved.day;
+      play.restore(saved.play);
+      things.restore(saved.things ?? [], saved.beachDay ?? -1);
+      const at = saved.me;
+      // Back where you stood, if one can stand there (else on the pier, where everyone starts).
+      if (at && [at.x, at.y, at.z, at.yaw].every(Number.isFinite) && this.canStand(at.x, at.y, at.z)) {
+        this.me().teleport(at.x, at.z, at.yaw, at.y);
+      }
+    }
+    this.morningDay = life.day;
+    things.morning(life.day, (item) => play.holds(item));
+    const save = () => this.save();
+    window.addEventListener('pagehide', save);
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) save();
+    });
+  }
+
+  /** Keeps the island as it is now (see Save). */
+  private save(): void {
+    const life = this.life;
+    const play = this.play;
+    const things = this.things;
+    if (!life || !play || !things || !this.running || this.staged) return;
+    this.sinceSave = 0;
+    const me = Number.isNaN(this.standing.x) ? null : { x: this.standing.x, y: this.standing.y, z: this.standing.z, yaw: this.standingYaw };
+    writeSave({ v: 1, hours: this.clock.hours, day: life.day, me, play: play.save(), things: things.save(), beachDay: things.beachDay });
+  }
+
+  /** Asleep in your bed at night: the night goes by while the screen is dark, and you wake to the morning,
+   * everyone where the morning has them. */
+  private async sleepThrough(): Promise<void> {
+    const life = this.life;
+    const play = this.play;
+    if (!life || !play) return;
+    await this.hud.fade(true);
+    const me = this.me();
+    // Gone to bed before midnight, you wake the next day.
+    if (this.clock.hours >= 12) life.day++;
+    this.clock.set(WAKE);
+    life.settle(this.clock.hours, me);
+    this.morningDay = life.day;
+    this.things?.morning(life.day, (item) => play.holds(item));
+    play.wake(me);
+    // Sitting up, looking out over the room.
+    this.eyes.lookFrom(me);
+    this.save();
+    await this.hud.fade(false);
+    this.sound.morning();
+    this.hud.toast(t('toast.morning'));
+  }
+
+  /** The name of the place `p` is in, as the place names show it (in the cave, the cave's). */
+  private placeName(p: THREE.Vector3): string {
+    const zones = this.stage.zones;
+    if (this.stage.cave?.isInside(p.x, p.y + 0.3, p.z)) return zoneName('cave');
+    return zones ? zoneName(zones.at(p.x, p.z)) : '';
+  }
+
+  /**
+   * A photo of what you see (the camera's button): drawn now, without your paw before your eyes, read back at
+   * no more than SIDE pixels on its longest side and kept in your album (see Album); the screen flashes.
+   */
+  private takePhoto(): void {
+    if (!this.running) return;
+    const view = this.handView;
+    const shown = view?.group.visible ?? false;
+    if (view) view.group.visible = false;
+    this.draw();
+    const from = this.renderer.domElement;
+    const k = Math.min(1, SIDE / Math.max(from.width, from.height));
+    const shot = document.createElement('canvas');
+    shot.width = Math.round(from.width * k);
+    shot.height = Math.round(from.height * k);
+    shot.getContext('2d')?.drawImage(from, 0, 0, shot.width, shot.height);
+    if (view) view.group.visible = shown;
+    const hours = this.clock.hours;
+    const day = this.life?.day ?? 0;
+    shot.toBlob((blob) => {
+      if (blob) void this.album.add(blob, hours, day);
+    }, 'image/jpeg', 0.9);
+    this.hud.flash();
+    this.sound.shutter();
+    this.hud.toast(t('toast.photo'));
+  }
+
+  /** How near the sea is to `p`: 1 on the shore or over the water, less the further it is to any water all
+   * round (SHORE_RINGS), a little anywhere. */
+  private shoreness(p: THREE.Vector3): number {
+    const wet = (x: number, z: number) => terrainHeight(x, z) < waterLevelAt(x, z) - 0.05;
+    if (wet(p.x, p.z)) return 1;
+    for (const [r, near] of SHORE_RINGS) {
+      for (let k = 0; k < 8; k++) {
+        const a = (k / 8) * Math.PI * 2;
+        if (wet(p.x + Math.cos(a) * r, p.z + Math.sin(a) * r)) return near;
+      }
+    }
+    return 0.05;
+  }
+
+  /** What you hear this frame (see Sound): from where the camera is, of what is round it. */
+  private hearing(dt: number, me: Character, lookingOut: boolean): Hearing {
+    const p = this.camera.position;
+    this.shoreTimer -= dt;
+    if (this.shoreTimer <= 0) {
+      this.shoreTimer = 0.5;
+      this.shore = this.shoreness(p);
+    }
+    const near = (x: number, z: number, from: number, to: number) => 1 - THREE.MathUtils.smoothstep(Math.hypot(p.x - x, p.z - z), from, to);
+    const hours = this.clock.hours;
+    const life = this.life;
+    const zone = this.zone;
+    const inCave = !!this.stage.cave?.isInside(p.x, p.y, p.z);
+    const [sx, sz0, sz1] = STREET;
+    const streetZ = Math.min(sz0, Math.max(sz1, p.z));
+    const open = life && life.openStalls.length > 0 ? 1 : 0.25;
+    const rakko = life?.resident('rakko');
+    const playing = rakko && rakko.ch.actionId === 'ukulele' && rakko.ch.shown;
+    const siren = this.siren;
+    let sirenNear = 0;
+    if (siren?.where === 'lurk') {
+      const s = siren.character.position;
+      const d = Math.hypot(p.x - s.x, p.z - s.z);
+      sirenNear = (1 - THREE.MathUtils.smoothstep(d, 30, 85)) * THREE.MathUtils.smoothstep(d, 16, 26);
+    }
+    // A footstep each stride walked on your own feet: on the deck you stand on, in the water, on sand or
+    // on grass.
+    let step: Hearing['step'] = null;
+    const speed = Math.hypot(me.velocity.x, me.velocity.z);
+    if (lookingOut && !me.ride && speed > 0.3) {
+      this.strideLeft -= speed * dt;
+      if (this.strideLeft <= 0) {
+        this.strideLeft += STRIDE;
+        const x = me.position.x;
+        const z = me.position.z;
+        const feet = me.feetY;
+        const ground = terrainHeight(x, z);
+        const water = waterLevelAt(x, z);
+        step =
+          feet < water - 0.03 ? 'water'
+          : feet > ground + 0.12 && !inCave ? 'wood'
+          : inCave || ground < water + 1.0 || zone === 'mainBeach' || zone === 'nightBeach' || zone === 'westBeach' ||
+              zone === 'festival' || zone === 'beach' || zone === 'village' ? 'sand'
+          : 'grass';
+      }
+    }
+    return {
+      dt,
+      hours,
+      shore: inCave ? 0.3 : this.shore,
+      fall: near(FALL_AT[0], FALL_AT[1], 15, 80),
+      fire: glowUniforms.uGlow.value > 0 ? near(FIRE_AT[0], FIRE_AT[1], 4, 30) : 0,
+      festival: near(sx, streetZ, 8, 45) * open * (hours > 7 && hours < 23.5 ? 1 : 0),
+      jungle: zone === 'jungle' ? 1 : zone === 'waterfall' || zone === 'gorge' || zone === 'shimajiro' ? 0.7 : 0,
+      cave: inCave,
+      ukulele: playing && rakko ? near(rakko.pos.x, rakko.pos.z, 4, 35) : 0,
+      strumming: this.play?.strumming ?? false,
+      siren: sirenNear,
+      step,
+    };
   }
 
   /** The forbidden cave's rowboat, moored at its beach, and the torch carried through it. */
@@ -368,6 +689,7 @@ export class Game {
    * where it floats. Called after the characters have moved.
    */
   private updateCave(): void {
+    this.caveLabel = null;
     const cave = this.stage.cave;
     const boat = this.boat;
     if (!cave || !boat) return;
@@ -392,9 +714,9 @@ export class Game {
     let label: string | null = null;
     if (this.staged || boat.sliding) label = null;
     else if (this.rowing) label = boat.shore(caveStandable, this.shoreAt) ? t('hud.getOut') : null;
-    else if (inside && boat.canBoard(p)) label = t('hud.board');
-    this.hud.setAction(label);
-    if (!this.input.consumeAction() || !label) return;
+    else if (inside && boat.canBoard(p) && !this.play?.hand) label = t('hud.board');
+    this.caveLabel = label;
+    if (!label || !this.input.consumeAction()) return;
     if (this.rowing) {
       // Out onto the shore beside the boat; at the beach, onto the sand beside where it is drawn up.
       this.rowing = false;
@@ -446,17 +768,21 @@ export class Game {
     this.input.setMoveEnabled(!on);
     this.hud.setControlsVisible(!on);
     if (on) {
+      // Everyone's day on hold while they line up.
+      this.life?.hold();
       const n = CHARACTER_IDS.length;
       CHARACTER_IDS.forEach((id, i) => {
         const ch = this.characters.get(id);
         if (!ch) return;
         ch.stopAction();
+        ch.ride = null;
         ch.teleport((i - (n - 1) / 2) * LINEUP_SPACING, 0, 0);
       });
       // Out of the eyes, the follow camera is still where it was last used: it starts on the lineup.
       if (this.thirdPerson) this.rig.frame(0, LINEUP_PITCH, this.lineupDistance());
       else this.rig.cut(0, LINEUP_PITCH, this.lineupDistance(), this.focusPoint());
     } else {
+      this.life?.settle(this.clock.hours, this.me());
       this.eyes.lookFrom(this.me());
       this.rig.frame(this.rig.yaw, FOLLOW_PITCH, FOLLOW_DISTANCE);
     }
@@ -533,6 +859,11 @@ export class Game {
     for (const ch of this.characters.values()) ch.setOutfitVisible(on);
   }
 
+  private setIslandForAll(on: boolean): void {
+    this.islandForAll = on;
+    for (const ch of this.characters.values()) ch.wearIsland(on);
+  }
+
   private resetCamera(): void {
     if (this.lineup) this.rig.frame(0, LINEUP_PITCH, this.lineupDistance());
     else if (this.thirdPerson) this.rig.frame(this.me().facing, FOLLOW_PITCH, FOLLOW_DISTANCE);
@@ -544,6 +875,12 @@ export class Game {
       if (id === 'jump') ch.jump();
       else ch.play(id);
     }
+    // What you do, those near see and answer (see Life.reacted).
+    const life = this.life;
+    if (!life || this.lineup || this.staged) return;
+    const me = this.me();
+    if (id === 'jump') life.hopped(me.position);
+    else life.reacted(id, me.position);
   }
 
   private setExpression(e: ExpressionId | null): void {
@@ -584,12 +921,13 @@ export class Game {
   }
 
   /**
-   * Out of the eyes, looking down into the calm water you stand in or beside, you bend over it as you
-   * would to see yourself in it: your face carried out over the water so that the water gives it back to
-   * you just where you look (or as near as you can reach), turned up toward your eyes. Only the water's
-   * mirror shows you (see Character.setBow, Stage.drawMirror). Not where nothing is mirrored (the
-   * forbidden cave, the boat), nor with dry ground under your face. At a deck's edge your eyes lean out
-   * over it too (PEEK), or the deck would hide the water under it.
+   * Out of the eyes, looking down into the calm water you stand in or beside, you lean over it as you would
+   * over a pond to see yourself in it: your eyes forward to just behind the front of your face (LEAN_IN), your
+   * face turned down about them toward their mirror image, so the water gives it back to you just under them,
+   * looking up at you, the rest of you behind and above it. Only the water's mirror shows you (see
+   * Character.setBow, Stage.drawMirror), your head clearly and the rest of you as faintly as anyone else (see
+   * uHeadParts). Not where nothing is mirrored (the forbidden cave, the boat), nor with dry ground under your
+   * face. At a deck's edge you lean further out over it (PEEK), or the deck would hide the water under it.
    */
   private lookIntoWater(me: Character, lookingOut: boolean, dt: number): void {
     for (const ch of this.characters.values()) if (ch !== me) ch.setBow(null);
@@ -613,50 +951,18 @@ export class Game {
     });
     const lean = edge ? THREE.MathUtils.smoothstep(down, PEEK_FROM, PEEK_FULL) : 0;
     this.peek += (lean - this.peek) * (1 - Math.exp(-dt * BOW_EASE));
-    eye.addScaledVector(_fwd, PEEK * this.peek);
-    eye.y -= PEEK_DOWN * this.peek;
+    // Your face where it is, or out over a deck's edge.
     me.getAnchor('eyeL', _from);
     me.getAnchor('eyeR', _to);
-    const top = Math.max(h + BOW_OVER_WATER, (_from.y + _to.y) / 2 - 0.08);
-    // The water gives a face back where the line from the eyes to its mirror image (as deep under the
-    // water as the face is over it) meets the water: for that to be where you look, the face must be
-    // out past that spot by as far again as it is high over the water, for as far as your eyes are.
-    const reach = clamp((eye.y - h + (top - h)) / Math.tan(Math.max(down, 0.05)), 0.25, BOW_REACH);
-    this.bowAt.set(eye.x + _fwd.x * reach, top, eye.z + _fwd.z * reach);
-    this.bowToward.set(eye.x, 2 * h - eye.y, eye.z).sub(this.bowAt).normalize();
+    this.bowAt.addVectors(_from, _to).multiplyScalar(0.5).addScaledVector(_fwd, PEEK * this.peek);
+    this.bowAt.y -= PEEK_DOWN * this.peek;
     const want = terrainHeight(this.bowAt.x, this.bowAt.z) < h ? THREE.MathUtils.smoothstep(down, BOW_FROM, BOW_FULL) : 0;
     this.bow += (want - this.bow) * (1 - Math.exp(-dt * BOW_EASE));
+    // Your eyes go with it, to just behind it; and it turns down toward them in the water.
+    eye.addScaledVector(_fwd, LEAN_IN * this.bow + PEEK * this.peek);
+    eye.y -= PEEK_DOWN * this.peek;
+    this.bowToward.set(eye.x, 2 * h - eye.y, eye.z).sub(this.bowAt).normalize();
     me.setBow(this.bowAt, this.bowToward, this.bow);
-  }
-
-  /**
-   * Keeps the character you control from walking into anyone else: they stop just short of touching
-   * (APART) and slide round them. Out of their eyes, the camera would otherwise pass into the other's
-   * head. Called after everyone has moved.
-   */
-  private keepApart(me: Character): void {
-    for (const ch of this.characters.values()) this.stepAside(me, ch);
-    for (const extra of this.crowd) this.stepAside(me, extra);
-  }
-
-  /** Moves `me` out of `other` if the two stand in each other, as far as the ground lets them. */
-  private stepAside(me: Character, other: Character): void {
-    if (other === me) return;
-    const p = me.position;
-    const q = other.position;
-    const reach = (me.width + other.width) * APART;
-    const dx = p.x - q.x;
-    const dz = p.z - q.z;
-    const d = Math.hypot(dx, dz);
-    if (d >= reach || Math.abs(p.y - q.y) > 0.8) return;
-    // Straight out from their middle; from right on it, back the way you face.
-    const ux = d > 1e-4 ? dx / d : -Math.sin(me.facing);
-    const uz = d > 1e-4 ? dz / d : -Math.cos(me.facing);
-    _from.set(p.x, me.feetY, p.z);
-    _to.set(q.x + ux * reach, me.feetY, q.z + uz * reach);
-    clampToWalkable(_to, _from);
-    p.x = _to.x;
-    p.z = _to.z;
   }
 
   // ------------------------------------------------------------------ loop
@@ -697,14 +1003,17 @@ export class Game {
         ch.setDesiredVelocity(ZERO);
         ch.setFacing(this.staged.characters[id]?.yaw ?? 0);
       }
-    } else if (this.lineup || this.freeCamOn) {
+    } else if (this.lineup) {
       for (const ch of this.characters.values()) {
         ch.setDesiredVelocity(ZERO);
-        if (this.lineup) ch.setFacing(0);
+        ch.setFacing(0);
       }
     } else {
       const view = this.heading();
-      if (this.rowing && this.boat) {
+      this.player.want.set(0, 0, 0);
+      if (this.freeCamOn) {
+        me.setDesiredVelocity(ZERO);
+      } else if (this.rowing && this.boat) {
         // Rowing: the stick steers the boat, camera-relative as walking is; you sit in it.
         this.input.consumeJump();
         view.forward(_fwd);
@@ -713,34 +1022,67 @@ export class Game {
         this.boat.row(dt, _want);
         me.setDesiredVelocity(ZERO);
         this.seatInBoat();
-      } else {
+      } else if (this.play?.seat || this.play?.sleeping) {
+        // Seated, the stick gets you up (see Play); no hopping off a seat.
+        this.input.consumeJump();
         this.player.update(me, view);
+      } else if (this.player.update(me, view)) {
+        // Whoever is near sees you hop, and some hop or wave back.
+        this.life?.hopped(me.position);
       }
-      // Everyone near keeps their eyes on yours.
-      me.getAnchor('eyeL', _myEyes);
-      me.getAnchor('eyeR', _myEyeR);
-      _myEyes.add(_myEyeR).multiplyScalar(0.5);
-      const watch = (ch: Character, home: number) => {
-        const near = Math.hypot(me.position.x - ch.position.x, me.position.z - ch.position.z) < WATCH_FROM;
-        ch.watch(near ? _myEyes : null);
-        if (!near) ch.setFacing(home);
-      };
-      for (const [id, ch] of this.characters) {
-        if (ch === me) {
-          ch.watch(null);
-          continue;
-        }
-        ch.setDesiredVelocity(ZERO);
-        watch(ch, HOMES[id][2]);
-      }
-      for (const [i, extra] of this.crowd.entries()) watch(extra, CROWD[i][2]);
+      me.watch(null);
     }
 
-    for (const ch of this.characters.values()) ch.update(dt, this.ctx);
-    for (const extra of this.crowd) extra.update(dt, this.ctx);
-    this.siren?.update(dt, this.ctx, this.staged || this.lineup || this.freeCamOn ? null : me);
-    if (!this.staged && !this.lineup && !this.freeCamOn && !this.rowing) this.keepApart(me);
+    me.getAnchor('eyeL', _myEyes);
+    me.getAnchor('eyeR', _myEyeR);
+    _myEyes.add(_myEyeR).multiplyScalar(0.5);
+    const life = this.life;
+    const living = !!life && !this.staged && !this.lineup;
+    const frame = living
+      ? { dt, hours: this.clock.hours, camera: this.camera, ctx: this.ctx, me, myEyes: _myEyes, myWant: this.player.want }
+      : null;
+    // Everyone who lives here goes about their day (see life/Life.ts); you, and whoever no one's day
+    // moves (the islander you are while you look out of someone else's eyes), as you are.
+    if (life && frame) life.update(frame);
+    for (const ch of this.characters.values()) if (!living || !life?.residentOf(ch)) ch.update(dt, this.ctx);
+    this.keepFooting(me);
+    if (!living) for (const extra of this.crowd) extra.update(dt, this.ctx);
+    if (life && frame) {
+      life.resolve(frame);
+      // What a stall gave you, into your paw (or your pouch).
+      const stall = life.playerServed;
+      if (stall) {
+        life.playerServed = null;
+        const item = STALL_ITEM[stall.goods];
+        if (item) {
+          this.play?.receive(item, me);
+          this.hud.toast(t('toast.served').replace('{0}', t(itemName(item))));
+        }
+      }
+    }
+    this.siren?.update(
+      dt,
+      this.ctx,
+      this.staged || this.lineup || this.freeCamOn ? null : me,
+      life && living ? { hours: this.clock.hours, day: life.day, camera: this.camera } : null,
+    );
     this.updateCave();
+    const play = this.play;
+    if (play) {
+      const inCave = !!this.stage.cave?.isInside(me.position.x, me.feetY + 0.3, me.position.z);
+      play.update({
+        dt,
+        me,
+        camera: this.camera,
+        lookingOut,
+        hours: this.clock.hours,
+        free: !this.staged && !this.lineup && !this.freeCamOn && !this.rowing,
+        inCave,
+        buttonTaken: this.caveLabel !== null,
+        speed: Math.hypot(me.velocity.x, me.velocity.z),
+      });
+    }
+    this.hud.setAction(this.caveLabel ?? play?.action ?? null);
     this.emotes.update(dt);
     if (this.staged) {
       const c = this.staged.camera;
@@ -760,6 +1102,13 @@ export class Game {
     // Out of their eyes you see the one you control only in the calm water; the film look's depth of
     // field leaves the ground at their feet sharp.
     for (const ch of this.characters.values()) ch.setUnseen(lookingOut && ch === me);
+    // Your paw before your eyes, and the light of a torch you carry.
+    this.camera.updateMatrixWorld();
+    play?.updateView(dt, this.camera, me, lookingOut, Math.hypot(me.velocity.x, me.velocity.z));
+    this.stage.setHeldLight(play?.torchFlame(_torch) ?? null);
+    this.things?.update(this.camera.position);
+    this.keepUp(dt, me);
+    if (!this.staged) this.sound.update(this.hearing(dt, me, lookingOut));
     this.lookIntoWater(me, lookingOut, dt);
     if (this.post) this.post.focus.uniforms.uSharp.value = lookingOut ? EYE_SHARP : FOLLOW_SHARP;
     this.updateViewLift(dt);
@@ -770,6 +1119,48 @@ export class Game {
     this.stage.update(this.camera, this.time);
     this.updateReflections();
     this.updateInk();
+  }
+
+  /** Whether one can stand with their feet at (x, y, z): on ground or a deck within FOOTING of it, in the
+   * forbidden cave on its floor, elsewhere where one can walk, not in water deeper than TOO_DEEP. */
+  private canStand(x: number, y: number, z: number): boolean {
+    const ground = groundHeight(x, z, y);
+    if (!(Math.abs(ground - y) < FOOTING)) return false;
+    if (this.stage.cave?.isInside(x, y + 0.3, z)) return true;
+    return !Number.isNaN(standAt(x, z, y)) && y > waterLevelAt(x, z) - TOO_DEEP;
+  }
+
+  /**
+   * Never left standing in water too deep to stand in (somewhere a jump, a seat or an old save left you):
+   * out at once onto the nearest shore one can climb out onto, as after a fall into the sea (see climbOut).
+   */
+  private keepFooting(me: Character): void {
+    if (me.ride || me.inAir || this.staged || this.lineup || this.freeCamOn) return;
+    const p = me.position;
+    const feet = me.feetY;
+    if (this.stage.cave?.isInside(p.x, feet + 0.3, p.z) || feet > waterLevelAt(p.x, p.z) - TOO_DEEP) return;
+    _landing.copy(p);
+    if (!climbOut(_landing)) return;
+    me.teleport(_landing.x, _landing.z, me.facing, groundHeight(_landing.x, _landing.z));
+  }
+
+  /** Each morning, what lies about is seen to (see Things.morning); where you stand on your own feet is
+   * kept, and the island now and then (see save). */
+  private keepUp(dt: number, me: Character): void {
+    const life = this.life;
+    if (!life || !this.play || this.staged || this.lineup) return;
+    if (life.day !== this.morningDay) {
+      this.morningDay = life.day;
+      this.things?.morning(life.day, (item) => this.play?.holds(item) ?? false);
+    }
+    // Kept only where you stand on your own feet on firm ground: not in the air (whose feetY is the ground
+    // under you, the sea's floor off the pier), nor in deep water.
+    if (!me.ride && !this.freeCamOn && !me.inAir && this.canStand(me.position.x, me.feetY, me.position.z)) {
+      this.standing.set(me.position.x, me.feetY, me.position.z);
+      this.standingYaw = me.facing;
+    }
+    this.sinceSave += dt;
+    if (this.sinceSave > SAVE_EVERY) this.save();
   }
 
   /** In the film look, has what the waterfall's pool mirrors captured again once the light has moved
@@ -901,6 +1292,12 @@ export class Game {
     return {
       stage: (shot) => {
         this.staged = shot;
+        // Everyone's day on hold while the shot stands, all of them shown.
+        this.life?.hold();
+        for (const extra of this.crowd) {
+          extra.ride = null;
+          extra.stopAction();
+        }
         if (this.rowing) {
           this.rowing = false;
           this.boat?.leave();
@@ -938,6 +1335,7 @@ export class Game {
         this.boat?.showTorch(!!shot.boat && !torch);
         this.siren?.rest();
         this.siren?.setMood(shot.siren ?? 'calm');
+        this.siren?.mermaids.put(shot.mermaids ?? (shot.siren === 'angry' ? 'head' : 'ledge'));
         for (const [i, extra] of this.crowd.entries()) {
           const spot = shot.crowd?.[i];
           if (spot) extra.teleport(spot[0], spot[1], spot[2]);
@@ -969,9 +1367,11 @@ export class Game {
           ch.expressionOverride = null;
         }
         for (const [i, extra] of this.crowd.entries()) {
-          const [x, z, yaw] = CROWD[i];
+          const [x, z, yaw] = CROWD[i % CROWD.length];
           extra.teleport(x, z, yaw);
         }
+        // Everyone back where the hour has them.
+        this.life?.settle(this.clock.hours, this.me());
         this.eyes.lookFrom(this.me());
       },
       setOutfit: (on) => this.setOutfit(on),

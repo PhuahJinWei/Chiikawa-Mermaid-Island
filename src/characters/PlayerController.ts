@@ -14,9 +14,13 @@ export interface Heading {
 
 /** Turns the joystick into camera-relative movement for the character you control. */
 export class PlayerController {
+  /** The way the stick walks you this frame (metres a second): how you push into whoever you walk into. */
+  readonly want = new THREE.Vector3();
+
   constructor(private readonly input: Input) {}
 
-  update(ch: Character, view: Heading): void {
+  /** Returns whether you jumped. */
+  update(ch: Character, view: Heading): boolean {
     const m = this.input.move;
     const mag = Math.min(1, m.length());
     const walk = ch.def.walkSpeed;
@@ -28,6 +32,9 @@ export class PlayerController {
     _d.set(0, 0, 0).addScaledVector(_r, m.x).addScaledVector(_f, m.y);
     if (_d.lengthSq() > 1e-6) _d.normalize().multiplyScalar(speed);
     ch.setDesiredVelocity(_d);
-    if (this.input.consumeJump()) ch.jump();
+    this.want.copy(_d);
+    if (!this.input.consumeJump()) return false;
+    ch.jump();
+    return true;
   }
 }

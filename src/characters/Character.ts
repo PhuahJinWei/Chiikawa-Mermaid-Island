@@ -22,8 +22,17 @@ import { CANOPY_SHADE, FILM, MIRROR_LAYER } from '../world/Look';
 export interface CharacterOptions {
   /** Background extra: flat tint, and a drawn face on a small canvas (the islanders' cheek marks). */
   crowd?: { color: THREE.ColorRepresentation };
-  /** An outfit asset fitted to this character (the island outfit). Worn until taken off. */
+  /** An outfit asset fitted to this character (the island outfit). Worn until taken off, unless they have
+   * clothes of their own. */
   outfit?: OutfitModel;
+  /** Their own clothes, fitted to them as the island outfit is and worn instead of it (Rakko's cape: see
+   * CharacterDef.own), and what they carry with them (his sword), made by createHeld. */
+  own?: { outfit: OutfitModel; carry?: THREE.Object3D };
+  /** What they always have in their left hand (Kurimanju's can: see CharacterDef.carries), made by
+   * createHeld; put down while they hold the onigiri. */
+  carry?: THREE.Object3D;
+  /** What they play in its action (Rakko's ukulele: see CharacterDef.plays), made by createHeld. */
+  instrument?: THREE.Object3D;
 }
 
 export interface FrameContext {
@@ -95,6 +104,55 @@ export interface HeadLook {
   turn: number | null;
 }
 export const HEAD_LOOK: HeadLook = { yaw: 0.5, up: 0.25, down: 0.25, share: 0.5, rate: 5, turn: 0.5 };
+/** Faster than this (metres a second) they are walking: their body faces the way they go, and their head turns
+ * only this share of its reach to what they watch (see updateHead). */
+const WALKING = 0.35;
+const WALKING_LOOK = 0.35;
+/** How much a lean tips the head (see actionTilt): the body bends as the square of its height (the material's
+ * lean), so its slope near the head's height is about this many times the lean. */
+const HEAD_BEND = 1.7;
+/** What they hold in their right paw (see Character.hold): upright, this far ahead of the paw's tip, leaning this
+ * far forward (radians); flat, this far ahead and up; eaten, this far out from the mouth and down from it. */
+const HAND_AHEAD = 0.03;
+const HAND_LEAN = 0.15;
+const HAND_FLAT_AHEAD = 0.07;
+const HAND_FLAT_UP = 0.03;
+const HAND_MOUTH_OUT = 0.08;
+const HAND_MOUTH_DOWN = 0.08;
+/** What they always carry sits this far out of their left hand's tip (to their left, metres) and ahead of it. */
+const CARRY_OUT = 0.02;
+const CARRY_AHEAD = 0.03;
+/** Rakko's sword is on his back, as he usually carries it (the user, 2026-10-22), in the middle of it (the user: not
+ * out over his right shoulder): its hilt up behind the foot of his head, its blade down his back over his cape,
+ * leaning a little to his left (the model's +x), clear of his head's round back and his cape. Its guard's top, in
+ * his body's own frame at rest (metres), and the way its blade runs from there; its flat faces out from his back. */
+const SWORD_BACK_GUARD = new THREE.Vector3(-0.035, 0.46, -0.425);
+const SWORD_BACK_WAY = new THREE.Vector3(0.07, -0.28, 0.045).normalize();
+/** From the sword's origin, the middle of its grip, to its guard's top (art/blender/build_props.py SWORD). */
+const SWORD_GRIP_TO_GUARD = 0.0575;
+/** Where its grip's middle is, and how it is turned, on his back. */
+const SWORD_BACK_AT = SWORD_BACK_GUARD.clone().addScaledVector(SWORD_BACK_WAY, -SWORD_GRIP_TO_GUARD);
+const SWORD_BACK_TURN = (() => {
+  const middle = SWORD_BACK_GUARD.clone().addScaledVector(SWORD_BACK_WAY, 0.14);
+  const out = new THREE.Vector3(middle.x, 0, middle.z).normalize();
+  out.addScaledVector(SWORD_BACK_WAY, -out.dot(SWORD_BACK_WAY)).normalize();
+  const across = new THREE.Vector3().crossVectors(SWORD_BACK_WAY, out);
+  return new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(across, SWORD_BACK_WAY, out));
+})();
+/** Only now and then he holds it (the 'sword' action): up point first, as the film has it (`[anime] rakko 1`), but
+ * in his right paw, as his stubby arms reach no further in than his sides and his head is too big for a blade held
+ * up before it. Its grip this far ahead of the paw's tip and in toward his middle (metres); its point leaning this
+ * far forward and this far out to his right, clear of his head (radians). */
+const SWORD_AHEAD = 0.03;
+const SWORD_INWARD = 0.02;
+const SWORD_FORWARD = 0.4;
+const SWORD_OUT = 0.3;
+/** Where his ukulele is held while he plays it, in his body's own frame at rest (metres): across his tummy, out in
+ * front of his cape's roll, where his paws are, its body to his right; tipped this far back (radians) and its
+ * neck this far up to his left. */
+const UKULELE_AT = new THREE.Vector3(-0.03, 0.27, 0.42);
+const UKULELE_BACK = -0.25;
+const UKULELE_UP = 0.45;
 /** Turning to face what they watch, the body stops this near it (radians) and turns this fast (a second). */
 const TURN_DONE = 0.08;
 const TURN_RATE = 4;
@@ -229,6 +287,8 @@ export class Character implements EmoteHost {
   headYaw = 0;
 
   private readonly model: CharacterModel;
+  /** Everything of them in the scene: their body (root), their shadows and what they hold (see setShown). */
+  private readonly all = new THREE.Group();
   private readonly poseGroup = new THREE.Group();
   private readonly mesh: THREE.Mesh;
   /** The pen's hull round the body. */
@@ -248,9 +308,25 @@ export class Character implements EmoteHost {
   private readonly prop: THREE.Object3D;
   /** A torch held up in the right hand (in the cave), or none. */
   private torch: THREE.Object3D | null = null;
+  /** What they hold in their right paw (one of the things one carries: see life/Items.ts), held flat on it
+   * or upright in it; or none. Put away while they hold the cave's torch. */
+  private hand: THREE.Object3D | null = null;
+  private handFlat = false;
+  /** What they always have in their left hand (see CharacterOptions.carry), or none. */
+  private readonly carried: THREE.Object3D | null;
+  /** What they carry with their own clothes (Rakko's sword: see CharacterOptions.own), or none. */
+  private readonly ownCarried: THREE.Object3D | null;
+  /** What they play (see CharacterOptions.instrument), shown while they play it; or none. */
+  private readonly instrument: THREE.Object3D | null;
   /** Where they sit while riding in the boat, or null on their own feet. */
   ride: Ride | null = null;
   private readonly outfit: THREE.Group | null = null;
+  /** Their own clothes, worn instead of the island outfit (see CharacterOptions.own), or none. */
+  private readonly ownOutfit: THREE.Group | null = null;
+  /** Whether outfits are on at all (the Test panel's 島の衣装), and whether someone with clothes of their own
+   * wears the island outfit instead (only ever from the Test panel). */
+  private outfitsOn = true;
+  private islandInstead = false;
   /** The skirt's height when seated, as a fraction of standing, so its hem settles on the ground. */
   private readonly skirtSeat: number = 1;
   /** Wears a grass skirt that is part of the model (the islanders), not an outfit. */
@@ -298,13 +374,15 @@ export class Character implements EmoteHost {
   private readonly base = restPose();
   private readonly target = restPose();
 
-  // Out of their own eyes no one sees the marks and words over their own head.
+  // Out of their own eyes no one sees the marks and words over their own head: they show on the screen.
   private readonly actionCtx: ActionContext = {
     emote: (kind, side) => {
-      if (!this.unseen) this.emotes?.spawn(kind, this, side ?? 1);
+      if (this.unseen) this.emotes?.own?.mark(kind);
+      else this.emotes?.spawn(kind, this, side ?? 1);
     },
     say: (key) => {
-      if (!this.unseen) this.emotes?.say(this, t(key));
+      if (this.unseen) this.emotes?.own?.words(t(key));
+      else this.emotes?.say(this, t(key));
     },
   };
 
@@ -319,26 +397,51 @@ export class Character implements EmoteHost {
     this.parts = Array.from({ length: MAX_PARTS }, () => new THREE.Matrix4());
     this.uniforms = makeCharacterUniforms(model.rig, this.parts, this.face.texture, model.maskTexture);
     this.uniforms.uLineBias.value = 0.045 * model.rig.headR / 0.45;
+    // Which parts are their head (see uHeadParts): the head and all that hangs from it; the whole of them for a
+    // model whose head is not a part of its own.
+    let head = 0;
+    for (let i = 0; i < MAX_PARTS; i++) {
+      for (let p = i, depth = 0; p >= 0 && depth < MAX_PARTS; p = model.parents[p] ?? -1, depth++) {
+        if (p === PART.HEAD) head |= 1 << i;
+      }
+    }
+    this.uniforms.uHeadParts.value = model.hasHead ? head : (1 << MAX_PARTS) - 1;
+    // Their head's ball: between its sides, halfway from its seam up to its top (or a head's breadth over its
+    // seam, for a model without its sides marked).
+    const { sideL, sideR, top } = model.anchors;
+    const seam = model.pivots[PART.HEAD]?.y ?? 0;
+    if (sideL && sideR && top) {
+      this.uniforms.uHeadBall.value.set(
+        (sideL.x + sideR.x) / 2,
+        (seam + top.y) / 2,
+        (sideL.z + sideR.z) / 2,
+        Math.max(Math.abs(sideR.x - sideL.x) / 2, (top.y - seam) / 2),
+      );
+    } else {
+      this.uniforms.uHeadBall.value.set(0, seam + model.rig.headR, 0, model.rig.headR);
+    }
     if (options.crowd) {
       const c = new THREE.Color(options.crowd.color);
       this.uniforms.uColorOverride.value.set(c.r, c.g, c.b, 0.86);
     }
-    const { body, outline } = createCharacterMaterials(this.uniforms);
+    const { body, outline } = createCharacterMaterials(this.uniforms, { fur: !!model.rig.fur && !options.crowd });
     this.mesh = new THREE.Mesh(model.geometry, body);
     this.outline = new THREE.Mesh(model.geometry, outline);
     this.poseGroup.add(this.mesh, this.outline);
-    if (options.outfit) {
-      // A separate asset, drawn with the wearer's own deformation so it moves with them.
-      const mats = createCharacterMaterials(makeOutfitUniforms(this.uniforms, options.outfit.info), {
-        billboard: options.outfit.billboard,
-      });
-      this.outfit = new THREE.Group();
-      this.outfit.add(
-        new THREE.Mesh(options.outfit.geometry, mats.body),
-        new THREE.Mesh(options.outfit.geometry, mats.outline),
-      );
-      this.poseGroup.add(this.outfit);
-    }
+    // An outfit is a separate asset, drawn with the wearer's own deformation so it moves with them.
+    const wear = (o: OutfitModel): THREE.Group => {
+      const mats = createCharacterMaterials(makeOutfitUniforms(this.uniforms, o.info), { billboard: o.billboard });
+      const group = new THREE.Group();
+      group.add(new THREE.Mesh(o.geometry, mats.body), new THREE.Mesh(o.geometry, mats.outline));
+      this.poseGroup.add(group);
+      return group;
+    };
+    if (options.outfit) this.outfit = wear(options.outfit);
+    if (options.own) this.ownOutfit = wear(options.own.outfit);
+    this.ownCarried = options.own?.carry ?? null;
+    this.instrument = options.instrument ?? null;
+    if (this.instrument) this.instrument.visible = false;
+    this.showOutfits();
     const ownSkirt = model.rig.patterns?.skirt ?? null;
     this.ownSkirt = ownSkirt !== null;
     const skirt = ownSkirt ?? options.outfit?.info.skirt ?? null;
@@ -353,11 +456,14 @@ export class Character implements EmoteHost {
     fogInOpenAir(this.fireShadow, this.uniforms.uOpenAir);
     this.prop = prop;
     this.prop.visible = false;
+    this.carried = options.carry ?? null;
     // What they hold is lit as their hand is.
-    const held = prop.userData.light as HeldLight | undefined;
-    if (held) {
-      held.uShade = this.uniforms.uShade;
-      held.uOpenAir = this.uniforms.uOpenAir;
+    for (const thing of [prop, this.carried, this.ownCarried, this.instrument]) {
+      const held = thing?.userData.light as HeldLight | undefined;
+      if (held) {
+        held.uShade = this.uniforms.uShade;
+        held.uOpenAir = this.uniforms.uOpenAir;
+      }
     }
     this.updateParts();
   }
@@ -370,8 +476,28 @@ export class Character implements EmoteHost {
     return this.action?.id ?? null;
   }
 
+  /** How long the action they play has played (seconds), or 0. */
+  get actionTime(): number {
+    return this.action?.t ?? 0;
+  }
+
+  /**
+   * How what they do turns their head off the way they stand, for the eyes that look out of it
+   * (FirstPersonCamera): x forward (a bow), y round to their left (a look about), z over to their left (a
+   * dance's sway), in radians; eased in and out as the action is. A body's lean bends it most at the head.
+   */
+  actionTilt(out: THREE.Vector3): THREE.Vector3 {
+    const p = this.pose;
+    const b = this.base;
+    return out.set(
+      p.rootPitch - b.rootPitch + (p.leanZ - b.leanZ) * HEAD_BEND,
+      p.rootYaw - b.rootYaw,
+      (p.leanX - b.leanX) * HEAD_BEND - (p.rootRoll - b.rootRoll),
+    );
+  }
+
   get hasOutfit(): boolean {
-    return this.outfit !== null;
+    return this.outfit !== null || this.ownOutfit !== null;
   }
 
   /** Whether the camera looks out of their eyes (see setUnseen). */
@@ -379,39 +505,84 @@ export class Character implements EmoteHost {
     return this.unseen;
   }
 
-  /** Put the outfit on or take it off. Characters without one ignore this. */
+  /** Put their outfit on or take it off: the island outfit, or their own clothes if they have them. Characters
+   * without one ignore this. */
   setOutfitVisible(on: boolean): void {
-    if (this.outfit) this.outfit.visible = on;
+    this.outfitsOn = on;
+    this.showOutfits();
+  }
+
+  /** For someone with clothes of their own (Rakko), whether they wear the island outfit instead: only ever from
+   * the Test panel. Others ignore this. */
+  wearIsland(on: boolean): void {
+    this.islandInstead = on;
+    this.showOutfits();
+  }
+
+  private showOutfits(): void {
+    const own = this.ownOutfit !== null && !this.islandInstead;
+    if (this.outfit) this.outfit.visible = this.outfitsOn && !own;
+    if (this.ownOutfit) this.ownOutfit.visible = this.outfitsOn && own;
   }
 
   attach(scene: THREE.Object3D, emotes: EmoteSystem): void {
-    scene.add(this.root, this.shadow, this.fireShadow, this.prop);
+    this.all.add(this.root, this.shadow, this.fireShadow, this.prop);
+    for (const thing of [this.carried, this.ownCarried, this.instrument]) if (thing) this.all.add(thing);
+    scene.add(this.all);
     this.emotes = emotes;
     if (FILM) {
       // The calm water mirrors them (see MIRROR_LAYER): their body, their outfit and what they hold,
       // not their lines (the pen's hulls, drawn by their back faces) nor their shadows.
       this.mesh.layers.enable(MIRROR_LAYER);
       this.outfit?.children[0].layers.enable(MIRROR_LAYER);
-      this.prop.traverse((o) => {
-        const m = o as THREE.Mesh;
-        if (m.isMesh && (m.material as THREE.Material).side !== THREE.BackSide) m.layers.enable(MIRROR_LAYER);
-      });
+      this.ownOutfit?.children[0].layers.enable(MIRROR_LAYER);
+      for (const thing of [this.prop, this.carried, this.ownCarried, this.instrument]) {
+        thing?.traverse((o) => {
+          const m = o as THREE.Mesh;
+          if (m.isMesh && (m.material as THREE.Material).side !== THREE.BackSide) m.layers.enable(MIRROR_LAYER);
+        });
+      }
     }
+  }
+
+  /** Whether they are drawn at all, with their shadows and what they hold: not while they are out of sight
+   * indoors, nor far off (see life/Life.ts). */
+  setShown(on: boolean): void {
+    this.all.visible = on;
+  }
+
+  get shown(): boolean {
+    return this.all.visible;
+  }
+
+  /** Moves them, their shadows and what they hold, into `parent` (the Siren out of the cave to the sea). */
+  reattach(parent: THREE.Object3D): void {
+    parent.add(this.all);
   }
 
   /**
    * Whether the camera looks out of their eyes. Then it draws none of them (layer 0 is the camera's):
    * not their body, their lines nor their outfit, which only the calm water's mirror shows
    * (MIRROR_LAYER), marked so the water knows them for your own reflection (uMark) and shows it
-   * clearly; nor the marks and words over their head. Their shadows stay on the ground under them, and
-   * what they hold in their hands, in view.
+   * clearly; nor the marks and words over their head; nor what they hold in their right paw or play,
+   * which you see in your paw before your eyes instead (HandView). Their shadows stay on the ground under
+   * them, and the cave's torch held up, in view.
    */
   setUnseen(on: boolean): void {
     if (on === this.unseen) return;
     this.unseen = on;
-    for (const o of [this.mesh, this.outline, ...(this.outfit?.children ?? [])]) {
+    for (const o of [this.mesh, this.outline, ...(this.outfit?.children ?? []), ...(this.ownOutfit?.children ?? [])]) {
       if (on) o.layers.disable(0);
       else o.layers.enable(0);
+    }
+    // What they hold and play too: out of their own eyes, you see it in your paw before you (HandView), not
+    // here, where it would show again under the camera.
+    for (const thing of [this.hand, this.prop, this.instrument]) {
+      thing?.traverse((o) => {
+        if (!(o as THREE.Mesh).isMesh) return;
+        if (on) o.layers.disable(0);
+        else o.layers.enable(0);
+      });
     }
     this.uniforms.uMark.value = on ? 2 : 0.5;
     if (!on) this.setBow(null);
@@ -429,7 +600,7 @@ export class Character implements EmoteHost {
     const standing = !at || !toward || amount <= 1e-3;
     // Bent, the body is carried out past the bounds it is culled by (which the shader cannot move).
     this.mesh.frustumCulled = standing;
-    for (const o of this.outfit?.children ?? []) o.frustumCulled = standing;
+    for (const o of [...(this.outfit?.children ?? []), ...(this.ownOutfit?.children ?? [])]) o.frustumCulled = standing;
     if (standing) {
       bow.set(0, 1, 0, 0);
       this.bowAmount = 0;
@@ -499,9 +670,14 @@ export class Character implements EmoteHost {
   }
 
   play(id: ActionId): void {
+    const prop = ACTIONS[id].prop;
+    // Only someone with an instrument plays it, and someone with a sword holds it.
+    if ((prop === 'ukulele' && !this.instrument) || (prop === 'sword' && !this.ownCarried)) return;
     this.startBlend(ACTIONS[id].fadeIn);
     this.action = { id, t: 0 };
-    this.prop.visible = ACTIONS[id].prop === 'onigiri';
+    // Eating what they hold, it goes to their mouth; with nothing in hand, the rice ball.
+    this.prop.visible = prop === 'onigiri' && !this.hand;
+    if (this.instrument) this.instrument.visible = prop === 'ukulele';
   }
 
   /** Holds a torch up in the right hand, or puts it away (null). The torch is the caller's to add to
@@ -516,11 +692,47 @@ export class Character implements EmoteHost {
     return this.torch !== null;
   }
 
+  /**
+   * Puts `thing` (made by createHeld: one of the things one carries) in their right paw, upright in it or
+   * `flat` on it, or empties it (null). It goes with them as they go (shown, hidden and moved with the rest
+   * of them), lit as their paw is; while they eat, it is held up to their mouth instead (see play). The
+   * calm water mirrors it as it does them; out of their own eyes, only the water shows it (see setUnseen).
+   * The thing it held before is taken out of the scene.
+   */
+  hold(thing: THREE.Object3D | null, flat = false): void {
+    if (this.hand && this.hand !== thing) this.hand.removeFromParent();
+    this.hand = thing;
+    this.handFlat = flat;
+    if (!thing) return;
+    this.all.add(thing);
+    thing.visible = true;
+    thing.traverse((o) => {
+      const m = o as THREE.Mesh;
+      if (!m.isMesh) return;
+      if (FILM && (m.material as THREE.Material).side !== THREE.BackSide) m.layers.enable(MIRROR_LAYER);
+      if (this.unseen) m.layers.disable(0);
+      else m.layers.enable(0);
+    });
+    if (this.prop.visible) this.prop.visible = false;
+  }
+
+  /** What they hold in their right paw (see hold), or null. */
+  get holding(): THREE.Object3D | null {
+    return this.hand;
+  }
+
+  /** Lights a held thing's `light` (see createHeld) as their paw is lit. */
+  lightHeld(light: HeldLight): void {
+    light.uShade.value.copy(this.uniforms.uShade.value);
+    light.uOpenAir.value = this.uniforms.uOpenAir.value;
+  }
+
   stopAction(): void {
     if (!this.action) return;
     this.startBlend(ACTIONS[this.action.id].fadeOut);
     this.action = null;
     this.prop.visible = false;
+    if (this.instrument) this.instrument.visible = false;
   }
 
   update(dt: number, ctx: FrameContext): void {
@@ -541,12 +753,31 @@ export class Character implements EmoteHost {
     return this.mesh.localToWorld(this.anchorLocal(name, out));
   }
 
+  /** Where a point of their head (in their model's own frame, at rest) is now in the world: as their head
+   * turns and bows (see watch), squashed and leaning as their shader draws it. Where something riding on it
+   * sits: the Siren's little mermaids (see LittleMermaids). */
+  headPoint(local: THREE.Vector3, out: THREE.Vector3): THREE.Vector3 {
+    return this.mesh.localToWorld(this.partPoint(out.copy(local), PART.HEAD));
+  }
+
+  /** Where a point of their body (in their model's own frame, at rest) is now in the world, squashed and leaning
+   * as their shader draws it: where what they play is held (see UKULELE_AT). */
+  private bodyPoint(local: THREE.Vector3, out: THREE.Vector3): THREE.Vector3 {
+    return this.mesh.localToWorld(this.partPoint(out.copy(local), PART.BODY));
+  }
+
   /** A rig anchor in the body's own frame (its mesh's), following the current pose and squash as its
    * shader does, but not its bow (see setBow). */
   private anchorLocal(name: AnchorName, out: THREE.Vector3): THREE.Vector3 {
     // The rest are on the head, which is the body but for a head of its own (see headPitch).
     const part = name === 'handL' ? PART.ARM_L : name === 'handR' ? PART.ARM_R : PART.HEAD;
-    out.copy(this.model.anchors[name]).applyMatrix4(this.parts[part]);
+    return this.partPoint(out.copy(this.model.anchors[name]), part);
+  }
+
+  /** A point of a part, given in the model's own frame at rest (`out`), moved to where the part, the squash
+   * and the lean now put it in the body's own frame, as the shader moves it. */
+  private partPoint(out: THREE.Vector3, part: number): THREE.Vector3 {
+    out.applyMatrix4(this.parts[part]);
     const s = this.uniforms.uSquash.value;
     const k = 1 / Math.sqrt(s);
     const lean = this.uniforms.uLean.value;
@@ -679,6 +910,12 @@ export class Character implements EmoteHost {
     for (const s of this.earPitch) s.velocity += 2.5 * impact;
   }
 
+  /** Whether they are off the ground: jumping, falling, or crouched to jump. In the air, feetY is the
+   * ground under them, not where they will land (falling off the pier, the sea's floor). */
+  get inAir(): boolean {
+    return this.airborne || this.jumpY > 1e-3;
+  }
+
   /** Height of the character's feet when not jumping: what they stand on. */
   get feetY(): number {
     return Number.isNaN(this.feet) ? this.root.position.y : this.feet;
@@ -711,6 +948,12 @@ export class Character implements EmoteHost {
     p.armRRaise += walk * (0.12 + 0.25 * run);
     p.skirtY += walk * s * 0.05;
     p.earBend -= walk * run * 0.25;
+  }
+
+  /** Whether they hold up what they carry with their own clothes (Rakko's sword), in its action ('sword'); it is
+   * on their back otherwise. */
+  private get holdsOwn(): boolean {
+    return !!this.ownCarried && !!this.ownOutfit?.visible && !!this.action && ACTIONS[this.action.id].prop === 'sword';
   }
 
   private updatePose(dt: number): void {
@@ -775,7 +1018,11 @@ export class Character implements EmoteHost {
       const at = this.watchAt;
       const way = Math.atan2(at.x - pos.x, at.z - pos.z);
       const off = wrapAngle(way - this.facing);
-      if (look.turn !== null) {
+      // Walking, they face the way they go (the user: turned to what they watch, they walked sideways) and
+      // only glance with their head (see WALKING_LOOK).
+      const walking = this.speed() > WALKING;
+      if (walking) this.turningToWatch = false;
+      if (look.turn !== null && !walking) {
         // Only once the head has turned that far itself.
         if (Math.abs(off) > look.turn && Math.abs(this.headYaw) > 0.9 * Math.min(look.turn, look.yaw)) this.turningToWatch = true;
         if (this.turningToWatch) {
@@ -787,9 +1034,10 @@ export class Character implements EmoteHost {
       const ahead = this.model.anchors.eyeL.z;
       const flat = Math.hypot(at.x - pos.x - Math.sin(this.facing) * ahead, at.z - pos.z - Math.cos(this.facing) * ahead);
       const rise = this.feetY + this.model.rig.eyeY - at.y;
-      // A head whose body never turns gives up on what is too far round to one side.
-      const keep = look.turn === null ? 1 - smoothstep(look.yaw, look.yaw + 0.7, Math.abs(off)) : 1;
-      yaw = clamp(off, -look.yaw, look.yaw) * keep;
+      // A head whose body never turns, or a walker's, gives up on what is too far round to one side.
+      const reach = walking ? look.yaw * WALKING_LOOK : look.yaw;
+      const keep = look.turn === null || walking ? 1 - smoothstep(reach, reach + 0.7, Math.abs(off)) : 1;
+      yaw = clamp(off, -reach, reach) * keep;
       pitch = clamp(Math.atan2(rise, Math.max(flat, 0.1)) * look.share, -look.up, look.down) * keep;
     } else {
       this.turningToWatch = false;
@@ -968,6 +1216,61 @@ export class Character implements EmoteHost {
         _v.z + Math.cos(this.facing) * out,
       );
       this.prop.rotation.set(-0.15, this.facing, 0);
+    }
+    const s = Math.sin(this.facing);
+    const c = Math.cos(this.facing);
+    if (this.hand) this.placeHand(s, c);
+    if (this.carried) {
+      // Upright in the left hand, its side against the hand's tip, a little out and forward of it; put
+      // down while the onigiri is in hand.
+      this.carried.visible = !this.prop.visible;
+      this.getAnchor('handL', _v);
+      this.carried.position.set(_v.x - c * CARRY_OUT + s * CARRY_AHEAD, _v.y, _v.z + s * CARRY_OUT + c * CARRY_AHEAD);
+      this.carried.rotation.set(0, this.facing, 0);
+    }
+    const playing = !!this.instrument?.visible;
+    if (this.ownCarried) {
+      // With their own clothes (Rakko's sword): on their back, or held up by its grip in the same hand as the
+      // can is, its point leaning forward and out.
+      this.ownCarried.visible = !!this.ownOutfit?.visible;
+      if (this.holdsOwn) {
+        this.getAnchor('handL', _v);
+        this.ownCarried.position.set(_v.x + s * SWORD_AHEAD + c * SWORD_INWARD, _v.y, _v.z + c * SWORD_AHEAD - s * SWORD_INWARD);
+        this.ownCarried.rotation.set(SWORD_FORWARD, this.facing, SWORD_OUT, 'YXZ');
+      } else {
+        this.ownCarried.position.copy(this.bodyPoint(SWORD_BACK_AT, _v));
+        this.ownCarried.quaternion.setFromAxisAngle(UP, this.facing).multiply(SWORD_BACK_TURN);
+      }
+    }
+    if (this.instrument && playing) {
+      // Across the tummy, its neck up to their left (the model's +x), tipped back a little.
+      this.bodyPoint(UKULELE_AT, _v);
+      this.instrument.position.copy(_v);
+      this.instrument.rotation.set(UKULELE_BACK, this.facing, UKULELE_UP, 'YXZ');
+    }
+  }
+
+  /** What they hold in their right paw (see hold): up at their mouth while they eat, as the rice ball is; else
+   * upright in the paw, leaning a little forward, or flat on it; lit as the paw is. */
+  private placeHand(s: number, c: number): void {
+    const hand = this.hand as THREE.Object3D;
+    // Put away while the cave's torch is in that paw, or they play what they play.
+    hand.visible = !this.torch && !this.instrument?.visible;
+    const light = hand.userData.light as HeldLight | undefined;
+    if (light) this.lightHeld(light);
+    if (this.action?.id === 'eat') {
+      this.getAnchor('mouth', _v);
+      hand.position.set(_v.x + s * HAND_MOUTH_OUT, _v.y - HAND_MOUTH_DOWN, _v.z + c * HAND_MOUTH_OUT);
+      hand.rotation.set(-0.35, this.facing, 0, 'YXZ');
+      return;
+    }
+    this.getAnchor('handR', _v);
+    if (this.handFlat) {
+      hand.position.set(_v.x + s * HAND_FLAT_AHEAD, _v.y + HAND_FLAT_UP, _v.z + c * HAND_FLAT_AHEAD);
+      hand.rotation.set(0, this.facing, 0, 'YXZ');
+    } else {
+      hand.position.set(_v.x + s * HAND_AHEAD, _v.y, _v.z + c * HAND_AHEAD);
+      hand.rotation.set(HAND_LEAN, this.facing, 0, 'YXZ');
     }
   }
 

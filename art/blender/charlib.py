@@ -275,6 +275,23 @@ def leaf_bm(length, width, thickness, u=18, v=14):
     return bm
 
 
+def outline_slab_bm(outline, thickness):
+    """A flat shape of the closed outline [(x, z)], `thickness` thick (along Y): a crab's claw drawn from the
+    side. Its edges are sharp; fuse it for a plush one."""
+    bm = bmesh.new()
+    front = [bm.verts.new((x, -thickness / 2, z)) for x, z in outline]
+    back = [bm.verts.new((x, thickness / 2, z)) for x, z in outline]
+    bm.faces.new(front)
+    bm.faces.new(list(reversed(back)))
+    n = len(outline)
+    for i in range(n):
+        j = (i + 1) % n
+        bm.faces.new((front[i], front[j], back[j], back[i]))
+    bmesh.ops.triangulate(bm, faces=bm.faces[:])
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    return bm
+
+
 # ------------------------------------------------------------------ mesh plumbing
 def append_bm(dst, src):
     tmp = bpy.data.meshes.new("_tmp")

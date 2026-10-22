@@ -25,8 +25,9 @@ RECIPE_FILE = "expressions.txt"
 # The expressions, in the order the game lists them; keep in step with ExpressionId in
 # src/characters/types.ts.
 EXPRESSIONS = ("neutral", "smile", "happy", "determined", "worried", "teary", "sobbing", "shocked", "angry")
-# Layers that show on every expression, when a folder has them.
-ALWAYS = ("skin", "cheeks")
+# Layers that show on every expression, when a folder has them: a scar is for good (Rakko's star, which the
+# user painted, 2026-10-22).
+ALWAYS = ("skin", "scar", "cheeks")
 # Layers the game swaps in by itself: blinking, dozing, talking, chewing.
 SWAPS = ("eyes closed", "eyes sleep", "tears eyes closed", "mouth closed", "mouth half-open", "mouth open",
          "mouth half-open 2")

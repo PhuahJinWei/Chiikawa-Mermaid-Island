@@ -1,0 +1,13 @@
+# Kurimanju: which layers make up each expression (see ../README.md).
+# The user's own painting. Kurimanju hasn't many expressions (the user, 2026-10-22): the extreme ones (sobbing,
+# shocked, angry) are his special face, special.png, a whole face of its own; and he has no brows but when he is
+# serious (determined). cheeks.png shows on every face.
+Neutral: eyes open + mouth closed
+Smile: eyes open + mouth half-open
+Happy: eyes open + mouth half-open
+Determined: brows 2 + eyes open + mouth closed
+Worried: eyes open + mouth closed + sweat
+Teary: eyes open + mouth closed + tears
+Sobbing: special
+Shocked: special
+Angry: special

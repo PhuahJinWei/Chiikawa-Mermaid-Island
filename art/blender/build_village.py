@@ -1023,6 +1023,8 @@ BUILDERS = {
     "beehive": build_beehive,
     "stage": H.build_stage,
     "torch": H.build_torch,
+    # The night feast's bonfire on the night beach.
+    "bonfire": H.build_bonfire,
     # 島二郎, the restaurant at the end of the riverside path (shimajiro.py).
     "restaurant": S.build_restaurant,
     # The guest houses where the visitors sleep: an orange-shingled one and a tan one, as the film's.

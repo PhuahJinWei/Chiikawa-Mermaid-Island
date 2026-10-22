@@ -32,6 +32,8 @@ const EXPRESSIONS: Record<ExpressionId, ExpressionSpec> = {
  */
 const PAINT_GROUPS: Record<string, { z: number; follow: readonly [number, number] }> = {
   skin: { z: 0, follow: [0.8, 0.8] },
+  // On the skin, and moving with it (Rakko's star).
+  scar: { z: 0.5, follow: [0.8, 0.8] },
   cheeks: { z: 1, follow: [0.5, 0.5] },
   tears: { z: 2, follow: [1, 1] },
   eyes: { z: 3, follow: [1, 1] },
@@ -39,8 +41,8 @@ const PAINT_GROUPS: Record<string, { z: number; follow: readonly [number, number
   mouth: { z: 5, follow: [0.35, 0.3] },
 };
 const PAINT_OTHER = { z: 6, follow: [0.5, 0.5] as const };
-/** Painted layers that show on every expression. */
-const ALWAYS = ['skin', 'cheeks'];
+/** Painted layers that show on every expression: a scar is for good (art/blender/face_art.py's ALWAYS). */
+const ALWAYS = ['skin', 'scar', 'cheeks'];
 /** What a closed mouth opens to while talking or chewing, best first. */
 const TALKING_MOUTHS = ['mouth half-open', 'mouth open', 'mouth half-open 2'];
 

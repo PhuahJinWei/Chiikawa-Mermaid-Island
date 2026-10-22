@@ -69,6 +69,8 @@ export interface Rig {
   armReach?: number | null;
   /** Second colour (Hachiware's cap, inner ears), painted where the mask is over 0.5. */
   maskColor?: string | null;
+  /** False where no line is drawn along the second colour's edge, only a change of colour (Furuhonya's cap). */
+  maskLine?: boolean;
   /** The model's own painted mask, sampled per pixel with the model's UVs for a smooth edge. */
   maskTexture?: string | null;
   parts: { pivot: Vec3Tuple; parent: number }[];
@@ -77,6 +79,9 @@ export interface Rig {
     /** A grass skirt that is part of the model (the islanders'), not an outfit. */
     skirt?: SkirtPattern | null;
   };
+  /** Fur, as the film draws Rakko's: no line round the head and body, but short strokes in from their edge
+   * (see CharacterMaterial's FUR). */
+  fur?: FurPattern | null;
   face?: FaceLayout | null;
   faceAtlas?: {
     url: string;
@@ -129,9 +134,22 @@ export interface SkirtPattern {
   wave?: number;
 }
 
+/** Fur's strokes, written by art/blender/import_characters.py: how many round the head (and the body), their
+ * length and their gap from the edge in head radii, the most they lean off square to it (radians), and the
+ * middles they are laid round, the head's and the body's below it, each with its radius (x, y, z, r). */
+export interface FurPattern {
+  count: number;
+  length: number;
+  gap: number;
+  slant: number;
+  head: [number, number, number, number];
+  body: [number, number, number, number];
+}
+
 /** Pattern data for an outfit, written by art/blender/outfits.py. */
 export interface OutfitInfo {
   version: number;
+  /** 'island', or the kind of clothes of their own (Rakko's 'cape'). */
   outfit: string;
   wearer: string;
   skirt: SkirtPattern | null;

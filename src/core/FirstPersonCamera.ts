@@ -25,9 +25,15 @@ const ZOOM = 0.0012;
  * height over their feet as the body bobs, squashes and sits. */
 const FEET_EASE = 14;
 const BOB_EASE = 9;
+/** The eyes turn with the head as what you do turns it (Character.actionTilt: a bow, a dance, a look about):
+ * this share of its turn round, and of the rest; never past looking straight up or down. */
+const TILT_ROUND = 0.6;
+const TILT = 1;
+const MOST_PITCH = 1.55;
 
 const _l = new THREE.Vector3();
 const _r = new THREE.Vector3();
+const _tilt = new THREE.Vector3();
 
 /**
  * The game's camera: out of the eyes of the character you control, who is seen only in the calm water
@@ -93,7 +99,13 @@ export class FirstPersonCamera {
     this.pitch = clamp(this.pitch - this.look.y * turn, -PITCH, PITCH);
 
     this.follow(dt, ch);
-    camera.rotation.set(this.pitch, this.yaw, 0, 'YXZ');
+    ch.actionTilt(_tilt);
+    camera.rotation.set(
+      clamp(this.pitch - _tilt.x * TILT, -MOST_PITCH, MOST_PITCH),
+      this.yaw + _tilt.y * TILT_ROUND,
+      _tilt.z * TILT,
+      'YXZ',
+    );
   }
 
   /**

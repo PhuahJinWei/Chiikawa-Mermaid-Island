@@ -289,7 +289,7 @@ cheaper bob-only animation so phones stay smooth.
 | **Chiikawa** | Visiting guest. Anxious, kind, cries easily. | Warm white, two small round ears, pink crown. Most expression variants. |
 | **Hachiware** | Visiting guest. Cheerful, curious, talkative. | Warm white, blue cap with pointed cat ears, pale blue crown, blue tail tuft. |
 | **Usagi** | Visiting guest. Chaotic, loud, loves food. | Pale yellow, tall pink-lined ears, yellow crown. Often holds a torch. Appears where food is. |
-| **Rakko-sensei** (Otter) | Visiting guest. Calm, watchful, cool. | Cream with fur ticks, dark brown ears and paws, star scar, white crown. Plays ukulele at the bonfire. Sword and cape are cosmetic. |
+| **Rakko-sensei** (Otter) | Visiting guest. Calm, watchful, cool. | Cream with fur ticks, dark brown ears and paws, star scar. Plays ukulele at the bonfire. Always in his own clothes, his cape and sword, which are cosmetic: the sword on his back, held only now and then; never the island outfit, which is his only from the Test panel (the user, 2026-10-22). |
 | **Momonga** | Visiting guest. Sly, acts cute. | White, fluffy cheeks, pale blue ear insides and nose dot, big fluffy pale blue tail, lavender crown. |
 | **Kurimanju** | Visiting guest. Relaxed, always with a drink. | Peach with brown chestnut cap, pale green crown. |
 | **Shisa** | Visiting guest. Cheerful. | Cream, orange flame mane and brows, peach crown. |
@@ -444,6 +444,23 @@ Hachiware for meals) share schedule entries and face each other when idle.
 NPCs react to the player: turn to look when you approach, wave if friendship
 is high, say a short bark line if you walk past without talking.
 
+**Built (2026-10-22, `src/life/`).** Everyone who lives here has a day of
+blocks planned each morning from their profile (`profiles.ts`): asleep from
+midnight to six, out and about at the places they like (their habits at set
+hours: Hachiware on the pier at dawn, Rakko's sword on the beach, the
+farmers among the fields' rows), meals at the festival's stalls, five stalls
+kept open each day by islanders who go to work at them while others line up
+before them, the night beach's feast from dusk (Rakko playing, some dancing,
+the rest round the fire), home before midnight. They walk a half-metre grid
+of the island built as needed, keep out of each other's way, give way slowly
+when you keep pushing into them, look at one another (and at you as at
+anyone), chat when idle, hop or wave back when you hop at them, and stop to
+talk when you talk to them. Far off they are moved without being drawn. The
+Siren swims out to play some afternoons and lurks at sea at night, her eyes
+red, sinking from sight as you come near. Twenty-one islanders: one shares
+your house, the rest two to a house (four huts were built for them, the
+fields made smaller). Friendship is not built yet.
+
 ### 6.5 Dialogue
 
 - Text box at the bottom, typewriter effect, tap to advance, tap-hold to
@@ -476,6 +493,13 @@ is high, say a short bark line if you walk past without talking.
   writer reproducing the manga's voice. You review the tone on a sample
   before I write the full set of lines.
 
+**Built so far (2026-10-22):** a first sample, for you to review. Talking with
+someone (はなす) stops them for a line in a bubble over their head (`talk.*`
+in `locales/ja.json`, picked in `life/lines.ts`): three of each of the cast's
+own, eight the islanders', and some for the hour (morning, evening, night)
+and what they are doing (at their stall's counter, at the feast, in the
+fields). No text box, choices or friendship yet.
+
 ### 6.6 "Monitoring" the island
 
 A **journal** (bottom-left button) with three tabs:
@@ -489,6 +513,12 @@ A **journal** (bottom-left button) with three tabs:
 
 No objectives. The journal is for curiosity, not completion.
 
+**Built so far (2026-10-22):** the notebook (ノート, by the pouch's button):
+its everyone page lists each of the cast, the place they are in and what they
+are doing, updated as you watch, and counts the islanders by what they do;
+its album page holds your photos. No compass arrow, friends or discoveries
+yet.
+
 ### 6.7 Small interactions (the texture of comfy)
 
 - Sit on any bench, rock, or the pier edge. Camera pulls back. Time passes.
@@ -499,12 +529,37 @@ No objectives. The journal is for curiosity, not completion.
 - Join the festival song: a rhythm-free tap-along that just plays notes.
 - Photo mode: hide UI, free camera, tap to save a PNG to your phone.
 
+**Built so far (2026-10-22):** sit on any seat (a log, the sand round the
+feast's fire, the pier's edge, a stool, a bed) with すわる, up with たつ or
+the stick; in your own bed at night ねる sleeps through to six. Pick things
+up (ひろう): the shells and starfish the sea leaves on the beaches each
+morning, the stage's ukulele, the torch by your door, whatever was put down.
+What you hold shows in your right paw at the bottom right of the screen,
+out of your own eyes; your pouch keeps six more. Put it down where you look
+(おく), give it to whoever you look at (あげる: Kurimanju gives you one of his
+cans back, the crab who keeps the book shop a shell), eat or drink it (a bite
+at a time), play the ukulele, carry the torch (it lights your way at night).
+The stalls hand you what they sell. The camera button takes a photo, kept
+in the notebook's album, to save or share. The island's sound is made as it
+plays (`core/Sound.ts`): the waves as near as the sea is, wind and birds,
+crickets, the waterfall, the festival's murmur, the feast's fire, your
+footsteps, Rakko's ukulele tune and yours, a hum from the sea at night.
+The きもち button (by the test toggle, or R) lets you wave, bow, cheer, hop,
+dance, chat, look about, start or cry; whoever is near may answer, waving
+back, bowing back, dancing along, or coming over to ask if you are all
+right. Out of your own eyes your view and your paw move with it, and your
+own words and marks show low on the screen.
+
 ### 6.8 Saving
 
 Autosave every 30 seconds and on tab hide. Stores clock, player position,
 friendship, discoveries, settings. Versioned so old saves migrate. An
 "export save" button copies a JSON string to the clipboard as a backup,
 since clearing browser data wipes `localStorage`.
+
+**Built so far (2026-10-22, `core/Save.ts`):** kept every 20 seconds, on
+leaving the page and after sleeping: the hour and the day, where you stood,
+your paw and pouch, what lies about. `?fresh` starts anew. No export yet.
 
 ---
 
@@ -658,7 +713,7 @@ testable on desktop with a fake touch layer.
 
 - I run `vite --host` here and test in the built-in browser at a 390×844
   viewport, reading the console for errors.
-- You open `http://<your-pc-ip>:5173` on your phone over the same Wi-Fi to
+- You open `http://<your-pc-ip>:5280` on your phone over the same Wi-Fi to
   feel the real touch controls. Nothing is published until we push.
 - A hidden debug panel (triple-tap the clock) shows fps, draw calls, zone,
   and lets you jump time.

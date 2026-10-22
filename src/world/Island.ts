@@ -285,14 +285,15 @@ export class Terrain {
   /**
    * Whether a character whose feet were at `feet` can stand at (x, z): not bumping into a rock or
    * a prop, nor at the cave skylight's edge, and either on a deck they can step onto, or on ground
-   * that is not under water deeper than a wade nor up a cliff.
+   * that is not under water deeper than a wade nor up a cliff. `pad` keeps them that much further from
+   * what they would bump into (for finding the way, see standAt).
    */
-  walkable(x: number, z: number, feet: number): boolean {
-    if (this.nearRock(x, z, ROCK_MARGIN) || this.nearSkylight(x, z, EDGE_MARGIN)) return false;
+  walkable(x: number, z: number, feet: number, pad = 0): boolean {
+    if (this.nearRock(x, z, ROCK_MARGIN + pad) || this.nearSkylight(x, z, EDGE_MARGIN + pad)) return false;
     const ground = this.height(x, z);
     const deck = deckUnder(x, z, feet + STEP_UP);
     const stand = deck !== null && deck > ground ? deck : ground;
-    if (blocked(x, z, PROP_MARGIN, stand)) return false;
+    if (blocked(x, z, PROP_MARGIN + pad, stand)) return false;
     if (deck !== null && deck > ground) return true;
     const h = ground;
     if (h < this.waterLevel(x, z) - WADE) return false;
@@ -837,6 +838,25 @@ function canStand(x: number, z: number, feet: number): boolean {
     if (cave.walled(x, z, feet)) return false;
   }
   return terrain.walkable(x, z, feet);
+}
+
+/**
+ * Where someone whose feet were at `feet` stands at (x, z), if they can stand there at all: on the deck
+ * within a step of their feet, or on the ground; NaN where they cannot (in water too deep, up a cliff, in
+ * a rock or a prop). On the island only, never in the forbidden cave. For finding the way about it (see
+ * life/Nav.ts), by the same rules as walking; `pad` keeps that much further from rocks and props.
+ */
+export function standAt(x: number, z: number, feet: number, pad = 0): number {
+  if (!terrain) return NaN;
+  if (cave && (cave.holds(x, z, feet) || cave.walled(x, z, feet))) return NaN;
+  if (!terrain.walkable(x, z, feet, pad)) return NaN;
+  return groundHeight(x, z, feet);
+}
+
+/** The island's map: its north-west corner (x, z) and how many metres it is across; null until it has
+ * loaded. */
+export function islandSquare(): { x: number; z: number; size: number } | null {
+  return terrain ? { x: terrain.info.origin[0], z: terrain.info.origin[1], size: terrain.info.size } : null;
 }
 
 /** Whether someone can stand on the cave's floor at (x, z): where its walk grid lets them, clear of what

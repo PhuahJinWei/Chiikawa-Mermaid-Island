@@ -448,11 +448,15 @@ varying vec2 vNight;
 `;
 
 /** GLSL, after three's own lights: the lantern's baked light, the map's (stored as its square root)
- * times its gain and the lantern's colour this moment in the light grid. */
+ * times its gain and the lantern's colour this moment in the light grid; and how much of the lantern
+ * this point of the house sees (nightSeen, for the firelight's roofed rooms: what is in the room sees
+ * it, the roof's outside does not). */
 const NIGHT_LIGHT = /* glsl */ `
+float nightSeen = 0.0;
 if (uFireOn > 0.5) {
   vec3 nightLantern = texelFetch(uFireLights, ivec2(int(vNight.x - 0.5), 1), 0).rgb;
   vec3 nightLight = texture2D(uNightMap, vNightUv).rgb;
+  nightSeen = max(nightLight.r, max(nightLight.g, nightLight.b));
   reflectedLight.indirectDiffuse += nightLight * nightLight * vNight.y * nightLantern * BRDF_Lambert(material.diffuseColor);
 }
 `;
@@ -569,23 +573,29 @@ function roomOf(parts: { role: PartRole; geometry: THREE.BufferGeometry }[], mat
 const FLAME_BRIGHT = 3;
 
 /** Unlit vertex colours: flames, which make their own light, licking and wavering, the more the
- * higher up the flame (which the colours tell: a pale yellow heart, orange tips). */
-function flameMaterial(): THREE.MeshBasicMaterial {
+ * higher up the flame (which the colours tell: a pale yellow heart, orange tips). `size`: how big the flame
+ * is beside the village torches' (a torch carried in the paw's, 0.15), for how far it licks; `bright`: how
+ * much brighter than white it burns in the film look. */
+export function flameMaterial(size = 1, bright = FLAME_BRIGHT): THREE.MeshBasicMaterial {
   const material = new THREE.MeshBasicMaterial({ vertexColors: true });
-  if (FILM) material.color.setRGB(FLAME_BRIGHT, FLAME_BRIGHT, FLAME_BRIGHT);
+  if (FILM) material.color.setRGB(bright, bright, bright);
+  const uFlameSize = { value: size };
   material.onBeforeCompile = (shader) => {
-    Object.assign(shader.uniforms, windUniforms);
-    shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>\nuniform float uTime;').replace(
-      '#include <begin_vertex>',
-      `#include <begin_vertex>
+    Object.assign(shader.uniforms, windUniforms, { uFlameSize });
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nuniform float uTime;\nuniform float uFlameSize;')
+      .replace(
+        '#include <begin_vertex>',
+        `#include <begin_vertex>
       {
         float up = clamp((0.9 - color.g) / 0.76, 0.0, 1.0);
-        float phase = dot(floor(position.xz * 2.0), vec2(1.7, 2.3));
-        transformed.x += up * up * 0.07 * sin(uTime * 8.0 + phase + position.y * 3.0);
-        transformed.z += up * up * 0.05 * cos(uTime * 6.5 + phase * 1.3 + position.y * 2.0);
-        transformed.y += up * 0.08 * sin(uTime * 11.0 + phase * 0.7);
+        vec3 at = position / uFlameSize;
+        float phase = dot(floor(at.xz * 2.0), vec2(1.7, 2.3));
+        transformed.x += up * up * 0.07 * uFlameSize * sin(uTime * 8.0 + phase + at.y * 3.0);
+        transformed.z += up * up * 0.05 * uFlameSize * cos(uTime * 6.5 + phase * 1.3 + at.y * 2.0);
+        transformed.y += up * 0.08 * uFlameSize * sin(uTime * 11.0 + phase * 0.7);
       }`,
-    );
+      );
   };
   return material;
 }

@@ -5,7 +5,7 @@ import { VitePWA } from 'vite-plugin-pwa';
 // and on any local preview server.
 export default defineConfig({
   base: './',
-  server: { host: true, port: 5173, strictPort: true },
+  server: { host: true, port: 5280, strictPort: true },
   preview: { host: true, port: 4173, strictPort: true },
   build: { chunkSizeWarningLimit: 2000 },
   plugins: [

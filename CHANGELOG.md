@@ -11,6 +11,60 @@ stage, and along every path. Not yet checked on a real phone.
 
 **Added**
 
+- Life on the island (the user, 2026-10-22: we are one of many on it, not
+  its middle), in `src/life/`. Everyone who lives here goes about a day
+  planned each morning: asleep from midnight to six (the islanders in the
+  villagers' houses, two to a house, you among them; Chiikawa, Hachiware and
+  Usagi in one guest house, Shisa with Kurimanju, Momonga with Furuhonya,
+  Rakko alone), out to the places they like and their habits at set hours,
+  meals at the festival's stalls, five of which islanders keep open each day
+  while others line up before them, the night beach's feast round its new
+  bonfire from dusk, home before midnight. They find their way on a
+  half-metre grid of the island built as needed, give way to one another,
+  give way slowly to you when you keep pushing into them, look at one
+  another as at you, chat, hop or wave back when you hop. Far off they are
+  moved without being drawn. The Siren swims out to play some afternoons
+  with her little mermaids and lurks at sea at night, red-eyed, sinking from
+  sight as you come near.
+- Twenty-one islanders, each a little different in tint, of five kinds of
+  day (the fields, the beaches, the plaza, the paths, the festival's
+  street); four more villagers' houses for them (a third pair of stilt huts
+  where the lane meets the fields, a plank hut and a beehive hut in the
+  yard), and the fields made smaller from their east end to make room (the
+  user's). The jungle is planted as before round the village, only what
+  would stand in the new houses left out, and they have plants of their own.
+- What you do with your paws (`src/core/Play.ts`): pick up what you look at
+  (the shells and starfish the sea leaves each morning, the stage's ukulele,
+  the torch by your door), hold it in your right paw, which shows at the
+  bottom right of the screen out of your own eyes (`HandView`), keep six
+  more in your pouch, put it down where you look, give it to whoever you look
+  at, eat or drink it a bite at a time, play the ukulele, carry the torch
+  (lit at night, it lights the ground and those round you). The stalls hand
+  over what they sell; the islanders carry it off and eat it. Sit on any
+  seat; in your own bed at night, sleep through to the morning. Twenty-nine
+  things to hold, built in Blender (`art/blender/build_items.py`), with their
+  icons.
+- Talking (はなす): whoever you talk with stops and says a line like them,
+  for the hour and what they are doing; a first set of lines in
+  `locales/ja.json` for the user to look over.
+- The きもち button (the user, 2026-10-22), up by the test toggle, or R:
+  wave, bow, cheer, hop, dance, chat, look about, start or cry yourself
+  (1 to 9 on the keyboard while it is open). Whoever is near may answer it.
+  Seated, you get up first; eating, you stop. Out of your own eyes you feel
+  it: your view dips with a bow, sways with a dance, glances left and right
+  as you look about; your paw comes up to wave, cheer, dance or wipe your
+  eyes; your own words (わーい！) and marks (♪, ！, ？) show low in the
+  middle of the screen, as do your hearts as you eat.
+- The notebook (ノート): where each of the cast is and what they are doing,
+  the islanders counted, and the album of photos taken with the camera
+  button, to save or share; the sound on or off.
+- The island's sound, made as it plays: the sea as near as it is, wind and
+  birds, crickets at night, the waterfall, the festival's murmur, the
+  feast's fire, footsteps on sand, wood, grass or in the water, Rakko's
+  ukulele at the feast and yours, a hum from the sea where the Siren lurks.
+- The island kept as you left it (`src/core/Save.ts`): the hour and the day,
+  where you stood, your paw and pouch, what lies about. `?fresh` starts
+  anew.
 - The island's ground, built in Blender by `art/blender/build_island.py`,
   first after the film's aerial shot, traced through a game camera matched
   to the shot, then grown to the north and west for what the film's later
@@ -499,10 +553,196 @@ stage, and along every path. Not yet checked on a real phone.
     fin-hands and tail fin turns with her. When you go, she turns back to
     the water.
   - She is no light: the cave's own light, the fire and the torch light her
-    as they light the cast (the user, 2026-10-21). The small mermaids are
-    for later.
+    as they light the cast (the user, 2026-10-21).
   - She costs about 0.4 ms a frame at 1280 × 720 in the chamber, two draw
     calls and 67,000 triangles with her pen; she is drawn with the cave.
+- Kurimanju, a visiting guest, stands with the cast under the welcome arch
+  (the user, 2026-10-22).
+  - Built from Chiikawa's model, changing only what the official plush
+    (`[3d model] kurimanju`) shows is their own, as the user asked.
+  - They are peach, with a brown chestnut cap over the top of the head.
+    Its edge is lowest in front and behind and rises to the sides. The
+    converter draws it as a mask (its `cap` option) in even coordinates
+    of its own round the head: the downloaded model's own UVs left the
+    edge ragged.
+  - Their tiny round ears sit low on the head's sides (its `ears`
+    option), and a pale green crown sits on the cap.
+  - Their face is the user's own painting (`art/faces/kurimanju/`, started
+    as a copy of their Chiikawa layers). Kurimanju hasn't many expressions
+    (the user, 2026-10-22): the extreme ones, sobbing, shocked and angry,
+    are his special face (`special.png`, a whole face of its own, mouth
+    wide open), and he has brows only when he is serious (determined).
+  - Their face's guide is drawn from their own head as the game shows it:
+    peach, the cap on it and the ears where they now sit. Baked from
+    Chiikawa's model, it had shown Chiikawa's white head with no cap and
+    the ears on top (the user noticed).
+  - Always with a drink (PLAN.md): a can of it in one hand, upright, which
+    goes with the hand as Kurimanju sits or waves with the other and is put
+    down while they eat (the user, 2026-10-22). The can is a new prop in
+    `art/blender/build_props.py`: a gold label between a silver foot and a
+    silver top narrowing to a rolled rim round its lid, 17 cm tall, drawn
+    with the pen and lit as the hand holding it is (720 triangles). Any
+    character can carry one (CharacterDef.carries).
+- Rakko-sensei, a visiting guest, stands with the cast under the welcome
+  arch on Chiikawa's other side (the user, 2026-10-22).
+  - Built from Chiikawa's model as Kurimanju is, changing only what the
+    official plush (`[3d model] rakko`, front and back) and `[anime] rakko
+    1` show is his own.
+  - He is a tenth taller than Chiikawa, as the style guide has him (the
+    converter's new `scale` option).
+  - He is cream, with tiny dark brown ears low on the head's sides (much
+    smaller than Chiikawa's, as the official drawing and plush have them:
+    the user) and dark brown paws and feet.
+  - His face is the user's own painting (`art/faces/rakko/`, started as a
+    copy of their Chiikawa layers), his tan star scar over his right eye
+    among its layers. A layer named `scar` now shows on every face, as the
+    cheeks do. The converter's new `mark` option, which first drew the
+    star on his model as a mask, is kept for marks to come. His face's
+    guide shows his head as the game does: cream, the dark ears where they
+    now sit.
+  - As the film draws him (`[anime] rakko 1`), no line runs round his head
+    and body: short strokes of fur instead, in from their edge, square to
+    it or a little askew and unevenly spaced, in the pen. The game draws
+    them round the outline as it is seen (CharacterMaterial's FUR, from
+    the converter's new `fur` option), 24 round his head and a few along
+    his body's sides.
+  - He never wears the island outfit, only his own clothes (the user,
+    2026-10-22): his cape and his sword. The island outfit is his only
+    from the Test panel (ラッコ：島の衣装). 島の衣装 takes either off.
+  - His cape, after the film and the official drawings: white cloth
+    wrapped round his neck in a flat band under his head, thin enough
+    to leave his lower body in view (the user), and hanging from it down
+    his back to the ground, its hem rising to its front edges, open at
+    the front. It is an outfit of its own (`art/blender/outfits.py`
+    `cape_pieces`) and sways and settles with him as the grass skirt
+    does (2,900 triangles).
+  - His sword, after the user's own drawing of it: a broad grey blade (a
+    cool grey, so that it shows grey in the game, where the sun's warm
+    light on what is held had turned the drawing's own grey beige)
+    widening from the guard to its shoulders and coming to a point, a
+    ridge line up its middle (broken a little above the guard) meeting
+    two lines from the shoulders like a cut gem's facets; a white guard,
+    a white grip banded with three dark lines, a white pommel; 0.4 m long,
+    as on the official plush (`art/blender/build_props.py`, 590
+    triangles).
+  - He carries it on his back (the user): slantwise across it over his
+    cape, its hilt up and out over his right shoulder, where it shows
+    past the foot of his head from the front, as the official drawing
+    has it. Only now and then does he hold it, in the Test panel's
+    剣をかまえる (shown only for him): up in his right paw, his face
+    serious, its point leaning forward and out clear of his head. The
+    film has him hold it up before him in both paws, but his stubby arms
+    reach no further in than his sides, and his head is too big for a
+    blade held before it.
+  - His ukulele (PLAN.md), which he plays from the Test panel's ウクレレ,
+    shown only for him: held across his tummy in front of his cape's band,
+    its neck up to his left, his right paw strumming, swaying a little to
+    the beat. No frame of the film's ukulele yet, so it is a plain one,
+    honey wood with a darker neck (1,980 triangles). The bonfire he plays
+    it at is not built yet.
+- Furuhonya (古本屋), the crab, a visiting guest, stands on the night beach,
+  the east end of the main beach, facing the sea (PLAN.md; the user,
+  2026-10-22).
+  - Built from Chiikawa's model as Kurimanju and Rakko are, changing only
+    what the official plush (`[3d model] furuhonya`, front and back) and
+    the user's close picture of her face show is her own.
+  - She is a pale pink, with no round ears and no tail. A soft coral-pink
+    cap covers the top of her head, as the user's picture has it: its edge
+    half a head radius over her eyes in front and a little lower at the
+    sides, under her crown, and only a change of colour, with no line
+    along it (the rig's new `maskLine`). It is drawn as Kurimanju's cap is
+    (the converter's `cap`).
+  - Two coral-pink claws stand up from her head's upper sides where the
+    ears were, in the shape the user drew them: round as a lily pad, with
+    a notch for the pincer's gap at the top on the outer side, and a wide
+    foot running into her head. They are as big beside her head as the
+    user's picture has them, each about a third of its width. They are set
+    a little behind its middle, so her head's outline crosses their feet
+    as the drawing has it. They lean out a little and are puffed thinner
+    toward their edges (the converter's new `claws` option, its outline
+    traced off the drawing), and bob as ears do.
+  - Two tiny dark antennae stand on the top of her head between them, thin
+    as the pen's strokes (the user; the converter's new `antennae`
+    option), and bob with them.
+  - Her crown is white and pale blue, sitting on the cap's edge (the
+    crown's new `cap` mode).
+  - Her face starts as a copy of the user's Chiikawa layers, to repaint
+    (`art/faces/furuhonya/`): the plush has big round eyes, two short
+    double lines for brows and an open cat mouth. Her face's guide shows
+    her head as the game does: the cap, the claws and the antennae on it.
+  - 8,700 triangles, 0.98 m to the tops of her claws.
+- Shisa, a visiting guest, cheerful, stands with the cast under the
+  welcome arch, at the back on the left beside Hachiware, where the mane
+  shows from the pier (PLAN.md; the user, 2026-10-22).
+  - Built from Hachiware's model, the set's cat, after the official plush
+    (`[3d model] shisa`, front and back) and the official drawing the user
+    gave. In cream, with the drawing's little tail, Hachiware's tuft, in
+    the mane's colour.
+  - A mane of petals on each side of the head, three a side, from under
+    the ears down past the cheeks, in the drawing's soft salmon orange.
+    Each petal is the shape the user drew (the converter's
+    `PETAL_OUTLINE`, traced from their stroke): a gently domed top out to
+    a little hooked tip, and a full curve back down. Its straight edge
+    lies along the head's outline, as on the user's close-up of the
+    drawing, so the head's line runs over it and only the dome, tip and
+    curve show. The user turned down a first mane of pointed flames, then
+    soft round petals ("soft flower petals"), then petals turned the wrong
+    way round.
+    - Each is a flat piece of its own, like felt, with its own line, the
+      upper ones over the lower ones. A root out of sight in the head
+      holds it on.
+    - The converter's `mane` option places each petal between two heights
+      on the outline.
+  - The ears are the same petal, only longer (the user: "her ears are
+    petal shaped too (but longer)"). They stand on the head's top corners
+    with their tips where the drawing's are, higher than Hachiware's ears,
+    which are dropped. They are on the ears' parts, so they still twitch
+    (the converter's `petal_ears` option).
+  - Each petal and ear has the drawing's little curl in it, traced off the
+    user's close-ups (`PETAL_CURL`, `EAR_CURL`). In a petal it is a short
+    stroke out from the head's line, a third of the way across. In an ear
+    it is an arch over its middle, as an inner ear's crease.
+    - The curls are drawn with the pen (`pen_stroke_bm`): the outline's
+      own ink and width (1.8 cm), round-ended. Each is laid as its piece
+      is, so it bends and stretches with it, 3 mm off its front face, with
+      no line of its own. The back stays plain, as the drawing shows only
+      the front.
+  - Shisa's face guide (`art/faces/shisa/_guide.png`) is now drawn from her
+    own head, with her ears, mane and curls. It had shown Hachiware's ears.
+  - A peach crown high on the head.
+  - Shisa's face starts as a copy of the user's Hachiware layers, for the
+    user to repaint (`art/faces/shisa/`). The plush has big round eyes,
+    thick orange flame-shaped brows and a wavy cat mouth.
+  - 12,900 triangles, 0.91 m to the tips of her ears.
+- The Siren's two little mermaids (the user, 2026-10-22).
+  `art/blender/build_mermaid.py` builds one model for both, and
+  `src/characters/LittleMermaids.ts` keeps them with her.
+  - They sit side by side before her tail on the ledge, facing the water
+    as she does (`cave interior 7`, `8`).
+  - Now and then (every 25 to 45 s) they hop up together onto her head,
+    the second a moment after the first, to sit on its top between her
+    bun-ears for 12 to 25 s, then hop back down (`[anime] siren 1`).
+  - Roused (おこる), she has them up on her head until she calms.
+  - On her head they ride it as she nods to you or turns. Like everyone,
+    they keep their eyes on you within 4 m, and walkers go round them on
+    the ledge.
+  - The Test panel's セイレーン section sends them before her (人魚：前) or up
+    onto her head (人魚：頭の上). A staged shot's `mermaids` places them.
+  - They are the Siren's own shape made smaller, as the user asked: her
+    head (Chiikawa's), body, band, tail and fin-hands, built with her
+    script's own helpers. They are as finely made as the cast, 12,000
+    triangles each.
+  - What differs follows the user's drawings of them from the front, the
+    back and the side, and the official plush. A rust-red patch runs over
+    the top of the head, rounding down to just above the eyes in front and
+    a little higher behind, with two tiny black antennae on it. They have
+    no bun-ears, no black cap and no whiskers. The tail is rust, its
+    scales bigger for their size.
+  - They are 0.7 of Chiikawa's height to their antennae's tips, as `cave
+    interior 7` and `8` measure them beside the cast (0.67 and 0.75).
+  - Their one face, two dot eyes and a round open mouth, is a template
+    for the user to paint in `art/faces/mermaid/`, with the dots closed to
+    dashes for their blinks.
 
 **Performance**
 
@@ -586,6 +826,14 @@ outlined is drawn twice, once for its pen line. To get there:
 
 **Changed**
 
+- Every character's face is baked again from the user's latest layers in
+  `art/faces/` (the user, 2026-10-22), all of the cast, the islanders, the
+  Siren and her little mermaids rebuilt. Their new sweat drops show on
+  Chiikawa's, Hachiware's, Momonga's and the Siren's worried faces, and
+  Kurimanju, Rakko, Furuhonya and Shisa wear their own paintings.
+  - Only Kurimanju's and the Siren's recipes (`expressions.txt`) have an
+    Angry line yet. The others show their neutral face for it.
+  - Rakko's "eyes sad" layer is in no recipe, so it is left out.
 - What is made for the villagers is their size (the user, 2026-10-21):
   out of a villager's own eyes, 0.63 m up, the huts' furniture, the
   festival's counters and the small plants had stood a person's size over
@@ -662,23 +910,27 @@ outlined is drawn twice, once for its pen line. To get there:
     it as before. The panel's character chips put you in anyone's eyes,
     じぶん (you) among them.
   - You can see yourself in the water. Looking down into calm water you
-    stand in or beside, you bend over it to look, as you would over a
-    pond: your face, crown and ears look back up at you from just where you
-    look, clearly, the ripples waving them a little and the sun's glints
-    on them, in the light there (golden in the golden hour, the night's
-    blue by night). At first the water could show you only the underside
-    of your skirt, right under your eyes and as faint as everything it
-    mirrors, so you saw nothing of yourself (the user noticed). Everyone
-    else's reflections stay as faint as before. The waterfall's pool, calm,
-    waves you and everything in it less than the sea does. At a deck's
-    edge over the water, the pier's end or the quay, your eyes lean out
-    over it as you look down, or the deck would hide the water under it.
-    The foam round your own legs is fainter out of your eyes, where its
-    ring framed the water you look into, and your face in it. Only the
-    water shows you bending, and what you hold and your eyes stay as they
-    were; seen from behind (三人称カメラ) you stand as before. The dark
-    tests pass, and by night and by day with you bent over the shallows,
-    the pool and the pier's end.
+    stand in or beside, you lean over it as you would over a pond: your
+    eyes go forward to your face, and looking straight down you see your
+    head just under you, your face, crown and ears looking back up at you,
+    round as seen from below, clearly, the ripples waving it a little and
+    the sun's glints on it, in the light there (golden in the golden hour,
+    the night's blue by night). The rest of you shows only as faintly as
+    everyone else does, behind your head as it would be. At first the
+    water could show you only the underside of your skirt, right under
+    your eyes and as faint as everything it mirrors, so you saw nothing of
+    yourself (the user noticed); then all of you, turned over flat and out
+    where you looked, which the user found looked like a flat picture of you
+    floating on the water before you. Everyone else's reflections stay as
+    faint as before. The waterfall's pool, calm, waves you and everything
+    in it less than the sea does. At a deck's edge over the water, the
+    pier's end or the quay, you lean further out over it as you look down,
+    or the deck would hide the water under it. The foam round your own
+    legs is fainter out of your eyes, where its ring framed the water you
+    look into. Only the water shows you leaning, and what you hold stays as
+    it was; seen from behind (三人称カメラ) you stand as before. The dark
+    tests pass, and by night and by day with you leaning over the
+    shallows, the pool and the pier's end.
 - The forbidden cave is a hidden place, as in the film. Its skylight, the
   round opening in the spur's top over the cave's sea, is smaller (13
   metres across where it was 21) and lies deep in the spur's jungle, about
@@ -1900,6 +2152,27 @@ outlined is drawn twice, once for its pen line. To get there:
   19:36 and out from 4:36 to 5:36. The waterfall's clearing stays darker
   than the film's moonlit pond at 22:30: the moon, high in the south,
   only grazes its cliff.
+- Rooms at night in their own colours, as the film's: inside 島二郎 and
+  the villagers' and guests' houses the wood is a golden tan and the
+  huts' walls their sage green, where the lamps' light had turned the wood
+  a saturated orange and the night's blue had painted the huts' walls a
+  bright blue (the user, beside the film's frames of 島二郎's room and a
+  hut's at night). Seen from inside a lit room by night the picture is
+  balanced to its lamp's light, as a camera balanced to it would be, the
+  room a little greyer and kept out of the night's blue, while the cast in
+  it glow the night's pale blue as the film's characters in its rooms do.
+  The rooms' lamps shine the colour of their own bulbs, a warm cream
+  (#FFE49D, as bright as before), where their light had been a deeper
+  orange than the bulb; balancing a room to that had turned its bulb cyan.
+  By night a lit room's roof and walls keep the moon's and the sky's light
+  off what is inside (the softer moon shadows had let it through, tinting
+  the walls blue), and the trees' shade no longer falls on whoever stands
+  in a lit room. 島二郎's wall measures hue 26°, saturation 0.61 to 0.70
+  and value 0.57 to 0.69 against the film's 31° to 42°, 0.56 to 0.71 and
+  0.5 to 0.62 (it was 22°, 0.86 to 0.94 and 0.82 to 1.0); a stilt hut's
+  walls an olive sage, hue 102°, the film's 90° to 97°. From outside the
+  rooms' windows and doorways glow warm as before, the village measuring
+  the same, and the rooms by day are the same to the pixel.
 - Every wooden thing on the island is painted as 島二郎's wood is (the user,
   2026-10-21), where it had been a flat colour with a faint streak: the
   guest houses and the villagers' huts inside and out, the village's stage,
@@ -1967,6 +2240,56 @@ outlined is drawn twice, once for its pen line. To get there:
 
 **Fixed**
 
+- After the user's play-through (2026-10-22):
+  - **The plank hut wedged into the yard has moved.** It stood behind the
+    yard's other two plank huts, its door onto their walls. It now stands on
+    the grass west of the yard, its door to the yard, with a trodden path to
+    it between the two round huts. Its two islanders go home to it and sleep
+    there.
+  - **Chiikawa, Hachiware and Usagi sleep in their house again.** The way in
+    by its door was missing (the nearest ground outside its steps lay just
+    beyond a doorway's reach), so at bedtime they gave up and went about the
+    island all night. A doorway with no ground that near now reaches a little
+    further; every bed in all 16 houses can be reached.
+  - **No more walking sideways.** A walker no longer turns their body to what
+    they look at; they face the way they go and only glance with their head.
+  - **They keep their eyes on you.** Whoever you talk with, give something
+    to, or who answers you stays turned to you as you walk off.
+  - **Gifts are thanked.** On taking the gift, after eating it, or on keeping
+    it, each in their own words.
+  - **Your actions get answers, not just your hops.** A wave is waved back,
+    a bow bowed back, a cheer cheered, a dance danced along with; crying
+    brings someone over to ask if you are all right. Those nearest you
+    answer first.
+  - **Rakko's sword is in the middle of his back**, not out over his right
+    shoulder.
+- No more starting the game under the water by the pier (the user,
+  2026-10-22, "stuck beneath the ground"). In the air your feet's height is
+  the ground under you, the sea's floor when you jump off the pier, and the
+  island was kept with you there if it was kept mid-jump; you came back
+  standing on the sea's floor, your eyes under the water, where no one can
+  walk. Where you stand is now kept only on firm ground, a place kept for
+  you is checked before you are put back there (else you start on the
+  pier), and anyone left standing in water too deep to stand in climbs out
+  at the nearest shore at once.
+- No more stray hairlines across the characters' surfaces (the user,
+  2026-10-22, on Shisa's ears and mane). A character's line is the model
+  drawn again behind it, pushed outward on screen by the pen's width. That
+  push went the whole width at every vertex, even on surfaces facing the
+  camera, wherever their normals happened to lean. Across a flat face (a
+  petal, an ear) or at a crease, neighbouring vertices went different ways,
+  so the copy's triangles folded over and showed through as thin dark lines.
+  - The characters' line (`src/characters/CharacterMaterial.ts`) now leaves
+    surfaces facing the camera where they are, as the world's pen already
+    did for props and plants (`src/world/Ink.ts`). Only the silhouette,
+    where the surface turns away, is pushed out to draw the line.
+  - The lines keep their width: checked on the whole cast, close and from
+    the pier, and on the background crowd.
+  - That covers every outlined surface in the game, characters, outfits
+    and props alike. These two are its only outline shaders.
+  - Shisa's mane petals are thinner, 2 cm, so that each one's whole line
+    shows over the petal below it, as the drawing has it. At 3 cm the petal
+    behind cut that line down to a broken sliver.
 - A character's shadow on the ground no longer glows in the forbidden cave.
   It took the island's fog, which lit it faintly with the fog's colour when
   it was far off in the cave: the cave's dark test found the Siren's,

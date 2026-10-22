@@ -1,0 +1,5 @@
+# The little mermaids: which layers make up each expression (see ../README.md).
+# They have one face, which every expression shows (the user, 2026-10-22). The first layers were drawn by
+# art/blender/build_mermaid.py as templates to paint over, after the user's drawings of them; it never
+# overwrites them. eyes closed is for her blinks.
+Neutral: eyes open + mouth open

@@ -2947,6 +2947,31 @@ def build_torch(collection):
     return [body, fire], {"footprint": {"circle": 0.15}, "height": 3.0, **painter.finish(P.OUT_MODELS)}
 
 
+def build_bonfire(collection):
+    """The night feast's bonfire on the night beach (PLAN.md): a ring of beach stones round a teepee of
+    logs leaning in to a point, its big cartoon flame lit only at night (a light of the island's, as the
+    torches' flames are). Sized for the cast, who sit round it: the logs to their knees, the flame over
+    their heads."""
+    pieces = []
+    stones = np.random.default_rng(7)
+    for k in range(11):
+        a = 2.0 * math.pi * k / 11 + stones.uniform(-0.08, 0.08)
+        r = 0.8 + stones.uniform(-0.04, 0.04)
+        size = stones.uniform(0.85, 1.15)
+        pieces.append((L.ellipsoid_bm(V(math.cos(a) * r, math.sin(a) * r, 0.04), (0.17 * size, 0.12 * size, 0.1 * size),
+                                      rot=Matrix.Rotation(a, 3, "Z"), u=8, v=5), C["stone"]))
+    for k in range(6):
+        a = 2.0 * math.pi * k / 6 + 0.25
+        foot = V(math.cos(a) * 0.56, math.sin(a) * 0.56, 0.02)
+        top = V(math.cos(a) * 0.07, math.sin(a) * 0.07, 0.72 + 0.04 * (k % 2))
+        pieces.append((log(foot, top, 0.055 + 0.008 * (k % 3), segments=7), C["log"] if k % 2 else C["logDark"]))
+    import paintmap as PM
+    painter = PM.Painter("bonfire")
+    body = painter.join("bonfire", pieces, collection, sharp=P.SHARP, grained=False, auto=wood_auto(True))
+    fire = P.join("bonfire_flame", flame_pieces(V(0.0, 0.0, 0.16), 1.45, 1.05, tongues=6), collection)  # lit at night
+    return [body, fire], {"footprint": {"circle": 0.98}, "height": 2.0, **painter.finish(P.OUT_MODELS)}
+
+
 # ---------------------------------------------------------------------------- the festival street
 def flower_bm(centre, normal, radius):
     """A yellow flower of five broad, round petals facing `normal`, with an orange middle, as the

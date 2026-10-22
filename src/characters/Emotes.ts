@@ -10,6 +10,13 @@ export interface EmoteHost {
   getAnchor(name: AnchorName, out: THREE.Vector3): THREE.Vector3;
 }
 
+/** Where the marks and words of the one the camera looks out of go, who has no head in view for them to show
+ * over (see Character.setUnseen): onto the screen (Hud.ownMark, Hud.ownWords). */
+export interface OwnView {
+  mark(kind: EmoteKind): void;
+  words(text: string): void;
+}
+
 interface Live {
   sprite: THREE.Sprite;
   kind: EmoteKind | 'bubble';
@@ -39,6 +46,11 @@ const SIZE: Record<EmoteKind, number> = {
   heart: 0.18,
 };
 const BUBBLE_HEIGHT = 0.3;
+/** A bubble keeps its top under this far up the view (its edge being 1): close to someone, out of your own
+ * eyes, it is brought down (and made smaller, at the closest) rather than rising off the screen. */
+const BUBBLE_TOP = 0.9;
+const _ndc = new THREE.Vector3();
+const _eyes = new THREE.Vector3();
 const ON_TOP = new Set<EmoteKind | 'bubble'>(['exclaim', 'question', 'bubble']);
 const INK = '#5A3A2E';
 export const ROUNDED_FONT =
@@ -150,6 +162,10 @@ function bubbleTexture(text: string): { texture: THREE.CanvasTexture; aspect: nu
 
 /** Pooled billboard effects: symbols and speech bubbles. */
 export class EmoteSystem {
+  /** The camera the bubbles are kept in view of (see BUBBLE_TOP), once the game gives it. */
+  camera: THREE.PerspectiveCamera | null = null;
+  /** Where your own marks and words show out of your own eyes, once the game gives it. */
+  own: OwnView | null = null;
   private readonly textures: Record<EmoteKind, THREE.Texture>;
   private readonly pool: THREE.Sprite[] = [];
   private readonly live: Live[] = [];
@@ -190,7 +206,8 @@ export class EmoteSystem {
     this.place(e, 0);
   }
 
-  say(host: EmoteHost, text: string): void {
+  /** Words in a bubble over `host`'s head, for `life` seconds. */
+  say(host: EmoteHost, text: string, life = 1.9): void {
     for (const e of this.live) if (e.kind === 'bubble' && e.host === host) e.age = e.life;
     const { texture, aspect } = bubbleTexture(text);
     const sprite = this.take(texture, true);
@@ -200,7 +217,7 @@ export class EmoteSystem {
       kind: 'bubble',
       host,
       age: 0,
-      life: 1.9,
+      life,
       pos: new THREE.Vector3(),
       vel: new THREE.Vector3(),
       size: BUBBLE_HEIGHT,
@@ -279,12 +296,27 @@ export class EmoteSystem {
         scale = e.size * pop(age);
         opacity = 1 - smooth((k - 0.75) / 0.25);
         break;
-      case 'bubble':
+      case 'bubble': {
         e.host.getAnchor('top', s.position);
         s.position.y += 0.1;
         scale = e.size * pop(age);
         opacity = 1 - smooth((k - 0.85) / 0.15);
+        const camera = this.camera;
+        if (camera) {
+          _ndc.copy(s.position).setY(s.position.y + scale).project(camera);
+          if (_ndc.z < 1 && _ndc.y > BUBBLE_TOP) {
+            // Metres it rises too high, where it is: brought down that far, over tall ears if need be, but
+            // no lower than just over their eyes; what still does not fit, made smaller.
+            const across = s.position.distanceTo(camera.position) * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2);
+            const over = (_ndc.y - BUBBLE_TOP) * across;
+            e.host.getAnchor('eyeL', _eyes);
+            const drop = Math.max(0, Math.min(over, s.position.y - (_eyes.y + 0.12)));
+            s.position.y -= drop;
+            if (over > drop) scale = Math.max(scale * 0.55, scale - (over - drop));
+          }
+        }
         break;
+      }
     }
     s.scale.set(scale * e.aspect, scale, 1);
     s.material.opacity = opacity;

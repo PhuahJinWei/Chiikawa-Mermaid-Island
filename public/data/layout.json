@@ -138,7 +138,12 @@
     {"kind": "torch", "x": -12, "z": -92, "group": "village"},
     {"kind": "torch", "x": -1.5, "z": -101, "group": "village"},
     {"kind": "torch", "x": 18.5, "z": -108.6, "group": "village"},
-    {"kind": "torch", "x": 24.8, "z": -115.2, "group": "village"}
+    {"kind": "torch", "x": 24.8, "z": -115.2, "group": "village"},
+    {"kind": "bonfire", "x": 75, "z": -21},
+    {"kind": "hut_green", "x": -42.5, "z": -61.6, "turn": 30.0, "group": "village"},
+    {"kind": "hut_warm", "x": -40.1, "z": -45.4, "turn": 210.0, "group": "village"},
+    {"kind": "hut_plank", "x": -35.5, "z": -84.0, "turn": 90.0, "group": "village"},
+    {"kind": "beehive", "x": -25.0, "z": -85.5, "turn": 150.0, "group": "village"}
   ],
   "zones": [
     {"id": "pier", "box": [0, 7.7, 2.2, 7.0, 0]},
@@ -148,7 +153,8 @@
     {"id": "westBeach", "box": [-191, -100, 13, 11, 15]},
     {"id": "shimajiro", "circle": [-174.5, -160.0, 9.0]},
     {"id": "cliffs", "box": [70, -247.4, 40, 14, -20]},
-    {"id": "fields", "box": [-45, -38, 16, 14, 0]},
+    {"id": "fields", "box": [-54.5, -37, 8.5, 13, 0]},
+    {"id": "village", "box": [-29.5, -60, 20, 13, 32.5]},
     {"id": "village", "circle": [-3, -88, 40]},
     {"id": "festival", "box": [0, -7, 30, 8.5, 0]},
     {"id": "festival", "box": [0, -30, 8.5, 15.5, 0]},

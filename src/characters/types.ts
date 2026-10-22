@@ -1,8 +1,31 @@
 import type { StringKey } from '../i18n/I18n';
 
 /** 'player' is you: a nameless islander, seen out of their own eyes. */
-export type CharacterId = 'player' | 'chiikawa' | 'hachiware' | 'usagi' | 'momonga' | 'hitoha' | 'futaba';
-export const CHARACTER_IDS: readonly CharacterId[] = ['player', 'chiikawa', 'hachiware', 'usagi', 'momonga', 'hitoha', 'futaba'];
+export type CharacterId =
+  | 'player'
+  | 'chiikawa'
+  | 'hachiware'
+  | 'usagi'
+  | 'momonga'
+  | 'kurimanju'
+  | 'rakko'
+  | 'furuhonya'
+  | 'shisa'
+  | 'hitoha'
+  | 'futaba';
+export const CHARACTER_IDS: readonly CharacterId[] = [
+  'player',
+  'chiikawa',
+  'hachiware',
+  'usagi',
+  'momonga',
+  'kurimanju',
+  'rakko',
+  'furuhonya',
+  'shisa',
+  'hitoha',
+  'futaba',
+];
 
 export type EyeKind = 'open' | 'happy' | 'closed' | 'squeeze' | 'teary';
 export type BrowKind = 'none' | 'default' | 'worried' | 'angry';
@@ -57,7 +80,7 @@ export interface FaceStyle {
 
 /** Who lives on the island apart from the cast the Test panel lets you play: the Siren, resting in the
  * forbidden cave (see Siren.ts). */
-export type ResidentId = 'siren';
+export type ResidentId = 'siren' | 'mermaid';
 
 export interface CharacterDef {
   id: CharacterId | ResidentId;
@@ -66,7 +89,16 @@ export interface CharacterDef {
   model: string;
   /** The island outfit asset fitted to this character, if it wears one. */
   outfit?: string;
+  /** Their own clothes, worn instead of the island outfit, which is then theirs only from the Test panel: Rakko's
+   * cape (the user, 2026-10-22), an asset fitted to them as the island outfit is. And what they carry with them
+   * (his sword), from its Blender prop (art/blender/build_props.py). */
+  own?: { outfit: string; carries?: 'sword' };
   face: FaceStyle;
   walkSpeed: number;
   runSpeed: number;
+  /** What they always have in their left hand, from its Blender prop (art/blender/build_props.py): Kurimanju's
+   * can of drink. */
+  carries?: 'can';
+  /** What they play, from its Blender prop, in its action: Rakko's ukulele ('ukulele'). */
+  plays?: 'ukulele';
 }

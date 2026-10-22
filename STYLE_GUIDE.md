@@ -30,7 +30,10 @@ never pushed, because it is other people's artwork.
   under half the pen where the camera is looking. Lines painted into
   textures (emotes, a log's cut ends) use the same width, except on the
   tiniest effects such as tears, where it is capped so their shape reads.
-  See `src/world/Ink.ts`.
+  See `src/world/Ink.ts`. The pen draws only along the silhouette and where
+  a piece crosses another, never across a surface facing the camera, so a
+  flat face shows no stray hairlines (the characters' line in
+  `CharacterMaterial.ts` follows the same rule as `Ink.ts`).
 - **Characters are flat; backgrounds are painted.** Characters are flat
   colour with almost no shading, made darker and warmer only where they
   stand in the trees' shade (in the jungle's shade the film's white comes
@@ -85,9 +88,11 @@ never pushed, because it is other people's artwork.
   in it or by it, the pier and the ferry show in it faintly, as real water
   shows them: broken by the ripples into drifting strokes, most where the
   water is seen across, much of the water's colour in them. Never a flat
-  colour, never a crisp mirror. Only you, bent over the water to look into
-  it out of your own eyes, show clearly in it, as a face bent over calm
-  water does, the ripples still waving you a little. The sea
+  colour, never a crisp mirror. Only your own head, as you lean over the
+  water out of your own eyes and look straight down, shows clearly in it,
+  just under you, looking back up, as a face bent over calm water does;
+  the ripples still wave it a little, and the rest of you is as faint as
+  anyone. Never a flat picture of you out on the water. The sea
   cliffs are pale cream sandstone in long beds, tufts of leaves on their
   ledges and creepers hanging over their lip. Grass is clumps, light
   yellow-green patches with sharp blade tips along their tops over a plain
@@ -113,7 +118,11 @@ never pushed, because it is other people's artwork.
   trunks and rocks in cool cyan; torches burn in big licking cartoon
   flames, and they, lanterns and lit windows glow and light what is round
   them warm, out to the dim edges of their pools, firelit faces a warm
-  cream. Dusk is a cool steel blue; the golden hour
+  cream. Inside a lit room by night the room keeps its own colours as
+  its lamp lights them, as the film's rooms at night: 島二郎's wood a
+  golden tan, a hut's walls their sage, never a saturated orange and never
+  the night's blue, the cast in it the night's pale blue; seen from
+  outside its windows and doorway glow warm. Dusk is a cool steel blue; the golden hour
   floods the jungle with golden light, its haze gold toward the sun and
   thin elsewhere; the evening's haze takes the sky's colours, never a
   green fog.
@@ -199,13 +208,13 @@ a villager's height, the big-leaved ones over them.
 | **Chiikawa** | 1.0 | Warm white #FBF7EE | Two small round ears on top | Pink #F9DCE1 / #FFF1F3 | Most expressive face; often teary or anxious. |
 | **Hachiware** | 1.0 | Warm white | Blue cap shape over top of head #5E8FC4 with two pointed cat ears; split down the forehead. Its edge sits about 0.4 head radii above the eyes, well clear of the brows | Pale aqua #D3F2EE / #EAFBF7 | Small blue tail tuft at the back. |
 | **Usagi** | 1.15 | Pale yellow #F8E4B4 | Two tall upright ears, pink inside #F3A9B8; two arched brow lines on forehead | Yellow #FBF5A8 / #FFFBD2, small, at ear base | Often carries a torch or food. Energetic, mid-jump poses. |
-| **Rakko-sensei** | 1.1 | Cream #F1E3C4, short fur ticks around the edge | Small dark brown ears #3E2A23, dark brown paws, tan 4-point star scar on forehead #C9A46A | White | Calm half-lidded eyes. Carries a sword and wears a cape when not in island outfit. Plays a small ukulele at the bonfire. |
+| **Rakko-sensei** | 1.1 | Cream #F1E3C4, short fur ticks around the edge instead of a line, as the film draws him | Tiny dark brown ears #3E2A23 low on the head's sides (much smaller than Chiikawa's), dark brown paws and feet, tan 4-point star scar on forehead over his right eye (the user's painting, a face layer) | None: never the island outfit (white crown), which is his only from the Test panel | Calm half-lidded eyes. Always in his own clothes (the user, 2026-10-22): a white cape #DDE2DE wrapped round his neck in a flat band and hanging down his back, and his sword after the user's drawing of it (a broad grey faceted blade, modelled a cool #C6D0E6 so that it shows grey under the game's warm sun, white guard, banded white grip and pommel), which he carries slantwise on his back, its hilt over his right shoulder, and only now and then holds up in his right paw. Plays a small ukulele at the bonfire (a plain one until there is a frame of the film's). Chiikawa's model with only these differences, after the official plush (`[3d model] rakko`) and `[anime] rakko 1`: converted by `art/blender/import_characters.py`; the cape by `outfits.py`, the sword and ukulele by `build_props.py`. |
 | **Momonga** | 1.0 | White, fluffy cheek tufts | Round ears with pale blue insides, small blue nose dot | Lavender #D4CEF4 / #E9E5FB | Huge fluffy pale-blue tail #BDE7EA behind. Sly, cute-acting. |
-| **Kurimanju** | 1.0 | Peach #F6D8B8 | Brown chestnut cap #7A4B2E covering top of head, tiny round ears | Pale green #CDEBB0 | Holds a drink, relaxed. |
-| **Shisa** | 1.0 | Cream #F7EDCB | Cat-like ears, orange flame-shaped mane on both sides #F2A65A, thick orange brows | Peach #F6B99A | Cheerful. |
-| **Furuhonya** (crab) | 1.0 | Soft pink #F6CFCF | Coral crab claws on top of head #F28B8B, two tiny antennae, pink cap | White with pale blue | Present at the beach at night. |
+| **Kurimanju** | 1.0 | Peach #F6D8B8 | Brown chestnut cap #7A4B2E covering top of head, its edge lowest in front and behind and rising to the sides; tiny round ears low on the head's sides | Pale green #CDEBB0 | Holds a drink, relaxed. Few expressions: the extreme ones (sobbing, shocked, angry) are his special face, mouth wide open; no brows but when serious (the user, 2026-10-22). Chiikawa's model with only these differences (the user, 2026-10-22), after the official plush (`[3d model] kurimanju`): converted by `art/blender/import_characters.py`, the cap drawn there as a mask. |
+| **Shisa** | 1.0 | Cream #F7EDCB | A mane of petals #F4AD82 (soft salmon orange), three a side down the head from under the ears, each the shape the user drew (a domed top, a little hooked tip, a full curve back), its straight edge along the head's outline so that the head's line runs over it, the upper over the lower, flat as felt, each outlined; ears the same petal only longer, cream, standing on the head's top corners; the drawing's little curl in each, in the pen (a short stroke out from the head's line in a petal, an arch in an ear), on their fronts only; thick orange brows (the face's to paint); a little tail tuft in the mane's colour | Peach #F6B99A | Cheerful. She is Hachiware's model with only these differences (2026-10-22), after the official plush (`[3d model] shisa`), the official drawing and the user's petal drawing. Converted by `art/blender/import_characters.py`, which builds the mane and ears (`PETAL_OUTLINE`). |
+| **Furuhonya** (crab; she) | 1.0 | Pale pink #FBE5E1 | Two coral-pink claws #F2B0B3, each about a third of the head's width, standing up from the head's upper sides where the ears would be, shaped as the user drew them: round as a lily pad, a notch for the pincer's gap at the top on the outer side, a wide foot; two tiny dark antennae on top between them, thin as pen strokes; a soft coral-pink cap #F2B0B3 over the top of the head, its edge half a head radius over the eyes in front and a little lower at the sides, with no line along it; no ears, no tail | White with pale blue #DDEFF5, on the cap's edge | Present at the beach at night. Chiikawa's model with only these differences (the user, 2026-10-22), after the official plush (`[3d model] furuhonya`) and the user's close picture of her face: converted by `art/blender/import_characters.py`, the cap drawn there as a mask. |
 | **Islanders** (incl. Hitoha, Futaba) | 1.1 | Grey-mauve #988584 (sampled from the film) | Leaf sprout on top of head (same grey, dark vein lines). No eyes, brows or mouth: only cheek marks, four bold hatch strokes a side | Grey crown of the same flowers in daily scenes | Shaped like Chiikawa: a round head on a fringed grass skirt of the same grey, stub arms at the waist. About 2.5 head radii tall, like the official plush. **Hitoha has one leaf, Futaba has two, and they are the only islanders with leaves.** Generic islanders vary: some have rabbit-like ears, cat ears, round ears or a small spike instead. |
-| **Small mermaids** | 0.6 | White round head #FFFFFF | Rust-red cap patch on top #C8462E with two tiny black antennae; startled "O" mouth; small dot eyes | None | White fin-hands with three lines, pink waist band #F5B3BE, rust scaled tail #C2553E with a curled fin. There are at least two; they ride on the Siren's head. |
+| **Small mermaids** | 0.7 | White round head, the Siren's (Chiikawa's) | Rust-red patch #C8462E over the top of the head, rounding down to just above the eyes in front and a little higher behind, with two tiny black antennae on it; startled "O" mouth; small dot eyes; no whiskers | None | Two, exactly alike, the Siren's own shape made smaller (the user, 2026-10-22): her fin-hands with two lines on each, pink waist band #F5B3BE, rust scaled tail #C2553E curling to a heart-shaped fin. 0.7 times Chiikawa to the tips of their antennae, as `cave interior 7` and `8` measure them beside the cast. In the film they sit before the Siren on the ledge (`cave interior 7`, `8`) and ride on her head (`[anime] siren 1`). Their shape follows the user's own drawings of them from the front, the back and the side, and the official plush. Modelled by `art/blender/build_mermaid.py`. |
 | **Siren** | 3.6 | White #FFFFFF | Black hair cap with a widow's peak down the forehead #141214; two black fluffy bun-ears with red fan inserts #C8361F; whiskers; big round eyes, red irises when angry | None | White body, broad white fin-hands, pink waist band, coral scaled fish tail #C8584A. Looks cute when calm, menacing when angry: red eyes, open toothy mouth. 3.6 times Chiikawa to the tops of her bun-ears (about 3.3 m), as `cave interior 7` and `8` both measure her beside the cast on the ledge. Her shape is the user's own drawings of her from the front, the back and the side: Chiikawa's round head (the cast's own), her eyes 1.95 head radii over her base, a short white torso under it running on into the tail in one smooth shape (her tail is part of her, never a second layer she wears), the band flush round her waist, a round bowl of tail leaning back into its curl, simple round fin-hands spread out and down with two lines on each, and her tail curling under her and up behind to a heart-shaped fin. Modelled by `art/blender/build_siren.py`. |
 | **Big mustached man** | ~2.0 | Peach/orange, human-like large body | Mustache, lightning-bolt scar, small topknot | None | Wears a dark loincloth printed 味自慢 ("proud of our flavour"). Sits at the night feast toasting. Very likely the island's food-shop owner (島二郎); I'll confirm before naming him in game. |
 

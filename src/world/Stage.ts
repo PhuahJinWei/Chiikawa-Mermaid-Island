@@ -4,7 +4,7 @@ import { sharedUniforms } from '../characters/CharacterMaterial';
 import { Cave } from './Cave';
 import { FilmClouds } from './Clouds';
 import { MOON_RADIUS, newSkyLook, skyAt, SUN_RADIUS } from './DayNight';
-import { Firelight } from './Firelight';
+import { Firelight, fireUniforms } from './Firelight';
 import { glowUniforms } from './Glow';
 import { inkUniforms, windUniforms } from './Ink';
 import {
@@ -29,6 +29,7 @@ import {
   lightShafts,
   moonUniforms,
   nightUniform,
+  roomUniforms,
   sunUniform,
 } from './Look';
 import { canopyShade } from './Obstacles';
@@ -82,6 +83,7 @@ const _clear = new THREE.Color();
 const _up = new THREE.Vector3(0, 1, 0);
 const _onWater = new THREE.Vector3();
 const _eye = new THREE.Vector3();
+const _shaded = new THREE.Vector3();
 const _ahead = new THREE.Vector3();
 const _turn = new THREE.Matrix4();
 const _waterPlane = new THREE.Plane();
@@ -466,6 +468,9 @@ export class Stage {
     this.lightDir.copy(look.lightDir);
     sunUniform.value.copy(look.lightDir);
     if (FILM) filmLights(this.light, this.hemi, look.night);
+    // By night a lit room's roof and walls keep the sky's and the moon's light off what is in it, as
+    // the night comes on (as filmLights softens the moon's shadows).
+    fireUniforms.uFireRoofed.value = FILM ? THREE.MathUtils.smoothstep(look.night, 0.6, 1) : 0;
     sharedUniforms.uAmbient.value.copy(look.ambient);
     // The jungle's depth haze takes the hour's light: teal in the shade by day, golden toward the
     // sun. In the golden hour the shade's haze turns a thin amber, gold toward the sun, as the
@@ -594,6 +599,12 @@ export class Stage {
     this.waterLight.uSeaSky.value.copy(u.uHorizon.value).lerp(u.uTop.value, 0.25);
   }
 
+  /** A torch carried about, its flame at `at` (null: none), lighting what is round it after dark (see
+   * Firelight.setHeld). */
+  setHeldLight(at: THREE.Vector3 | null): void {
+    this.firelight?.setHeld(at);
+  }
+
   /** Who stands on the island: the cast and the crowd. Called once they have been placed. */
   setCast(cast: Character[]): void {
     this.cast = cast;
@@ -612,7 +623,7 @@ export class Stage {
     island.begin();
     cave?.waders.begin();
     for (const ch of this.cast) {
-      if (ch.ride || !ch.root.visible) continue;
+      if (ch.ride || !ch.root.visible || !ch.shown) continue;
       const p = ch.root.position;
       const inCave = cave?.isInside(p.x, p.y + 0.3, p.z) ?? false;
       const deep = (cave && inCave ? cave.info.water : waterLevelAt(p.x, p.z)) - p.y;
@@ -647,7 +658,7 @@ export class Stage {
     away.length = 0;
     let seen = false;
     for (const ch of this.cast) {
-      if (!ch.root.visible) continue;
+      if (!ch.root.visible || !ch.shown) continue;
       const at = ch.root.position;
       if (!this.byWater(at, h, p)) {
         away.push(ch);
@@ -750,9 +761,14 @@ export class Stage {
     return mirror;
   }
 
-  /** How deep in the trees' shade the point (x, y, z) is from the sun (or the moon), 0 to 1. */
+  /** How deep in the trees' shade the point (x, y, z) is from the sun (or the moon), 0 to 1; by night
+   * none in a lit room, whose roof keeps the moon off and whose lantern lights who stands there (see
+   * fireUniforms.uFireRoofed). */
   shadeAt(x: number, y: number, z: number): number {
-    return canopyShade(x, y, z, this.lightDir);
+    const shade = canopyShade(x, y, z, this.lightDir);
+    const roofed = fireUniforms.uFireRoofed.value;
+    if (shade > 0 && roofed > 0 && this.firelight?.roomAt(_shaded.set(x, y, z))) return shade * (1 - roofed);
+    return shade;
   }
 
   /** The firelight on a character at (x, y, z): the strongest sources' ways and warmth, and where
@@ -813,6 +829,15 @@ export class Stage {
     }
     if (this.landmarks) this.landmarks.group.visible = !lookout;
     this.firelight?.update(glowUniforms.uGlow.value, time);
+    // The lit room the camera stands in, for the grade: counting from a third of a metre in from its
+    // doorway, as far as the night has come (see roomUniforms).
+    const inside = FILM ? this.firelight?.roomAt(camera.position) : null;
+    if (inside) {
+      const { centre, half, yaw } = inside.room;
+      roomUniforms.uRoomMiddle.value.set(centre.x, centre.y, centre.z, yaw);
+      const counts = THREE.MathUtils.smoothstep(inside.depth, 0, 0.35) * fireUniforms.uFireRoofed.value;
+      roomUniforms.uRoomHalf.value.set(half.x, half.y, half.z, counts);
+    } else roomUniforms.uRoomHalf.value.w = 0;
     windUniforms.uTime.value = time;
     this.vegetation?.update(camera, lookout);
     this.butterflies?.update(time);

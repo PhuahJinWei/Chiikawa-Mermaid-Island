@@ -12,6 +12,7 @@
 import type { ActionId } from '../characters/Actions';
 import type { CharacterId, ExpressionId } from '../characters/types';
 import type { SirenMood } from '../characters/Siren';
+import type { MermaidPlace } from '../characters/LittleMermaids';
 import type { CaveInfo } from '../world/Cave';
 
 export interface StagedCharacter {
@@ -40,6 +41,8 @@ export interface StagedShot {
   boat?: { x: number; z: number; heading: number };
   /** The Siren's mood, resting on the cave's ledge; calm when left out. */
   siren?: SirenMood;
+  /** Where her little mermaids are: before her when left out, or on her head if she is angry. */
+  mermaids?: MermaidPlace;
 }
 
 export interface DevApi {

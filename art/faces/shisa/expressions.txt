@@ -1,0 +1,12 @@
+# Shisa: which layers make up each expression (see ../README.md).
+# Started as a copy of Hachiware's layers (Shisa is built from Hachiware's model), to repaint as Shisa: the
+# plush has big round eyes, thick orange flame-shaped brows and a wavy cat mouth. The mane is the model's.
+# cheeks.png shows on every face.
+Neutral: brows 1 + eyes open + mouth closed
+Smile: brows 1 + eyes open + mouth half-open
+Happy: brows 1 + eyes open + mouth open
+Determined: brows 2 + eyes open + mouth closed
+Worried: brows 3 + eyes open + mouth half-open + sweat
+Teary: brows 3 + eyes open + mouth half-open + tears
+Sobbing: brows 4 + eyes open + mouth half-open 2 + tears
+Shocked: brows 4 + eyes open + mouth half-open 2

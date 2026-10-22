@@ -1,9 +1,10 @@
-"""The island outfit: a flower crown and a grass skirt, as an asset of its own.
+"""The island outfit: a flower crown and a grass skirt, as an asset of its own; and clothes of a wearer's
+own, worn instead of it (Rakko's cape, cape_pieces).
 
 Character models never include the outfit. Each wearer gets a copy fitted to their
-head and body, exported to public/models/outfits/island_<wearer>.glb, and the game
-puts it on at runtime (and can take it off again). The outfit uses the same vertex
-format as the characters, so it squashes, leans and sways with its wearer.
+head and body, exported to public/models/outfits/island_<wearer>.glb (their own clothes to
+<kind>_<wearer>.glb), and the game puts it on at runtime (and can take it off again). The outfit
+uses the same vertex format as the characters, so it squashes, leans and sways with its wearer.
 
 Coordinates are Blender's: Z up, the wearer faces -Y, stands on z = 0 and is centred
 on the Z axis.
@@ -11,6 +12,7 @@ on the Z axis.
 
 import math
 
+import bmesh
 from mathutils import Matrix, Vector
 
 import charlib as L
@@ -110,9 +112,88 @@ def skirt_piece(envelope, top, bottom, r_top, r_hem, gap, bell=0.85, count=22, w
     return piece, info
 
 
-def export_outfit(name, pieces, path, wearer, skirt_info, collection):
-    """Join the outfit pieces into one mesh and export it with its pattern data."""
+CAPE_WHITE = "#DDE2DE"  # the film's (`[anime] rakko 1`), with its night's blue taken back out against his cream
+
+
+def cape_pieces(envelope, neck, roll, ring, bottom, waist, r_hem, gap, opening, color=CAPE_WHITE, segments=64,
+                rows=10, thickness=0.012, bunch=0.08, folds=7, fold_depth=0.022, edge_lift=0.05, roll_out=None):
+    """Rakko's cape, as the film (`[anime] rakko 1`) and the official drawings have it: white cloth wrapped round
+    his neck in a flat band under his head, and hanging from it down his back to the ground, open at the front,
+    where his body shows.
+
+    The band is a tube round a ring of radius `ring` at height `neck`, `roll` half its height and standing out
+    `roll_out` (as much as `roll` if none) either side of the ring, swelling and thinning by up to `bunch` of it in
+    `folds` swells round it, as wrapped cloth does. The sheet hangs from inside
+    the roll down to `bottom` at the back, its hem rising `edge_lift` to its front edges, clear of envelope(z) (the
+    body's radius at height z) by `gap`, flaring out to r_hem at its hem in `folds` soft folds `fold_depth` deep,
+    round all but `opening` radians either side of the front. It is on the body at the roll and on the skirt from
+    the waist down (Character's skirt part), so it sways as a skirt does and settles as one when they sit. No line
+    along its hem: hanging cloth has none (as the grass skirt).
+    """
+    col = L.hex_color(color)
+    out = roll if roll_out is None else roll_out
+    # The band: a flattened tube round the neck, bunched.
+    loop = [(ring + out * math.cos(2 * math.pi * k / 12), neck + roll * math.sin(2 * math.pi * k / 12))
+            for k in range(12)]
+    bm = L.lathe_bm(loop, segments, 1.0, closed_loop=True)
+    for v in bm.verts:
+        a = math.atan2(v.co.x, -v.co.y)
+        centre = Vector((ring * math.sin(a), -ring * math.cos(a), neck))
+        swell = 1.0 + bunch * (0.6 * math.sin(folds * a + 0.6) + 0.4 * math.sin(2 * a + 1.3))
+        v.co = centre + (v.co - centre) * swell
+    pieces = [L.Piece(bm, lambda co: L.attrs(col, L.BODY))]
+
+    # The sheet: rows from inside the roll down to the hem, never narrower lower down.
+    top = neck
+    span = 2.0 * math.pi - 2.0 * opening
+    cols = max(8, round(segments * span / (2.0 * math.pi)))
+    radii = []
+    for i in range(rows + 1):
+        u = i / rows  # 0 at the top, 1 at the hem
+        z = top + (bottom - top) * u
+        flare = ring - 0.5 * out + (r_hem - ring + 0.5 * out) * u ** 1.3
+        radii.append((max(flare, envelope(z) + gap), z, u))
+    for i in range(1, rows + 1):
+        radii[i] = (max(radii[i][0], radii[i - 1][0]), radii[i][1], radii[i][2])
+    bm = bmesh.new()
+    outer, inner = [], []
+    for r, z, u in radii:
+        ro, ri = [], []
+        for j in range(cols + 1):
+            a = opening + span * j / cols
+            # The hem rises from the back to the front edges, and the folds deepen down to it.
+            edge = abs(a - math.pi) / (math.pi - opening)
+            zz = z + edge_lift * edge * edge * u
+            rr = r + fold_depth * u * math.sin(folds * a)
+            way = Vector((math.sin(a), -math.cos(a), 0.0))
+            ro.append(bm.verts.new(way * rr + Vector((0.0, 0.0, zz))))
+            ri.append(bm.verts.new(way * (rr - thickness) + Vector((0.0, 0.0, zz))))
+        outer.append(ro)
+        inner.append(ri)
+    for i in range(rows):
+        for j in range(cols):
+            bm.faces.new((outer[i][j], outer[i][j + 1], outer[i + 1][j + 1], outer[i + 1][j]))
+            bm.faces.new((inner[i][j], inner[i + 1][j], inner[i + 1][j + 1], inner[i][j + 1]))
+    for i in range(rows):
+        for j in (0, cols):
+            bm.faces.new((outer[i][j], outer[i + 1][j], inner[i + 1][j], inner[i][j]))
+    for i in (0, rows):
+        for j in range(cols):
+            bm.faces.new((outer[i][j], inner[i][j], inner[i][j + 1], outer[i][j + 1]))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    bm.verts.index_update()
+    hem = {v.index for v in outer[-1] + inner[-1]}
+
+    def sheet(co, i):
+        return L.attrs(col, L.BODY, L.SKIRT, L.smoothstep(top, waist, co.z), outline=0.0 if i in hem else 1.0)
+    pieces.append(L.Piece(bm, sheet, indexed=True))
+    return pieces
+
+
+def export_outfit(name, pieces, path, wearer, skirt_info, collection, kind="island"):
+    """Join the outfit pieces into one mesh and export it with its pattern data. `kind`: the island outfit, or
+    clothes of their own (Rakko's cape)."""
     obj = L.assemble(name, pieces, collection)
-    data = {"version": 1, "outfit": "island", "wearer": wearer, "skirt": skirt_info}
+    data = {"version": 1, "outfit": kind, "wearer": wearer, "skirt": skirt_info}
     L.export_glb(obj, path, data, key="outfit")
     return obj

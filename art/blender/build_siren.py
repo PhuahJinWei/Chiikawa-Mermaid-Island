@@ -169,7 +169,7 @@ def log(*a):
 
 
 # ---------------------------------------------------------------------------- the head and its cap
-def chiikawa_head(source):
+def chiikawa_head(source, level=HEAD_LEVEL):
     """Chiikawa's head from the downloaded model (opened with its scripts off and never changed), in head
     radii: its eye line (the eye decals' middle) at z = 0, centred on the Z axis, facing -Y; no UV layers,
     and none of the model's bone weights (her own model has no bones for them, so the exporter would warn
@@ -188,7 +188,7 @@ def chiikawa_head(source):
             eyes.append(o)
     for m in head.modifiers:
         if m.type == "SUBSURF":
-            m.levels = m.render_levels = HEAD_LEVEL
+            m.levels = m.render_levels = level
         elif m.type == "NODES":
             m.show_viewport = m.show_render = False
     dg = bpy.context.evaluated_depsgraph_get()
@@ -213,24 +213,13 @@ def chiikawa_head(source):
     return bm
 
 
-def head_bm(source):
-    """Her head (Chiikawa's, see chiikawa_head) on her body, its eye line at EYE, with the coordinates her
-    cap's mask is drawn in: round the head (its back at the image's edges, where it is all cap) and up it.
-    Returns the head and the heights its mask spans."""
-    bm = chiikawa_head(source)
+def head_bm(source, level=HEAD_LEVEL):
+    """Her head (Chiikawa's, see chiikawa_head, smoothed this far) on her body, its eye line at EYE, with the
+    coordinates her cap's mask is drawn in: round the head (its back at the image's edges, where it is all
+    cap) and up it. Returns the head and the heights its mask spans."""
+    bm = chiikawa_head(source, level)
     bm.transform(Matrix.Translation(Vector((0.0, 0.0, EYE))))
-    z0 = min(v.co.z for v in bm.verts) - 0.02
-    z1 = max(v.co.z for v in bm.verts) + 0.02
-    uv = bm.loops.layers.uv.new("MaskUV")
-    for f in bm.faces:
-        c = f.calc_center_median()
-        ac = math.atan2(c.x, -c.y)
-        for loop in f.loops:
-            co = loop.vert.co
-            a = math.atan2(co.x, -co.y) if math.hypot(co.x, co.y) > 1e-6 else ac
-            a += 2.0 * math.pi * round((ac - a) / (2.0 * math.pi))  # unwrapped about the face's own angle
-            loop[uv].uv = (a / (2.0 * math.pi) + 0.5, (co.z - z0) / (z1 - z0))
-    return bm, (z0, z1)
+    return bm, IC.round_uv(bm)
 
 
 _EDGE = {}  # the cap's edge laid on her head (see cap_edge): its angles, heights and points on the head
@@ -451,10 +440,11 @@ def curl_path(samples=40):
     return out
 
 
-def curl_bm():
-    """The tail's curl: a tube swept along curl_path, its scales' coordinates on its vertices (round it, the
-    seam split along its underside, and along it); its ends closed (both are buried, in the bowl and in the
-    fin). Returns (bmesh, per-vertex (around, along, how far along 0..1), the path)."""
+def curl_bm(row=SCALE_ROW, scales=SCALES_CURL):
+    """The tail's curl: a tube swept along curl_path, its scales' coordinates on its vertices (round it,
+    this many scales, the seam split along its underside; and along it, in rows this far apart); its ends
+    closed (both are buried, in the bowl and in the fin). Returns (bmesh, per-vertex (around, along, how
+    far along 0..1), the path)."""
     path = curl_path()
     n = len(path)
     lengths = [0.0]
@@ -478,14 +468,14 @@ def curl_bm():
         for j in range(ring_n + 1):  # the last a copy of the first, for the seam
             t = math.pi + 2.0 * math.pi * j / ring_n
             ring.append(bm.verts.new(p + (normal * math.cos(t) + binormal * math.sin(t)) * r))
-            data.append((SCALES_CURL * (j / ring_n + 0.5), lengths[i] / SCALE_ROW, lengths[i] / total))
+            data.append((scales * (j / ring_n + 0.5), lengths[i] / row, lengths[i] / total))
         rings.append(ring)
     for lo, hi in zip(rings, rings[1:]):
         for j in range(ring_n):
             bm.faces.new((lo[j], lo[j + 1], hi[j + 1], hi[j]))
     for ring, (p, _), k in ((rings[0], path[0], 0), (rings[-1], path[-1], n - 1)):
         c = bm.verts.new(p)
-        data.append((0.0, lengths[k] / SCALE_ROW, lengths[k] / total))
+        data.append((0.0, lengths[k] / row, lengths[k] / total))
         for j in range(ring_n):
             bm.faces.new((c, ring[j], ring[j + 1]) if k else (c, ring[j + 1], ring[j]))
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
@@ -761,32 +751,6 @@ def write_first_layers():
         log("face: first layers written:", ", ".join(written))
 
 
-def front_view(bvhs, colour, rf, eye_z, size=512):
-    """Her head from the front over her face's canvas (two head radii, centred on the eye line), flat
-    coloured, as the guide to paint over: (P x P RGBA, top row first). colour(which, points) gives the
-    colours (sRGB) where the view meets the which-th of bvhs, at those points."""
-    which = np.full((size, size), -1, dtype=np.int32)
-    where = np.zeros((size, size, 3), dtype=np.float64)
-    for row in range(size):
-        z = eye_z + rf * (1.0 - 2.0 * (row + 0.5) / size)
-        for col in range(size):
-            x = rf * (2.0 * (col + 0.5) / size - 1.0)
-            best = None
-            for k, bvh in enumerate(bvhs):
-                hit = bvh.ray_cast(Vector((x, -10.0, z)), Vector((0.0, 1.0, 0.0)))
-                if hit[0] is not None and (best is None or hit[3] < best):
-                    best = hit[3]
-                    which[row, col] = k
-                    where[row, col] = hit[0][:]
-    img = np.zeros((size, size, 4), dtype=np.float32)
-    for k in range(len(bvhs)):
-        sel = which == k
-        if sel.any():
-            img[sel, :3] = colour(k, where[sel])
-            img[sel, 3] = 1.0
-    return FA.resample(img, P)
-
-
 # ---------------------------------------------------------------------------- build
 def build(collection, head):
     head_bvh = BVHTree.FromBMesh(head)
@@ -903,7 +867,7 @@ def build(collection, head):
             return np.where((cap_sdf(pts) > 0.0)[:, None], srgb["cap"], srgb["white"])
         return np.broadcast_to(srgb["cap" if k % 2 else "fan"], (len(pts), 3))
 
-    FA.write_guide(os.path.join(FACE_DIR, "_guide.png"), front_view(bvhs, guide_colour, 1.0, EYE))
+    FA.write_guide(os.path.join(FACE_DIR, "_guide.png"), IC.front_view(bvhs, guide_colour, 1.0, EYE))
     for s in (-1, 1):
         for b in bun_shapes[s]:
             b.free()

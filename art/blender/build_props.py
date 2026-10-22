@@ -9,7 +9,8 @@ Outputs:
     art/previews/prop_<id>.png      one three-quarter render per prop
 
 Coordinates are Blender's: Z up, props face -Y. Each prop's origin is where it
-touches the ground, except the onigiri, whose origin is its centre.
+touches the ground, except the hand-held ones (the onigiri, Kurimanju's can,
+Rakko's sword and ukulele), whose origin is their centre or where they are held.
 """
 
 import json
@@ -46,6 +47,19 @@ C = {k: L.hex_color(v) for k, v in {
     "nori": "#22302A",
     "wing": "#3E8EE8",
     "wingLight": "#8CC4F7",
+    "canMetal": "#D3D8DE",
+    "canLabel": "#E6B23E",
+    # Rakko's sword, from the user's drawing of it: a grey blade, its guard, grip and pommel white. The blade is
+    # a cool grey so that it reads grey in the game, where the sun's warm light on what is held turned the
+    # drawing's own grey (#CFD0CD) beige (the user, 2026-10-22: "should be grey").
+    "swordBlade": "#C6D0E6",
+    "swordGuard": "#F7F7F4",
+    # Rakko's ukulele: no frame of it yet, so a plain one, of honey wood with a darker neck.
+    "ukeBody": "#D9A066",
+    "ukeNeck": "#6E4428",
+    "ukeHole": "#3B2620",
+    "ukeBridge": "#5A3A22",
+    "ukePeg": "#F2EAD8",
 }.items()}
 UP = Vector((0.0, 0.0, 1.0))
 PEN = 0.018  # the world's pen in metres (2% of a cast member's height), for painted lines
@@ -295,6 +309,159 @@ def build_onigiri(collection):
     bmesh.ops.bevel(nori, geom=nori.edges[:], offset=0.12, segments=2, affect="EDGES", profile=0.5)
     L.transformed(nori, Matrix.Translation((0.0, 0.0, -0.038)) @ L.scale4(0.05, 0.064, 0.042))
     return L.assemble_colored("onigiri", [(rice, C["rice"]), (nori, C["nori"])], collection)
+
+
+# Kurimanju's can of drink (the user, 2026-10-22), at the cast's size, as a can's shape is to a person's:
+# (radius, height) from its foot up, about its middle, as its silver foot, its gold label and its silver top,
+# which narrows at its shoulder to a rolled rim round a lid sunk inside it.
+CAN = {
+    "foot": [(0.0, -0.083), (0.03, -0.085), (0.038, -0.084), (0.043, -0.08), (0.0455, -0.074), (0.046, -0.066),
+             (0.046, -0.062)],
+    "label": [(0.046, -0.062), (0.046, 0.052)],
+    "top": [(0.046, 0.052), (0.046, 0.06), (0.044, 0.068), (0.039, 0.076), (0.036, 0.08), (0.0365, 0.083),
+            (0.035, 0.0855), (0.0325, 0.0845), (0.031, 0.081), (0.0, 0.081)],
+}
+
+
+def build_can(collection):
+    """Kurimanju's can of drink, which Kurimanju always has in hand (PLAN.md): its body wrapped in a gold label
+    between its silver foot and top, the top narrowing to a rolled rim round its sunk lid. Faces -Y; origin at
+    its centre."""
+    parts = [(L.lathe_bm(CAN[k], 24, 1.0), C["canLabel" if k == "label" else "canMetal"]) for k in ("foot", "label", "top")]
+    return L.assemble_colored("can", parts, collection)
+
+
+def slab_bm(outline, depth, bevel, centre_y=0.0, rims_only=False):
+    """A slab of the outline [(x, z)] `depth` thick along Y about centre_y, its edges rounded by `bevel` metres:
+    rounded, so that the pen's hull round what is held (createHeld) finds its edges. rims_only rounds only the
+    rims of its faces, for a smooth outline of many points whose corners would round into ribs."""
+    bm = bmesh.new()
+    front = [bm.verts.new((x, centre_y - depth / 2, z)) for x, z in outline]
+    back = [bm.verts.new((x, centre_y + depth / 2, z)) for x, z in outline]
+    bm.faces.new(front)
+    bm.faces.new(list(reversed(back)))
+    n = len(outline)
+    for i in range(n):
+        j = (i + 1) % n
+        bm.faces.new((front[i], front[j], back[j], back[i]))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    if bevel > 0.0:
+        edges = [e for e in bm.edges if not rims_only or abs(e.verts[0].co.y - e.verts[1].co.y) < 1e-6]
+        bmesh.ops.bevel(bm, geom=edges, offset=bevel, segments=3 if rims_only else 2, affect="EDGES", profile=0.5)
+    return bm
+
+
+# Rakko's sword, after the user's drawing of it (2026-10-22), its proportions measured off it: a broad grey blade
+# widening from the guard to its shoulders and coming to a point, drawn with a ridge line up its middle (broken a
+# little above the guard) to where two lines from the shoulders meet it, as a cut gem's facets; a white guard, a
+# white grip a little narrower at its foot, banded with three dark lines, and a white pommel. All in metres, the
+# blade's heights from its foot, at his size: 0.4 m from pommel to point, as on the official plush beside him.
+SWORD = {"blade": 0.285, "foot_w": 0.08, "shoulder_w": 0.16, "shoulder": 0.187, "ridge": 0.152, "gap": (0.04, 0.05),
+         "blade_t": 0.016, "guard": (0.111, 0.032, 0.026), "grip": 0.063, "grip_w": (0.07, 0.054), "grip_t": 0.036,
+         "bands": 3, "pommel": (0.094, 0.034, 0.026), "line": 0.009}
+
+
+def ink_line_bm(a, b, width, y, depth=0.0012):
+    """A painted line on a face in the XZ plane, from a to b (x, z) `width` wide, at y (its middle), `depth` thick:
+    the pen's line where the hull draws none (inside an outline)."""
+    d = Vector((b[0] - a[0], b[1] - a[1]))
+    length = d.length + width  # round past its ends, so lines meeting at a point join
+    bm = box_bm(Vector((0.0, 0.0, 0.0)), (length, depth, width))
+    turn = Matrix.Rotation(math.atan2(-d.y, d.x), 4, "Y")
+    return L.transformed(bm, Matrix.Translation(((a[0] + b[0]) / 2, y, (a[1] + b[1]) / 2)) @ turn)
+
+
+def build_sword(collection):
+    """Rakko's sword, which he carries on his back and only now and then holds (the user). Its blade points up
+    +Z, its flat to the front (-Y); origin at the middle of its grip, where his paw holds it."""
+    s = SWORD
+    g = s["grip"] / 2
+    guard_x, guard_y, guard_z = s["guard"]
+    z0 = g + guard_z  # the blade's foot
+    t = s["blade_t"]
+    white, ink = C["swordGuard"], C["ink"]
+    parts = [(box_bm(Vector((0.0, 0.0, g + guard_z / 2)), (guard_x, guard_y, guard_z), bevel=0.006), white)]
+    # The grip, a little narrower at its foot, with its bands round it (3 mm proud: check_flicker.py).
+    top_w, foot_w = s["grip_w"]
+    grip = box_bm(Vector((0.0, 0.0, 0.0)), (top_w, s["grip_t"], s["grip"]), bevel=0.005)
+    for v in grip.verts:
+        v.co.x *= L.lerp(foot_w / top_w, 1.0, (v.co.z + g) / s["grip"])
+    parts.append((grip, white))
+    for k in range(s["bands"]):
+        z = -g + s["grip"] * (k + 1) / (s["bands"] + 1)
+        w_here = L.lerp(foot_w, top_w, (z + g) / s["grip"])
+        parts.append((box_bm(Vector((0.0, 0.0, z)), (w_here + 0.006, s["grip_t"] + 0.006, 0.005)), ink))
+    px, py, pz = s["pommel"]
+    parts.append((box_bm(Vector((0.0, 0.0, -g - pz / 2)), (px, py, pz), bevel=0.006), white))
+    # The blade, sunk a little into the guard.
+    hw, hs = s["foot_w"] / 2, s["shoulder_w"] / 2
+    shoulder, tip, ridge = z0 + s["shoulder"], z0 + s["blade"], z0 + s["ridge"]
+    outline = [(-hw, z0 - 0.006), (hw, z0 - 0.006), (hs, shoulder), (0.0, tip), (-hs, shoulder)]
+    parts.append((slab_bm(outline, t, 0.004), C["swordBlade"]))
+    # Its lines on both faces, 3 mm off them: from each shoulder to the ridge's top, and the ridge down to the
+    # guard, broken a little above it as the drawing has it.
+    lw = s["line"]
+    gap0, gap1 = z0 + s["gap"][0], z0 + s["gap"][1]
+    inset = lw  # the shoulders' lines start inside the outline the hull draws
+    for side in (-1.0, 1.0):
+        y = side * (t / 2 + 0.003)
+        for sx in (-1.0, 1.0):
+            parts.append((ink_line_bm((sx * (hs - inset), shoulder), (0.0, ridge), lw, y), ink))
+        parts.append((ink_line_bm((0.0, ridge), (0.0, gap1), lw, y), ink))
+        parts.append((ink_line_bm((0.0, gap0), (0.0, z0 + 0.004), lw, y), ink))
+    return L.assemble_colored("sword", parts, collection)
+
+
+# Rakko's ukulele (PLAN.md: he plays it at the bonfire), small for his size as a ukulele is for a person's, a
+# plain one until there is a frame of the film's: its body two rounded bouts in honey wood, its sound hole and
+# bridge dark, its neck and head darker wood with four pale pegs. Metres; neck along +X, its face to the front.
+UKULELE = {"lower": (-0.035, 0.055), "upper": (0.04, 0.045), "depth": 0.045, "neck": (0.075, 0.24),
+           "neck_w": 0.03, "head": 0.05}
+
+
+def uke_outline(steps=56):
+    """The body's outline in X (along the neck) and Z (across it): the two bouts' circles, joined at the waist."""
+    pts = []
+    for k in range(steps):
+        a = 2.0 * math.pi * k / steps
+        d = Vector((math.cos(a), math.sin(a)))
+        best = 0.0
+        for cx, r in (UKULELE["lower"], UKULELE["upper"]):
+            c = Vector((cx, 0.0))
+            b = d.dot(c)
+            best = max(best, b + math.sqrt(max(b * b - c.length_squared + r * r, 0.0)))
+        pts.append((d.x * best, d.y * best))
+    return pts
+
+
+def build_ukulele(collection):
+    """Rakko's ukulele. Its neck along +X, its face to the front (-Y); origin at the middle of its body."""
+    u = UKULELE
+    depth = u["depth"]
+    front = -depth / 2
+    n0, n1 = u["neck"]
+    parts = [(slab_bm(uke_outline(), depth, 0.007, rims_only=True), C["ukeBody"])]
+    # The sound hole in the upper bout and the bridge on the lower, off the face (the hole 3 mm, clear of its
+    # plane: art/blender/check_flicker.py).
+    hole = bmesh.new()
+    bmesh.ops.create_cone(hole, cap_ends=True, cap_tris=False, segments=24, radius1=0.018, radius2=0.018, depth=0.001)
+    hole = L.transformed(hole, Matrix.Translation((u["upper"][0] - 0.005, front - 0.003, 0.0))
+                         @ Matrix.Rotation(math.pi / 2, 4, "X"))
+    parts.append((hole, C["ukeHole"]))
+    parts.append((box_bm(Vector((u["lower"][0] - 0.012, front - 0.002, 0.0)), (0.012, 0.004, 0.042), bevel=0.0015),
+                  C["ukeBridge"]))
+    # The neck, its fretboard a little proud of the face, and the head tipped back off its end with its pegs.
+    neck_t = 0.022
+    neck_y = front - 0.0015 + neck_t / 2
+    parts.append((box_bm(Vector(((n0 + n1) / 2, neck_y, 0.0)), (n1 - n0, neck_t, u["neck_w"]), bevel=0.005), C["ukeNeck"]))
+    head = box_bm(Vector((0.0, 0.0, 0.0)), (u["head"], 0.016, u["neck_w"] + 0.012), bevel=0.005)
+    lean = Matrix.Translation((n1 + u["head"] / 2 - 0.004, neck_y + 0.006, 0.0)) @ Matrix.Rotation(0.25, 4, "Z")
+    parts.append((L.transformed(head, lean), C["ukeNeck"]))
+    for px in (-0.012, 0.012):
+        for pz in (-1.0, 1.0):
+            peg = L.ellipsoid_bm(lean @ Vector((px, 0.0, pz * (u["neck_w"] / 2 + 0.011))), (0.007, 0.007, 0.007), u=12, v=8)
+            parts.append((peg, C["ukePeg"]))
+    return L.assemble_colored("ukulele", parts, collection)
 
 
 def box_bm(centre, size, bevel=0.0):
@@ -747,6 +914,9 @@ BUILDERS = {
     "log": build_log,
     "starfish": build_starfish,
     "onigiri": build_onigiri,
+    "can": build_can,
+    "sword": build_sword,
+    "ukulele": build_ukulele,
     "sign": build_sign,
     "sign_hanging": build_sign_hanging,
     "fence": build_fence,

@@ -23,13 +23,13 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:5173 on this PC.
+Open http://localhost:5280 on this PC.
 
 ## Play on your phone
 
 1. Keep `npm run dev` running.
 2. Connect the phone to the same Wi-Fi as the PC.
-3. Open `http://<PC address>:5173` in the phone's browser. The PC's Wi-Fi
+3. Open `http://<PC address>:5280` in the phone's browser. The PC's Wi-Fi
    address was 192.168.100.4 when this was written; `ipconfig` shows the
    current one.
 
@@ -51,8 +51,17 @@ You see the island out of your own eyes, as a nameless islander.
 | Drag on the left half | WASD or arrow keys (Shift to walk) | Move the way you look; push the stick to its edge to run |
 | Drag on the right half | Drag with the mouse | Look around |
 | Pinch on the right half | Mouse wheel | Narrow the view toward the film's lens, and back |
-| Jump button | Space | Jump |
+| Jump button | Space | Jump (whoever is near may hop or wave back) |
+| Action button (ひろう, おく, あげる, はなす, すわる, ねる, たつ) | E or Enter | What you look at: pick it up, put down what you hold, give it, talk, sit, sleep through the night in your own bed, get up |
+| Use button (たべる, のむ, ひく) | F | Eat, drink or play what you hold |
+| Pouch (ふくろ) button, then a slot | Tab, or 1 to 6 | Your pouch of six: a slot and your paw change places |
+| きもち button (top right), then one of its nine | R, then 1 to 9 | Do something yourself: wave, bow, cheer, hop, dance, chat, look about, start, cry. Whoever is near may answer it |
+| Camera (カメラ) button | | Take a photo |
+| Notebook (ノート) button | | Where everyone is and what they are doing (みんな), your photos (しゃしん), the sound on or off |
 | Test (テスト) button | Test (テスト) button | Test panel: actions, expressions, lineup, whose eyes, the follow camera from behind (三人称カメラ) |
+
+The island keeps itself as you left it (the hour and the day, where you stood, what you hold and
+keep, what you put down) in the browser; open the game with `?fresh` to start anew.
 
 ## Rebuild the models
 

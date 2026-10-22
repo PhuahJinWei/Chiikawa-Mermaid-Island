@@ -16,9 +16,12 @@ export type ActionId =
   | 'startled'
   | 'cry'
   | 'hula'
+  | 'ukulele'
+  | 'sword'
   | 'menace';
 
-/** The actions the Test panel offers the cast. The Siren's own ('menace') is not one of them. */
+/** The actions the Test panel offers the cast. The Siren's own ('menace') is not one of them, nor 'ukulele' and
+ * 'sword', offered only to those who play it (CharacterDef.plays) or carry one (CharacterDef.own). */
 export const ACTION_IDS: readonly ActionId[] = [
   'wave',
   'hop',
@@ -34,6 +37,9 @@ export const ACTION_IDS: readonly ActionId[] = [
   'hula',
 ];
 
+/** What you do yourself, from the HUD's きもち button (see Hud), in its order: 1 to 9 on the keyboard. */
+export const EMOTES: readonly ActionId[] = ['wave', 'bow', 'cheer', 'hop', 'hula', 'talk', 'look', 'startled', 'cry'];
+
 export interface ActionContext {
   emote(kind: EmoteKind, side?: number): void;
   say(key: StringKey): void;
@@ -47,7 +53,9 @@ export interface ActionDef {
   allowMove?: boolean;
   talking?: boolean;
   chewing?: boolean;
-  prop?: 'onigiri';
+  /** What they hold while it plays: the onigiri, what they play (CharacterOptions.instrument), or the sword they
+   * carry on their back (CharacterOptions.own). */
+  prop?: 'onigiri' | 'ukulele' | 'sword';
   /** The action's own face, shown over any expression chosen in the Test panel. */
   expression: (t: number) => ExpressionId;
   /** Shuts the eyes (bowing), whatever the expression. */
@@ -306,6 +314,44 @@ export const ACTIONS: Record<ActionId, ActionDef> = {
     },
     tick(t, prev, ctx) {
       if (every(prev, t, 0.75, 0.2)) ctx.emote('note', Math.random() < 0.5 ? -1 : 1);
+    },
+  },
+
+  // Rakko's ukulele (PLAN.md: he plays it at the bonfire), calm as he is: held across his tummy, its neck up to
+  // his left, his right paw (the model's -x side) strumming its body, his left paw up at its neck; swaying a
+  // little to its beat.
+  ukulele: {
+    duration: Infinity,
+    fadeIn: 0.3,
+    fadeOut: 0.35,
+    prop: 'ukulele',
+    expression: () => 'neutral',
+    pose(t, p) {
+      const strum = Math.sin(TAU * 2.2 * t);
+      const sway = Math.sin(TAU * 0.55 * t);
+      p.armLRaise = 0.1 + 0.16 * strum;
+      p.armLSwing = 0.85;
+      p.armRRaise = 0.45;
+      p.armRSwing = 1.15;
+      p.leanX = 0.02 * sway;
+      p.rootYaw = 0.04 * sway;
+      p.squash = 1 + 0.008 * Math.sin(TAU * 1.1 * t);
+      p.rootY = 0.004 * Math.abs(sway);
+    },
+  },
+
+  // Rakko's sword, which he holds only now and then (the user, 2026-10-22), off his back and up in his right paw
+  // (the model's -x side), that arm raised and forward to hold it; serious, as he is with it in hand.
+  sword: {
+    duration: Infinity,
+    fadeIn: 0.25,
+    fadeOut: 0.3,
+    prop: 'sword',
+    expression: () => 'determined',
+    pose(t, p) {
+      p.armLRaise = 0.3;
+      p.armLSwing = 0.6;
+      p.squash = 1 + 0.008 * Math.sin(t * 2.0);
     },
   },
 

@@ -1,6 +1,10 @@
 import * as THREE from 'three';
 import { lightBlocked } from './Obstacles';
 
+/** A room's lantern's light: the colour its bulb is drawn (see Glow), a warm cream. Seen from inside
+ * the room by night, the picture is balanced to it (see GRADE in Look.ts). */
+export const LAMP_COLOUR = new THREE.Color('#FFE49D');
+
 /** Each kind of source: its colour, how bright, how far its light reaches, in metres, and how fast it
  * falls off with distance (`decay`, the distance's power it falls as, 2 if not given). */
 const KINDS: Record<string, { colour: THREE.Color; intensity: number; reach: number; warmth: number; decay?: number }> = {
@@ -16,13 +20,21 @@ const KINDS: Record<string, { colour: THREE.Color; intensity: number; reach: num
   // Its light on its house is baked (see Props), falling off and shadowed, coming back off the wood
   // only as much as the wood's colours give back; this bright, the room's lit side is as warm as when
   // its light filled the room evenly, while its corners and the floor under the furniture go dark.
-  lamp: { colour: new THREE.Color('#FFBE72'), intensity: 20, reach: 6.5, warmth: 0.9 },
+  // The colour of its bulb (LAMP_COLOUR), so that seen from inside, balanced to its light, the bulb
+  // is white and the room its own colours; it had been a deeper orange than the bulb (#FFBE72 at
+  // 20), which balancing turned the bulb cyan to undo. As bright as that was.
+  lamp: { colour: LAMP_COLOUR, intensity: 15, reach: 6.5, warmth: 0.9 },
   // A room's lantern's own light out through one of its doorways or windows (see Opening), reaching
   // out over the ground before the house: as bright as the lantern, so it carries on from the light
   // baked on the house's porch.
-  opening: { colour: new THREE.Color('#FFBE72'), intensity: 20, reach: 9, warmth: 0.9 },
+  opening: { colour: LAMP_COLOUR, intensity: 15, reach: 9, warmth: 0.9 },
 };
 export type FireKind = 'flame' | 'glow' | 'spot' | 'lamp' | 'opening';
+/** A torch carried about (see Firelight.setHeld): its flame's colour, how bright, how far it reaches and how
+ * much it warms who is near, as the island's flames are (KINDS), smaller. */
+const HELD = { colour: new THREE.Color('#FF9A40'), intensity: 4.5, reach: 7, warmth: 0.75 };
+/** The light memory (see lightsAt) of the torch carried about. */
+const HELD_SEEN = -1;
 /** How many of the sources reaching a character light them (see Firelight.lightsAt), the strongest. */
 export const CHARACTER_LIGHTS = 4;
 /** How fast a light comes and goes on a character as a wall comes between them, per second. */
@@ -110,6 +122,13 @@ export const fireUniforms = {
   uFireRoomFill: { value: 0.12 },
   /** The openings' masks (see Opening.mask), one above another. */
   uFireMasks: { value: null as THREE.DataTexture | null },
+  /** How much of the sky's and the moon's light a lit room's roof and walls keep off what is in it:
+   * 1 by night, when its lantern alone lights it, 0 by day (the stage sets it; see FIRE_LIGHT). */
+  uFireRoofed: { value: 0 },
+  /** A torch carried about (see Firelight.setHeld): where its flame is (xyz) and how far it reaches (w, 0
+   * while none is carried or by day), and its light this moment. */
+  uFireHeld: { value: new THREE.Vector4(0, 0, 0, 0) },
+  uFireHeldColour: { value: new THREE.Color(0, 0, 0) },
 };
 
 const FIRE_PARS = /* glsl */ `
@@ -119,19 +138,29 @@ uniform vec4 uFireGridMap;
 uniform float uFireOn;
 uniform float uFireRoomFill;
 uniform sampler2D uFireMasks;
+uniform float uFireRoofed;
+uniform vec4 uFireHeld;
+uniform vec3 uFireHeldColour;
 `;
 
 /** GLSL, after three's own lights: every source the grid lists for this point's cell, lit as three
  * lights a point light (the same falloff and ramp); a room's lantern only inside its room, which its
  * light, coming back off the walls, also fills softly wherever it faces into the room; a lantern's
  * light out of an opening only where its way from the lantern passes through the opening. A house
- * with its night baked (NIGHT_MAP, vNight.x its lantern plus one) takes neither from its own lantern. */
+ * with its night baked (NIGHT_MAP, vNight.x its lantern plus one) takes neither from its own lantern.
+ * By night (uFireRoofed) what is in a lit room takes no light from the sky or the moon, which its roof
+ * and walls keep off: its lantern alone lights it, as the film's rooms at night. Only what faces into
+ * the room, or on its house what sees the lantern in the bake (nightSeen, see Props): the roof's
+ * outside can lie inside the room's box too. */
 const FIRE_LIGHT = /* glsl */ `
 if (uFireOn > 0.5) {
   vec3 fireAt = cameraPosition + transpose(mat3(viewMatrix)) * geometryPosition;
   vec2 fireCell = (fireAt.xz - uFireGridMap.xy) / uFireGridMap.z;
   ivec2 fireCells = textureSize(uFireGrid, 0);
   if (fireCell.x >= 0.0 && fireCell.y >= 0.0 && fireCell.x < float(fireCells.x / ${TEXELS}) && fireCell.y < float(fireCells.y)) {
+    // The sky's and the moon's light as three's lights left it, before the fires add theirs.
+    vec3 fireSkyLight = reflectedLight.directDiffuse;
+    float fireRoofed = 0.0;
     ivec2 fireTexel = ivec2(int(fireCell.x) * ${TEXELS}, int(fireCell.y));
     for (int fireT = 0; fireT < ${TEXELS}; fireT++) {
       vec4 fireSlots = texelFetch(uFireGrid, fireTexel + ivec2(fireT, 0), 0) * 255.0;
@@ -139,6 +168,24 @@ if (uFireOn > 0.5) {
         if (fireSlots[fireK] > 254.5) break;
         int fireI = int(fireSlots[fireK] + 0.5);
         vec4 fireHow = texelFetch(uFireLights, ivec2(fireI, 4), 0);
+        // A room's lantern: whether this point is in its room, and how far it faces into it.
+        bool fireInRoom = false;
+        float fireInward = 0.0;
+        if (fireHow.x > 0.5 && fireHow.x < 1.5) {
+          vec4 fireMiddle = texelFetch(uFireLights, ivec2(fireI, 2), 0);
+          vec4 fireRoom = texelFetch(uFireLights, ivec2(fireI, 3), 0);
+          vec3 fireQ = fireAt - fireMiddle.xyz;
+          vec3 fireLocal = vec3(fireMiddle.w * fireQ.x - fireRoom.w * fireQ.z, fireQ.y, fireRoom.w * fireQ.x + fireMiddle.w * fireQ.z);
+          fireInRoom = all(lessThanEqual(abs(fireLocal), fireRoom.xyz));
+          if (fireInRoom) {
+            fireInward = dot(geometryNormal, mat3(viewMatrix) * normalize(fireMiddle.xyz - fireAt));
+            float fireFacing = smoothstep(-0.6, -0.3, fireInward);
+            #ifdef NIGHT_MAP
+            fireFacing = max(fireFacing, smoothstep(0.0, 0.02, nightSeen));
+            #endif
+            fireRoofed = max(fireRoofed, fireFacing);
+          }
+        }
         #ifdef NIGHT_MAP
         if (fireHow.y > 0.5 && abs(fireHow.y - vNight.x) < 0.5) continue;
         #endif
@@ -165,13 +212,8 @@ if (uFireOn > 0.5) {
           }
           fireColour *= firePass;
         } else if (fireHow.x > 0.5) {
-          vec4 fireMiddle = texelFetch(uFireLights, ivec2(fireI, 2), 0);
-          vec4 fireRoom = texelFetch(uFireLights, ivec2(fireI, 3), 0);
-          vec3 fireQ = fireAt - fireMiddle.xyz;
-          vec3 fireLocal = vec3(fireMiddle.w * fireQ.x - fireRoom.w * fireQ.z, fireQ.y, fireRoom.w * fireQ.x + fireMiddle.w * fireQ.z);
-          if (any(greaterThan(abs(fireLocal), fireRoom.xyz))) continue;
+          if (!fireInRoom) continue;
           // Only what faces into the room: a wall's outer face can lie inside the box too.
-          float fireInward = dot(geometryNormal, mat3(viewMatrix) * normalize(fireMiddle.xyz - fireAt));
           reflectedLight.indirectDiffuse += fireColour * uFireRoomFill * smoothstep(-0.1, 0.3, fireInward) * BRDF_Lambert(material.diffuseColor);
         }
         if (fireD >= fireSpot.w) continue;
@@ -181,6 +223,19 @@ if (uFireOn > 0.5) {
         RE_Direct(directLight, geometryPosition, geometryNormal, geometryViewDir, geometryClearcoatNormal, material, reflectedLight);
       }
       if (fireSlots.w > 254.5) break;
+    }
+    reflectedLight.directDiffuse -= fireSkyLight * fireRoofed * uFireRoofed;
+    irradiance *= 1.0 - fireRoofed * uFireRoofed;
+  }
+  // A torch carried about lights what is round it, wherever it goes (not in the grid, which stands still).
+  if (uFireHeld.w > 0.0) {
+    vec3 heldWay = uFireHeld.xyz - fireAt;
+    float heldD = length(heldWay);
+    if (heldD < uFireHeld.w) {
+      directLight.direction = mat3(viewMatrix) * (heldWay / max(heldD, 1e-3));
+      directLight.color = uFireHeldColour * getDistanceAttenuation(heldD, uFireHeld.w, 2.0);
+      directLight.visible = true;
+      RE_Direct(directLight, geometryPosition, geometryNormal, geometryViewDir, geometryClearcoatNormal, material, reflectedLight);
     }
   }
 }
@@ -301,6 +356,8 @@ export class Firelight {
   gridStats: { sources: number; cells: [number, number]; most: number; crowded: number } | null = null;
   private glow = 0;
   private time = 0;
+  /** Where a torch carried about has its flame (see setHeld), or null. */
+  private held: THREE.Vector3 | null = null;
 
   /** A flame, a glowing window or lantern, a room's lantern, or a lantern's light out of an opening
    * at `position` (for an opening, where its lantern hangs), with what it lights (see
@@ -316,6 +373,38 @@ export class Firelight {
       opening: options.opening ?? null,
       owner,
     });
+  }
+
+  /** A torch carried about, its flame at `at` (null: none): it lights what is round it after dark, as the
+   * island's flames do, though it is in no grid cell's list (see FIRE_LIGHT). */
+  setHeld(at: THREE.Vector3 | null): void {
+    if (!at) this.held = null;
+    else (this.held ??= new THREE.Vector3()).copy(at);
+  }
+
+  /** How bright the torch carried about burns this moment. */
+  private heldFlicker(): number {
+    const t = this.time * 9.5 + 4.1;
+    return 0.82 + 0.1 * Math.sin(t) + 0.08 * Math.sin(t * 2.7 + 1.3);
+  }
+
+  /** The lit room `p` is in, if any, and how far in, in metres from the nearest of its box's sides. */
+  roomAt(p: THREE.Vector3): { room: Room; depth: number } | null {
+    for (const source of this.sources) {
+      const room = source.room;
+      if (source.kind !== 'lamp' || !room || !inRoom(room, p.x, p.y, p.z)) continue;
+      const qx = p.x - room.centre.x;
+      const qz = p.z - room.centre.z;
+      const c = Math.cos(room.yaw);
+      const s = Math.sin(room.yaw);
+      const depth = Math.min(
+        room.half.x - Math.abs(c * qx - s * qz),
+        room.half.y - Math.abs(p.y - room.centre.y),
+        room.half.z - Math.abs(s * qx + c * qz),
+      );
+      return { room, depth };
+    }
+    return null;
   }
 
   /**
@@ -424,6 +513,13 @@ export class Firelight {
     const table = this.table;
     const lights = fireUniforms.uFireLights.value;
     fireUniforms.uFireOn.value = glow > 0 && table ? 1 : 0;
+    const held = fireUniforms.uFireHeld.value;
+    if (this.held && glow > 0) {
+      held.set(this.held.x, this.held.y, this.held.z, HELD.reach);
+      fireUniforms.uFireHeldColour.value.copy(HELD.colour).multiplyScalar(HELD.intensity * glow * this.heldFlicker());
+    } else {
+      held.w = 0;
+    }
     if (!table || !lights || glow <= 0) return;
     const width = this.sources.length;
     this.sources.forEach((s, i) => {
@@ -484,6 +580,32 @@ export class Firelight {
       out[k].set(dx / d, dy / d, dz / d, w);
       if (k === 0) from.copy(s.position);
     });
+    // The torch carried about, as near as it is (whoever carries it is lit by it from close by).
+    const h = this.held;
+    if (h) {
+      const dx = h.x - x;
+      const dy = h.y - y;
+      const dz = h.z - z;
+      const d = Math.max(Math.hypot(dx, dy, dz), 1e-3);
+      if (d < HELD.reach) {
+        const clear = Number(d <= LIGHT_CLEAR || !lightBlocked(h.x, h.y, h.z, x, y, z));
+        const was = seen.get(HELD_SEEN);
+        const now = was === undefined ? clear : was + (clear - was) * ease;
+        seen.set(HELD_SEEN, now);
+        const w = (1 - d / HELD.reach) ** 2 * HELD.warmth * this.heldFlicker() * this.glow * now;
+        if (w > out[out.length - 1].w) {
+          let k = out.length - 1;
+          while (k > 0 && out[k - 1].w < w) {
+            out[k].copy(out[k - 1]);
+            k--;
+          }
+          out[k].set(dx / d, dy / d, dz / d, w);
+          if (k === 0) from.copy(h);
+        }
+      }
+    } else {
+      seen.delete(HELD_SEEN);
+    }
     return fill;
   }
 }

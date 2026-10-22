@@ -176,6 +176,544 @@ body {
   transform: scale(0.94);
 }
 
+/* Eat, drink or play what you hold: beside the jump button. */
+.use-btn {
+  pointer-events: auto;
+  position: absolute;
+  right: calc(122px + env(safe-area-inset-right));
+  bottom: calc(52px + env(safe-area-inset-bottom));
+  min-width: 64px;
+  height: 52px;
+  padding: 0 12px;
+  border-radius: 26px;
+  border: 3px solid var(--ink);
+  background: #eaf7e6;
+  font-weight: 700;
+  font-size: 15px;
+  box-shadow: var(--shadow);
+  touch-action: none;
+  cursor: pointer;
+}
+
+.use-btn:active {
+  transform: scale(0.94);
+}
+
+/* The pouch's button, under the test toggle, showing what your paw holds; the pouch opens beside it. */
+.hud-side {
+  position: absolute;
+  top: calc(62px + env(safe-area-inset-top));
+  right: calc(12px + env(safe-area-inset-right));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pouch-btn {
+  pointer-events: auto;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: 3px solid var(--ink);
+  background-color: var(--cream);
+  background-repeat: no-repeat;
+  font-weight: 700;
+  font-size: 13px;
+  padding: 0;
+  white-space: nowrap;
+  box-shadow: var(--shadow);
+  cursor: pointer;
+}
+
+.pouch-btn.open {
+  background-color: var(--pink);
+}
+
+/* The camera's and the notebook's buttons, under the pouch's. */
+.side-btn {
+  pointer-events: auto;
+  width: 56px;
+  height: 46px;
+  border-radius: 23px;
+  border: 3px solid var(--ink);
+  background: var(--cream);
+  font-weight: 700;
+  font-size: 12px;
+  padding: 0;
+  white-space: nowrap;
+  box-shadow: var(--shadow);
+  cursor: pointer;
+}
+
+.side-btn:active {
+  transform: scale(0.94);
+}
+
+/* The きもち button, up beside the test toggle (pushed over to it); its panel of what you do yourself opens
+   under it, level with its right edge. */
+.emote-box {
+  position: relative;
+  margin-left: auto;
+  flex: none;
+}
+
+.emote-btn {
+  pointer-events: auto;
+  border: 2px solid var(--ink);
+  background: var(--cream);
+  border-radius: 999px;
+  padding: 8px 12px;
+  min-height: 40px;
+  font-weight: 700;
+  box-shadow: var(--shadow);
+  cursor: pointer;
+}
+
+.emote-btn:active {
+  transform: scale(0.94);
+}
+
+.emote-btn.open {
+  background: var(--pink);
+}
+
+.emotes {
+  pointer-events: auto;
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 5;
+  width: max-content;
+  display: grid;
+  grid-template-columns: repeat(3, auto);
+  gap: 6px;
+  padding: 8px;
+  /* (The chips take their font from here: #ui button inherits it.) */
+  font-weight: 700;
+  font-size: 13px;
+  background: rgba(255, 250, 242, 0.94);
+  border: 3px solid var(--ink);
+  border-radius: 18px;
+  box-shadow: var(--shadow);
+}
+
+.emote-chip {
+  position: relative;
+  min-width: 64px;
+  height: 40px;
+  padding: 0 10px;
+  border-radius: 20px;
+  border: 2px solid var(--ink);
+  background: #fff;
+  white-space: nowrap;
+  touch-action: none;
+  cursor: pointer;
+}
+
+.emote-chip:active {
+  transform: scale(0.94);
+  background: var(--pink);
+}
+
+/* On an upright phone, smaller, so the three across fit beside the buttons. */
+@media (max-width: 480px) {
+  .emotes {
+    gap: 5px;
+    padding: 6px;
+    font-size: 12px;
+  }
+
+  .emote-chip {
+    min-width: 0;
+    height: 38px;
+    padding: 0 7px;
+  }
+}
+
+/* Its key, where there is a keyboard. */
+@media (hover: hover) and (pointer: fine) {
+  .emote-chip::after {
+    content: attr(data-key);
+    position: absolute;
+    top: -6px;
+    left: -4px;
+    min-width: 16px;
+    height: 16px;
+    border-radius: 8px;
+    background: var(--ink);
+    color: var(--cream);
+    font-size: 10px;
+    line-height: 16px;
+    text-align: center;
+  }
+}
+
+/* Your own words and marks, out of your own eyes: low in the middle of the screen, a bubble from you (its
+   tail down to you), the marks rising from it. */
+.hud-own {
+  position: absolute;
+  left: 50%;
+  bottom: calc(118px + env(safe-area-inset-bottom));
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.own-words {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  transform: translate(-50%, 8px) scale(0.85);
+  background: rgba(255, 250, 242, 0.96);
+  border: 2px solid var(--ink);
+  padding: 6px 16px;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 16px;
+  width: max-content;
+  max-width: min(70vw, 320px);
+  box-shadow: var(--shadow);
+  opacity: 0;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.own-words::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -7px;
+  width: 11px;
+  height: 11px;
+  margin-left: -6px;
+  background: inherit;
+  border-right: 2px solid var(--ink);
+  border-bottom: 2px solid var(--ink);
+  transform: rotate(45deg);
+}
+
+.own-words.shown {
+  opacity: 1;
+  transform: translate(-50%, 0) scale(1);
+}
+
+.own-mark {
+  position: absolute;
+  left: 0;
+  bottom: 30px;
+  font-weight: 700;
+  font-size: 28px;
+  line-height: 1;
+  color: var(--ink);
+  text-shadow: 0 0 3px #fff, 0 0 3px #fff, 0 0 6px #fff;
+  animation: own-rise 1.3s ease-out forwards;
+}
+
+.own-heart {
+  color: #f0708a;
+}
+
+.own-zzz {
+  color: #7d8fc4;
+}
+
+@keyframes own-rise {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 0) scale(0.6);
+  }
+  15% {
+    opacity: 1;
+    transform: translate(-50%, -10px) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translate(calc(-50% + var(--drift, 0px)), -80px) scale(1);
+  }
+}
+
+/* The camera's flash. */
+.hud-flash {
+  position: absolute;
+  inset: 0;
+  background: #fff;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.hud-flash.on {
+  animation: flash 0.5s ease-out;
+}
+
+@keyframes flash {
+  from {
+    opacity: 0.85;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+/* The notebook: where everyone is, and the album. */
+.notebook {
+  pointer-events: auto;
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(60, 40, 30, 0.25);
+  padding: calc(12px + env(safe-area-inset-top)) 12px calc(12px + env(safe-area-inset-bottom));
+}
+
+.notebook-card {
+  width: min(440px, 100%);
+  max-height: min(78vh, 640px);
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border: 3px solid var(--ink);
+  border-radius: 22px;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.notebook-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px 6px;
+}
+
+.notebook-tabs {
+  display: flex;
+  gap: 8px;
+}
+
+.notebook-tab {
+  min-height: 38px;
+  padding: 6px 16px;
+  border-radius: 999px;
+  border: 2px solid var(--ink);
+  background: #fff;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.notebook-tab.active {
+  background: var(--pink);
+}
+
+.notebook-body {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  padding: 4px 14px 10px;
+  flex: 1;
+}
+
+.people-row {
+  display: grid;
+  grid-template-columns: 6.5em 1fr;
+  grid-template-rows: auto auto;
+  column-gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px dashed var(--ink-soft);
+}
+
+.people-name {
+  grid-row: span 2;
+  align-self: center;
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.people-place {
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+.people-doing {
+  font-size: 14px;
+}
+
+.people-islanders {
+  padding: 10px 0 4px;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+.notebook-sound {
+  margin: 8px 14px 12px;
+  min-height: 40px;
+  border-radius: 999px;
+  border: 2px solid var(--ink);
+  background: #eaf7e6;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.notebook-sound.off {
+  background: #f1ece6;
+}
+
+.album {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.album-photo {
+  aspect-ratio: 4 / 3;
+  border-radius: 10px;
+  border: 2px solid var(--ink-soft);
+  background-size: cover;
+  background-position: center;
+  cursor: pointer;
+}
+
+.album-empty {
+  padding: 24px 6px;
+  text-align: center;
+  font-size: 14px;
+  color: var(--ink-soft);
+}
+
+.photo-viewer {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: rgba(20, 14, 10, 0.88);
+  padding: 16px;
+}
+
+.photo-large {
+  max-width: 100%;
+  max-height: 70vh;
+  border-radius: 12px;
+  border: 3px solid var(--cream);
+}
+
+.photo-caption {
+  color: var(--cream);
+  font-size: 13px;
+}
+
+.photo-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.photo-button {
+  min-height: 40px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  border: 2px solid var(--ink);
+  background: var(--cream);
+  color: var(--ink);
+  font-weight: 700;
+  font-size: 14px;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.pouch {
+  pointer-events: auto;
+  position: absolute;
+  top: calc(62px + env(safe-area-inset-top));
+  right: calc(78px + env(safe-area-inset-right));
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  background: rgba(255, 250, 242, 0.94);
+  border: 3px solid var(--ink);
+  border-radius: 18px;
+  box-shadow: var(--shadow);
+}
+
+.pouch-slots {
+  display: grid;
+  grid-template-columns: repeat(3, 46px);
+  gap: 6px;
+}
+
+.pouch-hand,
+.pouch-slot {
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  border: 2px solid var(--ink-soft);
+  background-color: #fff;
+  background-repeat: no-repeat;
+}
+
+.pouch-hand {
+  width: 54px;
+  height: 54px;
+  border: 3px solid var(--ink);
+  background-color: #fff3e2;
+}
+
+.pouch-slot {
+  cursor: pointer;
+}
+
+.pouch-hand.empty,
+.pouch-slot.empty {
+  background-color: rgba(255, 255, 255, 0.55);
+}
+
+.pouch-slot:active {
+  transform: scale(0.94);
+}
+
+/* A word for a moment: what you picked up, that the pouch is full. */
+.hud-toast {
+  position: absolute;
+  left: 50%;
+  bottom: calc(176px + env(safe-area-inset-bottom));
+  transform: translate(-50%, 6px);
+  background: rgba(255, 250, 242, 0.94);
+  border: 2px solid var(--ink);
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 14px;
+  width: max-content;
+  max-width: min(86vw, 420px);
+  box-shadow: var(--shadow);
+  opacity: 0;
+  transition: opacity 0.35s ease, transform 0.35s ease;
+  pointer-events: none;
+}
+
+.hud-toast.shown {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+/* The night as you sleep through it, and the morning after. */
+.hud-fade {
+  position: absolute;
+  inset: 0;
+  background: #0b1430;
+  opacity: 0;
+  transition: opacity 0.85s ease;
+  pointer-events: none;
+}
+
+.hud-fade.dark {
+  opacity: 1;
+  pointer-events: auto;
+}
+
 .jump-btn:active {
   transform: scale(0.94);
   background: var(--pink-strong);

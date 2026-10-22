@@ -12,7 +12,8 @@ const DEAD_ZONE = 0.12;
 /**
  * Touch: a joystick appears wherever the left half is touched; dragging the right
  * half turns the camera, two fingers there pinch to zoom.
- * Desktop: WASD or arrows (Shift walks), Space jumps, drag and wheel for the camera.
+ * Desktop: WASD or arrows (Shift walks), Space jumps, drag and wheel for the camera; E acts, F uses what
+ * you hold, Tab and 1 to 6 the pouch, R the きもち panel (1 to 9 then pick from it).
  */
 export class Input {
   readonly move = new THREE.Vector2();
@@ -23,6 +24,12 @@ export class Input {
   private zoom = 0;
   private jumpQueued = false;
   private actionQueued = false;
+  private useQueued = false;
+  /** A pouch slot asked for from the keyboard (1 to 6), or with the きもち panel open what to do (1 to 9);
+   * or -1. */
+  private slotQueued = -1;
+  private pouchQueued = false;
+  private emotesQueued = false;
   private joyId: number | null = null;
   private readonly joyOrigin = new THREE.Vector2();
   private readonly joyVec = new THREE.Vector2();
@@ -114,6 +121,38 @@ export class Input {
     return a;
   }
 
+  /** The use button (or F): eat, drink or play what you hold. */
+  queueUse(): void {
+    this.useQueued = true;
+  }
+
+  consumeUse(): boolean {
+    const u = this.useQueued;
+    this.useQueued = false;
+    return u;
+  }
+
+  /** A number from the keyboard's 1 to 9 (0 to 8): a pouch slot, or what to do from the きもち panel; or -1. */
+  consumeSlot(): number {
+    const s = this.slotQueued;
+    this.slotQueued = -1;
+    return s;
+  }
+
+  /** The pouch opened or shut from the keyboard (Tab). */
+  consumePouch(): boolean {
+    const p = this.pouchQueued;
+    this.pouchQueued = false;
+    return p;
+  }
+
+  /** The きもち panel opened or shut from the keyboard (R). */
+  consumeEmotes(): boolean {
+    const e = this.emotesQueued;
+    this.emotesQueued = false;
+    return e;
+  }
+
   private onDown = (e: PointerEvent) => {
     e.preventDefault();
     const rect = this.el.getBoundingClientRect();
@@ -181,6 +220,13 @@ export class Input {
       if (!e.repeat) this.jumpQueued = true;
     }
     if ((e.code === 'KeyE' || e.code === 'Enter') && !e.repeat) this.actionQueued = true;
+    if (e.code === 'KeyF' && !e.repeat) this.useQueued = true;
+    if (/^Digit[1-9]$/.test(e.code) && !e.repeat) this.slotQueued = Number(e.code.slice(5)) - 1;
+    if (e.code === 'KeyR' && !e.repeat) this.emotesQueued = true;
+    if (e.code === 'Tab') {
+      e.preventDefault();
+      if (!e.repeat) this.pouchQueued = true;
+    }
   };
 
   private releaseJoystick(): void {

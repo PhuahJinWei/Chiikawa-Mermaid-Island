@@ -3,6 +3,7 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { MOON_RADIUS } from './DayNight';
+import { LAMP_COLOUR } from './Firelight';
 
 /**
  * The film look, the island's look: the island painted the way the film's backgrounds are. The
@@ -1002,6 +1003,26 @@ export function moonEdges(shader: THREE.WebGLProgramParametersWithUniforms): voi
 }
 
 /**
+ * The lit room the camera stands in by night, for the grade (see GRADE): its box's middle and turn
+ * (w), its half sizes, and how much it counts (w: how far in the camera is, from its doorway, by how
+ * far the night has come, as the firelight's uFireRoofed). The stage sets it each frame.
+ */
+export const roomUniforms = {
+  uRoomMiddle: { value: new THREE.Vector4() },
+  uRoomHalf: { value: new THREE.Vector4() },
+};
+/** How the grade balances a lit room seen from inside it by night (see GRADE): to its lantern's
+ * light, as a camera balanced to it would, keeping how bright it is: each colour's gain. Its bulb
+ * comes out white, 島二郎's wood a golden tan (hue 26°, saturation 0.61 to 0.70, value 0.57 to
+ * 0.69, against the film's frames of it by night, 31° to 42°, 0.56 to 0.71 and 0.5 to 0.62) and a
+ * stilt hut's walls an olive sage (hue 102°, the film's 90° to 97°). And how much greyer. */
+const ROOM_BALANCE = ((c: THREE.Color) => {
+  const light = 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+  return [light / c.r, light / c.g, light / c.b];
+})(LAMP_COLOUR);
+const ROOM_GREY = 0.2;
+
+/**
  * The film's colour grade, on the finished picture (still in linear light), set by measuring the
  * film's jungle frames: warmer through the darks and the middle (the pale sky left alone), greens
  * leaning toward yellow, a little more colour and a fifth more contrast, shadows a touch green and
@@ -1052,17 +1073,36 @@ const GRADE = {
     uniform mat4 uCameraWorld;
     uniform vec4 uJungleHole;
     uniform vec3 uMoonWay;
+    uniform vec4 uRoomMiddle;
+    uniform vec4 uRoomHalf;
     varying vec2 vUv;
     #include <packing>
+    // Where in the world what is seen at uv is (d, its depth, short of the far plane).
+    vec3 seenAt(vec2 uv, float d) {
+      float viewZ = perspectiveDepthToViewZ(d, uNear, uFar);
+      vec3 view = vec3((uv * 2.0 - 1.0) / uProj * -viewZ, viewZ);
+      return (uCameraWorld * vec4(view, 1.0)).xyz;
+    }
     // Whether what is seen at uv is the island's, up the forbidden cave's skylight (over its rim, or the
     // sky): seen from in the cave, that keeps the island's night, as the film paints the leaves round
     // the opening from the water under it (cave interior 6).
     bool overRim(vec2 uv) {
       float d = texture2D(tDepth, uv).x;
       if (d >= 1.0) return true;
-      float viewZ = perspectiveDepthToViewZ(d, uNear, uFar);
-      vec3 view = vec3((uv * 2.0 - 1.0) / uProj * -viewZ, viewZ);
-      return (uCameraWorld * vec4(view, 1.0)).y > uJungleHole.w;
+      return seenAt(uv, d).y > uJungleHole.w;
+    }
+    // How much of what is seen at uv lies in the lit room the camera stands in by night (see
+    // roomUniforms), softly at its box's sides: nought outside it, seen out of its windows and
+    // doorway, and wherever the camera is not in a room.
+    float inRoom(vec2 uv) {
+      if (uRoomHalf.w <= 0.0) return 0.0;
+      float d = texture2D(tDepth, uv).x;
+      if (d >= 1.0) return 0.0;
+      vec3 q = seenAt(uv, d) - uRoomMiddle.xyz;
+      float co = cos(uRoomMiddle.w);
+      float si = sin(uRoomMiddle.w);
+      vec3 past = abs(vec3(co * q.x - si * q.z, q.y, si * q.x + co * q.z)) - uRoomHalf.xyz;
+      return (1.0 - smoothstep(0.0, 0.05, max(max(past.x, past.y), past.z))) * uRoomHalf.w;
     }
     // How much of what is seen at uv is the moon and the glow round it in the sky (1 on it, fading
     // out by three times its radius): its own light, painted as the sky draws it, pale yellow through
@@ -1092,6 +1132,17 @@ const GRADE = {
     }
     void main() {
       vec4 c = texture2D(tDiffuse, vUv);
+      // Seen from inside a lit room by night, the room in its own colours as its lantern lights them,
+      // as the film shows its rooms at night: the picture balanced to the lantern's light (the
+      // lantern itself, and what it makes glow, left warm), the room a little greyer and not painted
+      // in the night's blue (below), while the cast in it glow the night's pale blue as the film's
+      // characters in its rooms at night. Seen from outside, its windows and doorway glow warm.
+      float room = inRoom(vUv);
+      if (room > 0.0) {
+        float lamp = smoothstep(0.8, 1.6, max(c.r, max(c.g, c.b)));
+        c.rgb *= mix(vec3(1.0), vec3(${ROOM_BALANCE.map((v) => v.toFixed(2)).join(', ')}), room * (1.0 - lamp));
+        if (c.a >= 0.75) c.rgb = mix(c.rgb, vec3(dot(c.rgb, vec3(0.2126, 0.7152, 0.0722))), room * ${ROOM_GREY.toFixed(2)});
+      }
       vec3 g = pow(max(c.rgb, 0.0), vec3(1.0 / 2.2));
       vec3 drawn = g;
       float l = dot(g, vec3(0.299, 0.587, 0.114));
@@ -1111,6 +1162,7 @@ const GRADE = {
       // island from in it, up its skylight, is the island's.)
       float night = smoothstep(0.4, 1.0, uNight) * (1.0 - (uCave > 0.0 && !overRim(vUv) ? uCave : 0.0));
       if (night > 0.0) night *= 1.0 - moonGlow(vUv);
+      night *= 1.0 - (c.a < 0.75 ? 0.0 : room);
       if (night > 0.0) {
         // Painted from how bright each point is as drawn, with the grade's contrast, but the darks
         // only eased down, not crushed, onto a navy floor: nothing goes black. The cast, marked in the
@@ -1393,6 +1445,7 @@ export class FilmPost {
     for (const name of ['tDepth', 'uNear', 'uFar', 'uProj', 'uCameraWorld'] as const) grade.uniforms[name] = this.focus.uniforms[name];
     grade.uniforms.uJungleHole = jungleHaze.uJungleHole;
     grade.uniforms.uMoonWay = moonUniforms.uMoonWay;
+    Object.assign(grade.uniforms, roomUniforms);
     this.composer.addPass(grade);
     this.setTexel(size.x, size.y);
   }

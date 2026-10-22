@@ -1,0 +1,12 @@
+# Furuhonya: which layers make up each expression (see ../README.md).
+# Started as a copy of Chiikawa's layers, to repaint as Furuhonya: the plush has big round eyes, two short
+# double lines for brows (=  =) and an open cat mouth. The claws, cap and antennae are the model's, not layers.
+# cheeks.png shows on every face.
+Neutral: brows 1 + eyes open + mouth closed
+Smile: brows 1 + eyes open + mouth half-open
+Happy: brows 1 + eyes open + mouth open
+Determined: brows 2 + eyes open + mouth closed
+Worried: brows 3 + eyes open + mouth half-open + sweat
+Teary: brows 3 + eyes open + mouth half-open + tears
+Sobbing: brows 4 + eyes open + mouth half-open 2 + tears
+Shocked: brows 4 + eyes open + mouth half-open 2

@@ -1,10 +1,16 @@
 # Painting the faces
 
 Each character has a folder here: `chiikawa`, `hachiware`, `usagi`,
-`momonga` and `siren`, the giant mermaid of the forbidden cave, whose first
-layers `art/blender/build_siren.py` drew as templates to draw over: the cast's
-whole set of layers and all nine expressions, on Chiikawa's head, which is
-hers too. A folder holds that character's face as layers, each one a
+`momonga`, `kurimanju`, `rakko` and `furuhonya` (all three started as
+copies of Chiikawa's layers, to repaint), `shisa` (started as a copy of
+Hachiware's, whose model Shisa is built from),
+`siren`, the giant mermaid of the forbidden cave, and `mermaid`, her two
+little mermaids, who share one face. `art/blender/build_siren.py`
+drew the Siren's first layers as templates to draw over: the cast's whole
+set of layers and all nine expressions, on Chiikawa's head, which is hers
+too. `art/blender/build_mermaid.py` drew the little mermaids' one face the
+same way: `eyes open` (two dots), `mouth open` (the round "O") and `eyes
+closed` (two dashes, for their blinks). A folder holds that character's face as layers, each one a
 transparent PNG painted in place on a 1536 × 1536 canvas. The canvas covers the
 game's face area: two head radii wide, centred on the eye line. `_guide.png`
 shows the bare head to paint over; the game never shows it.
@@ -61,8 +67,8 @@ panel shows when no action is playing.
 
 ## What the game does by itself
 
-- **Always on:** `cheeks.png`, and `skin.png` if there is one, show on every
-  expression.
+- **Always on:** `cheeks.png`, and `skin.png` and `scar.png` (Rakko's star)
+  if there are, show on every expression.
 - **Blinking and bowing:** the expression's eyes become `eyes closed`, for a
   moment or for as long as the character bows. `tears eyes open` becomes
   `tears eyes closed` at the same time.
@@ -116,6 +122,18 @@ In Git Bash:
 "/c/Program Files/Blender Foundation/Blender 5.2/blender.exe" --background --factory-startup --disable-autoexec --python art/blender/build_siren.py -- --no-previews
 ```
 
+The little mermaids have a script of their own too, as quick. In PowerShell:
+
+```powershell
+& "C:\Program Files\Blender Foundation\Blender 5.2\blender.exe" --background --factory-startup --disable-autoexec --python art/blender/build_mermaid.py -- --no-previews
+```
+
+In Git Bash:
+
+```bash
+"/c/Program Files/Blender Foundation/Blender 5.2/blender.exe" --background --factory-startup --disable-autoexec --python art/blender/build_mermaid.py -- --no-previews
+```
+
 A rebuild that worked ends with `BUILT` and `SAVED` lines naming the model.
 
 ## Good to know
@@ -125,7 +143,8 @@ A rebuild that worked ends with `BUILT` and `SAVED` lines naming the model.
 - **Line weight:** about 24 px thick on this canvas, the weight of the
   eyebrows, so every face looks drawn with the same pen. The Siren's head is
   nearly three times the cast's, so the same pen is thinner on her canvas: her
-  first layers draw it about 14 px.
+  first layers draw it about 14 px. The little mermaids' first layers draw it
+  about 34 px, as thick as the user's drawings of them.
 - **Your files are never overwritten:** rebuilding reads the layers and
   `expressions.txt` and changes neither. Only `_guide.png` is redrawn, so don't
   paint on it.

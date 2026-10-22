@@ -3,11 +3,14 @@ import { CHARACTER_IDS, EXPRESSION_IDS, type CharacterId, type ExpressionId } fr
 import { ACTION_IDS, type ActionId } from '../characters/Actions';
 import { DEFINITIONS } from '../characters/definitions';
 import { SIREN_MOODS, type SirenMood } from '../characters/Siren';
+import { MERMAID_PLACES, type MermaidPlace } from '../characters/LittleMermaids';
 
 export interface TestPanelState {
   character: CharacterId;
   lineup: boolean;
   outfit: boolean;
+  /** Whether those with clothes of their own (Rakko) wear the island outfit instead. */
+  islandForAll: boolean;
   /** Whether the follow camera looks on from behind instead of out of the character's eyes. */
   thirdPerson: boolean;
   expression: ExpressionId | null;
@@ -17,6 +20,8 @@ export interface TestPanelState {
   reflections: boolean | null;
   /** The Siren's mood in the forbidden cave; null until she has loaded (or where there is no cave). */
   siren: SirenMood | null;
+  /** Where her little mermaids are, or are going; null until she has loaded. */
+  mermaids: MermaidPlace | null;
 }
 
 /** The test panel's times of day: dawn, midday, dusk and night, in hours past midnight. */
@@ -31,6 +36,8 @@ export interface TestPanelHandlers {
   selectCharacter(id: CharacterId): void;
   toggleLineup(): void;
   toggleOutfit(): void;
+  /** Puts Rakko in the island outfit instead of his own clothes, or back in them. */
+  toggleIslandForAll(): void;
   resetCamera(): void;
   toggleThirdPerson(): void;
   action(id: ActionId | 'jump'): void;
@@ -42,6 +49,8 @@ export interface TestPanelHandlers {
   toggleReflections(): void;
   /** Calms the Siren or rouses her. */
   sirenMood(mood: SirenMood): void;
+  /** Sends her little mermaids before her or up onto her head. */
+  mermaids(place: MermaidPlace): void;
   /** Takes you to the forbidden cave's ledge, before the Siren. */
   visitSiren(): void;
 }
@@ -101,6 +110,7 @@ export class TestPanel {
         'panel.view',
         chip('lineup', '1', t('panel.lineup'), s.lineup) +
           chip('outfit', '1', t('panel.outfit'), s.outfit) +
+          chip('islandall', '1', t('panel.rakkoIsland'), s.islandForAll) +
           chip('reset', '1', t('panel.resetCamera')) +
           chip('third', '1', t('panel.thirdPerson'), s.thirdPerson) +
           chip('freecam', '1', t('panel.freeCamera'), s.freeCamera) +
@@ -115,7 +125,10 @@ export class TestPanel {
       section(
         'panel.actions',
         chip('action', 'jump', t('action.jump')) +
-          ACTION_IDS.map((a) => chip('action', a, t(`action.${a}` as StringKey))).join(''),
+          ACTION_IDS.map((a) => chip('action', a, t(`action.${a}` as StringKey))).join('') +
+          // What they play, for those who play something (Rakko's ukulele), and their sword, for those who carry one.
+          (DEFINITIONS[s.character].plays === 'ukulele' ? chip('action', 'ukulele', t('action.ukulele')) : '') +
+          (DEFINITIONS[s.character].own?.carries === 'sword' ? chip('action', 'sword', t('action.sword')) : ''),
       ),
       section(
         'panel.expressions',
@@ -127,7 +140,8 @@ export class TestPanel {
         : section(
             'panel.siren',
             SIREN_MOODS.map((m) => chip('siren', m, t(`siren.${m}` as StringKey), s.siren === m)).join('') +
-              chip('visit', '1', t('siren.visit')),
+              chip('visit', '1', t('siren.visit')) +
+              MERMAID_PLACES.map((p) => chip('mermaid', p, t(`mermaid.${p}` as StringKey), s.mermaids === p)).join(''),
           ),
       `<section><h3>${escapeHtml(t('panel.info'))}</h3><div class="info" data-info></div></section>`,
     ].join('');
@@ -144,6 +158,7 @@ export class TestPanel {
     else if (d.char) this.handlers.selectCharacter(d.char as CharacterId);
     else if (d.lineup) this.handlers.toggleLineup();
     else if (d.outfit) this.handlers.toggleOutfit();
+    else if (d.islandall) this.handlers.toggleIslandForAll();
     else if (d.reset) this.handlers.resetCamera();
     else if (d.third) this.handlers.toggleThirdPerson();
     else if (d.freecam) this.handlers.toggleFreeCamera();
@@ -154,6 +169,7 @@ export class TestPanel {
     else if (d.action) this.handlers.action(d.action as ActionId | 'jump');
     else if (d.expr) this.handlers.expression(d.expr === 'auto' ? null : (d.expr as ExpressionId));
     else if (d.siren) this.handlers.sirenMood(d.siren as SirenMood);
+    else if (d.mermaid) this.handlers.mermaids(d.mermaid as MermaidPlace);
     else if (d.visit) this.handlers.visitSiren();
     if (!d.close) this.render();
   };

@@ -87,6 +87,54 @@ export const DEFINITIONS: Record<CharacterId, CharacterDef> = {
     walkSpeed: 2.0,
     runSpeed: 3.7,
   },
+  // A visiting guest, relaxed (PLAN.md), built from Chiikawa's model with a chestnut cap of its own.
+  kurimanju: {
+    id: 'kurimanju',
+    nameKey: 'char.kurimanju',
+    model: 'models/kurimanju.glb',
+    outfit: 'models/outfits/island_kurimanju.glb',
+    face: { ...roundFace },
+    walkSpeed: 1.8,
+    runSpeed: 3.2,
+    // Always with a drink (PLAN.md): a can of it (the user, 2026-10-22).
+    carries: 'can',
+  },
+  // Rakko-sensei, a visiting guest, calm and watchful (PLAN.md), built from Chiikawa's model a tenth taller,
+  // his star scar painted on his face. He wears his own clothes, his cape, and carries his sword, never the
+  // island outfit, which is his only from the Test panel (the user, 2026-10-22). He plays the ukulele.
+  rakko: {
+    id: 'rakko',
+    nameKey: 'char.rakko',
+    model: 'models/rakko.glb',
+    outfit: 'models/outfits/island_rakko.glb',
+    own: { outfit: 'models/outfits/cape_rakko.glb', carries: 'sword' },
+    face: { ...roundFace },
+    walkSpeed: 1.8,
+    runSpeed: 3.3,
+    plays: 'ukulele',
+  },
+  // Furuhonya the crab, a visiting guest seen at the night beach (PLAN.md), built from Chiikawa's model with a
+  // coral-pink cap, two claws on her head and two tiny antennae.
+  furuhonya: {
+    id: 'furuhonya',
+    nameKey: 'char.furuhonya',
+    model: 'models/furuhonya.glb',
+    outfit: 'models/outfits/island_furuhonya.glb',
+    face: { ...roundFace },
+    walkSpeed: 1.8,
+    runSpeed: 3.2,
+  },
+  // Shisa, a visiting guest, cheerful (PLAN.md), built from Hachiware's model for its cat ears, with a mane of
+  // orange flames either side of the head.
+  shisa: {
+    id: 'shisa',
+    nameKey: 'char.shisa',
+    model: 'models/shisa.glb',
+    outfit: 'models/outfits/island_shisa.glb',
+    face: { ...roundFace },
+    walkSpeed: 2.0,
+    runSpeed: 3.6,
+  },
   // The island's two named islanders, always together, and the only ones with leaves:
   // Hitoha has one, Futaba two. There is one of each.
   hitoha: {
@@ -116,6 +164,20 @@ export const SIREN: CharacterDef = {
   id: 'siren',
   nameKey: 'char.siren',
   model: 'models/siren.glb',
+  face: { ...roundFace },
+  walkSpeed: 1.0,
+  runSpeed: 2.0,
+};
+
+/**
+ * The Siren's two little mermaids, exactly alike (art/blender/build_mermaid.py): the Siren's own shape made
+ * smaller, 0.7 of Chiikawa's height. Their one face is painted (art/faces/mermaid/), so its style here is only
+ * a fallback. They keep to the Siren (see LittleMermaids.ts); their pace is never used.
+ */
+export const MERMAID: CharacterDef = {
+  id: 'mermaid',
+  nameKey: 'char.mermaid',
+  model: 'models/mermaid.glb',
   face: { ...roundFace },
   walkSpeed: 1.0,
   runSpeed: 2.0,
