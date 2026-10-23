@@ -31,7 +31,7 @@ import { ACTIONS, type ActionContext, type ActionId } from './Actions';
 import type { EmoteHost, EmoteSystem } from './Emotes';
 import { t } from '../i18n/I18n';
 import { penAt } from '../world/Ink';
-import type { HeldLight } from './Props';
+import { showOpen, type HeldLight } from './Props';
 import { CANOPY_SHADE, FILM, MIRROR_LAYER } from '../world/Look';
 
 export interface CharacterOptions {
@@ -61,8 +61,12 @@ export interface FrameContext {
   pixelRatio: number;
   /** Height of what someone stands on at (x, z), within a step of where their feet were. */
   groundHeight: (x: number, z: number, feet?: number) => number;
-  /** Keeps a character who moved from `from` (from.y: their feet) to `p` on ground they can stand on. */
-  clamp: (p: THREE.Vector3, from: THREE.Vector3) => void;
+  /** As groundHeight, and the top of anything short (a cushion, a log, a counter) they are up on or come
+   * down on there (see Island.footing); groundHeight alone where it is left out. */
+  footing?: (x: number, z: number, feet: number) => number;
+  /** Keeps a character who moved from `from` (from.y: their feet) to `p` on ground they can stand on; given
+   * `drops`, letting them step down off the edge of what they stand on (see Character.drops). */
+  clamp: (p: THREE.Vector3, from: THREE.Vector3, drops?: boolean) => void;
   /** In the air, their feet at `y`: keeps a character who moved from `from` to `p` from passing into
    * anything standing higher than their feet. Without it, jumps go straight up and down and no one
    * falls off an edge. */
@@ -105,11 +109,11 @@ const JUMP_SPEED = 5.8;
  * there as a critically damped spring does, with no jolt as it starts or as it ends, as fast as this when they
  * speed up (radians a second: from standing to a run in about 0.25 s) and as this when they slow down or turn
  * (from a run to standing in about 0.15 s), each for their quickness (Gait.quick). Before, they took a run's pace
- * in 0.19 s at a steady 16 m/sﾂｲ, and stopped as hard.
+ * in 0.19 s at a steady 16 m/s², and stopped as hard.
  */
 const GET_GOING = 19;
 const SLOW_DOWN = 31.6;
-/** In the air they carry on as they were going: the stick steers them only this much (m/sﾂｲ, about a third of
+/** In the air they carry on as they were going: the stick steers them only this much (m/s², about a third of
  * how their feet do), and letting it go slows them not at all (the user, 2026-10-23). */
 const AIR_STEER = 3.5;
 /** Crouched this long before a jump (seconds); a jump asked for this soon before they land is jumped as they
@@ -117,8 +121,14 @@ const AIR_STEER = 3.5;
 const CROUCH = 0.07;
 const JUMP_EARLY = 0.15;
 const JUMP_LATE = 0.12;
-/** How much faster than they run they sprint (Shift, or the stick held at its edge: see Input.sprint). */
-const SPRINT = 1.4;
+/** Holding the jump, they rise higher (the user, 2026-10-23: it had made no difference): for up to this long after
+ * leaving the ground (seconds), while it is held and they are still rising, gravity pulls them only this share as
+ * hard. A tap jumps 0.7 m high, as every jump had; held all the way, about 1 m. */
+const HOLD_TIME = 0.18;
+const HOLD_GRAVITY = 0.6;
+/** How much faster than they run they sprint (Shift, or the stick held at its edge: see Input.sprint): twice (the
+ * user, 2026-10-23: 1.4 times was not fast enough). */
+const SPRINT = 2;
 /** Turning, their body turns no faster than this (radians a second, for their quickness): a half turn on the spot
  * in about half a second, not swung round at once (before 2026-10-23, 0.25 s). On the spot they step round as they
  * turn, a step each TURN_STEP (radians). */
@@ -172,6 +182,15 @@ const HELD_TURN: Record<HoldWay, THREE.Quaternion> = {
   eat: new THREE.Quaternion().setFromAxisAngle(X_AXIS, HAND_MOUTH_TIP),
 };
 const CARRY_TURN = new THREE.Quaternion();
+/** A book they read (an action that `reads`: see Actions.ts), open before their face under their chin, as Hachiware reads
+ * the film's: the middle of its near edge this far from their mouth (in their head's frame, metres), its pages facing
+ * this far up from square on to them (radians), toward their eyes; its left half swinging open in so many seconds. */
+const READ_AT = new THREE.Vector3(0, -0.09, 0.07);
+const READ_UP = 1.1;
+const READ_OPEN = 0.45;
+const READ_TURN = new THREE.Quaternion()
+  .setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI)
+  .multiply(new THREE.Quaternion().setFromAxisAngle(X_AXIS, Math.PI / 2 - READ_UP));
 /** The cave's torch in a staged shot (see holdTorch), held up at the paw's tip leaning this far forward, and out of
  * them as far as it must be. */
 const TORCH_TURN = new THREE.Quaternion().setFromAxisAngle(X_AXIS, 0.25);
@@ -431,6 +450,12 @@ export class Character implements EmoteHost {
   /** The way they face whichever way they walk: where you look, out of their eyes (see
    * FirstPersonCamera); null to face the way they walk. */
   look: number | null = null;
+  /** Whether they may walk off the edge of what they stand on (a hut's porch, the stage, a cushion): the one
+   * you play (the user, 2026-10-23). The islanders keep to what they walk on, as their way about does. */
+  drops = false;
+  /** Whether their jump is still held (Space or the jump button, for the one you play): rising, they go higher
+   * (see HOLD_TIME). The islanders' hops are all alike. */
+  jumpHeld = false;
   /** How far they are bent over to look into the water, 0 to 1, and where their eyes are carried to
    * then (see setBow). */
   bowAmount = 0;
@@ -507,7 +532,7 @@ export class Character implements EmoteHost {
   private readonly outfit: THREE.Group | null = null;
   /** Their own clothes, worn instead of the island outfit (see CharacterOptions.own), or none. */
   private readonly ownOutfit: THREE.Group | null = null;
-  /** Whether outfits are on at all (the Test panel's 蟲ｶ縺ｮ陦｣陬・, and whether someone with clothes of their own
+  /** Whether outfits are on at all (the Test panel's 島の衣装), and whether someone with clothes of their own
    * wears the island outfit instead (only ever from the Test panel). */
   private outfitsOn = true;
   private islandInstead = false;
@@ -519,12 +544,14 @@ export class Character implements EmoteHost {
 
   private readonly desired = new THREE.Vector3();
   private readonly accel = new THREE.Vector3();
-  /** How fast their pace is changing on their feet (m/sﾂｲ, flat): the spring their pace eases by (see GET_GOING). */
+  /** How fast their pace is changing on their feet (m/s², flat): the spring their pace eases by (see GET_GOING). */
   private readonly easing = new THREE.Vector3();
   /** A jump asked for in the air, jumped as they land, for this much longer (seconds); and how much longer they
    * may still jump, having walked off an edge. */
   private jumpEarly = 0;
   private jumpLate = 0;
+  /** How much longer holding the jump keeps lifting them (seconds, see HOLD_TIME); none once let go. */
+  private lift = 0;
   /** Turning on the spot: how fast their body turns (radians a second, eased), how far round their steps have gone
    * (as phase is for walking), and how much they step round, 0 to 1. */
   private turnRate = 0;
@@ -852,7 +879,7 @@ export class Character implements EmoteHost {
     this.jumpY = 0;
     this.vy = 0;
     this.crouch = -1;
-    this.jumpEarly = this.jumpLate = 0;
+    this.jumpEarly = this.jumpLate = this.lift = 0;
     this.velocity.set(0, 0, 0);
     this.easing.set(0, 0, 0);
     this.desired.set(0, 0, 0);
@@ -873,6 +900,7 @@ export class Character implements EmoteHost {
       }
       this.jumpLate = 0;
       this.vy = JUMP_SPEED;
+      this.lift = HOLD_TIME;
       this.squash.velocity += 2.5;
     } else {
       this.crouch = CROUCH;
@@ -1121,7 +1149,7 @@ export class Character implements EmoteHost {
     // In the air they carry on over gaps, drops and water, stopped only by what stands higher than
     // their feet; on their feet they keep to what they can walk on.
     if (this.airborne && ctx.air) ctx.air(pos, _from, this.feet + this.jumpY);
-    else ctx.clamp(pos, _from);
+    else ctx.clamp(pos, _from, this.drops);
     // (Not as they crouch to jump: from the very edge of a stepping stone, which stops their feet, they jump on
     // as fast as they ran up to it.)
     if ((pos.x !== goneX || pos.z !== goneZ) && this.crouch < 0) this.stopped(_from, pos, pos.x - goneX, pos.z - goneZ, dt);
@@ -1150,7 +1178,7 @@ export class Character implements EmoteHost {
 
     const run = smoothstep(this.walkSpeed * 0.95, this.runSpeed * 0.9, speed);
     const dash = smoothstep(this.runSpeed * 1.02, this.sprintSpeed * 0.95, speed);
-    this.phase += (speed / ((0.62 + 0.43 * run + 0.3 * dash) * this.gait.stride)) * Math.PI * 2 * dt;
+    this.phase += (speed / ((0.62 + 0.43 * run + 0.6 * dash) * this.gait.stride)) * Math.PI * 2 * dt;
     if (this.action && speed > 0.3 && !ACTIONS[this.action.id].allowMove) this.stopAction();
 
     if (this.crouch >= 0) {
@@ -1159,17 +1187,24 @@ export class Character implements EmoteHost {
         this.vy = JUMP_SPEED;
         this.airborne = true;
         this.jumpLate = 0;
+        this.lift = HOLD_TIME;
         this.squash.velocity += 2.5;
       }
     }
+    // Rising with the jump still held, gravity pulls them less, a moment (see HOLD_TIME); let go, it is over.
+    const lifted = this.airborne && this.jumpHeld && this.vy > 0 && this.lift > 0;
+    this.lift = lifted ? this.lift - dt : 0;
+    const gravity = lifted ? GRAVITY * HOLD_GRAVITY : GRAVITY;
+    // What they stand on, or come down on: the ground, a deck, or the top of something short (a cushion, a log).
+    const footing = ctx.footing ?? ctx.groundHeight;
     if (this.airborne && ctx.air) {
-      // Their feet's height in the air against what is under them where they are now: a deck or
-      // ground they come down on (or one a step above them, which they land on all the same), water
-      // too deep to stand in (they climb out at the nearest shore), or nothing yet.
-      this.vy += GRAVITY * dt;
+      // Their feet's height in the air against what is under them where they are now: a deck, the top of
+      // something short or ground they come down on (or one a step above them, which they land on all the
+      // same), water too deep to stand in (they climb out at the nearest shore), or nothing yet.
+      this.vy += gravity * dt;
       const was = this.feet + this.jumpY;
       const y = was + this.vy * dt;
-      const under = ctx.groundHeight(pos.x, pos.z, Math.max(y, was));
+      const under = footing(pos.x, pos.z, Math.max(y, was));
       if (y <= under) {
         this.feet = under;
         this.jumpY = 0;
@@ -1187,14 +1222,14 @@ export class Character implements EmoteHost {
       }
     } else {
       if (this.airborne) {
-        this.vy += GRAVITY * dt;
+        this.vy += gravity * dt;
         this.jumpY += this.vy * dt;
         if (this.jumpY <= 0) {
           this.jumpY = 0;
           this.land();
         }
       }
-      const below = ctx.groundHeight(pos.x, pos.z, this.feet);
+      const below = footing(pos.x, pos.z, this.feet);
       if (!this.airborne && ctx.air && below < this.feet - DROP) {
         // Walked off an edge: they fall from where their feet were (and may still jump a moment).
         this.airborne = true;
@@ -1703,7 +1738,8 @@ export class Character implements EmoteHost {
   }
 
   /** What they hold in their right paw (see hold): up at their mouth while they eat, out before it as their head
-   * is turned; else upright in the paw, leaning a little forward, or flat on it; lit as the paw is. */
+   * is turned; a book they read open before their face (READ_AT); else upright in the paw, leaning a little
+   * forward, or flat on it; lit as the paw is. */
   private placeHand(): void {
     const hand = this.hand as THREE.Object3D;
     // Put away while the cave's torch is in that paw, or they play what they play.
@@ -1711,6 +1747,15 @@ export class Character implements EmoteHost {
     const light = hand.userData.light as HeldLight | undefined;
     if (light) this.lightHeld(light);
     if (!hand.visible || !this.handShape) return;
+    const action = this.action;
+    const reading = !!action && !!ACTIONS[action.id].reads && !!hand.userData.book;
+    showOpen(hand, reading && action ? smoothstep(0, 1, action.t / READ_OPEN) : null);
+    if (reading) {
+      this.partPoint(_grip.copy(this.model.anchors.mouth).add(READ_AT), PART.HEAD);
+      this.mesh.localToWorld(hand.position.copy(_grip));
+      hand.quaternion.copy(_turnNow).multiply(_eatTurn.setFromRotationMatrix(this.parts[PART.HEAD]).multiply(READ_TURN));
+      return;
+    }
     let way: HoldWay;
     let base: THREE.Quaternion;
     if (this.action?.id === 'eat') {

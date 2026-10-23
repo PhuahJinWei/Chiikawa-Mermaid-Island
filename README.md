@@ -51,9 +51,9 @@ You see the island out of your own eyes, as a nameless islander.
 | Drag on the left half | WASD or arrow keys (they run; Shift sprints) | Move the way you look; push the stick to its edge to run, and hold it there a moment to sprint (the ring goes pink) |
 | Drag on the right half | Drag with the mouse | Look around |
 | Pinch on the right half | Mouse wheel | Narrow the view toward the film's lens, and back |
-| Jump button | Space | Jump (whoever is near may hop or wave back) |
+| Jump button | Space | Jump; hold it to jump higher (whoever is near may hop or wave back) |
 | Action button (ひろう, かりる, おく, もどす, あげる, はなす, すわる, ねる, たつ, みせばん, わたす, たべきる, のみきる) | E or Enter | What you look at: pick it up (borrow it, if it is someone's), put down what you hold, put a torch's brand back on its pole, give it, talk, sit, sleep through the night in your own bed, get up; behind a stall's counter no one keeps today, keep it, and hand its goods to whoever lines up. What you have bitten into cannot be put down or given: たべきる / のみきる finishes it |
-| Use button (たべる, のむ, ひく) | F | Eat, drink or play what you hold |
+| Use button (たべる, のむ, ひく, よむ) | F | Eat, drink, play or read what you hold. A book comes up before your eyes and opens; press again (とじる) or walk off to shut it |
 | Pouch (ふくろ) button, then a slot | Tab, or 1 to 6 | Your pouch of six slots, each a stack of one kind (up to 99, its count on its corner): what is in your paw goes into the pouch (onto its own stack if there is one) and one thing of the slot comes into your paw. Something you have bitten into goes into no pouch: put away, it is gone, eaten up |
 | きもち button (top right), then one of its nine | R, then 1 to 9 | Do something yourself: wave, bow, cheer, hop, dance, chat, look about, start, cry. Whoever is near may answer it |
 | Camera (カメラ) button | | Take a photo |
@@ -78,7 +78,8 @@ whose it is. A stall hands over nothing to someone with no room for it: its keep
 about comes from `public/data/things.json`:
 
 - `kept`: things with a place of their own (the stage's ukulele, the torch by your door, the two torches
-  lying in the forbidden cave's mouth, a book on a shelf in three of the huts), back there each morning
+  lying in the forbidden cave's mouth, the one book, 伝説の生物図鑑, on the floor before Hitoha and Futaba's
+  bookshelf), back there each morning
   from wherever they are, your pouch and the islanders' too (the island tidies up overnight; what is
   yours to keep is what has no place of its own): an `id` of its own, the `item`, where (`x`, `z`),
   `y` if it lies on something above the ground's top (a deck, a porch) or `height` for just how high
@@ -90,9 +91,15 @@ about comes from `public/data/things.json`:
   boxes, only on the sand's band above the water if `shore` gives one (`[from, to]` metres; else
   anywhere one can stand on dry ground), at least `apart` metres from one another.
 
+Given something that is not food, an islander keeps it in their paw till they need the paw for
+something else, and only then puts it in their pouch; a torch goes into the pouch after the thanks.
 At bedtime an islander puts every keepsake they still carry down on their hut's floor, so nothing
 sleeps in a pouch where no one can see it. A torch burns whenever it is held, day and night, its light
 reaching what is round it after dark and in the forbidden cave, lighting your way there: bring your own, or take one of the two lying in its mouth.
+
+The book is read as the film's Hachiware reads it: held open before the face, both paws under it.
+Islanders read it too, when they have it, and 古本屋 most of all. Its spread's picture is loaded only
+while someone reads it.
 
 Nothing anyone holds goes into them (`src/characters/Holding.ts`): a thing is held out at their side,
 by its own side, and each frame it is tipped out and pushed a little further out only as far as it must
@@ -145,6 +152,12 @@ Every model comes out of Blender, driven by a Python script:
 - `art/blender/build_signs.py` draws a template for every signboard into
   `art/signs/_guides/`, and copies the hand-lettered signs painted over
   them into `public/signs/`, at the game's own sharpness.
+- `art/blender/build_items.py` builds the things one carries into
+  `public/models/props/item_<id>.glb`, with their icons for the pouch.
+  `art/blender/books.py` shapes the book, shut and open.
+- `art/blender/build_books.py` draws the book's two templates into
+  `art/books/_guides/`, its cover and its spread, and copies your paintings
+  of them into the game. See [art/books/README.md](art/books/README.md).
 
 Where everything stands is in `public/data/layout.json`: each prop's kind,
 place, turn and painted words (a key into `ja.json`), and the island's named
@@ -159,6 +172,10 @@ The faces are painted by hand. Each character's folder in
 add layers, change the combinations, and rebuild. See
 [art/faces/README.md](art/faces/README.md). Rebuilding never changes those
 files.
+
+The book's cover and its pages are painted by hand too: a template for
+each is in `art/books/_guides/`, and your paintings go in `art/books/`. See
+[art/books/README.md](art/books/README.md).
 
 The signboards can be hand-lettered too: each stall's header boards (one
 painting shows across its front and down both its sides), the arch's board
@@ -193,6 +210,10 @@ Run a script from the project folder:
 
 ```bash
 "/c/Program Files/Blender Foundation/Blender 5.2/blender.exe" --background --factory-startup --disable-autoexec --python art/blender/build_signs.py
+```
+
+```bash
+"/c/Program Files/Blender Foundation/Blender 5.2/blender.exe" --background --factory-startup --python art/blender/build_books.py
 ```
 
 `--disable-autoexec` matters for the import: the downloaded .blend files

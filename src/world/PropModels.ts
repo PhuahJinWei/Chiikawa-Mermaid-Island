@@ -60,6 +60,10 @@ export interface PropInfo {
     door: boolean;
     mask?: string;
   }[];
+  /** A book's (art/blender/books.py): the line its left half swings shut about, along z through this point, as it
+   * is opened to be read (see its `open` and `page` parts), and how far it swings to lie shut (radians). */
+  hinge?: [number, number, number];
+  swing?: number;
 }
 
 /**
@@ -70,9 +74,11 @@ export interface PropInfo {
  * clear there, drawn without the pen and lighting nothing; flame: shows only at night;
  * inside: a room's inside, drawn only near; far: a light version for seeing from afar, drawn instead
  * of the body and the inside; label: painted words; board: drawn as the body, the board its words
- * are painted on, which takes the colour of a hand-lettered sign painted solid.
+ * are painted on, which takes the colour of a hand-lettered sign painted solid. A book's open halves,
+ * shown only as it is read: open, each half's cloth and pages' block (`_open0` the right, `_open1` the
+ * left); page, the tops of its pages, the spread's picture on them (`_page0`, `_page1`).
  */
-export type PartRole = 'body' | 'glow' | 'spot' | 'lamp' | 'pane' | 'flame' | 'inside' | 'far' | 'label' | 'board';
+export type PartRole = 'body' | 'glow' | 'spot' | 'lamp' | 'pane' | 'flame' | 'inside' | 'far' | 'label' | 'board' | 'open' | 'page';
 
 export interface PropModel {
   parts: { role: PartRole; index: number; geometry: THREE.BufferGeometry }[];
@@ -84,6 +90,8 @@ const cache = new Map<string, Promise<PropModel>>();
 function roleOf(name: string): [PartRole, number] {
   const label = /_label(\d*)$/.exec(name);
   if (label) return ['label', label[1] ? Number(label[1]) : 0];
+  const book = /_(open|page)(\d)$/.exec(name);
+  if (book) return [book[1] as 'open' | 'page', Number(book[2])];
   for (const role of ['glow', 'spot', 'lamp', 'pane', 'flame', 'inside', 'far', 'board'] as const) if (name.endsWith(`_${role}`)) return [role, 0];
   return ['body', 0];
 }

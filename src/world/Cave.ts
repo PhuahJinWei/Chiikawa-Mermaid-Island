@@ -3,7 +3,7 @@ import { loadGltf } from '../core/gltf';
 import { sharedUniforms } from '../characters/CharacterMaterial';
 import type { SkyLook } from './DayNight';
 import { inkOutlineMaterialLit, windUniforms } from './Ink';
-import { FILM, FLAME_BRIGHT } from './Look';
+import { FILM, FLAME_BRIGHT, PEN_MARK } from './Look';
 import { addCircle } from './Obstacles';
 import { WadeRings, wadeGlsl } from './Ripples';
 
@@ -756,7 +756,7 @@ export function caveInkMaterial(lit: THREE.IUniform<THREE.Color>): THREE.ShaderM
         vec3 light = uLit + caveTorches(vWorld, eye) * 0.8 + caveSun(vWorld, eye);
         gl_FragColor = vec4(uInk * light, 1.0);
         #ifdef FILM_MASK
-        gl_FragColor.a = 0.5;
+        gl_FragColor.a = ${PEN_MARK.toFixed(2)};
         #endif
         #include <tonemapping_fragment>
         #include <colorspace_fragment>

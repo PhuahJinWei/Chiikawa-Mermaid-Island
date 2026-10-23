@@ -417,7 +417,8 @@ export class HeldShape {
     const meshes: THREE.Mesh[] = [];
     thing.traverse((o) => {
       const m = o as THREE.Mesh;
-      if (m.isMesh && (m.material as THREE.Material).side !== THREE.BackSide) meshes.push(m);
+      // (Not its pen's hull, nor a book's halves open, held only as it is read: see Items' ItemModels.)
+      if (m.isMesh && (m.material as THREE.Material).side !== THREE.BackSide && !m.userData.unheld) meshes.push(m);
     });
     const key = meshes[0]?.geometry;
     const known = key ? HeldShape.made.get(key) : undefined;

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { CHARACTER_LIGHTS } from '../world/Firelight';
-import { FILM, FIRE_MARK } from '../world/Look';
+import { FILM, FIRE_MARK, PEN_MARK } from '../world/Look';
 import { MAX_PARTS, PART, type OutfitInfo, type Rig, type SkirtPattern } from './Model';
 
 /**
@@ -577,7 +577,7 @@ void main() {
 #endif
   gl_FragColor = vec4(uLineColor * uAmbient * uShade * fireTint(), 1.0);
   #ifdef FILM_MASK
-  gl_FragColor.a = 0.5;
+  gl_FragColor.a = ${PEN_MARK.toFixed(2)};
   #endif
   #include <tonemapping_fragment>
   #include <colorspace_fragment>

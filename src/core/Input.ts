@@ -32,6 +32,8 @@ export class Input {
   private readonly look = new THREE.Vector2();
   private zoom = 0;
   private jumpQueued = false;
+  /** Whether the jump button is held down (see holdJump). */
+  private jumpButton = false;
   private actionQueued = false;
   private useQueued = false;
   /** A pouch slot asked for from the keyboard (1 to 6), or with the きもち panel open what to do (1 to 9);
@@ -64,6 +66,7 @@ export class Input {
       this.keys.clear();
       this.lookPointers.clear();
       this.releaseJoystick();
+      this.jumpButton = false;
     });
   }
 
@@ -126,6 +129,17 @@ export class Input {
 
   queueJump(): void {
     this.jumpQueued = true;
+  }
+
+  /** The jump button pressed (it jumps, see queueJump) or let go of. */
+  holdJump(on: boolean): void {
+    this.jumpButton = on;
+  }
+
+  /** Whether the jump is held down, Space or the jump button: held as you rise, you jump higher (see
+   * Character.jumpHeld). */
+  get jumpHeld(): boolean {
+    return this.jumpButton || this.keys.has('Space');
   }
 
   consumeJump(): boolean {

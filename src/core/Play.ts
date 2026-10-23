@@ -19,7 +19,7 @@ import type { Sound } from './Sound';
  * What you do on the island with your paws (the user, 2026-10-22): pick up what lies about, hold it in
  * your right paw (seen out of your own eyes at the bottom right of the screen: see HandView), keep it in
  * your pouch of six slots (each a stack of one kind, up to 99), put it down where you look, give it to whoever you look at, eat or drink it, play the
- * ukulele; sit on whatever one sits on, and in your own bed at night sleep through to the morning (the
+ * ukulele, read the book (よむ: up before your eyes and open, till you press again or walk off); sit on whatever one sits on, and in your own bed at night sleep through to the morning (the
  * user: the bed skips the night). What you look at, near the middle of your view and within reach, is what
  * the action button does something with. From the きもち button you wave, bow, cheer, dance and the rest
  * (EMOTES), which those near answer.
@@ -35,9 +35,11 @@ import type { Sound } from './Sound';
  */
 
 /** How far you reach from your eyes for what you look at (metres), and for a seat from your feet; a brand
- * burning in its stand, on top of a torch's stake, a little further. */
+ * burning in its stand, on top of a torch's stake, a little further. A stake is looked at anywhere from its foot
+ * to the top of its flame, this far above where its brand sits (see stakePoint). */
 const REACH = 2.1;
 const STAND_REACH = 2.4;
+const STAKE_FLAME = 0.3;
 const SEAT_REACH = 1.9;
 /** How near the middle of your view something must be to be what you look at (the angle's cosine), and how
  * far from the middle what you look at may drift before you have looked away from it (the user, 2026-10-23:
@@ -92,14 +94,15 @@ const _fwd = new THREE.Vector3();
 const _to = new THREE.Vector3();
 const _p = new THREE.Vector3();
 const _eyes = new THREE.Vector3();
+const _stake = new THREE.Vector3();
 const _flame = new THREE.Vector3(0, 0.3, 0);
 const flat = (a: THREE.Vector3, b: THREE.Vector3) => Math.hypot(a.x - b.x, a.z - b.z);
 
 export class Play {
   /** Your paw and pouch (see Hands). */
   readonly hands: Hands;
-  /** Eating, drinking or playing what you hold, and for how long. */
-  private using: { kind: 'eat' | 'drink' | 'play'; t: number } | null = null;
+  /** Eating, drinking, playing or reading what you hold, and for how long. */
+  private using: { kind: 'eat' | 'drink' | 'play' | 'read'; t: number } | null = null;
   /** The seat you sit on, if you do. */
   seat: Seat | null = null;
   private target: Target | null = null;
@@ -199,7 +202,9 @@ export class Play {
     const held = this.hands.hand ? { item: this.hands.hand.item, nibbled: this.hands.nibbled } : null;
     this.focus.update(f.dt, this.target, held, me);
     const use = this.hand ? ITEMS[this.hand].use : null;
-    const useLabel = f.free && !this.sleeping && use ? t(this.using ? 'hud.stop' : (`hud.${use}` as StringKey)) : null;
+    // (A book read is shut: とじる.)
+    const stop = this.using?.kind === 'read' ? 'hud.close' : 'hud.stop';
+    const useLabel = f.free && !this.sleeping && use ? t(this.using ? stop : (`hud.${use}` as StringKey)) : null;
     this.hud.setUse(useLabel);
     if (!f.buttonTaken && this.input.consumeAction() && this.label) this.act(me);
     if (this.input.consumeUse() && useLabel) this.toggleUse(me);
@@ -319,6 +324,10 @@ export class Play {
       me.play('ukulele');
       this.view.play('play');
       this.life.performing(me.position, 'player');
+    } else if (use === 'read') {
+      // Up before your eyes and open (see HandView.read); seated, read sitting.
+      me.play(this.seat ? 'readSeated' : 'read');
+      this.view.read(true);
     } else {
       me.play('eat');
       this.view.play(use);
@@ -327,9 +336,11 @@ export class Play {
 
   private stopUsing(me: Character): void {
     this.using = null;
-    if (me.actionId === 'eat' || me.actionId === 'ukulele') me.stopAction();
+    const act = me.actionId;
+    if (act === 'eat' || act === 'ukulele' || act === 'read' || act === 'readSeated') me.stopAction();
     if (this.seat) me.play('sit');
     this.view.play(null);
+    this.view.read(false);
   }
 
   /** A frame of eating, drinking or playing: walking off stops it; the last bite finishes what you eat. */
@@ -347,6 +358,7 @@ export class Play {
       if (Math.floor(using.t / 8) > Math.floor((using.t - f.dt) / 8)) this.life.performing(f.me.position, 'player');
       return;
     }
+    if (using.kind === 'read') return;
     // A bite as each comes back from the mouth.
     if (Math.floor(using.t / BITE) > before) {
       if (using.kind === 'drink') this.sound?.sip();
@@ -399,15 +411,23 @@ export class Play {
       _eyes.set(p.x, THREE.MathUtils.clamp(eye.y + along * _fwd.y, feet + 0.1, feet + r.ch.height), p.z);
       consider(_eyes, REACH + 0.3, { kind: 'resident', r });
     }
+    // A brand in its stand, and an empty stand for the brand you hold: anywhere on the stake, as someone is
+    // anywhere on them (the user, 2026-10-23: looking at the pole found nothing, only its flame did).
+    const stakePoint = (at: THREE.Vector3): THREE.Vector3 => {
+      const along = level > 1e-6 ? ((at.x - eye.x) * _fwd.x + (at.z - eye.z) * _fwd.z) / level : 0;
+      const foot = Math.min(groundHeight(at.x, at.z), at.y);
+      return _stake.set(at.x, THREE.MathUtils.clamp(eye.y + along * _fwd.y, foot, at.y + STAKE_FLAME), at.z);
+    };
     for (const thing of this.things.list) {
       if (!thing.shown) continue;
-      consider(thing.grip, thing.hidden ? STAND_REACH : REACH, { kind: 'thing', thing });
+      if (thing.hidden) consider(stakePoint(thing.at), STAND_REACH, { kind: 'thing', thing });
+      else consider(thing.grip, REACH, { kind: 'thing', thing });
     }
     // The brand you hold, back into its stand if it is empty.
     const brand = this.hands.hand;
     const stand = brand?.home ? this.things.homes.get(brand.home) : undefined;
     if (brand?.home && stand?.stand !== undefined && !this.things.list.some((t) => t.home === brand.home)) {
-      consider(stand.at, STAND_REACH, { kind: 'stand', home: brand.home, at: stand.at, yaw: stand.yaw });
+      consider(stakePoint(stand.at), STAND_REACH, { kind: 'stand', home: brand.home, at: stand.at, yaw: stand.yaw });
     }
     if (!this.seat && !f.inCave) {
       for (const seat of this.seats) {

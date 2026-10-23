@@ -300,11 +300,15 @@ export class Hands {
 
   restore(saved: Partial<SavedHands> | undefined): void {
     if (!saved) return;
-    this.hand = restoreCarried(saved.hand);
+    // (What belongs on the island no more is gone: see Things.belongs.)
+    const hand = restoreCarried(saved.hand);
+    this.hand = hand && this.things.belongs(hand) ? hand : null;
     this.bites = this.hand ? Math.max(0, Math.min(BITES - 1, (saved.bites ?? 0) | 0)) : 0;
     for (let i = 0; i < POUCH_SIZE; i++) {
       const slot = saved.pouch?.[i];
-      const stack = (Array.isArray(slot) ? slot : [slot]).map(restoreCarried).filter((c): c is Carried => !!c);
+      const stack = (Array.isArray(slot) ? slot : [slot])
+        .map(restoreCarried)
+        .filter((c): c is Carried => !!c && this.things.belongs(c));
       // (One kind a slot, at most a stack of it.)
       const kept = stack.filter((c) => c.item === stack[0]?.item).slice(0, STACK);
       this.pouch[i] = kept.length > 0 ? kept : null;

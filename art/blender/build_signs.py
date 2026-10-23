@@ -363,4 +363,6 @@ def main():
           + "".join(f"; {key}'s board {colour}" for key, colour in boards.items()))
 
 
-main()
+# (Run, not imported: art/blender/books.py borrows its lettering and resizing for the book's templates.)
+if __name__ == "__main__":
+    main()

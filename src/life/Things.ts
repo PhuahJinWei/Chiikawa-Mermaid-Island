@@ -143,6 +143,8 @@ export class Things {
   private readonly kinds = new Map<string, Kind>();
   private readonly materials = lyingMaterials();
   private readonly caveMaterials = lyingMaterials(false);
+  /** The materials of kinds coloured by a picture (the book: see ItemDef.paint), out on the island and in the cave. */
+  private readonly painted = new Map<string, ReturnType<typeof lyingMaterials>>();
   /** Where in `list` the shade was last looked at again (see reshade). */
   private reshaded = 0;
 
@@ -254,6 +256,7 @@ export class Things {
       this.kindOf(t.item, t.inCave).changed = true;
     }
     this.reshade();
+    this.models.update();
     for (const kind of this.kinds.values()) {
       if (kind.changed) this.draw(kind);
       else if (kind.shaded) this.colour(kind);
@@ -309,7 +312,7 @@ export class Things {
    * the cave. */
   private drawing(item: ItemId, cave: boolean, room: number): { body: THREE.InstancedMesh; hull: THREE.InstancedMesh } {
     const shape = this.models.shape(item);
-    const materials = cave ? this.caveMaterials : this.materials;
+    const materials = this.materialsOf(item, cave);
     const body = new THREE.InstancedMesh(shape, materials.body, room);
     body.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     body.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(room * 3), 3).setUsage(THREE.DynamicDrawUsage);
@@ -323,6 +326,17 @@ export class Things {
     body.name = hull.name = cave ? `things:${item}:cave` : `things:${item}`;
     this.group.add(body, hull);
     return { body, hull };
+  }
+
+  /** What things of `item`'s kind lying about are drawn with, out on the island or in the cave: the plain materials,
+   * or a kind coloured by a picture its own with it. */
+  private materialsOf(item: ItemId, cave: boolean): ReturnType<typeof lyingMaterials> {
+    const map = this.models.paintOf(item);
+    if (!map) return cave ? this.caveMaterials : this.materials;
+    const key = cave ? `${item}:cave` : item;
+    let materials = this.painted.get(key);
+    if (!materials) this.painted.set(key, (materials = lyingMaterials(!cave, map)));
+    return materials;
   }
 
   /** Draws `kind`'s things lying near the camera, each where it lies, turned as it rests, in its shade: made room
@@ -426,11 +440,17 @@ export class Things {
   }
 
   /** Everything as a save had it (what lay about before is taken away). */
+  /** Whether `c` still belongs on the island: it has no place of its own, or one things.json still lays out. One
+   * whose place is gone from it (the user, 2026-10-23: one book, not three) is gone from a save with it. */
+  belongs(c: Carried): boolean {
+    return !c.home || this.homes.has(c.home);
+  }
+
   restore(saved: SavedThing[], beachDay: number): void {
     for (const t of [...this.list]) this.take(t);
     for (const s of saved) {
       const c = restoreCarried(s);
-      if (!c) continue;
+      if (!c || !this.belongs(c)) continue;
       this.put(c, new THREE.Vector3(s.x, s.y, s.z), s.yaw, s.day);
     }
     this.beachDay = beachDay;

@@ -37,6 +37,8 @@ export class PlayerController {
     if (_d.lengthSq() > 1e-6) _d.normalize().multiplyScalar(speed);
     ch.setDesiredVelocity(_d);
     this.want.copy(_d);
+    // Held as you rise, the jump goes higher.
+    ch.jumpHeld = this.input.jumpHeld;
     if (!this.input.consumeJump()) return false;
     ch.jump();
     return true;

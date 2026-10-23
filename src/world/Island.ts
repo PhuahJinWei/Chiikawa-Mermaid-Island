@@ -5,7 +5,7 @@ import { fireLights } from './Firelight';
 import { PEN_GLSL, inkUniforms } from './Ink';
 import { FILM, coverTrees, hazeClearing, paintedRamp, shadeUnderTrees } from './Look';
 import type { CaveGrid } from './Cave';
-import { addCircle, addPad, blocked, blockedInAir, cameraBlocked, deckUnder, deeper, outlineAt } from './Obstacles';
+import { addCircle, addPad, blocked, blockedInAir, cameraBlocked, deckOver, deckUnder, deeper, outlineAt, topUnder } from './Obstacles';
 
 /** What art/blender/build_island.py writes into the ground's glTF extras. */
 export interface TerrainInfo {
@@ -140,6 +140,13 @@ const EDGE_MARGIN = 0.3;
 const CAMERA_MARGIN = 0.3;
 /** The highest step a character walks up, onto a deck or a stair. */
 const STEP_UP = 0.35;
+/** A deck less than this over where someone would stand is too low to stand under (metres): inside a stair's
+ * frame under its upper treads, under a porch or the pier where they come down near the ground. */
+const HEADROOM = 1.0;
+/** The top of something short (a cushion, a log, a counter: see Obstacles.topUnder) is underfoot for whoever's
+ * feet are no more than this below it: what they came down on or stand on, never a step they walk up onto (a
+ * block's top any higher is in their way, see Obstacles.blocked). */
+const TOP_STEP = 0.1;
 /** Sliding along what stops someone (see slide): how many halvings find where their move first meets it; the
  * turns off the way they go tried in turn to find the way along it (radians: 30°, 60° and 80°; walking into it
  * any nearer head on, they stop against it); and how many halvings then find the least turn that slides them
@@ -335,16 +342,24 @@ export class Terrain {
    * Whether a character whose feet were at `feet` can stand at (x, z): not bumping into a rock or
    * a prop, nor at the cave skylight's edge, and either on a deck they can step onto, or on ground
    * that is not under water deeper than a wade nor up a cliff. `pad` keeps them that much further from
-   * what they would bump into (for finding the way, see standAt).
+   * what they would bump into (for finding the way, see standAt). With `tops`, the top of something short
+   * they are up on (a cushion, a log: see footing) is somewhere to stand as a deck is; the way about the
+   * island is found without them, so that no one sets off over the furniture.
    */
-  walkable(x: number, z: number, feet: number, pad = 0): boolean {
+  walkable(x: number, z: number, feet: number, pad = 0, tops = true): boolean {
     if (this.nearRock(x, z, ROCK_MARGIN + pad) || this.nearSkylight(x, z, EDGE_MARGIN + pad)) return false;
     const ground = this.height(x, z);
     const deck = deckUnder(x, z, feet + STEP_UP);
-    const stand = deck !== null && deck > ground ? deck : ground;
+    let stand = deck !== null && deck > ground ? deck : ground;
+    const top = tops ? topUnder(x, z, feet + TOP_STEP) : null;
+    if (top !== null && top > stand) stand = top;
     if (blocked(x, z, PROP_MARGIN + pad, stand)) return false;
-    if (deck !== null && deck > ground) return true;
-    const h = ground;
+    return stand > ground || this.gentle(x, z);
+  }
+
+  /** Whether the bare ground at (x, z) can be walked on: not under water deeper than a wade, nor up a cliff. */
+  gentle(x: number, z: number): boolean {
+    const h = this.height(x, z);
     if (h < this.waterLevel(x, z) - WADE) return false;
     const e = 0.5;
     const gx = (this.height(x + e, z) - this.height(x - e, z)) / (2 * e);
@@ -920,11 +935,11 @@ export function setCave(grid: CaveGrid | null): void {
 /** Whether someone outside the cave could stand at (x, z), their feet at `y`: for finding the cave's
  * walls (see CaveGrid). */
 export function outsideWalkable(x: number, z: number, y: number): boolean {
-  return terrain ? terrain.walkable(x, z, y) && Math.abs(terrain.height(x, z) - y) < 0.6 : false;
+  return terrain ? terrain.walkable(x, z, y, 0, false) && Math.abs(terrain.height(x, z) - y) < 0.6 : false;
 }
 
-/** Whether someone whose feet were at `feet` can stand at (x, z): in the cave on its floor, kept off its
- * walls (CaveGrid.walk); outside, on the island's ground (Terrain.walkable). */
+/** Whether someone whose feet were at `feet` can stand at (x, z): in the cave on its floor (or what they are
+ * up on there), kept off its walls (CaveGrid.walk); outside, on the island's ground (Terrain.walkable). */
 function canStand(x: number, z: number, feet: number): boolean {
   if (!terrain) return true;
   if (cave) {
@@ -932,11 +947,33 @@ function canStand(x: number, z: number, feet: number): boolean {
       const k = cave.at(x, z);
       const floor = cave.floorAt(x, z);
       if (!cave.walk[k] || floor - feet > STEP_UP + 0.05) return false;
-      return !blocked(x, z, PROP_MARGIN, floor);
+      const top = topUnder(x, z, feet + TOP_STEP);
+      return !blocked(x, z, PROP_MARGIN, top !== null && top > floor ? top : floor);
     }
     if (cave.walled(x, z, feet)) return false;
   }
-  return terrain.walkable(x, z, feet);
+  return terrain.walkable(x, z, feet) && !underLowDeck(x, z, groundHeight(x, z, feet));
+}
+
+/**
+ * Whether someone whose feet are at `feet` may step down off what they stand on (a porch's edge, the stage, a
+ * cushion, a log) to (x, z), where they could not walk to: nothing there at their own height (only what they
+ * were up on, lower than their feet), and under them somewhere more than a step down to come down onto that
+ * is not water too deep to stand in, a cliff's face, nor the cave's wall. They come down beside what they
+ * were up on, in the margin kept round it, and walk out of it as whoever is somewhere they could not have
+ * walked to does (see clampToWalkable). Only for the one you play (see Character.drops): the islanders keep
+ * to what they walk on, as their way about the island does.
+ */
+function mayDrop(x: number, z: number, feet: number): boolean {
+  if (!terrain || blocked(x, z, PROP_MARGIN, feet)) return false;
+  const below = footing(x, z, feet);
+  if (below > feet - TOP_STEP) return false;
+  if (cave) {
+    if (cave.holds(x, z, feet)) return cave.walk[cave.at(x, z)] === 1;
+    if (cave.walled(x, z, feet)) return false;
+  }
+  if (terrain.nearRock(x, z, ROCK_MARGIN) || terrain.nearSkylight(x, z, EDGE_MARGIN)) return false;
+  return below > terrain.height(x, z) + 1e-3 || terrain.gentle(x, z);
 }
 
 /**
@@ -948,8 +985,17 @@ function canStand(x: number, z: number, feet: number): boolean {
 export function standAt(x: number, z: number, feet: number, pad = 0): number {
   if (!terrain) return NaN;
   if (cave && (cave.holds(x, z, feet) || cave.walled(x, z, feet))) return NaN;
-  if (!terrain.walkable(x, z, feet, pad)) return NaN;
-  return groundHeight(x, z, feet);
+  if (!terrain.walkable(x, z, feet, pad, false)) return NaN;
+  const at = groundHeight(x, z, feet);
+  return underLowDeck(x, z, at) ? NaN : at;
+}
+
+/** Whether someone standing at (x, z) at height `at` would be under a deck too low to stand under (HEADROOM): one
+ * more than a step over their feet (no deck they could step up onto). Islanders had walked in under a hut's
+ * stairs between its rails and stood stuck there, the tread they wanted over their heads (the user's screenshot,
+ * 2026-10-23). */
+function underLowDeck(x: number, z: number, at: number): boolean {
+  return deckOver(x, z, at + STEP_UP, at + HEADROOM);
 }
 
 /** The island's map: its north-west corner (x, z) and how many metres it is across; null until it has
@@ -1052,6 +1098,18 @@ export function groundHeight(x: number, z: number, feet = Infinity): number {
   const ground = cave && cave.holds(x, z, feet) ? cave.floorAt(x, z) : terrain ? terrain.height(x, z) : 0;
   const deck = deckUnder(x, z, feet + STEP_UP);
   return deck === null ? ground : Math.max(ground, deck);
+}
+
+/**
+ * What someone whose feet are at `feet` stands on at (x, z), or comes down on there: as groundHeight, or the
+ * top of something short they are up on (a cushion, a log, a counter; see Obstacles.topUnder), which they get
+ * onto only by a jump. The way about the island is found by groundHeight alone (see standAt).
+ */
+export function footing(x: number, z: number, feet: number): number {
+  const under = groundHeight(x, z, feet);
+  if (!Number.isFinite(feet)) return under;
+  const top = topUnder(x, z, feet + TOP_STEP);
+  return top !== null && top > under ? top : under;
 }
 
 /** The bare ground's height at (x, z), under any deck. */
@@ -1170,16 +1228,17 @@ function slide(p: THREE.Vector3, from: THREE.Vector3, ok: (x: number, z: number)
 /**
  * Keeps a character who moved from `from` to `p` on ground they can stand on (`from.y` is where
  * their feet were): if `p` is in deep water, up a cliff, too high a step or inside something, they
- * slide along it (see slide), or stop against it.
+ * slide along it (see slide), or stop against it. Given `drops`, they may also step down off the edge of
+ * what they stand on, beside what they were up on (see mayDrop).
  */
-export function clampToWalkable(p: THREE.Vector3, from: THREE.Vector3): void {
+export function clampToWalkable(p: THREE.Vector3, from: THREE.Vector3, drops = false): void {
   const feet = from.y;
-  if (!terrain || canStand(p.x, p.z, feet)) return;
+  if (!terrain || canStand(p.x, p.z, feet) || (drops && mayDrop(p.x, p.z, feet))) return;
   // Someone already somewhere they could not walk to (placed there) may walk out of it, though never deeper
   // into what stands in their way, nor into anything else: not on through a wall.
   const stuck = !canStand(from.x, from.z, feet);
   if (stuck && mayStep(p.x, p.z, from, feet, true)) return;
-  slide(p, from, (x, z) => mayStep(x, z, from, feet, stuck));
+  slide(p, from, (x, z) => mayStep(x, z, from, feet, stuck) || (drops && mayDrop(x, z, feet)));
 }
 
 /** Whether someone whose feet were at `feet` at `from` may step to (x, z): onto what they can stand on, or,
@@ -1189,22 +1248,21 @@ function mayStep(x: number, z: number, from: THREE.Vector3, feet: number, stuck:
 }
 
 /** Whether someone in the air with their feet at `y` can be at (x, z): not in a rock, nor in a prop
- * or a stepping stone's body at their height, nor over a prop they would come down inside (see
- * blockedInAir), nor over the cave skylight's opening, nor in ground more than a step above their feet. */
+ * or a stepping stone's body at their height, nor over a post too thin to come down on (see
+ * blockedInAir), nor over the cave skylight's opening, nor in ground more than a step above their feet.
+ * Over anything else short they go on, and come down on its top (see footing). */
 function clearInAir(x: number, z: number, y: number): boolean {
   if (!terrain) return true;
   if (cave) {
     // In the cave: over its floor, under its ceiling, clear of what stands in it.
     if (cave.holds(x, z, y)) {
       const k = cave.at(x, z);
-      return (
-        cave.floor[k] <= y + STEP_UP && y + 0.75 < cave.ceiling[k] && !blockedInAir(x, z, PROP_MARGIN, y, groundHeight(x, z, y))
-      );
+      return cave.floor[k] <= y + STEP_UP && y + 0.75 < cave.ceiling[k] && !blockedInAir(x, z, PROP_MARGIN, y, footing(x, z, y));
     }
     if (cave.walled(x, z, y)) return false;
   }
   if (terrain.nearRock(x, z, ROCK_MARGIN) || terrain.nearSkylight(x, z, EDGE_MARGIN)) return false;
-  if (blockedInAir(x, z, PROP_MARGIN, y, groundHeight(x, z, y))) return false;
+  if (blockedInAir(x, z, PROP_MARGIN, y, footing(x, z, y))) return false;
   return terrain.height(x, z) <= y + STEP_UP;
 }
 
@@ -1226,7 +1284,7 @@ export function clampInAir(p: THREE.Vector3, from: THREE.Vector3, y: number): vo
 /** Whether someone in the air at `from`, their feet at `y`, may move to (x, z): where they are clear, or,
  * `stuck` where they were not, anywhere that takes them no deeper into what is in their way. */
 function mayFly(x: number, z: number, from: THREE.Vector3, y: number, stuck: boolean): boolean {
-  return stuck ? !deeper(from.x, from.z, x, z, PROP_MARGIN, y, groundHeight(x, z, y)) : clearInAir(x, z, y);
+  return stuck ? !deeper(from.x, from.z, x, z, PROP_MARGIN, y, footing(x, z, y)) : clearInAir(x, z, y);
 }
 
 /**

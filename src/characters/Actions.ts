@@ -18,6 +18,8 @@ export type ActionId =
   | 'hula'
   | 'ukulele'
   | 'sword'
+  | 'read'
+  | 'readSeated'
   | 'menace';
 
 /** The actions the Test panel offers the cast. The Siren's own ('menace') is not one of them, nor 'ukulele' and
@@ -63,6 +65,8 @@ export interface ActionDef {
    * it out where it holds it, the other doing it alone (what it held would have gone into them: see
    * Character.updatePose). */
   fullPawHolds?: boolean;
+  /** Holds what is in their right paw open before their face, to read it (a book: see Character.placeHand). */
+  reads?: boolean;
   /** The action's own face, shown over any expression chosen in the Test panel. */
   expression: (t: number) => ExpressionId;
   /** Shuts the eyes (bowing), whatever the expression. */
@@ -100,11 +104,13 @@ type Point = readonly [number, number, number];
  * thing in them (see Character.locomotionPose); standing, talking, bowing and sitting, they stay at their sides, as
  * Chiikawa's characters are drawn (the user, 2026-10-23: paws before them for no reason look odd).
  */
-export const REACH: Record<'mouth' | 'chin' | 'wave' | 'cheer', Point> = {
+export const REACH: Record<'mouth' | 'chin' | 'wave' | 'cheer' | 'read', Point> = {
   mouth: [0.2, -0.42, 0.92],
   chin: [0.18, -0.55, 0.88],
   wave: [0.8, -0.56, 0.32],
   cheer: [1.1, -0.45, 0.2],
+  // Under a book held open before the chin, each paw under its half (see Character.placeHand's READ_AT).
+  read: [0.3, -0.5, 1.0],
 };
 
 /** Rakko's paws on what he holds, as REACH: on his ukulele, where Character.ts holds it (UKULELE_AT), his right
@@ -146,6 +152,22 @@ function sitPose(t: number, p: Pose): void {
   p.squash = 1 - 0.04 * bump(t, 0.2, 0.32, 0.36, 0.65) + 0.006 * Math.sin(t * 2.4) * s;
   p.rootPitch = -0.06 * s;
   p.leanZ = -0.015 * s;
+}
+
+/**
+ * Reading what they hold, a book held open before them (Character.placeHand opens it there), as Hachiware reads the
+ * film's: both paws up under it before the chin, the head bowed a little over it, the eyes down on its pages and
+ * going down them and back up, a slow breath.
+ */
+function readPose(t: number, p: Pose): void {
+  const up = smooth(t / 0.35);
+  p.armLRaise = p.armRRaise = 0.7 * up;
+  p.armLSwing = p.armRSwing = 1.2 * up;
+  reachL(p, up, REACH.read);
+  reachR(p, up, REACH.read);
+  p.leanZ += 0.03 * up;
+  p.gazeY = (-0.035 - 0.015 * Math.sin(t * 0.8)) * up;
+  p.squash = 1 + 0.008 * Math.sin(t * 1.6);
 }
 
 export const ACTIONS: Record<ActionId, ActionDef> = {
@@ -452,6 +474,28 @@ export const ACTIONS: Record<ActionId, ActionDef> = {
       reachL(p, 1, REACH_SWORD.lower);
       reachR(p, 1, REACH_SWORD.upper);
       p.squash = 1 + 0.008 * Math.sin(t * 2.0);
+    },
+  },
+
+  // Reading the book in their paw, standing, and sitting down (settled as they sit, not sitting down afresh).
+  read: {
+    duration: Infinity,
+    fadeIn: 0.3,
+    fadeOut: 0.3,
+    reads: true,
+    expression: () => 'neutral',
+    pose: readPose,
+  },
+
+  readSeated: {
+    duration: Infinity,
+    fadeIn: 0.3,
+    fadeOut: 0.3,
+    reads: true,
+    expression: () => 'neutral',
+    pose(t, p) {
+      sitPose(Math.max(t, 1), p);
+      readPose(t, p);
     },
   },
 

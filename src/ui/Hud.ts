@@ -38,6 +38,8 @@ const OWN_MARK_FOR = 1300;
  * the test toggle. */
 export class Hud implements JoystickView {
   onJump: () => void = () => {};
+  /** The jump button let go of (held, you jump higher). */
+  onJumpEnd: () => void = () => {};
   onAction: () => void = () => {};
   onUse: () => void = () => {};
   onTest: () => void = () => {};
@@ -163,6 +165,10 @@ export class Hud implements JoystickView {
       e.preventDefault();
       this.onJump();
     });
+    // Held as one rises, the jump goes higher: till the finger lifts, or slides off the button.
+    for (const end of ['pointerup', 'pointercancel', 'pointerleave'] as const) {
+      this.jumpButton.addEventListener(end, () => this.onJumpEnd());
+    }
     this.actionButton.type = 'button';
     this.actionButton.hidden = true;
     this.actionButton.addEventListener('pointerdown', (e) => {

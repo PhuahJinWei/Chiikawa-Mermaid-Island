@@ -26,6 +26,9 @@ const SIZE = 0.11;
 const OVER_HEAD = 0.04;
 const OVER_THING = 0.06;
 const OVER_SEAT = 0.3;
+/** A brand burning in its stand (a village torch's): its flame's height over where it sits, which the ▽ floats
+ * over (over where the brand lies as a thing lies, it was lost in the flame). */
+const STAND_FLAME = 0.3;
 const BOB = 0.012;
 const BOB_EVERY = 1.1;
 const GLIDE = 16;
@@ -222,7 +225,7 @@ export class Focus {
     switch (target.kind) {
       case 'thing': {
         const thing = target.thing;
-        return out.copy(thing.grip).setY(thing.grip.y + this.topOf(thing.item) + OVER_THING);
+        return out.copy(thing.grip).setY(thing.grip.y + (thing.hidden ? STAND_FLAME : this.topOf(thing.item)) + OVER_THING);
       }
       case 'resident':
         // Over the very top of them (tall ears, a crown), where their marks go.

@@ -102,7 +102,11 @@ stage, and along every path. Not yet checked on a real phone.
     now stakes planted in the ground, shoulder-high to an islander, their
     flame the brand's size (`houses.py`'s `build_torch`): they had been tiki
     torches twice an islander's height with a flame a metre tall, which read
-    as lamp posts, not as something to take (the user).
+    as lamp posts, not as something to take (the user). Looking anywhere at
+    a stake, from its foot to the top of its flame, is looking at it, as
+    looking anywhere at someone is (the user, 2026-10-23: only its flame
+    did): its pole is enough to take its brand (ひろう) or put it back
+    (もどす). The ▽ floats over its flame, where it had been lost in it.
   - A torch burns whenever it is held, by anyone, day and night (the user: it
     had burnt only after dark). Its light reaches the cave at any hour and
     the rest of the island after dark.
@@ -114,11 +118,47 @@ stage, and along every path. Not yet checked on a real phone.
     own light there, as anyone in it is (`Things`' cave kinds): drawn in the
     open air's light, the two torches showed lit with the cave's lights out,
     and the cave's dark test failed at its mouth; it passes again.
-  - Three books, red, blue and green (`art/blender/build_items.py`), one on
-    the top of the bookshelf in three of the huts (yours among them), unique,
-    held flat like a tray, back on their shelves each morning. A `kept`
-    thing can now be laid at a `height` of its own (a shelf, the cave's
-    floor), not only on the ground or a deck.
+  - One book, 伝説の生物図鑑, the film's big picture encyclopedia, on the
+    floor before the bookshelf in Hitoha and Futaba's hut, held flat like a
+    tray, back there each morning (the user, 2026-10-23: only one book;
+    three, red, blue and green, had lain over the tops of three huts'
+    bookshelves, floating a little above them). A `kept` thing can now be
+    laid at a `height` of its own (a shelf, the cave's floor), not only on
+    the ground or a deck. What a save keeps that has a place of its own
+    things.json no longer lays out, or that is no thing any more, is gone
+    from it (`Things.belongs`), so an island saved with the three books has
+    the one.
+- The book is read (the user, 2026-10-23, with the film's frames: the
+  spread with the mermaid on it, the book standing, its spine on Hitoha and
+  Futaba's shelf, Hachiware reading it). `art/blender/books.py`:
+  - Shut, it is a thick hardcover after the film's: rust cloth boards
+    standing a little past pale pages lined at their edges, its spine
+    rounded out, 24 × 32 cm a page, big for the cast as the film's is for
+    Hachiware. Open, its pages arch up out of the gutter and down to their
+    edges, over boards tipped up a little either side of the spine.
+  - Held shut in your paw out of your own eyes, it is shown at half its size
+    (`ItemDef.hand`), as big in the corner as the other things (the user:
+    at its own size it filled the corner).
+  - Holding it, the use button reads よむ: out of your own eyes it comes up
+    before you, turning to face you, and opens, its front cover swinging
+    over, your other paw coming up to hold it; the spread fills most of your
+    view. とじる or walking shuts it and puts it back down by the corner.
+    Seated, you read it sitting.
+  - Islanders read it the same way when they have it, held open under their
+    face with both paws under it, standing or sitting, as Hachiware does in
+    the film; 古本屋 likes reading most. Their notebook line says 本をよんでいる.
+  - Its cover (back, spine and front, one picture wrapped round it) and its
+    spread are the user's to paint: `art/blender/build_books.py` draws a
+    template for each into `art/books/_guides/` and copies the paintings
+    saved over them into the game (see `art/books/README.md`). Until then
+    the cover is plain cloth and the pages faint lines of writing.
+  - Light on the phone: its cover is a small picture (1024 × 640); the
+    spread's (1856 × 1024, about 10 MB of graphics memory with its mipmaps)
+    is fetched only as someone's open book is first drawn and let go of 8 s
+    after the last, a quarter-size copy for books read by others. The item
+    build now draws the icons of only the things it is asked to build into
+    the sheet as it is, and gives a thing a picture of its own
+    (`ItemDef.paint`, held and lying alike).
 - Nothing anyone holds goes into them (the user, 2026-10-23: the torch's tip
   was "visibly clipped into their head"; "make sure none are clipped into
   character body"). `src/characters/Holding.ts`:
@@ -159,6 +199,21 @@ stage, and along every path. Not yet checked on a real phone.
     to 18 m, not at all further off; a thing well clear of them is looked at
     again only as soon as it could have come near. Ten holders near the
     camera cost about 0.13 ms a frame on a desktop.
+- A gift is held (the user, 2026-10-23: given something, they held it a
+  moment and it was gone into their pouch). Whoever is given something that
+  is not food keeps it in their paw after thanking, out and about with it,
+  till they need the paw for something else (a stall's line, eating,
+  playing, taking something up, handing something over), when it goes into
+  their pouch; at bedtime it goes down in their room with their other
+  keepsakes, as before. A torch still goes into the pouch after the thanks:
+  only yours lights the night. Given a torch or food while holding a gift,
+  they hold the gift again once the torch is put away or the food eaten.
+  Whatever they were on their way to hand over or put down, given something
+  on the way, is still what they hand over or put down (they had held the
+  new gift by then), and after playing or taking something up they put
+  away only that. Checked in the browser: a shell held, a torch put away
+  and the shell held again, a karaage eaten and the shell held again, a
+  starfish still handed to a friend when given a shell on the way.
 - What you look at is steadier: it is whatever is nearest the middle of
   your view (within 15°, not 22° as before), the nearer of two as near;
   people no longer have a head start over things; and what you looked at
@@ -258,9 +313,23 @@ stage, and along every path. Not yet checked on a real phone.
   a stall's line, not at all. The hour moving their day on no longer cuts a
   conversation short: the next part of their day waits till they have parted
   from you.
-- Sprinting (the user, 2026-10-23): Shift sprints, 1.4 times as fast as a
-  run (4.2 m/s for you), leaning in, with longer strides and the arms and
-  feet thrown higher. On the phone, hold the stick at its edge a moment
+- No one stuck inside a hut's stairs (the user's screenshot, 2026-10-23:
+  Hitoha stood between the rails under the stairs up to her porch). A deck
+  less than a metre over where someone would stand is a ceiling too low to
+  stand under, for you as for anyone: no one walks in under the upper treads
+  of a stair, under a porch or a low pier. And the islanders keep to the line
+  their way was found clear along, heading a little way on along it rather
+  than straight for its next corner from wherever they are, and come right up
+  to the corner before a climb: cutting the corner onto a diagonal stair, they
+  had walked into its side, too high there to step up. Coming up to Hitoha and
+  Futaba's hut from twelve sides, eight had stuck; now none does, and every
+  house is walked into from all round.
+- Sprinting (the user, 2026-10-23): Shift sprints, twice as fast as a run
+  (6 m/s for you; 1.4 times at first, which the user found not fast enough),
+  leaning in, with longer strides and the arms and feet thrown higher. At
+  6 m/s you still slide along walls as fast as you push along them, clear
+  every stepping stone with a running jump, and the 400 sprinting jumps at
+  your bed leave no one in it or out of the hut. On the phone, hold the stick at its edge a moment
   (0.8 s): its ring and knob go pink while you sprint, and easing it back in
   drops you to a run. Shift no longer walks; W runs, as before, and walking
   slowly is the phone stick's middle.
@@ -1101,6 +1170,40 @@ outlined is drawn twice, once for its pen line. To get there:
   pressed at the very edge of a stone, which stops your feet, goes on as
   fast as you ran up. A jump pressed up to 0.15 s before you land is jumped
   as you land, and walked off an edge you may still jump for 0.12 s.
+- Holding the jump jumps higher (the user, 2026-10-23: holding had made no
+  difference; every jump was the same). Rising with Space or the jump button
+  still held, gravity pulls you a little more than half as hard for the
+  jump's first 0.18 s. A tap jumps as every jump did (0.65 m, 0.45 s in the
+  air); held 0.1 s, 0.73 m; 0.2 s, 0.91 m; all the way, 0.98 m and 0.58 s,
+  so a held running jump carries further too. The phone's jump button
+  knows when the finger lifts or slides off it. The islanders' hops are as
+  before. Held all the way, the 900 jumps at your bed still leave no one in
+  it or out of the hut; walking jumps clear more of the stepping stones'
+  gaps; and of the 35 places on the island a held jump newly reaches (ledges
+  1 to 1.33 m up), every one could already be walked to another way.
+- Jumping over and onto short things (the user, 2026-10-23: a hut's cushion
+  stopped a jump as a wall would; "what is even the point of jumping
+  then?"). In the air only what reaches above your feet stops you; come down
+  on something short (a cushion, a stool, a log, a crate, a stall's counter,
+  a pot) and you land on its top, stand on it, and walk or hop off it.
+  Walking, you still cannot step up onto any of them, and the islanders'
+  way about never goes over them (over 40 s of the village's day and the
+  feast, no islander stood on one). Jumping at a hut's cushion from eight
+  sides, walking and running: of 42 jumps, 21 cleared it, 21 came down on
+  it, none in it (before, every one was stopped). Tops that hold up a floor
+  (under a porch, the stage's frame) are not stood on; nor posts too thin
+  to stand on, which a jump still goes round.
+- Walking and jumping off raised edges (the user, 2026-10-23). The stilt
+  huts' porches (0.6 m up) and the stage's platform (3.6 m) had invisible
+  walls along their open edges; they are gone, and you step down off them
+  onto the sand, or jump. The islanders keep to them as before, never
+  stepping off an edge (only the one you play does: `Character.drops`), and
+  the stage's stairs keep their sides. The two huts and the stage changed
+  only in what their models tell the game about what is in the way (their
+  `prop` data, as `houses.py` now builds it), not in how they look. A step
+  costs no more to work out than before (2 to 6 µs, the landing 0.2 µs);
+  the 900 jumps at your bed (walking, running, sprinting), the stepping
+  stones, the walls and the islanders' doors all as before.
 - Put where the hour has them (after a night's sleep, a staged shot), no two
   of those out and about stand on top of each other (1.5 m apart where there
   is room), they face the way their place looks out (the sea, the stage)
@@ -2619,6 +2722,19 @@ outlined is drawn twice, once for its pen line. To get there:
   so the grade paints it as it paints them: pale blue by night, cream where
   the fire lights it. By day it is left as drawn, as you are, no longer
   brushworked or softened.
+- Lines in a lit room by night drawn in the pen's own brown, as the film's
+  (the user: in a villager's hut the lines were blue). Seen from inside
+  島二郎's room or a hut by night, the outlines of the walls, the furniture
+  and whoever stood there had been a bright cobalt (16, 35, 95): the pen
+  marked itself in the picture as the cast do, so the night's grade took
+  its lines for the cast and painted them the night's pale blue, which on
+  a dark line is cobalt. The pen now has a mark of its own (PEN_MARK), and
+  in a lit room by night its lines are a dark, greyish brown (67, 48, 35:
+  hue 24°, saturation 0.48, value 0.26), against the film's lines in its
+  rooms at night, hue 25° to 29°, saturation 0.40 to 0.64 and value 0.23
+  to 0.31 (`shimajiro interior 1`, `villager hut interior 7` and `8`).
+  Outside, by night and by day, the pictures are the same to the pixel;
+  both dark tests pass.
 
 **Removed**
 

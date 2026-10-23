@@ -18,12 +18,13 @@ export interface Habit {
   chance?: number;
 }
 
-/** How much someone likes things by what they are for (see Choices): eaten, drunk, played, or kept; 1 if not
- * said. By what a thing is for, never its name, so a new kind of thing is liked as its kind is. */
+/** How much someone likes things by what they are for (see Choices): eaten, drunk, played, read, or kept; 1 if
+ * not said. By what a thing is for, never its name, so a new kind of thing is liked as its kind is. */
 export interface Taste {
   eat?: number;
   drink?: number;
   play?: number;
+  read?: number;
   keep?: number;
 }
 
@@ -178,9 +179,9 @@ export const PROFILES: Record<string, Profile> = {
     spots: { nightBeach: 6, beachEast: 2, pierEnd: 1 },
     weight: 1,
     hungry: 0.6,
-    // A beachcomber: what the sea leaves.
+    // A beachcomber: what the sea leaves; and a bookseller (古本屋), who reads whatever book she comes by.
     curious: 0.8,
-    likes: { keep: 2 },
+    likes: { keep: 2, read: 2.5 },
   },
   shisa: {
     spots: { street: 2, plaza: 2, arch: 1, stage: 1, beachEast: 1 },

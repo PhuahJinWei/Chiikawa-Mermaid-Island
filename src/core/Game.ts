@@ -8,6 +8,7 @@ import {
   clampToWalkable,
   climbOut,
   eyeLimit,
+  footing,
   groundHeight,
   splashDown,
   standAt,
@@ -366,7 +367,11 @@ export class Game {
     this.notebook.onDelete = (id) => void this.album.remove(id);
     this.hud.onCamera = () => this.takePhoto();
     this.hud.onNotebook = () => this.notebook.toggle();
-    this.hud.onJump = () => this.input.queueJump();
+    this.hud.onJump = () => {
+      this.input.queueJump();
+      this.input.holdJump(true);
+    };
+    this.hud.onJumpEnd = () => this.input.holdJump(false);
     this.hud.onAction = () => this.input.queueAction();
     this.hud.onTest = () => this.panel.toggle();
     this.panel.onToggle = (open) => (this.viewLiftTarget = open ? 1 : 0);
@@ -377,6 +382,7 @@ export class Game {
       viewHeight: 1,
       pixelRatio: 1,
       groundHeight,
+      footing,
       clamp: clampToWalkable,
       air: clampInAir,
       splash: splashDown,
@@ -1011,6 +1017,8 @@ export class Game {
     const lookingOut = this.lookingOut;
     // Out of their eyes, the one you control faces the way you look; the rest face the way they walk.
     for (const ch of this.characters.values()) ch.look = lookingOut && ch === me ? this.eyes.facing : null;
+    // Only the one you play walks off edges (a porch's, the stage's, a cushion's); the islanders keep to them.
+    for (const ch of this.characters.values()) ch.drops = ch === me;
 
     if (this.staged || this.lineup || this.freeCamOn) {
       for (const ch of this.characters.values()) ch.watch(null);

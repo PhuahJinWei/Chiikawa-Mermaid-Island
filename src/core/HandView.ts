@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { Character } from '../characters/Character';
 import type { ActionId } from '../characters/Actions';
+import { showOpen } from '../characters/Props';
 import { ITEMS, type ItemCopy, type ItemId, type ItemModels } from '../life/Items';
 
 /**
@@ -8,8 +9,9 @@ import { ITEMS, type ItemCopy, type ItemId, type ItemModels } from '../life/Item
  * the screen, as Minecraft shows it): your paw, the islanders' round grey-mauve stub, coming up from the
  * screen's corner round what it holds, swaying with your steps and lagging a little as you turn; lowered
  * out of sight and up again with the next thing; up to your mouth as you eat or drink, a bite at a time;
- * strummed, a ukulele. As you wave, cheer or dance (the きもち button), it does so too, up into view even
- * when empty (GESTURES). Otherwise nothing shows while your paw is empty.
+ * strummed, a ukulele; a book brought up before your eyes and opened, your other paw coming up to hold it
+ * too, the spread filling most of your view (see read). As you wave, cheer or dance (the きもち button), it
+ * does so too, up into view even when empty (GESTURES). Otherwise nothing shows while your paw is empty.
  *
  * It is drawn by the game's camera alone (HAND_LAYER), in the scene's own pass, so the island's lights light
  * it as your paw is lit (Character.lightHeld); always in front of the world, never in it (VIEW_DEPTH),
@@ -122,6 +124,24 @@ const RAISE = 0.12;
 const GESTURE_EASE = 14;
 /** The paw's length, tip to foot (at its own size): it swings from its foot, as a paw waves from the wrist. */
 const PAW_LENGTH = 0.15;
+/** Reading a book (see read): seconds to bring it up and open it (and to shut it and put it down again); the share of
+ * that it takes to come up before your eyes, turning to face you, and how far up it is shut still, this much smaller
+ * than it is read; then it opens. Open, its spread fills this much of your view's width and height at most, tipped back
+ * this far (radians, its top away from you), its middle this far below your view's (a share of its half height). */
+const READ_TIME = 0.85;
+const READ_RISE = 0.45;
+const READ_SWAP = 0.8;
+const READ_SHUT = 0.62;
+const READ_FILL: [number, number] = [0.92, 0.8];
+const READ_TILT = 0.32;
+const READ_LOW = 0.06;
+/** Where your paws hold it open, in the book's own frame, as shares of its half width out from its spine and of its
+ * length up from its near edge; how far in front of its pages (metres, at its own size); and how they are turned
+ * (radians: tipped toward you, and leaning in). */
+const READ_PAW_OUT = 0.8;
+const READ_PAW_UP = 0.06;
+const READ_PAW_FRONT = 0.012;
+const READ_PAW_TURN: [number, number] = [-0.25, 0.55];
 
 const _grip = new THREE.Vector3();
 const _off = new THREE.Vector3();
@@ -130,8 +150,16 @@ const _turn = new THREE.Quaternion();
 const _scale = new THREE.Vector3();
 const _e = new THREE.Euler();
 const _wanted: Gesture = { raise: 0, across: 0, roll: 0 };
+const _held = new THREE.Quaternion();
+const _at = new THREE.Vector3();
+const _target = new THREE.Vector3();
+const _mid = new THREE.Vector3();
+const _v = new THREE.Vector3();
+const _size = new THREE.Vector3();
+const _x = new THREE.Vector3(1, 0, 0);
 
-/** Drawn only by the game's camera, before everything in the world. */
+/** Drawn only by the game's camera, before everything in the world (and doing anything else it does as it is drawn:
+ * a book's pages fetching their picture). */
 function forTheEyes(copy: THREE.Object3D): void {
   copy.traverse((o) => {
     o.layers.set(HAND_LAYER);
@@ -139,7 +167,11 @@ function forTheEyes(copy: THREE.Object3D): void {
     if (!mesh.isMesh) return;
     mesh.frustumCulled = false;
     mesh.renderOrder = 10;
-    mesh.onBeforeRender = (renderer) => renderer.getContext().depthRange(0, VIEW_DEPTH);
+    const before = mesh.onBeforeRender;
+    mesh.onBeforeRender = (renderer, ...rest) => {
+      renderer.getContext().depthRange(0, VIEW_DEPTH);
+      before.call(mesh, renderer, ...rest);
+    };
     mesh.onAfterRender = (renderer) => renderer.getContext().depthRange(0, 1);
   });
 }
@@ -147,6 +179,11 @@ function forTheEyes(copy: THREE.Object3D): void {
 export class HandView {
   readonly group = new THREE.Group();
   private readonly paw: ItemCopy;
+  /** Your other paw, up only to hold a book open (see read). */
+  private readonly pawL: ItemCopy;
+  /** Reading what is in your paw (see read), and how far through bringing it up and opening it, 0 to 1. */
+  private reading = false;
+  private readT = 0;
   private item: ItemCopy | null = null;
   private itemId: ItemId | null = null;
   /** What should be in it: once what is there is lowered out of sight, this comes up. */
@@ -174,8 +211,11 @@ export class HandView {
   ) {
     this.group.name = 'hand';
     this.paw = models.make('paw', true);
+    this.pawL = models.make('paw', true);
     forTheEyes(this.paw);
-    this.group.add(this.paw);
+    forTheEyes(this.pawL);
+    this.pawL.visible = false;
+    this.group.add(this.paw, this.pawL);
     this.group.visible = false;
     scene.add(this.group);
   }
@@ -183,6 +223,13 @@ export class HandView {
   /** Puts `id` in your paw (null: empties it): what was there is lowered first. */
   set(id: ItemId | null): void {
     this.wanted = id;
+  }
+
+  /** Reads what is in your paw, if it is a book (on), or shuts it and puts it back down by the corner: brought up before
+   * your eyes, turning to face you, and opened there, its left half swinging over (see showOpen), your other paw coming
+   * up to hold it; the spread as big as fits in your view (READ_FILL). */
+  read(on: boolean): void {
+    this.reading = on;
   }
 
   /** Starts a motion (eating, drinking, playing, reaching out to take or put something); null stops it. */
@@ -221,9 +268,9 @@ export class HandView {
     g.raise += (_wanted.raise - g.raise) * ease;
     g.across += (_wanted.across - g.across) * ease;
     g.roll += (_wanted.roll - g.roll) * ease;
-    // Lowered, then the next thing raised; empty, raised only to gesture.
+    // Lowered, then the next thing raised (a book read shut and brought down first); empty, raised only to gesture.
     const going = this.wanted !== this.itemId;
-    const shown = !going && (!!this.itemId || g.raise > 0.05);
+    const shown = (!going || this.readT > 0) && (!!this.itemId || g.raise > 0.05);
     this.up = THREE.MathUtils.clamp(this.up + (shown ? dt : -dt) / LOWER, 0, 1);
     if (going && this.up === 0) {
       this.item?.removeFromParent();
@@ -234,8 +281,10 @@ export class HandView {
       this.motion = null;
     }
     this.group.visible = on && (!!this.item || this.up > 0);
-    if (!this.group.visible) return;
     const item = this.item;
+    const book = item?.userData.book;
+    this.readT = THREE.MathUtils.clamp(this.readT + (this.reading && book && !going ? dt : -dt) / READ_TIME, 0, 1);
+    if (!this.group.visible) return;
     const def = this.itemId ? ITEMS[this.itemId] : null;
 
     // The view's half height and half width where it is held, and the size that keeps it as big on the
@@ -298,10 +347,40 @@ export class HandView {
 
     // Into the world, from the camera's own frame.
     camera.matrixWorld.decompose(_off, _q, _scale);
+    // Reading a book (see read): brought up before your eyes as it turns to face you, shut, then opened, its left half
+    // swinging over; what shows of it kept in the middle of your view meanwhile (its body shut, then its right half,
+    // then its spread), as big as fits.
+    const rise = book ? smooth(this.readT / READ_RISE) : 0;
+    const opened = smooth((this.readT - READ_RISE) / (1 - READ_RISE));
+    let fit = size;
+    _held.setFromEuler(_e);
+    _at.copy(_grip);
+    if (item && book && rise > 0) {
+      book.spread.getSize(_size);
+      fit = Math.min(
+        (2 * wide * READ_FILL[0]) / _size.x,
+        (2 * high * READ_FILL[1]) / (_size.z * Math.cos(READ_TILT) + _size.y * Math.sin(READ_TILT)),
+      );
+      _held.slerp(_turn.setFromAxisAngle(_x, Math.PI / 2 - READ_TILT), rise);
+      const shut = rise < READ_SWAP;
+      showOpen(item, shut ? null : opened);
+      if (shut) this.shutMiddle(_mid);
+      else book.half.getCenter(_mid).lerp(book.spread.getCenter(_v), opened);
+    }
+    // (In the corner as big as it is shown there, ItemDef.hand; shut, it comes up a little smaller than it is read,
+    // growing as it opens.)
+    const held = size * this.left * (def?.hand ?? 1);
+    const scale = THREE.MathUtils.lerp(held, fit * THREE.MathUtils.lerp(READ_SHUT, 1, opened), rise);
+    if (item && book && rise > 0) {
+      _mid.multiplyScalar(scale).applyQuaternion(_held);
+      // (Its middle, from where your paw holds it in the corner to before your eyes; its origin as far from that.)
+      _v.copy(_grip).add(_mid).lerp(_target.set(0, -READ_LOW * high, -AHEAD), rise);
+      _at.copy(_v).sub(_mid);
+    } else if (item) showOpen(item, null);
     if (item) {
-      item.position.copy(_grip).applyMatrix4(camera.matrixWorld);
-      item.quaternion.copy(_q).multiply(_turn.setFromEuler(_e));
-      item.scale.setScalar(size * this.left);
+      item.position.copy(_at).applyMatrix4(camera.matrixWorld);
+      item.quaternion.copy(_q).multiply(_held);
+      item.scale.setScalar(scale);
     }
     // The paw round the grip, up from the corner of the screen: before a stick, under a tray; its base nearer
     // you than its tip, as an arm reaching out from you. Empty, it is held up as round a stick.
@@ -313,14 +392,50 @@ export class HandView {
       _off.set(0.004, -0.018 + strum, 0.03);
       _e.set(-0.35, 0, 0.42 + g.roll);
     }
-    paw.position.copy(_grip).addScaledVector(_off, size).applyMatrix4(camera.matrixWorld);
-    paw.quaternion.copy(_q).multiply(_turn.setFromEuler(_e));
+    paw.position.copy(_grip).addScaledVector(_off, size);
+    paw.quaternion.setFromEuler(_e);
     paw.scale.setScalar(size);
-    me.lightHeld(paw.userData.light);
+    // Holding a book open: your paws at its near corners, the right coming up with it, the left up from below as it
+    // opens.
+    const pawL = this.pawL;
+    pawL.visible = !!book && opened > 0;
+    if (book && rise > 0) {
+      this.readingPaw(book, 1, scale, _v);
+      paw.position.lerp(_v, rise);
+      paw.quaternion.slerp(_turn.setFromEuler(_e.set(READ_PAW_TURN[0], 0, READ_PAW_TURN[1])), rise);
+      paw.scale.setScalar(THREE.MathUtils.lerp(size, scale, rise));
+      if (pawL.visible) {
+        this.readingPaw(book, -1, scale, pawL.position);
+        pawL.position.y -= (1 - opened) * high;
+        pawL.quaternion.setFromEuler(_e.set(READ_PAW_TURN[0], 0, -READ_PAW_TURN[1]));
+        pawL.scale.setScalar(scale);
+      }
+    }
+    for (const p of [paw, pawL]) {
+      p.position.applyMatrix4(camera.matrixWorld);
+      p.quaternion.premultiply(_q);
+      me.lightHeld(p.userData.light);
+    }
     if (item) {
       me.lightHeld(item.userData.light);
       const flame = item.userData.flame;
       if (flame) flame.visible = this.lit;
     }
+  }
+
+  /** The middle of the shut body of what is in your paw, in its own frame. */
+  private shutMiddle(out: THREE.Vector3): THREE.Vector3 {
+    const body = this.models.shape(this.itemId as ItemId);
+    if (!body.boundingBox) body.computeBoundingBox();
+    return (body.boundingBox as THREE.Box3).getCenter(out);
+  }
+
+  /** Where a paw holds the book in your paw open (READ_PAW_*), on its `side` (1 right), in the camera's frame: the
+   * book's origin at `_at`, turned `_held`, `scale` its size. */
+  private readingPaw(book: NonNullable<ItemCopy['userData']['book']>, side: number, scale: number, out: THREE.Vector3): THREE.Vector3 {
+    const s = book.spread;
+    const half = side > 0 ? s.max.x : -s.min.x;
+    out.set(side * READ_PAW_OUT * half, s.max.y + READ_PAW_FRONT, s.max.z - READ_PAW_UP * (s.max.z - s.min.z));
+    return out.multiplyScalar(scale).applyQuaternion(_held).add(_at);
   }
 }

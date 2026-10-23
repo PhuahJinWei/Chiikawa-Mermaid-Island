@@ -122,8 +122,9 @@ never pushed, because it is other people's artwork.
   cream. Inside a lit room by night the room keeps its own colours as
   its lamp lights them, as the film's rooms at night: 島二郎's wood a
   golden tan, a hut's walls their sage, never a saturated orange and never
-  the night's blue, the cast in it the night's pale blue; seen from
-  outside its windows and doorway glow warm. Dusk is a cool steel blue; the golden hour
+  the night's blue, the cast in it the night's pale blue, and every line
+  in it, the room's and the cast's, the pen's own greyish dark brown, never
+  blue; seen from outside its windows and doorway glow warm. Dusk is a cool steel blue; the golden hour
   floods the jungle with golden light, its haze gold toward the sun and
   thin elsewhere; the evening's haze takes the sky's colours, never a
   green fog.

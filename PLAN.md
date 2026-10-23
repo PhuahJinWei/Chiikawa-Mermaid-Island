@@ -401,7 +401,7 @@ with M2.
   Pick up, Sit, Jump.
 - **Tap an NPC:** walk to them and talk.
 - **Desktop:** WASD + mouse (W runs, Shift sprints), E to interact, Space to
-  jump.
+  jump (held, higher: so is the jump button).
 
 ### 6.2 Movement
 
@@ -409,7 +409,7 @@ with M2.
 |---|---|---|
 | Walk | 1.7 m/s (the cast 1.7–2.2) | Most of the stick. Slides along whatever stops you, at any angle. |
 | Run | 3 m/s (the cast 3–4) | The stick's edge, or W. |
-| Sprint | 4.2 m/s (1.4× a run) | Shift, or the stick held at its edge 0.8 s. You only, so far. |
+| Sprint | 6 m/s (2× a run) | Shift, or the stick held at its edge 0.8 s. You only, so far. |
 | Wade | 2 m/s | Water above the knees. You wade in up to your chest and no further: there is no swimming. |
 | Row | 3 m/s | In the rowboat. Joystick steers, the boat turns gently. Context button gets out at a shore or ledge. |
 
@@ -424,8 +424,15 @@ jump pressed 0.15 s before landing is jumped on landing, and one 0.12 s after
 walking off an edge still jumps. Everyone walks in their own way (`Gait` in
 `definitions.ts`: the cast each their own, you and the islanders the plain
 way, each islander a little differently), and steps round as they turn on
-the spot, no faster than 7 radians a second for their quickness. Wading is
-not slower yet.
+the spot, no faster than 7 radians a second for their quickness. A jump goes
+over anything short and comes down on its top (a cushion, a stool, a counter:
+`Obstacles.topUnder`, `Island.footing`), which walking never steps up onto;
+the one you play walks and jumps off raised edges (the huts' porches, the
+stage), which have no invisible walls, while the islanders keep to them.
+Natural cliffs stay jump-only (the user, 2026-10-23): walking stops at the
+lip, a jump takes you off; deep water stops walkers too, and a jump into it
+puts you on the nearest bank.
+Wading is not slower yet.
 
 ### 6.3 Time, weather, and sim
 
@@ -607,11 +614,19 @@ everything with a place of its own going back to it each morning from
 anyone's pouch, yours too; islanders put every keepsake down on their hut's
 floor at bedtime; the village's torches hold brands you can take (the pole
 dark till it is back), two torches lie in the cave's mouth and a torch burns
-whenever it is held, and three unique books lie on the huts' shelves.
+whenever it is held, and one book lies on the floor before the bookshelf in
+Hitoha and Futaba's hut: 伝説の生物図鑑, the film's big picture encyclopedia,
+which you read (よむ: up before your eyes and open, its one spread filling
+your view) and the islanders read too, held open under their face as
+Hachiware reads it in the film. Its cover and its spread are the user's to
+paint, over templates in `art/books/_guides/` (`art/books/README.md`); the
+spread's picture is loaded only while someone reads it.
 Nothing anyone holds goes into them (the user: a torch's tip had stuck into
 heads): what is held is kept clear of their head, body and clothes each
 frame, tipped and pushed out as little as it must be (`characters/Holding.ts`),
-and one-pawed gestures use the free paw.
+and one-pawed gestures use the free paw. A gift is held: given something not
+to eat, an islander carries it in their paw till they need the paw (a torch
+goes into the pouch).
 
 **Built so far (2026-10-23, `world/Footprints.ts`):** footprints in the sand,
 yours and everyone's walking near you: a print of each foot as it comes

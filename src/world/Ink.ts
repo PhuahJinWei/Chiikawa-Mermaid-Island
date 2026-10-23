@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { sharedUniforms } from '../characters/CharacterMaterial';
-import { FILM } from './Look';
+import { FILM, INK, PEN_MARK } from './Look';
 
 /**
  * The world's pen. Thick brown strokes are Chiikawa's look, so every line in the world,
@@ -10,7 +10,7 @@ import { FILM } from './Look';
  * the camera is looking. The backdrop (sky, clouds, horizon) uses the pen where the camera
  * is looking.
  */
-export const INK = '#66432F'; // the film's outline brown
+export { INK };
 
 /** Height whose 2% sets the pen: a cast member. */
 const PEN_REFERENCE_HEIGHT = 0.9;
@@ -170,7 +170,7 @@ uniform vec3 uAmbient;
 void main() {
   gl_FragColor = vec4(uInk * uAmbient, 1.0);
   #ifdef FILM_MASK
-  gl_FragColor.a = 0.5;
+  gl_FragColor.a = ${PEN_MARK.toFixed(2)};
   #endif
   #include <tonemapping_fragment>
   #include <colorspace_fragment>

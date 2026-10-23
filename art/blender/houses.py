@@ -2106,11 +2106,9 @@ def build_stilt_hut(name, pattern, collection):
         block_box(-xo, xo, yi, yo, -10, eave), block_box(-xo, -door, -yo, -yi, -10, eave),
         block_box(door, xo, -yo, -yi, -10, eave), block_box(-xo, -xi, -yo, yo, -10, eave),
         block_box(xi, xo, -yo, yo, -10, eave),
+        # Under the floor and the porch, kept out of. Nothing along the porch's open edges: you walk or jump off
+        # them onto the sand (the user, 2026-10-23); the islanders, who never step off an edge, keep to the stairs.
         block_box(-xo, xo, porch, yo, -10, under, camera=False),
-        block_box(-xo, -xo + 0.12, porch, -yo, floor - 0.3, floor + 0.7, camera=False),
-        block_box(xo - 0.12, xo, porch, -yo, floor - 0.3, floor + 0.7, camera=False),
-        block_box(-xo, -0.62, porch, porch + 0.1, floor - 0.3, floor + 0.7, camera=False),
-        block_box(0.62, xo, porch, porch + 0.1, floor - 0.3, floor + 0.7, camera=False),
     ] + kept_out + door_blocks
     # The roof, for the camera, in bands up its sides, each as wide across as the roof at its foot.
     for low, high, r in ((-0.2, 1.5, 4.5), (1.5, 2.65, 4.25), (2.65, 3.45, 3.3), (3.45, 5.3, 1.95)):
@@ -2880,16 +2878,11 @@ def build_stage(collection):
               for sx, sy in corners]
     blocks += [{"circle": [*g(sx * 1.55, sy * 1.55), 0.15], "y": [top, eave], "walk": True, "camera": True}
                for sx, sy in corners]
-    # The platform keeps whoever stands on it from stepping off its edge, open at the top of the
-    # stairs, though it has no railing to see.
-    edge = (top - 0.3, top + 1.0)
+    # The platform's edge is open all round, as it has no railing to see: you walk or jump off it (the user,
+    # 2026-10-23; it had kept whoever stood on it from stepping off). The islanders, who never step off an
+    # edge, keep to it and its stairs, whose sides keep walkers on them along their stringers.
     blocks += [
         block_box(-1.85, 1.85, -1.85, 1.85, -10, top - 0.4),
-        block_box(-deck, deck, -deck, -deck + 0.1, *edge, camera=False),
-        block_box(-deck, -deck + 0.1, -deck, deck, *edge, camera=False),
-        block_box(deck - 0.1, deck, -deck, deck, *edge, camera=False),
-        block_box(-deck, 0.3, deck - 0.1, deck, *edge, camera=False),
-        block_box(1.3, deck, deck - 0.1, deck, *edge, camera=False),
         block_box(0.25, 0.35, deck, y1, 0.35, top + 0.2, camera=False),
         block_box(1.25, 1.35, deck, y1, 0.35, top + 0.2, camera=False),
         {"circle": [0.0, 0.0, 3.4], "y": [eave - 0.1, eave + 3.0], "walk": False, "camera": True},

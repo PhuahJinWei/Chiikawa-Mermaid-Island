@@ -40,6 +40,16 @@ export type Brain<T = void> = Generator<void, T, number>;
 const ARRIVE = 0.22;
 const PASS = 0.4;
 const SLOW_FROM = 1.0;
+/**
+ * Keeping to their way (see walk): they head for a point this far on along the leg of it they are on (metres),
+ * so as to keep to the line it was found clear along, not cut across from wherever they are. A corner where the
+ * way goes on up (a stair, a porch's steps: rising more than CLIMB after it) they come right up to (PASS_CLIMB)
+ * before they go on, as only the line was found to climb (the user's screenshot, 2026-10-23: an islander had
+ * cut the corner onto a hut's stairs and stood stuck against their side).
+ */
+const AHEAD = 0.5;
+const CLIMB = 0.15;
+const PASS_CLIMB = 0.12;
 /** Seconds without getting nearer before they seek the way again, and how many times. */
 const STUCK = 2.2;
 const RETRIES = 2;
@@ -129,8 +139,11 @@ export interface Memory {
 export const edible = (c: Carried | null): boolean => !!c && (ITEMS[c.item].use === 'eat' || ITEMS[c.item].use === 'drink');
 /** Whether a thing is played. */
 export const playable = (c: Carried | null): boolean => !!c && ITEMS[c.item].use === 'play';
+/** Whether a thing is read. */
+export const readable = (c: Carried | null): boolean => !!c && ITEMS[c.item].use === 'read';
 
 const _v = new THREE.Vector3();
+const _along = new THREE.Vector3();
 const flat = (a: THREE.Vector3, b: THREE.Vector3) => Math.hypot(a.x - b.x, a.z - b.z);
 
 export class Resident {
@@ -397,6 +410,18 @@ export class Resident {
     return d;
   }
 
+  /** The point AHEAD along the leg of their way from `a` to `b`, on from where they are level with on it (or `b`,
+   * that near it): what they head for, keeping to the leg's line (see walk). */
+  private along(a: THREE.Vector3, b: THREE.Vector3): THREE.Vector3 {
+    const dx = b.x - a.x;
+    const dz = b.z - a.z;
+    const length = Math.hypot(dx, dz);
+    if (length < 1e-4 || flat(this.pos, b) <= AHEAD) return b;
+    const at = ((this.pos.x - a.x) * dx + (this.pos.z - a.z) * dz) / length;
+    const t = Math.min(1, Math.max(0, at + AHEAD) / length);
+    return _along.set(a.x + dx * t, a.y + (b.y - a.y) * t, a.z + dz * t);
+  }
+
   /** Puts them straight at `at` facing `yaw` (out of sight, or settling them where the hour has them). */
   place(at: THREE.Vector3, yaw = this.ch.facing): void {
     this.ch.ride = null;
@@ -431,13 +456,14 @@ export class Resident {
         const p = points[i];
         const last = i === points.length - 1;
         const d = flat(this.pos, p);
-        if (d < (last ? ARRIVE : PASS)) {
+        const climbs = !last && points[i + 1].y - p.y > CLIMB;
+        if (d < (last ? ARRIVE : climbs ? PASS_CLIMB : PASS)) {
           i++;
           best = Infinity;
           still = 0;
           continue;
         }
-        this.steer(p, speed, last);
+        this.steer(this.along(points[i - 1], p), speed, last);
         const dt = yield;
         if (d < best - 0.04) {
           best = d;
@@ -584,23 +610,23 @@ export class Resident {
     return this.life.nearestStanding(_v.set(at.x + ux * off, at.y, at.z + uz * off));
   }
 
-  /** Over to `thing` and takes it up, then has a look at it; false if someone took it up first, it is out of
-   * reach, or they have no room. What is in their paw goes into their pouch first. */
-  *takeUp(thing: Thing): Brain<boolean> {
-    if (!this.hands.fits(thing.item) || thing.sought) return false;
+  /** Over to `thing` and takes it up, then has a look at it: what they took up, or null if someone took it up
+   * first, it is out of reach, or they have no room. What is in their paw goes into their pouch first. */
+  *takeUp(thing: Thing): Brain<Carried | null> {
+    if (!this.hands.fits(thing.item) || thing.sought) return null;
     thing.sought = this;
     try {
       const stand = this.standBy(thing.at);
-      if (!stand || !(yield* this.walk(stand)) || !this.life.things.lies(thing)) return false;
-      if (!this.hands.stow()) return false;
+      if (!stand || !(yield* this.walk(stand)) || !this.life.things.lies(thing)) return null;
+      if (!this.hands.stow()) return null;
       this.ch.faceToward(thing.at.x, thing.at.z);
       const got = { c: null as Carried | null };
       yield* this.stoop(() => (got.c = this.hands.pickUp(thing)));
-      if (!got.c) return false;
+      if (!got.c) return null;
       this.tookOn = this.life.day;
       this.life.took(this, got.c);
       yield* this.wait(1.4 + this.life.random() * 1.2, NaN, 'look');
-      return true;
+      return got.c;
     } finally {
       if (thing.sought === this) thing.sought = null;
     }
@@ -615,12 +641,14 @@ export class Resident {
     yield* this.wait(2.5 + this.life.random() * 3, NaN, 'look');
   }
 
-  /** Puts what is in their paw down at `at` (on the ground), turned `yaw`, walking there first; false if they
-   * could not get there. */
-  *setDown(at: THREE.Vector3, yaw: number): Brain<boolean> {
-    if (!this.hands.hand) return true;
+  /** Puts what is in their paw (`c`, if given: in it again first, should they have been given something on the
+   * way and hold that now) down at `at` (on the ground), turned `yaw`, walking there first; false if they could
+   * not get there, or no longer have `c`. */
+  *setDown(at: THREE.Vector3, yaw: number, c?: Carried): Brain<boolean> {
+    if (c ? !this.hands.all.includes(c) : !this.hands.hand) return true;
     const stand = this.standBy(at);
     if (!stand || !(yield* this.walk(stand))) return false;
+    if (c && !this.hands.takeOut((x) => x === c)) return false;
     this.ch.faceToward(at.x, at.z);
     yield* this.stoop(() => this.hands.putDown(at, yaw));
     return true;
@@ -656,6 +684,8 @@ export class Resident {
     }
     const at = where();
     if (!at || flat(this.pos, at) > GIVE_NEAR + 0.5 || !toHands.fits(c.item)) return false;
+    // (In their paw still: given something on the way, they hold that now.)
+    if (!this.hands.takeOut((x) => x === c)) return false;
     this.ch.faceToward(at.x, at.z);
     const back = !!c.lent && c.owner === toHands.who;
     const given = this.hands.give(toHands);
@@ -677,7 +707,7 @@ export class Resident {
     if (owner && near && (yield* this.handTo(owner, c))) return;
     if (!c.lent || !this.hands.takeOut((x) => x === c)) return;
     const [x, y, z, yaw] = c.lent;
-    if (yield* this.setDown(new THREE.Vector3(x, y, z), yaw)) {
+    if (yield* this.setDown(new THREE.Vector3(x, y, z), yaw, c)) {
       this.borrowed.delete(c);
       this.life.say(this, words('borrow.back'));
     }
@@ -687,7 +717,7 @@ export class Resident {
   *putBack(c: Carried): Brain {
     const home = c.home ? this.life.things.homes.get(c.home) : null;
     if (!home || !this.hands.takeOut((x) => x === c)) return;
-    yield* this.setDown(home.at.clone(), home.yaw);
+    yield* this.setDown(home.at.clone(), home.yaw, c);
   }
 
   /** Eats (or drinks) what is in their paw, a bite every `pace` seconds, where they stand (or sit). */
@@ -729,6 +759,26 @@ export class Resident {
     }
   }
 
+  /** Reads what is in their paw (the book) for `seconds` where they are, held open before their face as you read it
+   * (see Character.placeHand), facing `yaw` (NaN: as they are); a word with someone breaks off and goes back to it. */
+  *readHeld(seconds: number, yaw = NaN): Brain {
+    if (!readable(this.hands.hand)) return;
+    if (!Number.isNaN(yaw)) this.ch.setFacing(yaw);
+    const action: ActionId = this.seat ? 'readSeated' : 'read';
+    this.ch.play(action);
+    try {
+      for (let t = 0; t < seconds && readable(this.hands.hand); t += yield) {
+        this.halt();
+        const other = this.ch.actionId;
+        if (other !== action && other !== 'startled' && (this.far || this.moving() < 0.25)) this.ch.play(action);
+        yield* this.chatting();
+      }
+    } finally {
+      if (this.ch.actionId === action) this.ch.stopAction();
+      this.needs.fun = Math.max(0, this.needs.fun - 0.4);
+    }
+  }
+
   /** Into their own room, one of their keepsakes put down in it (at most ROOM_KEEPS of theirs there). */
   *keepAtHome(c: Carried): Brain {
     const room = this.home.room;
@@ -748,7 +798,7 @@ export class Resident {
       return;
     }
     if (!(yield* this.walk(this.home.door))) return;
-    yield* this.setDown(spot, this.life.random() * Math.PI * 2);
+    yield* this.setDown(spot, this.life.random() * Math.PI * 2, c);
   }
 
   // ---------------------------------------------------------------- their day
@@ -1186,13 +1236,18 @@ export class Resident {
 
   /**
    * Given `c` (in their paws already: see Hands.give) by `giver` (you, or someone who lives here), standing at
-   * `from` (where they are as they go): turned to them, glad of it, they thank them; food and drink they eat
-   * or drink there and then and thank them for after; anything else they look at a moment and keep, in their
-   * pouch (the user, 2026-10-22: they stop and talk to you, thanking you). Something of theirs they had lent,
-   * given `back`, they are glad to have again.
+   * `from` (where they are as they go): turned to them, glad of it, they thank them (the user, 2026-10-22: they
+   * stop and talk to you, thanking you); food and drink they eat or drink there and then and thank them for
+   * after; anything else they look at a moment and keep holding, in their paw, till they need it for something
+   * else (a stall's line, eating, playing, taking something up, handing something over: each puts what is in
+   * it into their pouch first), and at bedtime it goes down in their room with their other keepsakes (the
+   * user, 2026-10-23: put away at once, a gift was seen no more). A torch they put away at once: only yours
+   * lights the night (see ItemDef.light). Something of theirs they had lent, given `back`, they are glad to
+   * have again, and put away. What it put away out of their paw, they hold again once their paw is empty.
    */
   *thank(c: Carried, from: THREE.Vector3, giver: string, back: boolean): Brain {
     const thanked = function* (this: Resident): Brain {
+      const held = this.hands.hand !== c ? this.hands.hand : null;
       this.hands.takeOut((x) => x === c);
       this.faceTo(from);
       try {
@@ -1218,12 +1273,14 @@ export class Resident {
             for (let t = 0; t < 2; t += yield) this.halt();
             this.ch.stopAction();
           }
-          this.hands.stow();
+          // Held on to, but for a torch, which burns in a paw and would light nothing round them.
+          if (ITEMS[c.item].light) this.hands.stow();
           yield* this.sayTo(from, this.life.thanks(this, 'kept'));
         }
       } finally {
         if (this.ch.actionId === 'cheer' || this.ch.actionId === 'look') this.ch.stopAction();
         if (this.seat) this.ch.play('sit');
+        if (!this.hands.hand && held && this.hands.all.includes(held)) this.hands.takeOut((x) => x === held);
       }
     };
     yield* giver === 'player' ? this.withYou(thanked.call(this), true) : thanked.call(this);
@@ -1404,9 +1461,11 @@ export class Resident {
       return;
     }
     if (this.hands.takeOut(playable)) {
+      const tune = this.hands.hand;
       const spot = feast.dancers[Math.floor(this.life.random() * feast.dancers.length)];
       if (yield* this.walk(spot)) yield* this.playHeld(40 + this.life.random() * 30, Math.atan2(feast.fire.x - spot.x, feast.fire.z - spot.z));
-      this.hands.stow();
+      // (Only what they played: given something meanwhile, they hold that.)
+      if (this.hands.hand === tune) this.hands.stow();
     }
     for (;;) {
       if (this.profile.feast === 'dance' && this.life.random() < 0.5) {

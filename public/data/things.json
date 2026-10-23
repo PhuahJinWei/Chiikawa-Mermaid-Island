@@ -2,9 +2,7 @@
   "kept": [
     { "id": "ukulele", "item": "ukulele", "x": 9.0, "z": -87.3, "y": 3, "yaw": 0.6 },
     { "id": "torch", "item": "torch", "x": -19.08, "z": -71.6, "y": 1.98, "yaw": 1.724 },
-    { "id": "book_red", "item": "book_red", "x": -22.03, "z": -72.84, "height": 3.8, "yaw": 2.094 },
-    { "id": "book_blue", "item": "book_blue", "x": -26.82, "z": -53.66, "height": 3.74, "yaw": 5.236 },
-    { "id": "book_green", "item": "book_green", "x": -44.53, "z": -59.84, "height": 3.688, "yaw": 2.094 },
+    { "id": "book", "item": "book", "x": -15.75, "z": -59.91, "height": 1.978, "yaw": 5.59 },
     { "id": "cave_torch_1", "item": "torch", "x": -192.53, "z": -111.19, "height": 0.33, "yaw": 1.2 },
     { "id": "cave_torch_2", "item": "torch", "x": -194.13, "z": -110.98, "height": 0.346, "yaw": 2.9 }
   ],

@@ -15,6 +15,9 @@ const CAP = 0.35;
 /** How far in from the edge of a deck or pad a block's middle must lie for it to top the block: a body's
  * reach, so the top of a bed, reaching that far round it, does not top the stool beside it. */
 const INSET = 0.25;
+/** A block this wide or wider (its radius, or its narrower half width) has a top one can come down on and
+ * stand on (see landable); a narrower one (a door's post, a stair's rail) does not. */
+const TOP_MIN = 0.12;
 
 export interface BlockOptions {
   /** Stops characters walking into it. */
@@ -39,8 +42,10 @@ interface Block extends Shape {
   y1: number;
   walk: boolean;
   camera: boolean;
-  /** Whether a deck or pad tops it (see capped), once asked. */
+  /** Whether a deck or pad tops it (see capped), and whether one can come down on its own top (see
+   * landable), once asked. */
   capped?: boolean;
+  landable?: boolean;
 }
 
 interface Deck extends Shape {
@@ -244,15 +249,52 @@ function capped(b: Block): boolean {
   return b.capped;
 }
 
+/** Whether one can come down on block `b`'s own top and stand on it (a cushion, a stool, a log, a stall's
+ * counter, a pot): something to walk into, wide enough (TOP_MIN), with no deck or pad on it to stand on
+ * instead (see capped). */
+function landable(b: Block): boolean {
+  if (b.landable === undefined) {
+    b.landable = b.walk && (b.r > 0 ? b.r : Math.min(b.hx, b.hz)) >= TOP_MIN && !capped(b) && !covered(b);
+  }
+  return b.landable;
+}
+
+/** Whether a deck lies over block `b`'s top, a body's height above it at most, over its middle or an edge
+ * of it: what holds up a floor (a hut's under its porch, the stage's frame and legs), whose top, under the
+ * floor and a little round it, is no place to stand. Asked once everything on the island is in place. */
+function covered(b: Block): boolean {
+  const reach = b.r > 0 ? [b.r, b.r] : [b.hx, b.hz];
+  const points: [number, number][] = [
+    [0, 0],
+    [reach[0], 0],
+    [-reach[0], 0],
+    [0, reach[1]],
+    [0, -reach[1]],
+  ];
+  for (const [ox, oz] of points) {
+    const x = b.x + ox * b.cos + oz * b.sin;
+    const z = b.z - ox * b.sin + oz * b.cos;
+    for (const d of decks.at(x, z)) {
+      const [lx, lz] = local(d, x, z);
+      if (Math.abs(lx) > d.hx || Math.abs(lz) > d.hz) continue;
+      const h = d.back + (d.front - d.back) * ((lz + d.hz) / (2 * d.hz));
+      if (h > b.y1 - 0.1 && h <= b.y1 + BODY) return true;
+    }
+  }
+  return false;
+}
+
 /**
  * Whether block `b` is in the way of someone in the air, their feet at `feet`, who would come down at
- * `under` where they are: it stands at their height, or it is under their feet, higher than they would come
- * down, with nothing on its top to hold them (a bed, a stool, a stall's counter, a porch's edge), so they
- * would come down inside it. They jump onto what a deck or pad tops, and over nothing else.
+ * `under` where they are: it stands at their height; or it is under their feet, higher than they would come
+ * down, with neither a deck on it nor a top of its own to come down on (a post too thin to stand on), so
+ * they would come down inside it. Over anything else lower than their feet they go on, and come down on its
+ * top (see topUnder), as on a deck or a stepping stone's pad. (From 2026-10-23 they had gone over only what
+ * a deck or pad topped: a cushion stopped them as a wall would.)
  */
 function inTheWay(b: Block, feet: number, under: number): boolean {
   if (!b.walk || b.y0 >= feet + BODY) return false;
-  return b.y1 > feet + 0.1 || (b.y1 > under + 0.1 && !capped(b));
+  return b.y1 > feet + 0.1 || (b.y1 > under + 0.1 && !capped(b) && !landable(b));
 }
 
 /** Whether a character standing at (x, z) with their feet at `feet` bumps into something. */
@@ -289,6 +331,32 @@ export function deeper(fx: number, fz: number, x: number, z: number, margin: num
     if (!(air ? inTheWay(b, feet, under) : atHeight(b, feet)) || capped(b)) continue;
     const d = depth(b, x, z, margin);
     if (d > 0 && d > depth(b, fx, fz, margin) + 1e-9) return true;
+  }
+  return false;
+}
+
+/**
+ * The highest top of a block under (x, z) that someone with their feet at `reach` or above could stand on
+ * (see landable), or null: what they came down on, or walk about on top of, once up there (a cushion, a log,
+ * a counter). (x, z) must be over the block itself, not only in the margin kept round it.
+ */
+export function topUnder(x: number, z: number, reach: number): number | null {
+  let top: number | null = null;
+  for (const b of blocks.at(x, z)) {
+    if (b.y1 > reach || (top !== null && b.y1 <= top) || !inside(b, x, z, 0) || !landable(b)) continue;
+    top = b.y1;
+  }
+  return top;
+}
+
+/** Whether a deck lies over (x, z) higher than `above` and no higher than `below`: over someone's head, too low
+ * for them to stand under (see Island's canStand). */
+export function deckOver(x: number, z: number, above: number, below: number): boolean {
+  for (const d of decks.at(x, z)) {
+    const [lx, lz] = local(d, x, z);
+    if (Math.abs(lx) > d.hx || Math.abs(lz) > d.hz) continue;
+    const h = d.back + (d.front - d.back) * ((lz + d.hz) / (2 * d.hz));
+    if (h > above && h <= below) return true;
   }
   return false;
 }

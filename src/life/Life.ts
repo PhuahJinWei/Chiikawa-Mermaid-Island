@@ -812,6 +812,7 @@ export class Life {
       case 'sleep':
         return r.seat || r.indoors ? 'doing.sleeping' : 'doing.goingHome';
       case 'home':
+        if (action === 'read' || action === 'readSeated') return 'doing.reading';
         return this.atHome(r) ? 'doing.atHome' : 'doing.goingHome';
       case 'wake':
         return 'doing.waking';
@@ -824,6 +825,7 @@ export class Life {
       default:
         if (action === 'sword') return 'doing.sword';
         if (action === 'ukulele') return 'doing.playing';
+        if (action === 'read' || action === 'readSeated') return 'doing.reading';
         if (eating) return 'doing.eating';
         if (r.profile.habits?.some((b) => b.spot === 'fields' && this.hours >= b.from && this.hours < b.to)) return 'doing.farming';
         if (r.seat) return 'doing.resting';

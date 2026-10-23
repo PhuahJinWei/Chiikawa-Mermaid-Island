@@ -4,8 +4,11 @@ and export them for the game, with their icons for the pouch.
 Run (from the project root):
     blender --background --factory-startup --python art/blender/build_items.py -- [--only ringoame,torch] [--no-icons]
 
+(With --only, only those things are built, and their icons drawn into the sheet as it is.)
+
 Outputs:
-    public/models/props/item_<id>.glb   each thing, as the game loads it (vertex colours, no materials)
+    public/models/props/item_<id>.glb   each thing, as the game loads it (vertex colours, no materials; the book
+                                        UV mapped to its pictures instead: books.py, built by build_books.py)
     public/models/props/item_icons.webp its icons in a row-by-row sheet, in ICONS' order, ICON pixels each
     public/models/props/item_icons.json that order
     art/previews/items.png              the sheet, for looking over
@@ -25,6 +28,7 @@ art/blender/check_flicker.py item_<id>).
 import json
 import math
 import os
+import re
 import sys
 
 import bmesh
@@ -33,6 +37,7 @@ import numpy as np
 from mathutils import Matrix, Vector
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import books as B  # noqa: E402
 import build_props as P  # noqa: E402
 import charlib as L  # noqa: E402
 import houses as H  # noqa: E402
@@ -56,10 +61,6 @@ C.update({k: L.hex_color(v) for k, v in {
     "shellHinge": "#D99383",
     "starCoral": "#F0956A",
     "starDot": "#F8C9A6",
-    "bookRed": "#C8524A",
-    "bookBlue": "#4E7FB8",
-    "bookGreen": "#5E9A5A",
-    "pages": "#F3E9D2",
     # The islanders' own grey-mauve (import_characters.py ISLANDER["body"]).
     "paw": "#988584",
 }.items()})
@@ -330,17 +331,12 @@ def starfish(k):
                    u=6, v=3)
 
 
-def book(cover):
-    """A small clothbound book, as the huts' shelves hold them (houses.furnish_hut's), lying flat: its boards a
-    little bigger than its pages, its spine rounded along its left side, held flat on the paw as a tray is."""
-    def build(k):
-        w, d, h = 0.11, 0.085, 0.022            # along the spine, across, thick
-        board = 0.005
-        k.box(at(0, 0, 0), (w, d, board), cover)
-        k.box(at(0, 0, h - board), (w, d, board), cover)
-        k.box(at(0.004, 0, board), (w - 0.012, d - 0.012, h - 2 * board), "pages")
-        k.add(L.capsule_bm(at(-w / 2 + 0.003, -d / 2, h / 2), (0, 1, 0), d, h / 2 - 0.0005, u=10, v=6), cover)
-    return build
+def book(name, collection):
+    """The island's one book to read, 伝説の生物図鑑 (books.py): shut, lying flat and held flat on the paw as a tray
+    is; and its two halves open, which the game shows while it is read. Its cover's picture, if built
+    (build_books.py), on it for its icon."""
+    cover = B.COVER_FILE if os.path.exists(B.COVER_FILE) else None
+    return [B.shut(name, collection, cover)] + B.open_parts(name, collection), B.info()
 
 
 def paw(k):
@@ -357,8 +353,11 @@ ITEMS = {
     "okonomiyaki": okonomiyaki, "crepe": crepe, "icecream": icecream, "shavedIce": shaved_ice, "kebab": kebab,
     "castella": castella, "obanyaki": obanyaki, "steamer": steamer, "juice": juice, "ramune": ramune, "beer": beer,
     "torch": torch, "seashell": seashell, "starfish": starfish,
-    "book_red": book("bookRed"), "book_blue": book("bookBlue"), "book_green": book("bookGreen"), "paw": paw,
+    "book": book, "paw": paw,
 }
+# Things made whole, of parts with UV maps and pictures (books.py), not of the kit's pieces: each returns its parts
+# and what the game needs to know of them.
+WHOLE = {"book"}
 # build_props' hand-held things, drawn here only for their icons.
 BORROWED = {"can": P.build_can, "ukulele": P.build_ukulele}
 # The icons' order in the sheet (src/life/Items.ts reads it from item_icons.json): every item but the paw.
@@ -366,12 +365,20 @@ ICONS = [i for i in ITEMS if i != "paw"] + list(BORROWED)
 
 
 def build(item_id, collection):
+    """A thing's parts, and what the game needs to know of them beyond its parts (its prop info)."""
+    if item_id in WHOLE:
+        return ITEMS[item_id](f"item_{item_id}", collection)
     k = Kit()
     ITEMS[item_id](k)
     objs = [P.join(f"item_{item_id}", k.pieces, collection, sharp=P.SHARP)]
     if item_id == "torch":
         objs.append(P.join("item_torch_flame", torch_flame(), collection))
-    return objs
+    return objs, {}
+
+
+def shown_shut(objs):
+    """What of a thing's parts its icon shows: all but a book's open halves (shown only as it is read)."""
+    return [o for o in objs if not re.search(r"_(open|page)\d$", o.name)]
 
 
 # ---------------------------------------------------------------------------- icons
@@ -390,14 +397,18 @@ def render_icon(scene, cam, objs, path):
     cam.location = centre + way * (size * 4.0)
     cam.rotation_euler = (centre - cam.location).to_track_quat("-Z", "Y").to_euler()
     cam.data.ortho_scale = size * 0.95
+    # (A thing coloured by a picture, the book, shows its picture; the rest their vertex colours.)
+    textured = any(o.data.materials for o in objs)
+    scene.display.shading.color_type = "TEXTURE" if textured else "VERTEX"
     scene.render.resolution_x = ICON
     scene.render.resolution_y = ICON
     scene.render.filepath = path
     bpy.ops.render.render(write_still=True)
 
 
-def icon_sheet(scene, collection, built):
-    """Renders every icon in ICONS' order into one sheet, ICON_COLUMNS across, and writes it and its order."""
+def icon_sheet(scene, collection, built, only=None):
+    """Renders every icon in ICONS' order into one sheet, ICON_COLUMNS across, and writes it and its order; with
+    `only` (some things built alone), only theirs, into the sheet as it is, if it still has ICONS' order."""
     cam = L.setup_preview(scene)
     scene.render.film_transparent = True
     scene.render.image_settings.file_format = "PNG"
@@ -407,9 +418,23 @@ def icon_sheet(scene, collection, built):
     tmp = os.path.join(ROOT, "art", "previews", "_item_icon.png")
     rows = (len(ICONS) + ICON_COLUMNS - 1) // ICON_COLUMNS
     sheet = np.zeros((rows * ICON, ICON_COLUMNS * ICON, 4), dtype=np.float32)
+    if only:
+        try:
+            with open(os.path.join(OUT, "item_icons.json"), encoding="utf-8") as f:
+                order = json.load(f)["order"]
+        except (OSError, ValueError, KeyError):
+            order = None
+        if order != ICONS:
+            print("WARNING the icons' sheet is not in ICONS' order: build every thing to draw it afresh")
+            return
+        image = bpy.data.images.load(os.path.join(OUT, "item_icons.webp"))
+        sheet[...] = np.array(image.pixels[:], dtype=np.float32).reshape(sheet.shape)[::-1]
+        bpy.data.images.remove(image)
     for n, item_id in enumerate(ICONS):
+        if only and item_id not in only:
+            continue
         objs = built.get(item_id) or [BORROWED[item_id](collection)]
-        objs = [o for o in (objs if isinstance(objs, list) else [objs])]
+        objs = shown_shut(objs)
         render_icon(scene, cam, objs, tmp)
         image = bpy.data.images.load(tmp)
         pixels = np.array(image.pixels[:], dtype=np.float32).reshape(ICON, ICON, 4)[::-1]
@@ -436,8 +461,11 @@ def icon_sheet(scene, collection, built):
 def main():
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     only = set(argv[argv.index("--only") + 1].split(",")) if "--only" in argv else None
-    icons = "--no-icons" not in argv and not only
+    run(only, "--no-icons" not in argv)
 
+
+def run(only=None, icons=True):
+    """Builds every thing (or only those in `only`), and their icons into the sheet (with `only`, just theirs)."""
     bpy.ops.wm.read_factory_settings(use_empty=True)
     scene = bpy.context.scene
     collection = bpy.data.collections.new("items")
@@ -447,16 +475,16 @@ def main():
     for item_id in ITEMS:
         if only and item_id not in only:
             continue
-        objs = build(item_id, collection)
+        objs, info = build(item_id, collection)
         path = os.path.join(OUT, f"item_{item_id}.glb")
-        P.export_parts(objs, path, {"version": 1, "id": f"item_{item_id}"})
+        P.export_parts(objs, path, {"version": 1, "id": f"item_{item_id}", **info})
         tris = sum(len(p.vertices) - 2 for o in objs for p in o.data.polygons)
         verts = sum(len(o.data.vertices) for o in objs)
         print(f"BUILT item_{item_id}: {verts} verts, {tris} tris -> {path}")
         built[item_id] = objs
 
     if icons:
-        icon_sheet(scene, collection, built)
+        icon_sheet(scene, collection, built, only)
     if not only:
         bpy.ops.wm.save_as_mainfile(filepath=BLEND, compress=True)
         print("SAVED", BLEND)

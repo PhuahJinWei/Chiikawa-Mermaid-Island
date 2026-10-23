@@ -1,7 +1,7 @@
 import { ITEMS, type Carried, type ItemId } from './Items';
 import { t } from '../i18n/I18n';
 import type { Life } from './Life';
-import { edible, playable, type Brain, type Resident } from './Resident';
+import { edible, playable, readable, type Brain, type Resident } from './Resident';
 import { FRIENDS, type Taste } from './profiles';
 import type { Thing } from './Things';
 
@@ -11,6 +11,7 @@ import type { Thing } from './Things';
  * - go to one of their places, and stand or sit there a while;
  * - eat or drink what they have, as hungry as they are;
  * - play what they have (the ukulele), as much as they want some fun: at the stage if it is near;
+ * - read what they have (the book), a while where they are, held open before their face as you read it;
  * - give one of their keepsakes to a friend about, as much as they want company (at most once a day);
  * - go over to a friend about for a word;
  * - put a keepsake down in their own room;
@@ -23,8 +24,8 @@ import type { Thing } from './Things';
  * One of them is picked by weight. What they need grows as the hours go (see feel) and is met by eating,
  * company and fun.
  *
- * Nothing here asks what a thing is by its name: only what it is for (ItemDef.use: eaten, drunk, played, or
- * kept), whether it burns (ItemDef.light: never taken up), whose it is and where it lies. So whatever the
+ * Nothing here asks what a thing is by its name: only what it is for (ItemDef.use: eaten, drunk, played, read,
+ * or kept), whether it burns (ItemDef.light: never taken up), whose it is and where it lies. So whatever the
  * island gains (a new thing in public/data/things.json, a new kind of thing from the build, something you put
  * down) is part of their choosing as soon as it lies there.
  */
@@ -56,6 +57,8 @@ const FOND_GIFT = 0.75;
 /** Playing: how long (seconds, from, to), and how near the stage must be for them to go up on it (metres). */
 const PLAY: [number, number] = [30, 55];
 const STAGE_NEAR = 45;
+/** Reading: how long (seconds, from, to). */
+const READ: [number, number] = [25, 50];
 
 const flat = (a: { x: number; z: number }, b: { x: number; z: number }) => Math.hypot(a.x - b.x, a.z - b.z);
 
@@ -129,9 +132,11 @@ export class Choices {
     if (food) add(2.5 * r.needs.hunger * this.likes(r, food.item), () => this.eatNow(r, food));
     const tune = all.find((c) => playable(c));
     if (tune) add((0.6 + 1.6 * r.needs.fun) * this.likes(r, tune.item), () => this.play(r, tune));
+    const book = all.find((c) => readable(c));
+    if (book) add((0.4 + 1.0 * r.needs.fun) * this.likes(r, book.item), () => this.read(r, book));
     for (const c of all) {
       if (c.lent) add(0.25 + 0.5 * Math.max(0, hoursNow - (r.borrowed.get(c) ?? hoursNow)), () => r.giveBack(c));
-      else if (c.home && !playable(c)) add(0.8, () => r.putBack(c));
+      else if (c.home && !playable(c) && !readable(c)) add(0.8, () => r.putBack(c));
       else if (c.home) add(0.25 + (1 - r.needs.fun) * 0.6, () => r.putBack(c));
     }
 
@@ -207,7 +212,16 @@ export class Choices {
       if (yield* r.walk(this.life.spotPoint(stage))) face = stage.look;
     }
     yield* r.playHeld(PLAY[0] + this.life.random() * (PLAY[1] - PLAY[0]), face);
-    r.hands.stow();
+    // (Only what they played: given something meanwhile, they hold that.)
+    if (r.hands.hand === c) r.hands.stow();
+  }
+
+  /** Reads `c` a while where they are; done, back in the pouch. */
+  private *read(r: Resident, c: Carried): Brain {
+    if (!r.hands.takeOut((x) => x === c)) return;
+    yield* r.readHeld(READ[0] + this.life.random() * (READ[1] - READ[0]));
+    // (Only what they read: given something meanwhile, they hold that.)
+    if (r.hands.hand === c) r.hands.stow();
   }
 
   /** Over to `friend` with `gift`. */
@@ -215,13 +229,14 @@ export class Choices {
     yield* r.handTo(friend, gift);
   }
 
-  /** Takes `t` up, then perhaps eats it or plays it there and then; else it is kept. */
+  /** Takes `t` up, then perhaps eats it or plays it there and then; else it is kept. (Given something while they
+   * looked at it, they hold that, the thing taken up in their pouch.) */
   private *takeUp(r: Resident, t: Thing): Brain {
-    if (!(yield* r.takeUp(t))) return;
-    const c = r.hands.hand;
-    if (!c) return;
+    const c = yield* r.takeUp(t);
+    if (!c || r.hands.hand !== c) return;
     if (edible(c) && !c.lent && r.needs.hunger > 0.3) yield* r.eat();
     else if (playable(c) && this.life.random() < 0.7) yield* this.play(r, c);
+    else if (readable(c) && this.life.random() < 0.7) yield* this.read(r, c);
     else r.hands.stow();
   }
 }

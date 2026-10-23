@@ -22,6 +22,26 @@ export const FILM = !(typeof location !== 'undefined' && new URLSearchParams(loc
  * blue (see GRADE), as the film paints its firelit cast a warm cream. */
 export const FIRE_MARK = 0.4;
 
+/** The pen's own mark in the picture's alpha, on everything it draws (a character's outline and what is
+ * made alike): under the 0.75 the brushwork and the depth of field leave as drawn, as the cast's own mark
+ * (0.5) is, but its own, so the night's grade can tell a line from the cast it outlines (see GRADE): in a
+ * lit room by night the pen keeps its brown, as the film draws its rooms' lines at night and the outlines
+ * of who stands in them (`shimajiro interior 1`, `villager hut interior 7`). Outside, it is
+ * graded as the cast are. */
+export const PEN_MARK = 0.6;
+
+/** The film's outline brown, the world's pen (see Ink, which draws with it). */
+export const INK = '#66432F';
+/** The pen in a lit room by night seen from inside it (see GRADE): its own brown, as the room shows it, a
+ * little darker and greyer than the pen by day, as the film's lines in its rooms at night measure (a
+ * greyish brown, hue 25 to 29 degrees, saturation 0.40 to 0.64, value 0.23 to 0.31; drawn, hue 24 to 25,
+ * saturation 0.48, value 0.26). The pen's line there takes the night's light as drawn (its brown times the
+ * night's dim blue), which the room's balance does not lift. */
+const PEN_IN_ROOM = ((c: THREE.Color) => {
+  const light = 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+  return c.lerp(new THREE.Color(light, light, light), 0.4);
+})(new THREE.Color(INK).multiplyScalar(0.8));
+
 /** How much brighter than white the film look draws a fire's flame: one rule for every fire, the
  * village's torches, the night feast's bonfire, a torch carried, the forbidden cave's torches and its
  * ledge's fire. Its own colours, orange tongues round a yellow heart that alone glows a little, as
@@ -1151,10 +1171,16 @@ const GRADE = {
       // in the night's blue (below), while the cast in it glow the night's pale blue as the film's
       // characters in its rooms at night. Seen from outside, its windows and doorway glow warm.
       float room = inRoom(vUv);
+      // The pen (see PEN_MARK): in the room its own brown (PEN_IN_ROOM), not painted in the night's blue.
+      bool pen = c.a > ${(PEN_MARK - 0.05).toFixed(2)} && c.a < 0.75;
       if (room > 0.0) {
-        float lamp = smoothstep(0.8, 1.6, max(c.r, max(c.g, c.b)));
-        c.rgb *= mix(vec3(1.0), vec3(${ROOM_BALANCE.map((v) => v.toFixed(2)).join(', ')}), room * (1.0 - lamp));
-        if (c.a >= 0.75) c.rgb = mix(c.rgb, vec3(dot(c.rgb, vec3(0.2126, 0.7152, 0.0722))), room * ${ROOM_GREY.toFixed(2)});
+        if (pen) {
+          c.rgb = mix(c.rgb, vec3(${PEN_IN_ROOM.toArray().map((v) => v.toFixed(4)).join(', ')}), room);
+        } else {
+          float lamp = smoothstep(0.8, 1.6, max(c.r, max(c.g, c.b)));
+          c.rgb *= mix(vec3(1.0), vec3(${ROOM_BALANCE.map((v) => v.toFixed(2)).join(', ')}), room * (1.0 - lamp));
+        }
+        if (c.a >= 0.75 || pen) c.rgb = mix(c.rgb, vec3(dot(c.rgb, vec3(0.2126, 0.7152, 0.0722))), room * ${ROOM_GREY.toFixed(2)});
       }
       vec3 g = pow(max(c.rgb, 0.0), vec3(1.0 / 2.2));
       vec3 drawn = g;
@@ -1175,7 +1201,7 @@ const GRADE = {
       // island from in it, up its skylight, is the island's.)
       float night = smoothstep(0.4, 1.0, uNight) * (1.0 - (uCave > 0.0 && !overRim(vUv) ? uCave : 0.0));
       if (night > 0.0) night *= 1.0 - moonGlow(vUv);
-      night *= 1.0 - (c.a < 0.75 ? 0.0 : room);
+      night *= 1.0 - (c.a < 0.75 && !pen ? 0.0 : room);
       if (night > 0.0) {
         // Painted from how bright each point is as drawn, with the grade's contrast, but the darks
         // only eased down, not crushed, onto a navy floor: nothing goes black. The cast, marked in the
