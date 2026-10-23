@@ -85,6 +85,80 @@ stage, and along every path. Not yet checked on a real phone.
   the thing, the same for everything, was the right shape. The preview was
   first a flat paper copy with the pen's full line, which the user found
   looked "like a real thing placed".)
+- Things out in the wild, and what becomes of them (the user, 2026-10-23):
+  - The island tidies up overnight. Everything with a place of its own (the
+    stage's ukulele, the torch by your door, the cave's torches, the village's
+    brands, the huts' books) goes back to it each morning from wherever it
+    is, from your pouch and the islanders' too. What is yours to keep is what
+    has no place of its own: shells, food, gifts. (Your pouch had kept them.)
+  - No islander sleeps on a full pouch: at bedtime every keepsake they still
+    carry goes down on their hut's floor, where you can find it (up to eight
+    of theirs in a room; borrowed things go back, food is eaten).
+  - The village's eleven torches each hold a brand you can take
+    (`things.json`'s `stands`, `Props.brands`): the stake's flame goes out
+    and its light with it until the brand is back on it (もどす, looking at
+    the dark stake with the brand in hand) or the morning returns it. The
+    brand burns in your paw as the torch by your door does. The torches are
+    now stakes planted in the ground, shoulder-high to an islander, their
+    flame the brand's size (`houses.py`'s `build_torch`): they had been tiki
+    torches twice an islander's height with a flame a metre tall, which read
+    as lamp posts, not as something to take (the user).
+  - A torch burns whenever it is held, by anyone, day and night (the user: it
+    had burnt only after dark). Its light reaches the cave at any hour and
+    the rest of the island after dark.
+  - Two torches lie in the forbidden cave's mouth, for whoever comes with no
+    light. A torch you carry lights your way there, in place of the cave's own torch, which no longer jumps
+    into your hand as you walk in; what you hold, the pouch and the action
+    button all work in the cave now. (A staged shot may still put the cave's
+    own torch in someone's hand.) What lies in the cave is lit by the cave's
+    own light there, as anyone in it is (`Things`' cave kinds): drawn in the
+    open air's light, the two torches showed lit with the cave's lights out,
+    and the cave's dark test failed at its mouth; it passes again.
+  - Three books, red, blue and green (`art/blender/build_items.py`), one on
+    the top of the bookshelf in three of the huts (yours among them), unique,
+    held flat like a tray, back on their shelves each morning. A `kept`
+    thing can now be laid at a `height` of its own (a shelf, the cave's
+    floor), not only on the ground or a deck.
+- Nothing anyone holds goes into them (the user, 2026-10-23: the torch's tip
+  was "visibly clipped into their head"; "make sure none are clipped into
+  character body"). `src/characters/Holding.ts`:
+  - A paw that holds something holds it out at their side, nearly straight,
+    and by the thing's own side, its middle as far out from the paw as it is
+    thick (a cup by its wall, a stick at its stick). Before, the paw was
+    tucked under the head's round rim and held a thing through its middle:
+    whatever stood up in it rose into the head, and its lower half sank into
+    the belly.
+  - Each frame what is held is tipped out and forward, away from them, and
+    if need be held a little further out, as little as keeps the whole of it
+    (a torch's flame too) 1.5 cm clear of their head, body, crown, ears,
+    cape and skirt, and of the skirt spread on the ground as they sit. It
+    goes out at once and comes back gently. Standing, a torch leans about 18°
+    out from the head, cotton candy about 32°, a candy apple about 26°, the
+    skewers about 15 to 19°; cups, cans, boxes and trays stand upright as
+    before.
+  - One-pawed gestures (waving, talking) use the other paw when the right one
+    is full (Kurimanju his can's). Startled, in tears or cheering, a full paw
+    keeps holding its thing out, the other paw doing it alone. Seated, a paw
+    holds its thing a little higher, off the skirt.
+  - The stage's ukulele is held by its body, neck up. By its neck, its body
+    had hung into the ground, and seated into the skirt.
+  - Rakko's ukulele (and anyone's, played) sits lower across the tummy, and
+    his sword held before him a little lower, both under his cape's neck
+    band, which had gone through them; his paws reach where they now are.
+    What anyone plays and Rakko's sword turn with the body as it bows and
+    sways (the sword on his back had stayed upright as he bowed, into his
+    back).
+  - Checked against the drawn body (its faces as posed, squashed, leant and
+    spread) with every cast member and four kinds of islander holding each of
+    the 33 things, standing, looking each way, walking, running, jumping and
+    in every action (120,285 poses): none goes in by more than a millimetre
+    but one seated torch the measure reads against the skirt's lining, which
+    renders show clear. Kurimanju's can, what is played, Rakko's sword, the
+    cave's torch of the staged shots, and sprinting were checked the same way.
+  - Fitted afresh each frame within 6 m of the camera, every third frame out
+    to 18 m, not at all further off; a thing well clear of them is looked at
+    again only as soon as it could have come near. Ten holders near the
+    camera cost about 0.13 ms a frame on a desktop.
 - What you look at is steadier: it is whatever is nearest the middle of
   your view (within 15°, not 22° as before), the nearer of two as near;
   people no longer have a head start over things; and what you looked at
@@ -162,6 +236,52 @@ stage, and along every path. Not yet checked on a real phone.
   and a little less fond of you in the middle of a line), and after their
   line they stay turned to you a moment before going back to what they were
   doing, and its face.
+- No one goes straight off somewhere else the moment they get somewhere (the
+  user, 2026-10-23). Done with what they went to do just as they got there
+  (something put back or down, a friend gone off before they came up), they
+  stand a moment, two to six seconds, looking about or at what they did (the
+  curious longer), before what comes next. Whoever goes about with their
+  housemate now keeps walking with them for as long as they walk, falling
+  into step behind them, instead of in short bursts that stopped and started
+  every couple of seconds; they stop only once the other has stopped. Over
+  six minutes of the island's afternoon, the times someone set off again
+  within half a second of arriving fell from 50 to 11.
+- Parting from you (the user, 2026-10-23: rude to rush off after you came to
+  them). After anything with you (talking, answering what you do, thanking
+  you for a gift, coming over to greet you), no one goes straight back to
+  their day. With somewhere to be, they stay a moment more, then wave and say
+  where they are off to (もうねむいから、またね, ごはん行ってくるね！,
+  たき火のとこ行ってくるね！). With nowhere to be, they stay with you five to
+  twelve seconds (longer the fonder of you they are), or till you walk off,
+  then wave you goodbye; while they stay, they still answer whatever you do.
+  Seated, or keeping their stall, they only stay a moment where they are; in
+  a stall's line, not at all. The hour moving their day on no longer cuts a
+  conversation short: the next part of their day waits till they have parted
+  from you.
+- Sprinting (the user, 2026-10-23): Shift sprints, 1.4 times as fast as a
+  run (4.2 m/s for you), leaning in, with longer strides and the arms and
+  feet thrown higher. On the phone, hold the stick at its edge a moment
+  (0.8 s): its ring and knob go pink while you sprint, and easing it back in
+  drops you to a run. Shift no longer walks; W runs, as before, and walking
+  slowly is the phone stick's middle.
+- Everyone walks in their own way (the user, 2026-10-23: they all swung
+  their legs alike), a `Gait` in `definitions.ts`: how long their steps are,
+  how much they bob, sway, swing their arms and lift their feet, how they
+  lean, and how quickly they get going, stop and turn. Chiikawa takes small
+  quick steps with a little wobble; Hachiware is even and bouncy; Usagi is
+  springy, swings her arms wide and is the quickest to start, stop and turn;
+  Momonga steps short and brisk with a perky bounce; Kurimanju is relaxed and
+  heavier, slower to get going and to turn, hardly bobbing; Rakko takes calm
+  long strides; Shisa is neat and brisk; Furuhonya shuffles in quick little
+  steps. You walk the plain way, and each islander (Hitoha and Futaba too)
+  a little differently from the next, their pace within a tenth either way.
+  At their own walk Rakko takes 4.6 steps a second, Furuhonya 8.2.
+- Turning on the spot, everyone steps round as they turn, a foot lifted and
+  set down a little further round, their weight going from foot to foot;
+  their body turns no faster than 7 radians a second for their quickness, a
+  half turn in about half a second (Hachiware 0.55 s, Usagi 0.5 s, Kurimanju
+  0.72 s), where it had swung round at once. Your own body, seen only in the
+  water, still turns with your eyes.
 - The きもち button (the user, 2026-10-22), up by the test toggle, or R:
   wave, bow, cheer, hop, dance, chat, look about, start or cry yourself
   (1 to 9 on the keyboard while it is open). Whoever is near may answer it.
@@ -959,6 +1079,28 @@ outlined is drawn twice, once for its pen line. To get there:
 
 **Changed**
 
+- A little weight to everyone's step (the user chose the light one,
+  2026-10-23): getting going and stopping ease in and out as a critically
+  damped spring does, instead of a steady 16 m/s² both ways. From standing
+  to a run takes about 0.25 s (0.19 s before), from a run to standing about
+  0.15 s with a 0.17 m slide (0.28 m before); turning is as quick as
+  stopping, so no one swings wide at corners (an islander in through a door
+  to their bed and out, 12 corners: 0.19 m off their way at most, 0.21 m
+  before, in the same time; Usagi running through hers, 0.07 m). Each
+  character's quickness scales it. Walking into something takes away the
+  part of your pace that went into it, so you no longer shoot off sideways
+  past a wall's end.
+- Jumps carry on (the user, 2026-10-23). In the air you keep the speed you
+  jumped with, and the stick steers only a third as much as on your feet
+  (3.5 m/s²): letting it go no longer stops you dead in mid-air, and a
+  standing hop no longer drifts across a gap. A running jump clears the
+  stepping stones as before, now also with the stick let go at the jump
+  (none of the seven did before), and sprinting; from a standstill at the
+  very edge only the three nearest gaps are cleared (all seven drifted
+  across before). The crouch before a jump keeps your pace too, so a jump
+  pressed at the very edge of a stone, which stops your feet, goes on as
+  fast as you ran up. A jump pressed up to 0.15 s before you land is jumped
+  as you land, and walked off an edge you may still jump for 0.12 s.
 - Put where the hour has them (after a night's sleep, a staged shot), no two
   of those out and about stand on top of each other (1.5 m apart where there
   is room), they face the way their place looks out (the sea, the stage)
@@ -1020,10 +1162,10 @@ outlined is drawn twice, once for its pen line. To get there:
   - Poses can reach a paw to a point as well as turn the arm by its
     angles. The motions use this:
     - eating and crying: both paws up under the mouth;
-    - talking: a paw before the chest;
+    - talking: a paw lifted out at the side now and then;
     - startled: both paws up held before the chest;
-    - bowing: paws together before the chest;
-    - sitting: paws on the tummy;
+    - bowing: the arms hanging at the sides;
+    - sitting: paws by the sides;
     - waving: a paw up at the side, wagging at the wrist;
     - cheering: both arms flung up and out;
     - the hula and the hop: elbows and wrists flowing;
@@ -2422,6 +2564,61 @@ outlined is drawn twice, once for its pen line. To get there:
     about 120 MB for them, where decoding every map at once took about
     340 MB, in about the same time (0.3 s on the dev PC).
   - No faces flicker in any of them; the island's dark test passes.
+- The night feast's bonfire as the film paints its fire (the user: too
+  bright, almost blinding; whoever stood before it looked burned). Its
+  flame is drawn at its own colours, orange tongues round a yellow heart
+  that alone glows a little, where it burned three times past white as a
+  torch's does and the bloom spread it over half the picture; and its
+  light comes from all round its flame, so the stones and sand close by are
+  lit a warm orange (0.9 at a metre, 0.6 at two and a half, against white
+  at 1), where they had been lit up to six times past white and glowed too.
+  Within three metres of it, 80 thousand pixels of a view at its side pass
+  white (its flame), where 260 thousand did; its pool of light on the sand
+  reaches as far as before. The cast and the islanders standing before it
+  are their night's blue with a warm rim, where its glow had smeared them a
+  muddy brown, and what faces the fire takes its warmth, as the film's
+  Chiikawa and Hachiware by its fire (`chiikawa 6`, `hachiware 1`): the
+  night's grade read warmth from the colour, which misses firelit white, a
+  pale cream, and painted it the night's pale blue; the cast now mark how
+  much fire lights them, and that side keeps its cream. Indoors in a lit
+  room they stay the night's pale blue, as the film's cast in its rooms at
+  night. The torches are as they were; by them the cast are a little warmer
+  on the side turned to the flame. Nothing changes by day; the island's and
+  the cave's dark tests pass.
+- Every fire under one rule, as the bonfire's (the user): the village's
+  torches, a torch carried, the forbidden cave's torches, the boat's and the
+  fire on its ledge are drawn at their own colours, orange tongues round a
+  yellow heart that alone glows a little (1.4 times their colours, one
+  setting for all, FLAME_BRIGHT), where they had burned three times past
+  white (a carried torch 2.2) and showed as a white blur in their glow.
+  Every fire in the island's light grid lights from its whole flame by the
+  same share of its height (FIRE_SOFT): a torch's flame, a metre tall, from
+  1.7 metres round, the bonfire's from 2.5, a carried torch's from a
+  quarter of a metre; their pools reach as far as before. The cave's fires
+  light it as before. Both dark tests pass.
+- The water lit by the island's fires at night (the user, standing in the
+  shallows with a torch in hand: the water was not lit, nor the torch
+  reflected). The sea and the waterfall's pool now take the light grid as
+  everything lit does (Firelight's fireGlow, the one rule): where a
+  torch's, the bonfire's, a lantern's or a carried torch's light falls on
+  the water, the water takes the fire's colour, a warm pool at its own
+  brightness and a little more, easing out over two to four metres; and
+  each flame burning in the open lays a broken road on the ripples from
+  the eye toward its foot, as the moon does, in its own light, the torch in
+  your paw its short road right under it. By day nothing changes (the grid
+  is off). Measured with the water filling the view at night, about a
+  quarter of a millisecond more a frame on the dev PC, within the noise.
+- Your own reflection in the water keeps its colours by firelight. Bent
+  over the water with a torch in your paw, it had been painted the night's
+  cold blue: the mirror sees your bowed body's underside, which faces away
+  from the moon and from the torch, and the water's blue mixed into it hid
+  what warmth there was from the grade. The torch in your paw now wraps its
+  light round you (its way sent short, HELD_WRAP), lighting your far side
+  and underside too, as a torch held at the body does; and your reflection
+  carries the cast's mark through the water, less the fire's light on you,
+  so the grade paints it as it paints them: pale blue by night, cream where
+  the fire lights it. By day it is left as drawn, as you are, no longer
+  brushworked or softened.
 
 **Removed**
 
@@ -2456,6 +2653,39 @@ outlined is drawn twice, once for its pen line. To get there:
 
 **Fixed**
 
+- Sliding along walls (the user, 2026-10-23). Stopped by something, you (and
+  everyone) kept only the east-west or the north-south part of the move, so
+  along anything not on those lines you slowed, and stuck walking into it
+  at 60°: against a plank hut's wall turned 40°, running at 20° into it you
+  slid at 1.98 m/s of the 2.82 the push along it gives, at 45° 0.39 of 2.12,
+  at 60° not at all, juddering 3 cm off it and back. Now you slide as far as
+  the push goes along it (`Island.ts` slide: straight on to what stops you,
+  then the rest along its edge), 2.81, 2.12 and 1.50 m/s, within 1.5 mm of
+  it; only within 10° of head on do you stop. It works along walls, props,
+  rocks, banks and the edge of deep water, on your feet and in the air.
+  Sliding costs about 10 µs a frame for whoever is against something (4.6
+  before). The 900 jumps at your bed still leave no one in it or out of the
+  hut (559 land on it).
+- The game could freeze for good while someone went about with their
+  housemate (found 2026-10-23 while testing). With no straight way to the
+  spot behind them, they walk to the nearest place they can stand there;
+  already on it, the walk ended at once and they looked again, round and
+  round within one frame, the clock never moving on. Handing something
+  over and coming over to you could do the same. `Resident.walkWhile` now
+  always waits a frame.
+- Paws no longer come before the body when nothing needs them there (the
+  user, 2026-10-23: characters put their arms in front "frequently", fine
+  for holding things or a wave, but Chiikawa's characters are drawn with
+  their paws at their sides). Talking put one paw before the chest and
+  rested the other there, bowing brought both together before the chest,
+  and sitting put them on the tummy. The islanders do all three all day.
+  - Talking, both paws stay at the sides, and the speaking one lifts out
+    at its side now and then.
+  - Bowing, the arms hang at the sides, swung back as the body leans.
+  - Sitting and dozing, the paws rest at the sides on the spread skirt, as
+    round the film's bonfire (`[anime] chiikawa 5`).
+  - Holding or eating something, waving, cheering, crying and a fright
+    still bring the paws before them.
 - The game no longer breaks when it loads in a window with no size yet (a
   tab opened in the background, a pane folded away): the camera's aspect
   became NaN from a zero width over a zero height, and that poisoned the

@@ -50,7 +50,7 @@ export class FreeCamera {
     this.right.set(Math.cos(this.yaw), 0, -Math.sin(this.yaw));
     const fast = input.held('ShiftLeft') || input.held('ShiftRight') ? FAST : 1;
     const climb = (input.held('KeyE') || input.held('Space') ? 1 : 0) - (input.held('KeyQ') ? 1 : 0);
-    // The stick's own half speed for Shift is a walk; flying, Shift goes faster.
+    // On foot Shift sprints; flying, it goes faster, however far the stick is pushed.
     const m = input.move;
     const stick = m.lengthSq() > 0 ? 1 / Math.max(m.length(), 1e-6) : 0;
     const mx = fast > 1 ? m.x * stick : m.x;

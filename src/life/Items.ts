@@ -43,7 +43,10 @@ export type ItemId =
   | 'torch'
   | 'ukulele'
   | 'seashell'
-  | 'starfish';
+  | 'starfish'
+  | 'book_red'
+  | 'book_blue'
+  | 'book_green';
 
 /** What one does with a thing from the hand: eats it, drinks it, plays it; or keeps it. */
 export type ItemUse = 'eat' | 'drink' | 'play' | null;
@@ -129,10 +132,16 @@ export const ITEMS: Record<ItemId, ItemDef> = {
   beer: drink(),
   can: { use: 'drink', rest: 'stand', model: 'can' },
   torch: { use: null, rest: 'lie', light: true },
-  // By its neck, upright, its body below (the prop's neck runs out along +x).
-  ukulele: { use: 'play', rest: 'lie', model: 'ukulele', turn: [0, 0, Math.PI / 2], grip: [0.2, 0, 0] },
+  // By its body's waist, its neck up (the prop's neck runs out along +x, its body round its origin), as a child carries
+  // one: held by its neck, its body hung lower than a paw is high, into the ground, and seated into the skirt spread
+  // round them (2026-10-23).
+  ukulele: { use: 'play', rest: 'lie', model: 'ukulele', turn: [0, 0, Math.PI / 2], grip: [0.01, 0, 0] },
   seashell: { use: null, rest: 'lie' },
   starfish: { use: null, rest: 'flat', flat: true },
+  // The huts' books (things.json lays one on a shelf in each of a few huts), lying flat, held flat on the paw.
+  book_red: { use: null, rest: 'flat', flat: true },
+  book_blue: { use: null, rest: 'flat', flat: true },
+  book_green: { use: null, rest: 'flat', flat: true },
 };
 
 /** Every thing there is: those above, and any other the things' build makes (art/blender/build_items.py, its
@@ -186,10 +195,9 @@ export const STALL_ITEM: Record<string, ItemId> = {
   obanyaki: 'obanyaki',
 };
 
-/** A torch's flame carried in the paw beside the village torches' (see flameMaterial), and how much brighter
- * than white it burns. */
+/** How big a torch's flame carried in the paw is beside the village torches' (see flameMaterial); it burns
+ * as every fire does. */
 const FLAME_SIZE = 0.15;
-const FLAME_BRIGHT = 2.2;
 
 /** Where a thing's icon is in the sheet of them (public/models/props/item_icons.webp). */
 export interface IconSheet {
@@ -252,7 +260,7 @@ export class ItemModels {
     copy.userData.item = id;
     const flame = this.flames.get(id);
     if (flame) {
-      const material = flameMaterial(FLAME_SIZE, FLAME_BRIGHT);
+      const material = flameMaterial(FLAME_SIZE);
       if (FILM && mark) {
         // As the rest of it, left as drawn by the film look's passes (see createHeld).
         material.defines = { FILM_MASK: '' };

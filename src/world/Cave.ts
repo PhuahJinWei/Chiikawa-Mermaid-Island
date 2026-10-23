@@ -3,6 +3,7 @@ import { loadGltf } from '../core/gltf';
 import { sharedUniforms } from '../characters/CharacterMaterial';
 import type { SkyLook } from './DayNight';
 import { inkOutlineMaterialLit, windUniforms } from './Ink';
+import { FILM, FLAME_BRIGHT } from './Look';
 import { addCircle } from './Obstacles';
 import { WadeRings, wadeGlsl } from './Ripples';
 
@@ -674,12 +675,12 @@ function waterMaterial(ripples: Cave['ripples']): THREE.ShaderMaterial {
   });
 }
 
-/** Flames that make their own light, burning bright so the bloom halos them, wavering the more the
+/** Flames that make their own light, drawn as every fire is (FLAME_BRIGHT), wavering the more the
  * higher up the flame (which the colours tell), as Props.ts draws the torches' but lit at any hour. */
 export function caveFlameMaterial(): THREE.MeshBasicMaterial {
   const material = new THREE.MeshBasicMaterial({ vertexColors: true });
   flames.add(material);
-  material.color.setRGB(3, 3, 3);
+  if (FILM) material.color.setRGB(FLAME_BRIGHT, FLAME_BRIGHT, FLAME_BRIGHT);
   material.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, windUniforms);
     shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>\nuniform float uTime;').replace(

@@ -4,7 +4,7 @@ import { sharedUniforms } from '../characters/CharacterMaterial';
 import { Cave } from './Cave';
 import { FilmClouds } from './Clouds';
 import { MOON_RADIUS, newSkyLook, skyAt, SUN_RADIUS } from './DayNight';
-import { Firelight, fireUniforms } from './Firelight';
+import { FIRE_GLOW_GLSL, Firelight, fireUniforms } from './Firelight';
 import { Footprints } from './Footprints';
 import { glowUniforms } from './Glow';
 import { inkUniforms, windUniforms } from './Ink';
@@ -22,6 +22,7 @@ import {
 import { Landmarks } from './Landmarks';
 import {
   FILM,
+  FIRE_MARK,
   MIRROR_LAYER,
   filmLights,
   caveUniform,
@@ -134,6 +135,12 @@ const MOON_RIM = new THREE.Color(0.12, 0.36, 0.5);
 /** The sunlight slanting into the waterfall's clearing: its colour by day and its strength (screened,
  * see lightShafts: as bright on the clearing, on the whole, as 0.11 added). */
 const SHAFT_COLOUR = '#FFF3CF';
+/** How readily the water takes a fire's colour where its light falls (a share of the eased light,
+ * see the water's fragment shader), how much brighter it goes in it, and how bright the flames'
+ * roads on its ripples are (see fireRoad). */
+const WATER_FIRE = 0.65;
+const WATER_FIRE_LIFT = 0.25;
+const WATER_ROAD = 0.3;
 const SHAFT_STRENGTH = 0.14;
 const CONFETTI = ['#F0C866', '#F4A9B8', '#9FD3F0', '#F29E6B', '#FFFFFF', '#B9E58C'];
 
@@ -603,6 +610,20 @@ export class Stage {
     this.waterLight.uSeaSky.value.copy(u.uHorizon.value).lerp(u.uTop.value, 0.25);
   }
 
+  /** The brands the village's torches hold (see Props.brands): each where its flame burns. */
+  get brands(): { kind: string; at: THREE.Vector3 }[] {
+    return this.props?.brands ?? [];
+  }
+
+  /** Brand `i` put back in its stand (`lit`) or taken out of it: its flame shown or not, its light lit or put
+   * out (see Props.setBrand, Firelight.setLit). */
+  setBrand(i: number, lit: boolean): void {
+    const brand = this.props?.brands[i];
+    if (!brand) return;
+    this.props?.setBrand(i, lit);
+    this.firelight?.setLit(brand.fire, lit);
+  }
+
   /** A torch carried about, its flame at `at` (null: none), lighting what is round it after dark (see
    * Firelight.setHeld). */
   setHeldLight(at: THREE.Vector3 | null): void {
@@ -931,6 +952,7 @@ export class Stage {
         uReflectOn: { value: 0 },
         uRipples: { value: 1 },
         uGlitter: { value: 1 },
+        ...(FILM ? fireUniforms : {}),
         ...this.waterLight,
         ...this.waders.uniforms,
         ...this.mirror.uniforms,
@@ -991,6 +1013,7 @@ export class Stage {
         #include <lights_pars_begin>
         #include <shadowmap_pars_fragment>
         #include <shadowmask_pars_fragment>
+        ${FIRE_GLOW_GLSL}
         // A hash without sin, so it keeps its precision far out over the sea and as the clock runs on.
         float hash2(vec2 p) {
           vec3 q = fract(vec3(p.xyx) * 0.1031);
@@ -1139,6 +1162,26 @@ export class Stage {
             float n = valueNoise(q) * 0.6 + valueNoise(q * 2.7 + 5.3 - uTime * 0.05) * 0.4;
             col = mix(col, uSeaSky, smoothstep(0.58, 0.64, n) * across);
           }
+          // The island's fires on it by night, under the one rule everything lit is (see Firelight):
+          // their warm pools on the water round the torches, the bonfire, the lanterns and a torch
+          // carried, as on the sand before the film's fire ('[anime] fire by the beach'): the water
+          // takes the fire's colour where its light falls, at its own brightness and a little more
+          // (the light eased as it climbs, so a torch held right over the water lays a warm pool on
+          // it, not a flood); and the flames' broken roads on the ripples between the eye and each
+          // flame, in the flame's light.
+          float pool = 0.0;
+          vec3 fireTone = col;
+          if (uFireOn > 0.5) {
+            vec3 fire = fireGlow(vWorld, vec3(0.0, 1.0, 0.0));
+            float fireMost = max(max(fire.r, fire.g), fire.b);
+            if (fireMost > 1e-3) {
+              pool = smoothstep(0.1, 3.0, fireMost) * ${WATER_FIRE.toFixed(2)};
+              fireTone = fire / fireMost * (dot(col, vec3(0.2126, 0.7152, 0.0722)) + ${WATER_FIRE_LIFT.toFixed(2)} * pool);
+              col = mix(col, fireTone, pool);
+            }
+            vec3 road = fireRoad(vWorld, cameraPosition, uTime);
+            col += road / (1.0 + 0.5 * max(max(road.r, road.g), road.b)) * ${WATER_ROAD.toFixed(2)};
+          }
           // What stands by it mirrored in it, when it is the water mirrored this frame (see drawMirror),
           // as real water mirrors it: faint seen from above, more the further across the water it is
           // seen (as the sky's light on it gives way to what it mirrors), shifted about and smeared
@@ -1165,8 +1208,18 @@ export class Stage {
               vec2 sq = vec2(length(vWorld.xz - cameraPosition.xz) * 5.0, (vWorld.x - vWorld.z) * 0.8) + uTime * vec2(-0.9, 0.2);
               float strokes = smoothstep(0.3, 0.55, valueNoise(sq) * 0.65 + valueNoise(sq * 2.3 + 4.7) * 0.35);
               float fresnel = 0.07 + 0.7 * pow(1.0 - down, 5.0);
-              float own = smoothstep(1.1, 1.6, (m0.a * 2.0 + m1.a + m2.a) * 0.25);
+              float own = smoothstep(1.1, 1.5, (m0.a * 2.0 + m1.a + m2.a) * 0.25);
               col = mix(col, mix(seen, col, mix(0.4, 0.2, own)), cover * mix(strokes * fresnel, 0.72 * mix(0.8, 1.0, strokes), own));
+              // Your own reflection is marked in the picture as the cast are (their mark less the fire's
+              // light on them, see FIRE_MARK: theirs is 2 in the mirror, and it is not the water's to
+              // keep), so the night's grade paints it as it paints them: pale blue, warm where a fire
+              // lights them.
+              if (own > 0.5 && cover > 0.5) {
+                alpha = 0.5 - ${FIRE_MARK.toFixed(2)} * clamp((2.0 - m0.a) / ${FIRE_MARK.toFixed(2)}, 0.0, 1.0);
+                // Seen over water a fire lights, your reflection takes some of the fire's colour on the
+                // water with it.
+                col = mix(col, fireTone, 0.4 * pool);
+              }
             }
           }
           // Paling into the distance toward the horizon's haze, as the film's sea does.

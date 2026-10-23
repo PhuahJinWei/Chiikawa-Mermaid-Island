@@ -56,6 +56,13 @@ export interface ActionDef {
   /** What they hold while it plays: what they play (CharacterOptions.instrument), or the sword they carry on
    * their back (CharacterOptions.own). */
   prop?: 'ukulele' | 'sword';
+  /** Done with one paw, the right: with something in that paw, the other does it instead, as one waves with the free
+   * hand (see Character.updatePose). */
+  oneHand?: boolean;
+  /** Its paws come up before or round the face (startled, crying, cheering): a paw with something in it keeps holding
+   * it out where it holds it, the other doing it alone (what it held would have gone into them: see
+   * Character.updatePose). */
+  fullPawHolds?: boolean;
   /** The action's own face, shown over any expression chosen in the Test panel. */
   expression: (t: number) => ExpressionId;
   /** Shuts the eyes (bowing), whatever the expression. */
@@ -88,16 +95,14 @@ type Point = readonly [number, number, number];
  * quarter of a face radius from their root, the root going round the body and up its front as they reach in; each
  * point measured to be within reach on every cast member (a straight arm flung toward the wave's and the cheer's).
  * As the drawings, the official figures and the film have them: both paws up on the face under the mouth (the
- * user's drawing of Hachiware), or a little lower under the chin; together before the chest, under the head's
- * edge, where a thing is held; resting on the tummy sitting (no lower: reaching down to the legs, the arms stood
- * like pillars); up at the side for a wave; and flung up and out round the head's sides for a cheer (the head too
- * big for paws over it).
+ * user's drawing of Hachiware), or a little lower under the chin; up at the side for a wave; and flung up and out
+ * round the head's sides for a cheer (the head too big for paws over it). Paws come before them only so, or with a
+ * thing in them (see Character.locomotionPose); standing, talking, bowing and sitting, they stay at their sides, as
+ * Chiikawa's characters are drawn (the user, 2026-10-23: paws before them for no reason look odd).
  */
-export const REACH: Record<'mouth' | 'chin' | 'chest' | 'lap' | 'wave' | 'cheer', Point> = {
+export const REACH: Record<'mouth' | 'chin' | 'wave' | 'cheer', Point> = {
   mouth: [0.2, -0.42, 0.92],
   chin: [0.18, -0.55, 0.88],
-  chest: [0.12, -0.9, 0.72],
-  lap: [0.34, -1.0, 0.6],
   wave: [0.8, -0.56, 0.32],
   cheer: [1.1, -0.45, 0.2],
 };
@@ -106,12 +111,12 @@ export const REACH: Record<'mouth' | 'chin' | 'chest' | 'lap' | 'wave' | 'cheer'
  * paw (the model's -x side) strumming over its body and his left up its neck; and both on his sword's grip
  * (SWORD_HOLD), his right paw below his left. */
 export const REACH_UKULELE: Record<'strum' | 'neck', Point> = {
-  strum: [0.02, -0.75, 0.88],
-  neck: [0.31, -0.6, 0.87],
+  strum: [0.02, -0.917, 0.951],
+  neck: [0.31, -0.767, 0.941],
 };
 export const REACH_SWORD: Record<'lower' | 'upper', Point> = {
-  lower: [0.06, -0.91, 0.81],
-  upper: [0.06, -0.81, 0.87],
+  lower: [0.06, -1.005, 0.834],
+  upper: [0.06, -0.905, 0.894],
 };
 
 /** Reaches the left paw (the model's -x side) `w` of the way to `at`, moved by (dx, dy, dz). */
@@ -133,7 +138,7 @@ function reachR(p: Pose, w: number, at: Point, dx = 0, dy = 0, dz = 0): void {
 /**
  * Sitting on the ground with the legs stretched out in front, as the film's characters sit:
  * the body settles onto its bottom with a little bounce, leaning back slightly, and keeps its
- * shape. The paws rest on the lap.
+ * shape. The paws stay by their sides, as round the film's bonfire (`[anime] chiikawa 5`).
  */
 function sitPose(t: number, p: Pose): void {
   const s = smooth(t / 0.35);
@@ -141,10 +146,6 @@ function sitPose(t: number, p: Pose): void {
   p.squash = 1 - 0.04 * bump(t, 0.2, 0.32, 0.36, 0.65) + 0.006 * Math.sin(t * 2.4) * s;
   p.rootPitch = -0.06 * s;
   p.leanZ = -0.015 * s;
-  p.armLRaise = p.armRRaise = -0.05;
-  p.armLSwing = p.armRSwing = 0.9;
-  reachL(p, s, REACH.lap);
-  reachR(p, s, REACH.lap);
 }
 
 export const ACTIONS: Record<ActionId, ActionDef> = {
@@ -152,6 +153,7 @@ export const ACTIONS: Record<ActionId, ActionDef> = {
     duration: 2.4,
     fadeIn: 0.2,
     fadeOut: 0.3,
+    oneHand: true,
     expression: () => 'happy',
     pose(t, p) {
       const up = smooth(t / 0.25) * (1 - smooth((t - 2.05) / 0.3));
@@ -191,6 +193,7 @@ export const ACTIONS: Record<ActionId, ActionDef> = {
     duration: 1.9,
     fadeIn: 0.12,
     fadeOut: 0.35,
+    fullPawHolds: true,
     expression: () => 'happy',
     pose(t, p) {
       const h = Math.max(0, Math.sin(Math.min(1, t / 0.5) * Math.PI));
@@ -222,11 +225,9 @@ export const ACTIONS: Record<ActionId, ActionDef> = {
       p.leanZ = 0.16 * b;
       p.rootPitch = 0.22 * b;
       p.squash = 1 - 0.05 * b;
-      p.armLRaise = p.armRRaise = -0.25 * b;
-      p.armLSwing = p.armRSwing = -0.35 * b;
-      // The paws together before the chest as they bow.
-      reachL(p, b, REACH.chest, -0.02, -0.06);
-      reachR(p, b, REACH.chest, -0.02, -0.06);
+      // The arms hanging at their sides as they bow, swung back as far as the body goes forward.
+      p.armLSwing -= 0.45 * b;
+      p.armRSwing -= 0.45 * b;
       p.earLPitch = p.earRPitch = 0.25 * b;
     },
   },
@@ -287,6 +288,7 @@ export const ACTIONS: Record<ActionId, ActionDef> = {
     duration: Infinity,
     fadeIn: 0.2,
     fadeOut: 0.3,
+    oneHand: true,
     talking: true,
     expression: () => 'neutral',
     pose(t, p) {
@@ -294,12 +296,9 @@ export const ACTIONS: Record<ActionId, ActionDef> = {
       p.leanX = 0.02 * Math.sin(t * 1.7);
       p.squash = 1 + 0.012 * Math.sin(t * 6.3);
       const g = Math.max(0, Math.sin(t * 1.9));
-      p.armRRaise = 0.25 + 0.6 * g * g;
-      p.armRSwing = 0.3 * g;
-      // A paw talking with them before the chest, the other resting there.
-      reachR(p, 0.85, REACH.chest, 0.28 + 0.1 * Math.sin(t * 2.3), 0.12 * g * g, 0.04 * g);
-      p.pawRBend = 0.3 * g;
-      reachL(p, 0.5, REACH.chest, 0.18, -0.08);
+      // A paw lifted out at their side now and then as they talk, the other hanging by them.
+      p.armRRaise += 0.6 * g * g;
+      p.armRSwing += 0.15 * g;
       p.rootY = 0.006 * Math.abs(Math.sin(t * 6.3));
     },
     tick(t, prev, ctx) {
@@ -327,6 +326,7 @@ export const ACTIONS: Record<ActionId, ActionDef> = {
     duration: 1.8,
     fadeIn: 0.04,
     fadeOut: 0.35,
+    fullPawHolds: true,
     expression: (t) => (t < 1.2 ? 'shocked' : 'worried'),
     pose(t, p) {
       const jt = t / 0.32;
@@ -353,6 +353,7 @@ export const ACTIONS: Record<ActionId, ActionDef> = {
     duration: Infinity,
     fadeIn: 0.2,
     fadeOut: 0.35,
+    fullPawHolds: true,
     expression: () => 'sobbing',
     pose(t, p) {
       const tremble = Math.sin(t * 38) * 0.006 + Math.sin(t * 23) * 0.004;

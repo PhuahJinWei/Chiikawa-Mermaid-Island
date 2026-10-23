@@ -43,19 +43,56 @@ const SLOW_FROM = 1.0;
 /** Seconds without getting nearer before they seek the way again, and how many times. */
 const STUCK = 2.2;
 const RETRIES = 2;
-/** How far one keeps behind and beside whoever they go about with, and how far they let them get. */
+/** How far one keeps behind and beside whoever they go about with, and how far they let them get before going
+ * after them (or this much further, if they are standing about). Going after them, they keep going while they
+ * do, straight after them while they can, and look again for a way straight every so often (seconds). */
 const FOLLOW_BEHIND = 1.25;
 const FOLLOW_SIDE = 0.6;
 const FOLLOW_SLACK = 2.4;
+const FOLLOW_IDLE_SLACK = 1.6;
+const FOLLOW_LOOK = 0.4;
+/** Further behind them than this (metres), they hurry after them this much faster than they walk (up to their
+ * run), till they are right behind them. */
+const FOLLOW_CLOSE = 0.5;
+const FOLLOW_HURRY = 1.5;
+/** They go about with their housemate only when they are within this far (metres): not off across the island
+ * after them. */
+const FOLLOW_FROM = 18;
+/** Done with something they went to do, having just walked: a moment where they are before what comes next
+ * (seconds, at least, and up to this much more for the most curious, who look about longer), not straight off
+ * somewhere else. Just walked: within this of having been on their feet (seconds). */
+const SETTLE = 2;
+const SETTLE_MORE = [2, 4];
+const JUST_WALKED = 1.5;
 /** How near a stall's line they come before joining it. */
 const LINE_NEAR = 3.5;
 /** Eating what they hold: a bite each so many seconds, from, to (a meal from a stall), and a gift's quicker. */
 const EAT_PACE: [number, number] = [4, 7];
 const GIFT_PACE = 3;
-/** How long they stop to talk with you (seconds), and stay turned to you after, before going back to what they
- * were doing. */
+/** How long they stop to talk with you (seconds). */
 const TALK = 3.6;
-const LINGER = 1.5;
+/**
+ * Parting from you, after anything with you (see partFrom): somewhere to be, a moment more turned to you, then
+ * their leave-taking (a wave and a word) this long (seconds); seated or behind their counter, only the moment.
+ * With nowhere to be, they stay with you this long (seconds, from, to), and up to STAY_FOND longer the fonder
+ * of you they are, till you go further off than PART_AWAY (metres); then a wave, if you are within WAVE_OFF.
+ */
+const PART_MOMENT = 1.2;
+const PART_LEAVE = 1.6;
+const STAY: [number, number] = [5, 8];
+const STAY_FOND = 4;
+const PART_AWAY = 3.5;
+const WAVE_OFF = 10;
+/** What has them somewhere to be, saying so as they leave you (see partFrom); and how hungry, a meal still to
+ * come. */
+const PART_LINES: Partial<Record<ActKind, StringKey>> = {
+  sleep: 'part.sleep',
+  home: 'part.home',
+  meal: 'part.meal',
+  feast: 'part.feast',
+  work: 'part.work',
+};
+const STILL_HUNGRY = 0.3;
 /** Taking something up or putting it down: how far off it they stand (metres), and how long they bend down
  * to it, to their paw meeting it and back up (seconds). */
 const REACH_OFF = 0.42;
@@ -65,7 +102,7 @@ const STOOP: [number, number] = [0.55, 0.45];
 const GIVE_NEAR = 1.1;
 const GIVE_CHASE = 10;
 /** Things they keep in their own room: at most so many, about so far from its middle (metres). */
-const ROOM_KEEPS = 4;
+const ROOM_KEEPS = 8;
 const ROOM_SPREAD = 1.1;
 /** At the welcome: you coming this near, they cheer you (metres). */
 const WELCOME_PASS = 3;
@@ -150,6 +187,10 @@ export class Resident {
   readonly wayAside = new THREE.Vector3();
   askedPassAt = -Infinity;
   reroute = false;
+  /** Parting from you (see partFrom): busy with you, yet free to answer what you do next. */
+  parting = false;
+  /** When they were last on their way somewhere, walking (Life.now): see settle. */
+  walkedAt = -Infinity;
   /** Stepping round someone in their way: on which side (see Life.avoid), and till when they keep to it. */
   passing = 0;
   passingUntil = -Infinity;
@@ -321,6 +362,7 @@ export class Resident {
 
   /** One frame of whatever they are doing. */
   step(dt: number): void {
+    if (this.moving() > 0.3) this.walkedAt = this.life.now;
     this.want.set(0, 0, 0);
     if (this.aside) {
       if (!this.aside.next(dt).done) return;
@@ -362,7 +404,7 @@ export class Resident {
   }
 
   private speed(): number {
-    return this.profile.runs ? this.ch.def.runSpeed * 0.85 : this.ch.def.walkSpeed;
+    return this.profile.runs ? this.ch.runSpeed * 0.85 : this.ch.walkSpeed;
   }
 
   /** Walks to `to` the way the island lets them, seeking it first; true once there. If no way is found or
@@ -425,6 +467,14 @@ export class Resident {
     const walking = this.walk(to);
     try {
       let r = walking.next(0);
+      if (r.done) {
+        // There already: a frame where they are all the same. Those who walk again and again for a while, after
+        // someone (follow) or over to them (handTo, toYou), till their clock runs out, would otherwise go round
+        // and round within one frame, the clock never moving on, and the game would freeze (found 2026-10-23).
+        this.halt();
+        yield;
+        return r.value;
+      }
       while (!r.done) {
         if (!keep()) return false;
         r = walking.next(yield);
@@ -685,9 +735,15 @@ export class Resident {
     if (!room) return;
     const there = this.life.things.list.filter((t) => t.owner === this.id && flat(t.at, room) < 3).length;
     if (there >= ROOM_KEEPS || !this.hands.takeOut((x) => x === c)) return;
-    const a = this.life.random() * Math.PI * 2;
-    const spot = this.life.nearestStanding(_v.set(room.x + Math.cos(a) * ROOM_SPREAD, room.y, room.z + Math.sin(a) * ROOM_SPREAD));
-    if (!spot || Math.abs(spot.y - room.y) > 0.3) {
+    // A spot round the room's middle one can stand on, at its floor's height: a few tries, as much of the
+    // circle is furniture (and the nearest standing place to a spot in the bed can be out on the porch).
+    let spot: THREE.Vector3 | null = null;
+    for (let tries = 0; tries < 6 && !spot; tries++) {
+      const a = this.life.random() * Math.PI * 2;
+      const s = this.life.nearestStanding(_v.set(room.x + Math.cos(a) * ROOM_SPREAD, room.y, room.z + Math.sin(a) * ROOM_SPREAD));
+      if (s && Math.abs(s.y - room.y) <= 0.3) spot = s.clone();
+    }
+    if (!spot) {
       this.hands.stow();
       return;
     }
@@ -733,7 +789,8 @@ export class Resident {
   /**
    * Home and inside; to bed if `bed`, else sitting or standing in the room till bedtime. On the way, what they
    * borrowed goes back and what has a place of its own goes back to it; at home, now and then, a keepsake is
-   * put down in their room.
+   * put down in their room, and at bedtime every keepsake they still have (the user, 2026-10-23: nothing
+   * sleeps in a pouch, where no one can see it).
    */
   private *goHome(bed: boolean): Brain {
     const home = this.home;
@@ -749,8 +806,11 @@ export class Resident {
       yield* this.inside(() => false);
       return;
     }
-    if (!bed && this.life.random() < 0.5) {
-      const keep = this.hands.all.find((x) => x.owner === this.id && !edible(x) && !x.home && !x.lent);
+    const keeps = () => this.hands.all.filter((x) => x.owner === this.id && !edible(x) && !x.home && !x.lent);
+    if (bed) {
+      for (const keep of keeps()) yield* this.keepAtHome(keep);
+    } else if (this.life.random() < 0.5) {
+      const keep = keeps()[0];
       if (keep) yield* this.keepAtHome(keep);
     }
     if (bed && this.bed) {
@@ -802,12 +862,26 @@ export class Resident {
         continue;
       }
       const lead = this.profile.with ? this.life.resident(this.profile.with) : null;
-      if (lead && lead.block?.kind === 'about' && this.life.random() < 0.85) {
+      if (lead && lead.block?.kind === 'about' && flat(lead.pos, this.pos) < FOLLOW_FROM && this.life.random() < 0.85) {
         yield* this.follow(lead, 40 + this.life.random() * 60);
-        continue;
+      } else {
+        yield* this.life.choices.next(this);
       }
-      yield* this.life.choices.next(this);
+      yield* this.settle();
     }
+  }
+
+  /**
+   * Done with something they went to do just as they got there (something put back or down, a friend gone off
+   * before they came up, a short way after whoever they go about with): a moment where they are, looking about
+   * or at what they did, before what comes next (the user, 2026-10-23: never straight off somewhere else). Not
+   * after what they stayed a while at already (a place of theirs, eating).
+   */
+  private *settle(): Brain {
+    if (this.life.now - this.walkedAt > JUST_WALKED) return;
+    const curious = this.profile.curious ?? 0.5;
+    const more = SETTLE_MORE[0] + (SETTLE_MORE[1] - SETTLE_MORE[0]) * curious;
+    yield* this.wait(SETTLE + this.life.random() * more, NaN, this.life.random() < 0.3 + 0.4 * curious ? 'look' : null);
   }
 
   private habitNow(): Habit | null {
@@ -893,29 +967,52 @@ export class Resident {
     yield* this.wait(1, NaN);
   }
 
-  /** Keeps behind `lead` for `seconds`, or while they stay out and about. */
+  /**
+   * Keeps behind `lead` for `seconds`, or while they stay out and about: after them once they are off (or have
+   * got well away), going on as long as they go, straight after them while nothing stands between, else a short
+   * way round at a time; stopping only once they have stopped and they have caught up.
+   */
   private *follow(lead: Resident, seconds: number): Brain {
     const end = this.life.now + seconds;
+    const behind = new THREE.Vector3();
+    let going = false;
+    let straight = false;
+    let looked = -Infinity;
     while (this.life.now < end && lead.block?.kind === 'about') {
       // Behind them and a little to the side, where they are going.
       const yaw = lead.ch.facing;
-      _v.set(
+      behind.set(
         lead.pos.x - Math.sin(yaw) * FOLLOW_BEHIND + Math.cos(yaw) * FOLLOW_SIDE,
         lead.pos.y,
         lead.pos.z - Math.cos(yaw) * FOLLOW_BEHIND - Math.sin(yaw) * FOLLOW_SIDE,
       );
-      const d = flat(this.pos, _v);
-      if (d > FOLLOW_SLACK) {
-        const to = this.life.nearestStanding(_v) ?? lead.feet(new THREE.Vector3());
-        // A short walk after them, then look again where they are.
-        const start = this.life.now;
-        yield* this.walkWhile(to, () => this.life.now - start < 2.5 && flat(lead.pos, to) < FOLLOW_SLACK * 1.5);
-      } else {
+      const d = flat(this.pos, behind);
+      const leadGoing = lead.moving() > 0.3;
+      if (!going) going = d > (leadGoing ? FOLLOW_SLACK : FOLLOW_SLACK + FOLLOW_IDLE_SLACK);
+      else if (!leadGoing && d < FOLLOW_SLACK * 0.5) going = false;
+      if (!going) {
         this.halt();
         this.ch.setFacing(lead.ch.facing);
         yield* this.chatting();
         yield;
+        continue;
       }
+      if (this.life.now - looked > FOLLOW_LOOK) {
+        looked = this.life.now;
+        straight = this.life.nav.straight(this.feet(_v), behind);
+      }
+      if (straight) {
+        // Straight after them, hurrying to catch up when they have fallen behind, slowing as they come up behind
+        // them, so as to fall into step with them.
+        this.steer(behind, d > FOLLOW_CLOSE ? Math.min(this.ch.runSpeed, this.speed() * FOLLOW_HURRY) : this.speed());
+        yield;
+        continue;
+      }
+      const to = this.life.nearestStanding(behind) ?? lead.feet(new THREE.Vector3());
+      // A short way round after them, then look again where they are.
+      const start = this.life.now;
+      yield* this.walkWhile(to, () => this.life.now - start < 2.5 && flat(lead.pos, to) < FOLLOW_SLACK * 1.5);
+      looked = -Infinity;
     }
   }
 
@@ -985,15 +1082,86 @@ export class Resident {
     if (this.free) this.ch.faceToward(at.x, at.z);
   }
 
-  /** With you from now till `brain` is done: their eyes on you (see Life.attend) the whole while. */
-  private *withYou(brain: Brain): Brain {
+  /** With you from now till `brain` is done, and then parting from you if `part` (see partFrom): their eyes on
+   * you (see Life.attend) the whole while, and their day's next part waiting till they have (see Life.update). */
+  private *withYou(brain: Brain, part = false): Brain {
     this.withPlayer = true;
     this.focusUntil = 0;
     try {
       yield* brain;
+      if (part) yield* this.partFrom();
     } finally {
       this.withPlayer = false;
     }
+  }
+
+  /**
+   * After anything you began with them, or they with you (talking, answering you, thanking you, greeting you):
+   * never straight off (the user, 2026-10-23: rude after you came to them). Somewhere to be (bed, home, a meal,
+   * the feast, their stall), a moment more turned to you, then a wave and a word of where (もうねむいから、またね)
+   * and off. With nowhere to be, they stay with you a while, the fonder of you the longer, till you go off, then
+   * wave you goodbye. Seated, or behind their counter, only the moment; in a stall's line, none (the line moves).
+   */
+  private *partFrom(): Brain {
+    if (this.line) return;
+    const you = this.life.playerAt;
+    if (!you) return;
+    this.parting = true;
+    try {
+      const turned = (seconds: number): Brain<boolean> => this.turnedTo(you, seconds);
+      const where = this.somewhereToBe();
+      if (this.seat || !this.free) {
+        yield* turned(PART_MOMENT);
+        return;
+      }
+      if (where) {
+        if (!(yield* turned(PART_MOMENT))) return;
+        yield* this.leaveTaking(you, words(where), PART_LEAVE);
+        return;
+      }
+      const fond = this.life.fondness(this, 'player');
+      const stay = STAY[0] + this.life.random() * (STAY[1] - STAY[0]) + STAY_FOND * fond;
+      yield* turned(stay);
+      if (flat(this.pos, you) < WAVE_OFF) yield* this.leaveTaking(you, this.life.random() < 0.5 ? words('part.bye') : null, PART_LEAVE);
+    } finally {
+      this.parting = false;
+    }
+  }
+
+  /** Stands turned to you at `you` for `seconds`, while you are near (PART_AWAY); false if you went off. */
+  private *turnedTo(you: THREE.Vector3, seconds: number): Brain<boolean> {
+    for (let t = 0; t < seconds; t += yield) {
+      if (flat(this.pos, you) > PART_AWAY) return false;
+      this.halt();
+      this.faceTo(you);
+    }
+    return true;
+  }
+
+  /** A wave to you at `you`, saying `line` if given, for `seconds`. */
+  private *leaveTaking(you: THREE.Vector3, line: string | null, seconds: number): Brain {
+    this.faceTo(you);
+    this.ch.play('wave');
+    if (line) this.life.say(this, line);
+    try {
+      for (let t = 0; t < seconds; t += yield) {
+        this.halt();
+        this.faceTo(you);
+      }
+    } finally {
+      if (this.ch.actionId === 'wave') this.ch.stopAction();
+    }
+  }
+
+  /** What they have to be off to, by the part of their day the hour has them in (or is about to: see
+   * Life.dayPart), as a word of it; null if nowhere (out and about, a meal they have had). A keeper at their
+   * stall is there. */
+  private somewhereToBe(): StringKey | null {
+    const next = this.life.dayPart(this);
+    const kind = next.kind;
+    if (kind === 'meal' && this.needs.hunger < STILL_HUNGRY && next === this.block) return null;
+    if (kind === 'work' && next.stall && flat(this.pos, next.stall.keeper) < 2) return null;
+    return PART_LINES[kind] ?? null;
   }
 
   /** Says `line` to whoever is at `at` (you, as you go), talking a moment (seated, as they sit), turned to
@@ -1058,7 +1226,7 @@ export class Resident {
         if (this.seat) this.ch.play('sit');
       }
     };
-    yield* giver === 'player' ? this.withYou(thanked.call(this)) : thanked.call(this);
+    yield* giver === 'player' ? this.withYou(thanked.call(this), true) : thanked.call(this);
   }
 
   /** Over to you, `near` from you, chasing you a while if you walk off; false if they could not reach you. */
@@ -1102,7 +1270,7 @@ export class Resident {
         yield* this.handTo('player', gift);
       }
     };
-    yield* this.withYou(greeting.call(this));
+    yield* this.withYou(greeting.call(this), true);
   }
 
   /** Hungry, over to you as you hold something to eat, looking at it, asking for it (`line`): a moment to give
@@ -1123,18 +1291,11 @@ export class Resident {
   }
 
   /** You talk with them, standing at `you` (where you are as you go): they turn to you (if not seated or at a
-   * counter) and say `line`, talking a moment, their eyes following you if you walk off; then stay turned to
-   * you a moment more (LINGER), not straight back to what they were doing, its face with it. */
+   * counter) and say `line`, talking a moment, their eyes following you if you walk off; then part from you (see
+   * partFrom), not straight back to what they were doing. */
   *talk(you: THREE.Vector3, line: string): Brain {
     this.faceTo(you);
-    const talking = function* (this: Resident): Brain {
-      yield* this.sayTo(you, line);
-      for (let t = 0; t < LINGER; t += yield) {
-        this.halt();
-        this.faceTo(you);
-      }
-    };
-    yield* this.withYou(talking.call(this));
+    yield* this.withYou(this.sayTo(you, line), true);
   }
 
   /** You hopped at them, standing at `you`: after a moment they hop back, or wave. */
@@ -1177,7 +1338,7 @@ export class Resident {
         if (this.ch.actionId === action) this.ch.stopAction();
       }
     };
-    yield* this.withYou(answering.call(this));
+    yield* this.withYou(answering.call(this), true);
   }
 
   /** Someone plays music at `at` (you, or someone who lives here): over a little way off them, to listen a
@@ -1204,7 +1365,7 @@ export class Resident {
     const side = stall.sides.reduce((a, b) => (flat(a, this.pos) < flat(b, this.pos) ? a : b));
     if (flat(this.pos, stall.keeper) > 0.5) {
       if (!(yield* this.walk(side))) return;
-      if (!(yield* this.walk(stall.keeper, this.ch.def.walkSpeed * 0.6))) return;
+      if (!(yield* this.walk(stall.keeper, this.ch.walkSpeed * 0.6))) return;
     }
     this.life.openStall(stall, this.id);
     try {

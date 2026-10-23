@@ -277,9 +277,10 @@ expression changes, so the cost is tiny.
 
 **Limits.** Motion is generated, not hand-animated, so it will be simpler
 than the film's best moments. Gags that change the whole silhouette, like
-melting into a puddle, are done case by case or not at all. Arms are stubs
-with no elbows or fingers, true to the design, and hold props in a fixed
-grip. Distant crowd islanders, such as the rows at the night feast, use a
+melting into a puddle, are done case by case or not at all. Arms are mitten
+arms as short as the design's stubs, with an elbow and a wrist but no
+fingers, and hold props by their side, tipped out of the way of the head and
+body as they move (`characters/Holding.ts`). Distant crowd islanders, such as the rows at the night feast, use a
 cheaper bob-only animation so phones stay smooth.
 
 ### Cast
@@ -392,22 +393,39 @@ with M2.
   only in the calm water. The follow camera from behind stays in the Test
   panel, for testing.
 - **Left half of screen:** virtual joystick appears where you touch. Move
-  the way you look.
+  the way you look; at its edge you run, and held there a moment you sprint
+  (its ring goes pink).
 - **Right half, drag:** look around; pinch narrows the view toward the
   film's lens.
 - **Context button (bottom right):** changes meaning by situation — Talk,
   Pick up, Sit, Jump.
 - **Tap an NPC:** walk to them and talk.
-- **Desktop:** WASD + mouse, E to interact, Space to jump.
+- **Desktop:** WASD + mouse (W runs, Shift sprints), E to interact, Space to
+  jump.
 
 ### 6.2 Movement
 
 | State | Speed | Notes |
 |---|---|---|
-| Walk | 3 m/s | Capsule collider slides along the heightmap and prop colliders. |
-| Run | 5 m/s | Push joystick to the edge. |
+| Walk | 1.7 m/s (the cast 1.7–2.2) | Most of the stick. Slides along whatever stops you, at any angle. |
+| Run | 3 m/s (the cast 3–4) | The stick's edge, or W. |
+| Sprint | 4.2 m/s (1.4× a run) | Shift, or the stick held at its edge 0.8 s. You only, so far. |
 | Wade | 2 m/s | Water above the knees. You wade in up to your chest and no further: there is no swimming. |
 | Row | 3 m/s | In the rowboat. Joystick steers, the boat turns gently. Context button gets out at a shore or ledge. |
+
+**Built (2026-10-23, the user's choices):** a light weight to every step
+(`Character.ease`: from standing to a run in about 0.25 s, a run to a stop in
+about 0.15 s, eased in and out as a critically damped spring, turning as
+quick as stopping); walking into something, you lose the part of your pace
+that went into it and slide along it as far as you push along it
+(`Island.ts` slide). Jumps keep the speed you jumped with, the stick steering
+only a third as much in the air, letting it go slowing you not at all; a
+jump pressed 0.15 s before landing is jumped on landing, and one 0.12 s after
+walking off an edge still jumps. Everyone walks in their own way (`Gait` in
+`definitions.ts`: the cast each their own, you and the islanders the plain
+way, each islander a little differently), and steps round as they turn on
+the spot, no faster than 7 radians a second for their quickness. Wading is
+not slower yet.
 
 ### 6.3 Time, weather, and sim
 
@@ -468,6 +486,12 @@ face to face, one gives way; held up still, a walker squeezes past. Stuck,
 they seek a way round whoever stands in it; no one stands about in a
 doorway or a narrow way. They never move you: they ask you to let them by
 and go round you (or wait at a door you stand in).
+Nobody sets straight off again on arriving: done with something, they stand
+a moment looking about first (Resident.settle), and whoever goes about with
+a housemate keeps walking with them, in step, rather than in bursts.
+After anything with you they part from you (Resident.partFrom): somewhere to
+be, a moment and a wave and a word of where; nowhere to be, they stay with
+you a while. The next part of their day waits till they have.
 
 ### 6.5 Dialogue
 
@@ -578,6 +602,16 @@ look at is shown (`core/Focus.ts`): a small cream ▽ floats over the thing,
 person or seat you look at, gliding to the next, and a see-through ghost
 of what you hold shows where it would be put down; what you look at is what is
 nearest the middle of your view, kept until you clearly look elsewhere.
+Things in the wild (the user, 2026-10-23): the island tidies up overnight,
+everything with a place of its own going back to it each morning from
+anyone's pouch, yours too; islanders put every keepsake down on their hut's
+floor at bedtime; the village's torches hold brands you can take (the pole
+dark till it is back), two torches lie in the cave's mouth and a torch burns
+whenever it is held, and three unique books lie on the huts' shelves.
+Nothing anyone holds goes into them (the user: a torch's tip had stuck into
+heads): what is held is kept clear of their head, body and clothes each
+frame, tipped and pushed out as little as it must be (`characters/Holding.ts`),
+and one-pawed gestures use the free paw.
 
 **Built so far (2026-10-23, `world/Footprints.ts`):** footprints in the sand,
 yours and everyone's walking near you: a print of each foot as it comes

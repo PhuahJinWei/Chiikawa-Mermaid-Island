@@ -287,6 +287,10 @@ export class Hands {
     // (Back in their paw if something else was put there meanwhile: you, looking out of their eyes.)
     if (this.copy && id && this.ch.holding !== this.copy) this.ch.hold(this.copy, !!ITEMS[id].flat);
     if (this.copy) this.copy.scale.setScalar(this.left);
+    // A torch burns whenever it is held (the user, 2026-10-23). (Yours is seen to by Play, which puts it out
+    // while a staged shot has you elsewhere.)
+    const flame = this.copy?.userData.flame;
+    if (flame) flame.visible = true;
     return this.copy;
   }
 

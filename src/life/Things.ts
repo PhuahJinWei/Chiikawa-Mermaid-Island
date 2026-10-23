@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { sharedUniforms } from '../characters/CharacterMaterial';
 import { lyingMaterials } from '../characters/Props';
 import { outlineGeometry } from '../world/Ink';
 import { CANOPY_SHADE } from '../world/Look';
@@ -31,10 +32,15 @@ export interface Thing extends Carried {
   /** Where a paw takes it up as it lies (its prop's origin): what you reach for (see Play). */
   readonly grip: THREE.Vector3;
   /** The trees' shade it lies in as the light falls now (white in the sun), following the sun and the moon
-   * over the day (see reshade). */
+   * over the day (see reshade); in the forbidden cave, the cave's own light on it, as it is on someone there. */
   readonly shade: THREE.Color;
+  /** Lies in the forbidden cave, out of the open air: lit by the cave's light only (see Things.shadeOf). */
+  readonly inCave: boolean;
   /** Drawn now, near enough the camera (see update). */
   shown: boolean;
+  /** In its stand (a village torch's brand, burning on its pole: see ThingsPlan.stands), drawn by the stand's
+   * own prop, not here; still there to take up. */
+  hidden: boolean;
   /** The morning that left it about (gone the next if no one takes it up), or null for kept where it lies. */
   readonly day: number | null;
   /** Whoever is on their way to take it up (see Life's chooser), so two do not go for one; or null. */
@@ -57,8 +63,10 @@ export interface SavedThing {
 /**
  * What public/data/things.json lays about the island:
  * - `kept`: things with a place of their own, each by a name of its own (`id`): what it is, where it lies
- *   (x, z, and `y`, the height of what it lies on if not the ground's top: the stage's deck, a porch), and
- *   its turn (radians).
+ *   (x, z, and `y`, the height of what it lies on if not the ground's top: the stage's deck, a porch; or
+ *   `height`, just how high it lies, on a shelf, on the forbidden cave's floor), and its turn (radians).
+ * - `stands`: props that hold a thing each at their flame (the village's torches, each its brand): the
+ *   prop's kind and the thing. The game finds every such prop placed (see Game, Props.brands).
  * - `daily`: what each morning leaves about an area: how many of each thing (`items`), within a box (`box`:
  *   x from, to, z from, to), out of any of the boxes in `avoid`, only where the ground stands so high over
  *   the water (`shore`, metres, from, to: a beach's sand) if given (else anywhere one stands on dry ground),
@@ -66,7 +74,8 @@ export interface SavedThing {
  * A thing named there that the game has no model for is left out.
  */
 export interface ThingsPlan {
-  kept: { id: string; item: ItemId; x: number; z: number; y?: number; yaw: number }[];
+  kept: { id: string; item: ItemId; x: number; z: number; y?: number; height?: number; yaw: number }[];
+  stands: { prop: string; item: ItemId }[];
   daily: { items: Record<string, number>; box: [number, number, number, number]; avoid?: [number, number, number, number][]; shore?: [number, number]; apart?: number }[];
 }
 
@@ -74,7 +83,7 @@ export async function loadThingsPlan(): Promise<ThingsPlan> {
   const response = await fetch('data/things.json');
   if (!response.ok) throw new Error('Could not load data/things.json');
   const plan = (await response.json()) as Partial<ThingsPlan>;
-  return { kept: plan.kept ?? [], daily: plan.daily ?? [] };
+  return { kept: plan.kept ?? [], stands: plan.stands ?? [], daily: plan.daily ?? [] };
 }
 
 /** Things are drawn only this near the camera (metres). */
@@ -94,6 +103,9 @@ const SHADE_STEP = 1 / 512;
 /** A kind of thing lying about near the camera, drawn at once (see Things.draw): its things' bodies and their
  * pen, each thing a copy (an instance) of the kind's shape, where it lies and in its shade. */
 interface Kind {
+  item: ItemId;
+  /** Its things in the forbidden cave (drawn out of the open air), or out on the island. */
+  cave: boolean;
   body: THREE.InstancedMesh;
   hull: THREE.InstancedMesh;
   /** Its things drawn, in their copies' order. */
@@ -111,35 +123,51 @@ const _v = new THREE.Vector3();
 const _m = new THREE.Matrix4();
 const _one = new THREE.Vector3(1, 1, 1);
 const _shade = new THREE.Color();
+const _cave = new THREE.Color();
 
 export class Things {
   readonly list: Thing[] = [];
   readonly group = new THREE.Group();
-  /** The places some things have of their own (see Thing.home): where each lies and which way. */
-  readonly homes = new Map<string, { item: ItemId; at: THREE.Vector3; yaw: number }>();
+  /** The places some things have of their own (see Thing.home): where each lies and which way; a stand's
+   * (see ThingsPlan.stands) which stand it is (see Props.brands). */
+  readonly homes = new Map<string, { item: ItemId; at: THREE.Vector3; yaw: number; stand?: number }>();
+  /** A thing has gone into its stand (`filled`) or been taken out of it: the stand's prop shows it or not
+   * (see Stage.setBrand). Set by the game. */
+  onStand: (stand: number, filled: boolean) => void = () => {};
   /** The last morning that left things about. */
   beachDay = -1;
   /** Copies no longer held, kept to be used again. */
   private readonly spare = new Map<string, ItemCopy[]>();
-  /** Each kind lying about, drawn at once (see draw), and what it is drawn with. */
-  private readonly kinds = new Map<ItemId, Kind>();
+  /** Each kind lying about, drawn at once (see draw), out on the island and in the forbidden cave, and what it
+   * is drawn with there. */
+  private readonly kinds = new Map<string, Kind>();
   private readonly materials = lyingMaterials();
+  private readonly caveMaterials = lyingMaterials(false);
   /** Where in `list` the shade was last looked at again (see reshade). */
   private reshaded = 0;
 
+  /** `shade`, the trees' shade at a point (in the film look); `caveLight`, the forbidden cave's own light at a
+   * point inside it, into `out` (false outside it). */
   constructor(
     readonly models: ItemModels,
     scene: THREE.Object3D,
     private readonly plan: ThingsPlan,
     private readonly shade: ((x: number, y: number, z: number) => number) | null,
+    private readonly caveLight: ((x: number, y: number, z: number, out: THREE.Color) => boolean) | null = null,
   ) {
     this.group.name = 'things';
     scene.add(this.group);
     for (const k of plan.kept) {
       if (!isItem(k.item)) continue;
-      const at = new THREE.Vector3(k.x, groundHeight(k.x, k.z, k.y ?? Infinity), k.z);
+      const at = new THREE.Vector3(k.x, k.height ?? groundHeight(k.x, k.z, k.y ?? Infinity), k.z);
       this.homes.set(k.id, { item: k.item, at, yaw: k.yaw });
     }
+  }
+
+  /** A stand (see ThingsPlan.stands): the place of its own of a thing of `item`'s kind, at `at`, in stand
+   * `stand` (see Props.brands). */
+  addStand(id: string, item: ItemId, at: THREE.Vector3, stand: number): void {
+    if (isItem(item)) this.homes.set(id, { item, at: at.clone(), yaw: 0, stand });
   }
 
   /** A copy of a thing, fresh or used again. */
@@ -165,6 +193,9 @@ export class Things {
   put(c: Carried, at: THREE.Vector3, yaw: number, day: number | null = null): Thing {
     const item = c.item;
     const y = at.y + this.models.footOf(item, ITEMS[item].rest) + 0.004;
+    // In its stand, if it has one and lies at it: the stand's prop shows it.
+    const home = c.home ? this.homes.get(c.home) : undefined;
+    const hidden = home?.stand !== undefined && home.at.distanceTo(at) < 0.3;
     const thing: Thing = {
       item,
       home: c.home,
@@ -174,24 +205,30 @@ export class Things {
       yaw,
       grip: new THREE.Vector3(at.x, y, at.z),
       shade: new THREE.Color(1, 1, 1),
+      inCave: !!this.caveLight?.(at.x, y, at.z, _cave),
       shown: false,
+      hidden,
       day,
       sought: null,
     };
-    // Lit as the ground under it: in the trees' shade if it is; never burning (drawn without its flame).
+    // Lit as the ground under it: in the trees' shade if it is, in the cave by its light; never burning (drawn
+    // without its flame).
     this.shadeOf(thing);
     this.list.push(thing);
     // Drawn from the next frame on, if it lies near the camera (see update); its kind's drawing made now if
     // it is the first of its kind, so the game's shaders are made with the rest as it starts.
-    this.kindOf(item);
+    this.kindOf(item, thing.inCave);
+    if (hidden && home?.stand !== undefined) this.onStand(home.stand, true);
     return thing;
   }
 
-  /** Takes `thing` up: off the ground; what it is and where it belongs. */
+  /** Takes `thing` up: off the ground (or out of its stand); what it is and where it belongs. */
   take(thing: Thing): Carried {
     const i = this.list.indexOf(thing);
     if (i >= 0) this.list.splice(i, 1);
-    if (thing.shown) this.kindOf(thing.item).changed = true;
+    if (thing.shown) this.kindOf(thing.item, thing.inCave).changed = true;
+    const stand = thing.hidden && thing.home ? this.homes.get(thing.home)?.stand : undefined;
+    if (stand !== undefined) this.onStand(stand, false);
     return { item: thing.item, home: thing.home, owner: thing.owner, lent: thing.lent };
   }
 
@@ -214,20 +251,26 @@ export class Things {
       t.shown = shown;
       // (Out of sight its shade was let be.)
       if (shown) this.shadeOf(t);
-      this.kindOf(t.item).changed = true;
+      this.kindOf(t.item, t.inCave).changed = true;
     }
     this.reshade();
-    for (const [item, kind] of this.kinds) {
-      if (kind.changed) this.draw(item, kind);
+    for (const kind of this.kinds.values()) {
+      if (kind.changed) this.draw(kind);
       else if (kind.shaded) this.colour(kind);
       kind.changed = kind.shaded = false;
     }
   }
 
-  /** The trees' shade on `t` as the light falls now, from the sun or the moon (see Thing.shade); whether it
-   * changed enough to be drawn. */
+  /** The trees' shade on `t` as the light falls now, from the sun or the moon (see Thing.shade); in the cave, its
+   * own light there, as a share of the hour's (which its drawing then takes out: see lyingMaterials), as someone
+   * there is lit (see Character.updateShade); whether it changed enough to be drawn. */
   private shadeOf(t: Thing): boolean {
-    _shade.setRGB(1, 1, 1).lerp(CANOPY_SHADE, this.shade?.(t.grip.x, t.grip.y, t.grip.z) ?? 0);
+    if (t.inCave && this.caveLight?.(t.grip.x, t.grip.y, t.grip.z, _cave)) {
+      const a = sharedUniforms.uAmbient.value;
+      _shade.setRGB(_cave.r / Math.max(a.r, 0.05), _cave.g / Math.max(a.g, 0.05), _cave.b / Math.max(a.b, 0.05));
+    } else {
+      _shade.setRGB(1, 1, 1).lerp(CANOPY_SHADE, this.shade?.(t.grip.x, t.grip.y, t.grip.z) ?? 0);
+    }
     const was = t.shade;
     if (Math.abs(_shade.r - was.r) + Math.abs(_shade.g - was.g) + Math.abs(_shade.b - was.b) < SHADE_STEP) return false;
     was.copy(_shade);
@@ -238,7 +281,7 @@ export class Things {
    * over, so many things a frame, in turn (RESHADE): a pile of them in a few frames, a thing here and there
    * every frame. */
   private reshade(): void {
-    if (!this.shade) return;
+    if (!this.shade && !this.caveLight) return;
     const n = this.list.length;
     let looked = 0;
     for (let k = 0; k < n && looked < RESHADE; k++) {
@@ -246,49 +289,54 @@ export class Things {
       const t = this.list[this.reshaded];
       if (!t.shown) continue;
       looked++;
-      if (this.shadeOf(t)) this.kindOf(t.item).shaded = true;
+      if (this.shadeOf(t)) this.kindOf(t.item, t.inCave).shaded = true;
     }
   }
 
-  /** The drawing of what lies about of `item`'s kind (see Kind), made the first time one lies about. */
-  private kindOf(item: ItemId): Kind {
-    let kind = this.kinds.get(item);
+  /** The drawing of what lies about of `item`'s kind (see Kind), out on the island or in the cave, made the first
+   * time one lies about there. */
+  private kindOf(item: ItemId, cave: boolean): Kind {
+    const key = cave ? `${item}:cave` : item;
+    let kind = this.kinds.get(key);
     if (!kind) {
-      kind = { ...this.drawing(item, ROOM), near: [], changed: false, shaded: false };
-      this.kinds.set(item, kind);
+      kind = { item, cave, ...this.drawing(item, cave, ROOM), near: [], changed: false, shaded: false };
+      this.kinds.set(key, kind);
     }
     return kind;
   }
 
-  /** Bodies and pen for so many (`room`) things of `item`'s kind drawn at once, none yet. */
-  private drawing(item: ItemId, room: number): { body: THREE.InstancedMesh; hull: THREE.InstancedMesh } {
+  /** Bodies and pen for so many (`room`) things of `item`'s kind drawn at once, none yet, out on the island or in
+   * the cave. */
+  private drawing(item: ItemId, cave: boolean, room: number): { body: THREE.InstancedMesh; hull: THREE.InstancedMesh } {
     const shape = this.models.shape(item);
-    const body = new THREE.InstancedMesh(shape, this.materials.body, room);
+    const materials = cave ? this.caveMaterials : this.materials;
+    const body = new THREE.InstancedMesh(shape, materials.body, room);
     body.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     body.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(room * 3), 3).setUsage(THREE.DynamicDrawUsage);
     // The pen's hull shares where the bodies lie, their shades and their bounds (see addOutline).
-    const hull = new THREE.InstancedMesh(outlineGeometry(shape), this.materials.ink, room);
+    const hull = new THREE.InstancedMesh(outlineGeometry(shape), materials.ink, room);
     hull.instanceMatrix = body.instanceMatrix;
     hull.instanceColor = body.instanceColor;
     hull.boundingSphere = body.boundingSphere = new THREE.Sphere();
     body.count = hull.count = 0;
     body.visible = hull.visible = false;
-    body.name = hull.name = `things:${item}`;
+    body.name = hull.name = cave ? `things:${item}:cave` : `things:${item}`;
     this.group.add(body, hull);
     return { body, hull };
   }
 
-  /** Draws `item`'s things lying near the camera, each where it lies, turned as it rests, in its shade: made
-   * room for if there are more than its drawing has (twice as many, the old drawing let go). */
-  private draw(item: ItemId, kind: Kind): void {
-    const near = this.list.filter((t) => t.item === item && t.shown);
+  /** Draws `kind`'s things lying near the camera, each where it lies, turned as it rests, in its shade: made room
+   * for if there are more than its drawing has (twice as many, the old drawing let go). */
+  private draw(kind: Kind): void {
+    const item = kind.item;
+    const near = this.list.filter((t) => t.item === item && t.inCave === kind.cave && t.shown && !t.hidden);
     const room = kind.body.instanceMatrix.count;
     if (near.length > room) {
       for (const mesh of [kind.body, kind.hull]) {
         mesh.removeFromParent();
         mesh.dispose();
       }
-      Object.assign(kind, this.drawing(item, Math.max(near.length, room * 2)));
+      Object.assign(kind, this.drawing(item, kind.cave, Math.max(near.length, room * 2)));
     }
     const { body, hull } = kind;
     const rest = ITEMS[item].rest;

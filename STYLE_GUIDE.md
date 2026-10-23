@@ -172,9 +172,15 @@ never pushed, because it is other people's artwork.
   elbow and wrist, never as hinges. A short arm is not fixed to the body's side. As the drawings
   show, a paw reaching before them brings its arm out of the front of the
   body, as far up as under the mouth, so both paws can sit on the face
-  under the mouth (the user's drawing of Hachiware), meet before the chest,
-  or hold a thing together. A paw goes no higher than that before the face.
-  Food goes up to the mouth, as on the official figures.
+  under the mouth (the user's drawing of Hachiware) or hold a thing
+  together. A paw goes no higher than that before the face. Food goes up to
+  the mouth, as on the official figures.
+- **Paws at the sides unless they are needed.** A paw comes before them
+  only to hold or eat something, or for a gesture (a wave, a cheer, tears,
+  a fright). Standing about, talking, bowing and sitting, both paws stay at
+  their sides, as Chiikawa's characters are drawn and as they sit round
+  the film's bonfire. Talking, a paw lifts out at its side now and then.
+  The user found paws before them for no reason odd.
 
 ## 2. Shared costume: the island outfit
 

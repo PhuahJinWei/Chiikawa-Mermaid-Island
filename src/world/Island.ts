@@ -140,6 +140,13 @@ const EDGE_MARGIN = 0.3;
 const CAMERA_MARGIN = 0.3;
 /** The highest step a character walks up, onto a deck or a stair. */
 const STEP_UP = 0.35;
+/** Sliding along what stops someone (see slide): how many halvings find where their move first meets it; the
+ * turns off the way they go tried in turn to find the way along it (radians: 30°, 60° and 80°; walking into it
+ * any nearer head on, they stop against it); and how many halvings then find the least turn that slides them
+ * along it. */
+const MEET = 4;
+const ROUND = [Math.PI / 6, Math.PI / 3, (4 * Math.PI) / 9];
+const ROUND_FINE = 4;
 /** How steeply the floor the shaders see falls through the water's surface across the quay's line
  * (metres per metre): gently enough that every square of the height grid the line crosses lies on
  * the slope, which then filters into a straight crossing along the line. It meets the sand 1.4 m in
@@ -1098,9 +1105,72 @@ export function eyeLimit(p: THREE.Vector3, feet: number): void {
 }
 
 /**
+ * Moves `p`, where someone who was at `from` would go, back to where they may be (`ok`): as far straight on as
+ * they can go, then the rest of the way along the edge of what stops them, turned off the way they were going to
+ * whichever side turns it least, as far as the rest goes that way. So they slide along a wall, a prop, a rock, a
+ * bank or the edge of deep water at any angle to it, as fast as they push along it (all of it alongside, less the
+ * more they walk into it, none head on), and keep to it, not off it and back. (Before 2026-10-23 they kept only
+ * the move's east-west or north-south part: stuck walking into a wall at 60°, slower along it at any angle not
+ * on those lines, and juddering 3 cm off it and back.) `ok` holds at `from` and not at `p`.
+ */
+function slide(p: THREE.Vector3, from: THREE.Vector3, ok: (x: number, z: number) => boolean): void {
+  const mx = p.x - from.x;
+  const mz = p.z - from.z;
+  const len = Math.hypot(mx, mz);
+  p.x = from.x;
+  p.z = from.z;
+  if (len < 1e-6) return;
+  let lo = 0;
+  let hi = 1;
+  for (let i = 0; i < MEET; i++) {
+    const t = (lo + hi) / 2;
+    if (ok(from.x + mx * t, from.z + mz * t)) lo = t;
+    else hi = t;
+  }
+  const qx = from.x + mx * lo;
+  const qz = from.z + mz * lo;
+  p.x = qx;
+  p.z = qz;
+  const rest = len * (1 - lo);
+  const ux = mx / len;
+  const uz = mz / len;
+  // The rest of the move turned by `a`, as much of it as goes that way.
+  const fits = (a: number): boolean => {
+    const c = Math.cos(a);
+    const s = Math.sin(a);
+    return ok(qx + (ux * c - uz * s) * rest * c, qz + (ux * s + uz * c) * rest * c);
+  };
+  // The least turn to one side that fits, between one that does not (`no`) and one that does (`yes`).
+  const least = (side: number, no: number, yes: number): number => {
+    for (let i = 0; i < ROUND_FINE; i++) {
+      const m = (no + yes) / 2;
+      if (fits(side * m)) yes = m;
+      else no = m;
+    }
+    return yes;
+  };
+  let tried = 0;
+  for (const a of ROUND) {
+    const left = fits(a);
+    const right = fits(-a);
+    if (left || right) {
+      const l = left ? least(1, tried, a) : Infinity;
+      const r = right ? least(-1, tried, a) : Infinity;
+      const turn = l <= r ? l : -r;
+      const c = Math.cos(turn);
+      const s = Math.sin(turn);
+      p.x = qx + (ux * c - uz * s) * rest * c;
+      p.z = qz + (ux * s + uz * c) * rest * c;
+      return;
+    }
+    tried = a;
+  }
+}
+
+/**
  * Keeps a character who moved from `from` to `p` on ground they can stand on (`from.y` is where
  * their feet were): if `p` is in deep water, up a cliff, too high a step or inside something, they
- * slide along it (keeping whichever of the two moves is allowed), or stay where they were.
+ * slide along it (see slide), or stop against it.
  */
 export function clampToWalkable(p: THREE.Vector3, from: THREE.Vector3): void {
   const feet = from.y;
@@ -1109,12 +1179,7 @@ export function clampToWalkable(p: THREE.Vector3, from: THREE.Vector3): void {
   // into what stands in their way, nor into anything else: not on through a wall.
   const stuck = !canStand(from.x, from.z, feet);
   if (stuck && mayStep(p.x, p.z, from, feet, true)) return;
-  if (mayStep(p.x, from.z, from, feet, stuck)) p.z = from.z;
-  else if (mayStep(from.x, p.z, from, feet, stuck)) p.x = from.x;
-  else {
-    p.x = from.x;
-    p.z = from.z;
-  }
+  slide(p, from, (x, z) => mayStep(x, z, from, feet, stuck));
 }
 
 /** Whether someone whose feet were at `feet` at `from` may step to (x, z): onto what they can stand on, or,
@@ -1155,12 +1220,7 @@ export function clampInAir(p: THREE.Vector3, from: THREE.Vector3, y: number): vo
   // is in their way, nor into anything else.
   const stuck = !clearInAir(from.x, from.z, y);
   if (stuck && mayFly(p.x, p.z, from, y, true)) return;
-  if (mayFly(p.x, from.z, from, y, stuck)) p.z = from.z;
-  else if (mayFly(from.x, p.z, from, y, stuck)) p.x = from.x;
-  else {
-    p.x = from.x;
-    p.z = from.z;
-  }
+  slide(p, from, (x, z) => mayFly(x, z, from, y, stuck));
 }
 
 /** Whether someone in the air at `from`, their feet at `y`, may move to (x, z): where they are clear, or,

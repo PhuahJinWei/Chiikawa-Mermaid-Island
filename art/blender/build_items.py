@@ -56,6 +56,10 @@ C.update({k: L.hex_color(v) for k, v in {
     "shellHinge": "#D99383",
     "starCoral": "#F0956A",
     "starDot": "#F8C9A6",
+    "bookRed": "#C8524A",
+    "bookBlue": "#4E7FB8",
+    "bookGreen": "#5E9A5A",
+    "pages": "#F3E9D2",
     # The islanders' own grey-mauve (import_characters.py ISLANDER["body"]).
     "paw": "#988584",
 }.items()})
@@ -326,6 +330,19 @@ def starfish(k):
                    u=6, v=3)
 
 
+def book(cover):
+    """A small clothbound book, as the huts' shelves hold them (houses.furnish_hut's), lying flat: its boards a
+    little bigger than its pages, its spine rounded along its left side, held flat on the paw as a tray is."""
+    def build(k):
+        w, d, h = 0.11, 0.085, 0.022            # along the spine, across, thick
+        board = 0.005
+        k.box(at(0, 0, 0), (w, d, board), cover)
+        k.box(at(0, 0, h - board), (w, d, board), cover)
+        k.box(at(0.004, 0, board), (w - 0.012, d - 0.012, h - 2 * board), "pages")
+        k.add(L.capsule_bm(at(-w / 2 + 0.003, -d / 2, h / 2), (0, 1, 0), d, h / 2 - 0.0005, u=10, v=6), cover)
+    return build
+
+
 def paw(k):
     """Your right paw as you see it from your own eyes, holding what you hold: the islanders' round stub of an
     arm, its tip at the origin, reaching up along +Z."""
@@ -339,7 +356,8 @@ ITEMS = {
     "gyukushi": skewer("beef", 0.034), "ikayaki": ikayaki, "hamayaki": hamayaki, "takoyaki": takoyaki,
     "okonomiyaki": okonomiyaki, "crepe": crepe, "icecream": icecream, "shavedIce": shaved_ice, "kebab": kebab,
     "castella": castella, "obanyaki": obanyaki, "steamer": steamer, "juice": juice, "ramune": ramune, "beer": beer,
-    "torch": torch, "seashell": seashell, "starfish": starfish, "paw": paw,
+    "torch": torch, "seashell": seashell, "starfish": starfish,
+    "book_red": book("bookRed"), "book_blue": book("bookBlue"), "book_green": book("bookGreen"), "paw": paw,
 }
 # build_props' hand-held things, drawn here only for their icons.
 BORROWED = {"can": P.build_can, "ukulele": P.build_ukulele}

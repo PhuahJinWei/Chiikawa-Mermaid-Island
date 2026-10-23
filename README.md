@@ -48,11 +48,11 @@ You see the island out of your own eyes, as a nameless islander.
 
 | Phone | Desktop | Action |
 |---|---|---|
-| Drag on the left half | WASD or arrow keys (Shift to walk) | Move the way you look; push the stick to its edge to run |
+| Drag on the left half | WASD or arrow keys (they run; Shift sprints) | Move the way you look; push the stick to its edge to run, and hold it there a moment to sprint (the ring goes pink) |
 | Drag on the right half | Drag with the mouse | Look around |
 | Pinch on the right half | Mouse wheel | Narrow the view toward the film's lens, and back |
 | Jump button | Space | Jump (whoever is near may hop or wave back) |
-| Action button (ひろう, かりる, おく, あげる, はなす, すわる, ねる, たつ, みせばん, わたす, たべきる, のみきる) | E or Enter | What you look at: pick it up (borrow it, if it is someone's), put down what you hold, give it, talk, sit, sleep through the night in your own bed, get up; behind a stall's counter no one keeps today, keep it, and hand its goods to whoever lines up. What you have bitten into cannot be put down or given: たべきる / のみきる finishes it |
+| Action button (ひろう, かりる, おく, もどす, あげる, はなす, すわる, ねる, たつ, みせばん, わたす, たべきる, のみきる) | E or Enter | What you look at: pick it up (borrow it, if it is someone's), put down what you hold, put a torch's brand back on its pole, give it, talk, sit, sleep through the night in your own bed, get up; behind a stall's counter no one keeps today, keep it, and hand its goods to whoever lines up. What you have bitten into cannot be put down or given: たべきる / のみきる finishes it |
 | Use button (たべる, のむ, ひく) | F | Eat, drink or play what you hold |
 | Pouch (ふくろ) button, then a slot | Tab, or 1 to 6 | Your pouch of six slots, each a stack of one kind (up to 99, its count on its corner): what is in your paw goes into the pouch (onto its own stack if there is one) and one thing of the slot comes into your paw. Something you have bitten into goes into no pouch: put away, it is gone, eaten up |
 | きもち button (top right), then one of its nine | R, then 1 to 9 | Do something yourself: wave, bow, cheer, hop, dance, chat, look about, start, cry. Whoever is near may answer it |
@@ -77,13 +77,28 @@ right paw and a pouch of six slots, each a stack of up to 99 things of one kind,
 whose it is. A stall hands over nothing to someone with no room for it: its keeper says so. What lies
 about comes from `public/data/things.json`:
 
-- `kept`: things with a place of their own, back there each morning from wherever they lie (or made
-  anew if no one has one): an `id` of its own, the `item`, where (`x`, `z`), `y` if it lies on
-  something above the ground's top (a deck, a porch), and its turn (`yaw`, radians).
+- `kept`: things with a place of their own (the stage's ukulele, the torch by your door, the two torches
+  lying in the forbidden cave's mouth, a book on a shelf in three of the huts), back there each morning
+  from wherever they are, your pouch and the islanders' too (the island tidies up overnight; what is
+  yours to keep is what has no place of its own): an `id` of its own, the `item`, where (`x`, `z`),
+  `y` if it lies on something above the ground's top (a deck, a porch) or `height` for just how high
+  it lies (a shelf, the cave's floor), and its turn (`yaw`, radians).
+- `stands`: props that hold a thing each at their flame: the village's torches, each its brand
+  (`prop`, `item`). Take one off its stake and the stake is dark until it is back (もどす, or the morning).
 - `daily`: what each morning lays about an area, gone the next morning if no one took it up: how many
   of each thing (`items`), within a `box` (`[x from, x to, z from, z to]`), outside any of the `avoid`
   boxes, only on the sand's band above the water if `shore` gives one (`[from, to]` metres; else
   anywhere one can stand on dry ground), at least `apart` metres from one another.
+
+At bedtime an islander puts every keepsake they still carry down on their hut's floor, so nothing
+sleeps in a pouch where no one can see it. A torch burns whenever it is held, day and night, its light
+reaching what is round it after dark and in the forbidden cave, lighting your way there: bring your own, or take one of the two lying in its mouth.
+
+Nothing anyone holds goes into them (`src/characters/Holding.ts`): a thing is held out at their side,
+by its own side, and each frame it is tipped out and pushed a little further out only as far as it must
+be to stay 1.5 cm clear of their head, body, crown, ears, cape and skirt (spread on the ground too, as
+they sit), whatever they are doing. Waving and talking use the free paw when the right one is full. A
+new thing needs nothing for this: its shape is read from its model.
 
 Nothing else needs changing: the islanders see whatever lies about each time they choose what to do,
 and choose by what a thing is for (eaten, drunk, played or kept), never by its name. A new kind of

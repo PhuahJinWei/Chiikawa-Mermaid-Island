@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { CHARACTER_LIGHTS } from '../world/Firelight';
-import { FILM } from '../world/Look';
+import { FILM, FIRE_MARK } from '../world/Look';
 import { MAX_PARTS, PART, type OutfitInfo, type Rig, type SkirtPattern } from './Model';
 
 /**
@@ -324,7 +324,8 @@ void main() {
  * blue, the darker the stronger the fire round them, as the film exposes for its fire (its far side
  * about half as bright as the near), with a little of the fire's warmth coming back off the ground.
  * Lights on two sides light both; a lit room they stand in warms them all round (uFireFill). Far from
- * any fire, nothing changes.
+ * any fire, nothing changes. How much the fire lights the point is left in fireLight, for the
+ * character's mark (see FIRE_MARK).
  */
 const FIRE_GLSL = /* glsl */ `
 uniform vec4 uFire[FIRE_LIGHTS];
@@ -333,15 +334,21 @@ varying vec3 vFireNormal;
 const vec3 FIRE_WARM = vec3(2.9, 2.05, 1.1);
 const float FIRE_DIM = 0.4;
 const float FIRE_FILL = 0.08;
+float fireLight = 0.0;
 vec3 fireTint() {
   vec3 n = normalize(vFireNormal);
   float near = uFireFill;
   float lit = uFireFill;
   for (int i = 0; i < FIRE_LIGHTS; i++) {
     near += uFire[i].w;
-    lit += uFire[i].w * smoothstep(-0.1, 0.3, dot(n, uFire[i].xyz));
+    // A light's way sent short of a unit wraps round them that much (the torch in their paw: see
+    // Firelight's HELD_WRAP), lighting their far side too.
+    float wrap = 1.0 - length(uFire[i].xyz);
+    lit += uFire[i].w * smoothstep(-0.1 - wrap, 0.3, dot(n, uFire[i].xyz));
   }
   near = min(near, 1.0);
+  // Not in a lit room (uFireFill): the film paints its cast in its rooms at night the night's pale blue.
+  fireLight = min(lit, near) * (1.0 - smoothstep(0.0, 0.3, uFireFill));
   vec3 away = (1.0 - FIRE_DIM * near) * (1.0 + (FIRE_WARM - 1.0) * FIRE_FILL * near);
   vec3 toward = 1.0 + (FIRE_WARM - 1.0) * near;
   return mix(away, toward, min(lit, near) / max(near, 1e-3));
@@ -542,7 +549,9 @@ void main() {
 
   gl_FragColor = vec4(col * uAmbient * uShade * fireTint(), 1.0);
   #ifdef FILM_MASK
-  gl_FragColor.a = uMark;
+  // The mark, less as the fire lights them, so the night's grade leaves the firelit side its warmth
+  // (see FIRE_MARK); your own reflection's mark (2) the same way, for the water to pass on.
+  gl_FragColor.a = uMark - ${FIRE_MARK.toFixed(2)} * fireLight;
   #endif
   #include <tonemapping_fragment>
   #include <colorspace_fragment>

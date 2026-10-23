@@ -4,19 +4,28 @@ export interface JoystickView {
   show(x: number, y: number): void;
   move(dx: number, dy: number): void;
   hide(): void;
+  /** Shows whether the stick sprints now (see Input.sprint). */
+  sprint(on: boolean): void;
 }
 
 const RADIUS = 56;
 const DEAD_ZONE = 0.12;
+/** The stick held out at its edge (this share of its reach or more) this long (seconds) breaks into a sprint, kept
+ * till it is eased back in past SPRINT_KEEP (the user, 2026-10-23). */
+const SPRINT_EDGE = 0.97;
+const SPRINT_HOLD = 0.8;
+const SPRINT_KEEP = 0.85;
 
 /**
- * Touch: a joystick appears wherever the left half is touched; dragging the right
- * half turns the camera, two fingers there pinch to zoom.
- * Desktop: WASD or arrows (Shift walks), Space jumps, drag and wheel for the camera; E acts, F uses what
- * you hold, Tab and 1 to 6 the pouch, R the きもち panel (1 to 9 then pick from it).
+ * Touch: a joystick appears wherever the left half is touched (held at its edge a moment, it sprints); dragging
+ * the right half turns the camera, two fingers there pinch to zoom.
+ * Desktop: WASD or arrows run, with Shift sprint, Space jumps, drag and wheel for the camera; E acts, F uses
+ * what you hold, Tab and 1 to 6 the pouch, R the きもち panel (1 to 9 then pick from it).
  */
 export class Input {
   readonly move = new THREE.Vector2();
+  /** Whether you sprint: Shift held as you go, or the stick held at its edge a moment (see SPRINT_HOLD). */
+  sprint = false;
   onFirstMove: (() => void) | null = null;
 
   private moveEnabled = true;
@@ -33,6 +42,8 @@ export class Input {
   private joyId: number | null = null;
   private readonly joyOrigin = new THREE.Vector2();
   private readonly joyVec = new THREE.Vector2();
+  /** How long the stick has been held at its edge (seconds; see SPRINT_HOLD). */
+  private edgeFor = 0;
   private readonly lookPointers = new Map<number, THREE.Vector2>();
   private pinchDistance = 0;
   private readonly keys = new Set<string>();
@@ -56,22 +67,35 @@ export class Input {
     });
   }
 
-  update(): void {
+  update(dt: number): void {
     let kx = 0;
     let ky = 0;
     if (this.keys.has('KeyA') || this.keys.has('ArrowLeft')) kx -= 1;
     if (this.keys.has('KeyD') || this.keys.has('ArrowRight')) kx += 1;
     if (this.keys.has('KeyW') || this.keys.has('ArrowUp')) ky += 1;
     if (this.keys.has('KeyS') || this.keys.has('ArrowDown')) ky -= 1;
+    let sprint = false;
     if (kx || ky) {
-      const slow = this.keys.has('ShiftLeft') || this.keys.has('ShiftRight');
-      this.move.set(kx, ky).normalize().multiplyScalar(slow ? 0.5 : 1);
+      this.move.set(kx, ky).normalize();
+      sprint = this.keys.has('ShiftLeft') || this.keys.has('ShiftRight');
+      this.edgeFor = 0;
     } else {
       const len = this.joyVec.length();
       if (len < DEAD_ZONE) this.move.set(0, 0);
       else this.move.copy(this.joyVec).multiplyScalar(Math.min(1, (len - DEAD_ZONE) / (1 - DEAD_ZONE)) / len);
+      if (len >= SPRINT_EDGE) this.edgeFor += dt;
+      else if (!(this.sprint && len >= SPRINT_KEEP)) this.edgeFor = 0;
+      sprint = this.edgeFor >= SPRINT_HOLD;
     }
-    if (!this.moveEnabled) this.move.set(0, 0);
+    if (!this.moveEnabled) {
+      this.move.set(0, 0);
+      sprint = false;
+      this.edgeFor = 0;
+    }
+    if (sprint !== this.sprint) {
+      this.sprint = sprint;
+      this.joystick.sprint(sprint);
+    }
     if (this.onFirstMove && this.move.lengthSq() > 0) {
       this.onFirstMove();
       this.onFirstMove = null;

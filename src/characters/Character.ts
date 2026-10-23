@@ -1,7 +1,21 @@
 import * as THREE from 'three';
-import type { CharacterDef, ExpressionId } from './types';
+import type { CharacterDef, ExpressionId, Gait } from './types';
 import { MAX_PARTS, PART, type AnchorName, type CharacterModel, type OutfitModel } from './Model';
 import { ArmRig, type ArmPose, type ArmTurns } from './Arms';
+import {
+  BodyPose,
+  BodyShape,
+  HeldShape,
+  fitHeld,
+  heldAt,
+  heldFit,
+  heldTurn,
+  fitted,
+  refit,
+  type DepthIn,
+  type HeldFit,
+  type HoldWay,
+} from './Holding';
 import {
   createCharacterMaterials,
   FOG_FRAGMENT,
@@ -12,7 +26,7 @@ import {
 } from './CharacterMaterial';
 import { Face } from './Face';
 import { Spring } from './Springs';
-import { copyPose, lerpPose, resetPose, restPose } from './Pose';
+import { copyPose, lerpPose, resetPose, restPose, type Pose } from './Pose';
 import { ACTIONS, type ActionContext, type ActionId } from './Actions';
 import type { EmoteHost, EmoteSystem } from './Emotes';
 import { t } from '../i18n/I18n';
@@ -34,7 +48,12 @@ export interface CharacterOptions {
   carry?: THREE.Object3D;
   /** What they play in its action (Rakko's ukulele: see CharacterDef.plays), made by createHeld. */
   instrument?: THREE.Object3D;
+  /** Their own way of walking, over their definition's (each islander's: see definitions.islanderGait). */
+  gait?: Partial<Gait>;
 }
+
+/** The plain way of walking (see Gait). */
+const PLAIN_GAIT: Gait = { pace: 1, stride: 1, bounce: 1, sway: 1, arms: 1, lift: 1, lean: 1, quick: 1 };
 
 export interface FrameContext {
   camera: THREE.Camera;
@@ -81,7 +100,30 @@ export interface Ride {
 
 const GRAVITY = -24;
 const JUMP_SPEED = 5.8;
-const ACCEL = 16;
+/**
+ * How quickly someone on their feet takes the pace they want (the user chose a light touch, 2026-10-23): it eases
+ * there as a critically damped spring does, with no jolt as it starts or as it ends, as fast as this when they
+ * speed up (radians a second: from standing to a run in about 0.25 s) and as this when they slow down or turn
+ * (from a run to standing in about 0.15 s), each for their quickness (Gait.quick). Before, they took a run's pace
+ * in 0.19 s at a steady 16 m/sﾂｲ, and stopped as hard.
+ */
+const GET_GOING = 19;
+const SLOW_DOWN = 31.6;
+/** In the air they carry on as they were going: the stick steers them only this much (m/sﾂｲ, about a third of
+ * how their feet do), and letting it go slows them not at all (the user, 2026-10-23). */
+const AIR_STEER = 3.5;
+/** Crouched this long before a jump (seconds); a jump asked for this soon before they land is jumped as they
+ * land, and walked off an edge, they may still jump for this long. */
+const CROUCH = 0.07;
+const JUMP_EARLY = 0.15;
+const JUMP_LATE = 0.12;
+/** How much faster than they run they sprint (Shift, or the stick held at its edge: see Input.sprint). */
+const SPRINT = 1.4;
+/** Turning, their body turns no faster than this (radians a second, for their quickness): a half turn on the spot
+ * in about half a second, not swung round at once (before 2026-10-23, 0.25 s). On the spot they step round as they
+ * turn, a step each TURN_STEP (radians). */
+const TURN_MOST = 7;
+const TURN_STEP = 0.6;
 /** Walking off an edge deeper than this is a fall, not a step down. */
 const DROP = 0.6;
 /** How dark the firelight's shadow is for how much the light warms them: full where a light warms
@@ -112,17 +154,33 @@ const WALKING_LOOK = 0.35;
 /** How much a lean tips the head (see actionTilt): the body bends as the square of its height (the material's
  * lean), so its slope near the head's height is about this many times the lean. */
 const HEAD_BEND = 1.7;
-/** What they hold in their right paw (see Character.hold): upright, this far ahead of the paw's tip, leaning this
- * far forward (radians); flat, this far ahead and up; eaten, this far out from the mouth and down from it. */
-const HAND_AHEAD = 0.03;
+/** What they hold in their right paw (see Character.hold), in their model's frame: upright, at the paw's tip,
+ * leaning this far forward (radians); flat, this far ahead of it and up; eaten, this far out from the mouth and
+ * down from it, tipped this far back toward it. Wherever it is, it is held by its side and tipped out of them as
+ * far as it must be (see Holding.ts); what they always carry in their left paw (Kurimanju's can) too, upright at
+ * its tip. */
 const HAND_LEAN = 0.15;
 const HAND_FLAT_AHEAD = 0.07;
 const HAND_FLAT_UP = 0.03;
 const HAND_MOUTH_OUT = 0.08;
 const HAND_MOUTH_DOWN = 0.08;
-/** What they always carry sits this far out of their left hand's tip (to their left, metres) and ahead of it. */
-const CARRY_OUT = 0.02;
-const CARRY_AHEAD = 0.03;
+const HAND_MOUTH_TIP = -0.35;
+const X_AXIS = new THREE.Vector3(1, 0, 0);
+const HELD_TURN: Record<HoldWay, THREE.Quaternion> = {
+  upright: new THREE.Quaternion().setFromAxisAngle(X_AXIS, HAND_LEAN),
+  flat: new THREE.Quaternion(),
+  eat: new THREE.Quaternion().setFromAxisAngle(X_AXIS, HAND_MOUTH_TIP),
+};
+const CARRY_TURN = new THREE.Quaternion();
+/** The cave's torch in a staged shot (see holdTorch), held up at the paw's tip leaning this far forward, and out of
+ * them as far as it must be. */
+const TORCH_TURN = new THREE.Quaternion().setFromAxisAngle(X_AXIS, 0.25);
+/** What someone further than this from the camera holds (metres) stays as it sits in their paw, not fitted afresh
+ * (see Holding.ts): from there a few centimetres are under a pixel. Further than FIT_ALWAYS, it is fitted afresh only
+ * every FIT_SOMETIMES frames (each someone on a frame of their own), a centimetre's lag being a pixel there. */
+const FIT_NEAR = 18;
+const FIT_ALWAYS = 6;
+const FIT_SOMETIMES = 3;
 /** Rakko's sword is on his back, as he usually carries it (the user, 2026-10-22), in the middle of it (the user: not
  * out over his right shoulder): its hilt up behind the foot of his head, its blade down his back over his cape,
  * leaning a little to his left (the model's +x), clear of his head's round back and his cape. Its guard's top, in
@@ -142,20 +200,27 @@ const SWORD_BACK_TURN = (() => {
 })();
 /** Only now and then he holds it (the 'sword' action): up point first, as the film has it (`[anime] rakko 1`), in
  * both paws before him (REACH_SWORD in Actions.ts). Its grip's middle there, in his body's own frame at rest
- * (metres), under his chin; its point leaning this far forward and this far out to his left (radians), clear of
- * his head. Held in one paw, as before arms bent, by a model whose arms do not: its grip this far ahead of the
- * paw's tip and in toward his middle (metres). */
-const SWORD_HOLD = new THREE.Vector3(0, 0.235, 0.32);
+ * (metres), before his chest under his cape's neck band (at the band, as before 2026-10-23, the band crossed its
+ * grip); its point leaning this far forward and this far out to his left (radians), clear of his head. Held in one
+ * paw, as before arms bent, by a model whose arms do not: its grip this far ahead of the paw's tip and in toward his
+ * middle (metres). */
+const SWORD_HOLD = new THREE.Vector3(0, 0.195, 0.33);
 const SWORD_FORWARD = 0.6;
 const SWORD_OUT = 0.35;
 const SWORD_AHEAD = 0.03;
 const SWORD_INWARD = 0.02;
-/** Where his ukulele is held while he plays it, in his body's own frame at rest (metres): across his tummy, out in
- * front of his cape's roll, in his paws (REACH_UKULELE in Actions.ts), its body to his right; tipped this far back
- * (radians) and its neck this far up to his left. */
-const UKULELE_AT = new THREE.Vector3(-0.03, 0.27, 0.34);
+/** How the sword is turned in his body's own frame (it turns as his body does, bowing or swaying): held in both
+ * paws, and in one. */
+const SWORD_HELD_TURN = new THREE.Quaternion().setFromEuler(new THREE.Euler(SWORD_FORWARD, 0, -SWORD_OUT, 'YXZ'));
+const SWORD_STUB_TURN = new THREE.Quaternion().setFromEuler(new THREE.Euler(SWORD_FORWARD, 0, SWORD_OUT, 'YXZ'));
+/** Where his ukulele is held while he plays it (and anyone's), in his body's own frame at rest (metres): across his
+ * tummy, under his cape's neck band (at its height, as before 2026-10-23, the band went through its body), in his
+ * paws (REACH_UKULELE in Actions.ts), its body to his right; tipped this far back (radians) and its neck this far up
+ * to his left; so turned in his body's own frame, as it turns. */
+const UKULELE_AT = new THREE.Vector3(-0.03, 0.2, 0.37);
 const UKULELE_BACK = -0.25;
 const UKULELE_UP = 0.45;
+const UKULELE_TURN = new THREE.Quaternion().setFromEuler(new THREE.Euler(UKULELE_BACK, 0, UKULELE_UP, 'YXZ'));
 /** How much wider a grass skirt's hem spreads as they sit (a share of its radius standing), as the film's skirts
  * pool on the ground round them by the bonfire (`[anime] chiikawa 5`): shorter only, the skirt read as their
  * sinking into the ground (the user, 2026-10-23). */
@@ -169,9 +234,12 @@ const FOOT_SIZE = 0.104;
 /** How arms that bend hang at rest (see locomotionPose): this much lower than built (radians), bent this much at
  * the elbow and the wrist. */
 const REST_ARM = { raise: -0.3, swing: 0.2, bend: 0.5, paw: 0.25 };
-/** An arm whose paw holds a thing: swung forward and bent so the thing is before them; the cave's torch raised
- * this high. */
-const HOLD_ARM = { swing: 0.55, bend: 0.75, paw: 0.25, torchRaise: 0.55 };
+/** An arm whose paw holds a thing: raised out and swung a little forward, nearly straight, so the paw is out before
+ * their side, clear of the head's rim over it (tucked in under it, as before 2026-10-23, whatever it held rose into
+ * the head: see Holding.ts); walking, it sways only this share of an empty arm's swing; seated, it is raised this much
+ * more, so what it holds is up off the ground and the skirt spread on it. The cave's torch, held up, as before. */
+const HOLD_ARM = { raise: 0.2, swing: 0.25, bend: 0.2, paw: 0.25, sway: 0.3, seated: 0.5 };
+const TORCH_ARM = { raise: 0.55, swing: 0.55, bend: 0.75 };
 /** Turning to face what they watch, the body stops this near it (radians) and turns this fast (a second). */
 const TURN_DONE = 0.08;
 const TURN_RATE = 4;
@@ -194,6 +262,11 @@ const _s = new THREE.Vector3();
 const _eyes = new THREE.Vector3();
 const _way = new THREE.Vector3();
 const _toLocal = new THREE.Matrix4();
+const _grip = new THREE.Vector3();
+const _off = new THREE.Vector3();
+const _turnNow = new THREE.Quaternion();
+const _heldTurn = new THREE.Quaternion();
+const _eatTurn = new THREE.Quaternion();
 const UP = new THREE.Vector3(0, 1, 0);
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
@@ -282,12 +355,70 @@ function fogInOpenAir(mesh: THREE.Mesh, openAir: THREE.IUniform<number>): void {
   };
 }
 
+/** A pose the other way round: its arms left for right, its lean and its turn to the other side (see
+ * ActionDef.oneHand). (The arms' angles and where their paws reach are each given on their own side.) */
+function mirrorArms(p: Pose): void {
+  let t = p.armLRaise;
+  p.armLRaise = p.armRRaise;
+  p.armRRaise = t;
+  t = p.armLSwing;
+  p.armLSwing = p.armRSwing;
+  p.armRSwing = t;
+  t = p.armLBend;
+  p.armLBend = p.armRBend;
+  p.armRBend = t;
+  t = p.pawLBend;
+  p.pawLBend = p.pawRBend;
+  p.pawRBend = t;
+  t = p.reachL;
+  p.reachL = p.reachR;
+  p.reachR = t;
+  t = p.reachLX;
+  p.reachLX = p.reachRX;
+  p.reachRX = t;
+  t = p.reachLY;
+  p.reachLY = p.reachRY;
+  p.reachRY = t;
+  t = p.reachLZ;
+  p.reachLZ = p.reachRZ;
+  p.reachRZ = t;
+  p.leanX = -p.leanX;
+  p.rootRoll = -p.rootRoll;
+  p.rootYaw = -p.rootYaw;
+  p.gazeX = -p.gazeX;
+}
+
+/** One arm of `to` (its `side`'s) as `from` has it (see ActionDef.fullPawHolds). */
+function keepArm(from: Pose, to: Pose, side: 'L' | 'R'): void {
+  if (side === 'L') {
+    to.armLRaise = from.armLRaise;
+    to.armLSwing = from.armLSwing;
+    to.armLBend = from.armLBend;
+    to.pawLBend = from.pawLBend;
+    to.reachL = from.reachL;
+    to.reachLX = from.reachLX;
+    to.reachLY = from.reachLY;
+    to.reachLZ = from.reachLZ;
+  } else {
+    to.armRRaise = from.armRRaise;
+    to.armRSwing = from.armRSwing;
+    to.armRBend = from.armRBend;
+    to.pawRBend = from.pawRBend;
+    to.reachR = from.reachR;
+    to.reachRX = from.reachRX;
+    to.reachRY = from.reachRY;
+    to.reachRZ = from.reachRZ;
+  }
+}
+
 /**
  * One character: the Blender model, a soft-body shader, springs for
  * follow-through, procedural actions and a drawn face.
  */
 export class Character implements EmoteHost {
   readonly def: CharacterDef;
+  /** How they walk (see Gait). */
+  readonly gait: Gait;
   readonly root = new THREE.Group();
   readonly face: Face;
   readonly height: number;
@@ -344,6 +475,25 @@ export class Character implements EmoteHost {
    * or upright in it; or none. Put away while they hold the cave's torch. */
   private hand: THREE.Object3D | null = null;
   private handFlat = false;
+  /** Their own shape, which what they hold is kept out of; what is in their right paw's shape, how it sits in the
+   * paw and the way it is held (see Holding.ts); what is in their left paw's, and the cave's torch's. */
+  private readonly bodyShape: BodyShape;
+  private handShape: HeldShape | null = null;
+  private readonly handFit: HeldFit = heldFit();
+  private handWay: HoldWay = 'upright';
+  private carryShape: HeldShape | null = null;
+  private readonly carryFit: HeldFit = heldFit();
+  private torchShape: HeldShape | null = null;
+  private readonly torchFit: HeldFit = heldFit();
+  /** Whether what they hold is fitted afresh this frame (near enough the camera, and further off only every so many
+   * frames: see FIT_NEAR), the frames since it last was, and how long that is. */
+  private fitting = true;
+  private fitTick = Math.floor(Math.random() * FIT_SOMETIMES);
+  private fitDt = 0;
+  /** As they are this frame, for their shape (see BodyShape.depthAt); how deep a point of their body's frame as drawn
+   * is in them. */
+  private readonly bodyPose = new BodyPose();
+  private readonly depthIn: DepthIn = (x, y, z) => this.bodyShape.depthAt(x, y, z, this.bodyPose);
   /** What they always have in their left hand (see CharacterOptions.carry), or none. */
   private readonly carried: THREE.Object3D | null;
   /** What they carry with their own clothes (Rakko's sword: see CharacterOptions.own), or none. */
@@ -357,7 +507,7 @@ export class Character implements EmoteHost {
   private readonly outfit: THREE.Group | null = null;
   /** Their own clothes, worn instead of the island outfit (see CharacterOptions.own), or none. */
   private readonly ownOutfit: THREE.Group | null = null;
-  /** Whether outfits are on at all (the Test panel's 島の衣装), and whether someone with clothes of their own
+  /** Whether outfits are on at all (the Test panel's 蟲ｶ縺ｮ陦｣陬・, and whether someone with clothes of their own
    * wears the island outfit instead (only ever from the Test panel). */
   private outfitsOn = true;
   private islandInstead = false;
@@ -369,6 +519,17 @@ export class Character implements EmoteHost {
 
   private readonly desired = new THREE.Vector3();
   private readonly accel = new THREE.Vector3();
+  /** How fast their pace is changing on their feet (m/sﾂｲ, flat): the spring their pace eases by (see GET_GOING). */
+  private readonly easing = new THREE.Vector3();
+  /** A jump asked for in the air, jumped as they land, for this much longer (seconds); and how much longer they
+   * may still jump, having walked off an edge. */
+  private jumpEarly = 0;
+  private jumpLate = 0;
+  /** Turning on the spot: how fast their body turns (radians a second, eased), how far round their steps have gone
+   * (as phase is for walking), and how much they step round, 0 to 1. */
+  private turnRate = 0;
+  private turnPhase = 0;
+  private turnSteps = 0;
   /** What they keep their eyes on (see watch), and how. */
   private watching = false;
   private readonly watchAt = new THREE.Vector3();
@@ -422,6 +583,7 @@ export class Character implements EmoteHost {
 
   constructor(def: CharacterDef, model: CharacterModel, options: CharacterOptions = {}) {
     this.def = def;
+    this.gait = { ...PLAIN_GAIT, ...def.gait, ...options.gait };
     this.model = model;
     this.height = model.rig.height;
     this.width = model.rig.width;
@@ -475,6 +637,8 @@ export class Character implements EmoteHost {
     fogInOpenAir(this.shadow, this.uniforms.uOpenAir);
     fogInOpenAir(this.fireShadow, this.uniforms.uOpenAir);
     this.carried = options.carry ?? null;
+    this.bodyShape = BodyShape.of(model, [options.outfit, options.own?.outfit], SKIRT_FLARE);
+    if (this.carried) this.carryShape = HeldShape.of(this.carried);
     // What they hold is lit as their hand is.
     for (const thing of [this.carried, this.ownCarried, this.instrument]) {
       const held = thing?.userData.light as HeldLight | undefined;
@@ -688,17 +852,32 @@ export class Character implements EmoteHost {
     this.jumpY = 0;
     this.vy = 0;
     this.crouch = -1;
+    this.jumpEarly = this.jumpLate = 0;
     this.velocity.set(0, 0, 0);
+    this.easing.set(0, 0, 0);
     this.desired.set(0, 0, 0);
     this.facing = this.targetFacing = yaw;
+    this.turnRate = this.turnSteps = 0;
     this.headPitch = this.headYaw = 0;
     this.turningToWatch = false;
   }
 
+  /** A crouch and a jump; in the air, a jump as they land (JUMP_EARLY), or at once, just after walking off an
+   * edge (JUMP_LATE). */
   jump(): void {
-    if (this.airborne || this.crouch >= 0) return;
+    if (this.crouch >= 0) return;
+    if (this.airborne) {
+      if (this.jumpLate <= 0) {
+        this.jumpEarly = JUMP_EARLY;
+        return;
+      }
+      this.jumpLate = 0;
+      this.vy = JUMP_SPEED;
+      this.squash.velocity += 2.5;
+    } else {
+      this.crouch = CROUCH;
+    }
     if (this.action && !ACTIONS[this.action.id].allowMove) this.stopAction();
-    this.crouch = 0.07;
   }
 
   play(id: ActionId): void {
@@ -715,7 +894,9 @@ export class Character implements EmoteHost {
    * the scene; it is moved with the hand each frame. */
   holdTorch(torch: THREE.Object3D | null): void {
     if (this.torch && this.torch !== torch) this.torch.visible = false;
+    if (torch !== this.torch) refit(this.torchFit);
     this.torch = torch;
+    this.torchShape = torch ? HeldShape.of(torch) : null;
     if (torch) torch.visible = true;
   }
 
@@ -732,8 +913,10 @@ export class Character implements EmoteHost {
    */
   hold(thing: THREE.Object3D | null, flat = false): void {
     if (this.hand && this.hand !== thing) this.hand.removeFromParent();
+    if (thing !== this.hand) refit(this.handFit);
     this.hand = thing;
     this.handFlat = flat;
+    this.handShape = thing ? HeldShape.of(thing) : null;
     if (!thing) return;
     this.all.add(thing);
     thing.visible = true;
@@ -774,7 +957,7 @@ export class Character implements EmoteHost {
     this.root.updateMatrixWorld(true);
     this.updateFace(dt, ctx);
     this.updateShade(dt, ctx);
-    this.updateShadowAndProp(ctx);
+    this.updateShadowAndProp(ctx, dt);
   }
 
   /** World position of a rig anchor, following the current pose and squash. */
@@ -798,18 +981,27 @@ export class Character implements EmoteHost {
   /** A rig anchor in the body's own frame (its mesh's), following the current pose and squash as its
    * shader does, but not its bow (see setBow). */
   private anchorLocal(name: AnchorName, out: THREE.Vector3): THREE.Vector3 {
+    return this.deform(this.posedAnchor(name, out));
+  }
+
+  /** A rig anchor where its part is posed now, before the squash and the lean (see deform). */
+  private posedAnchor(name: AnchorName, out: THREE.Vector3): THREE.Vector3 {
     // The hands' are the tips of their paws (or of the arm, where it does not bend); the rest are on the head,
     // which is the body but for a head of its own (see headPitch).
     const bends = !!this.armRig;
     const part =
       name === 'handL' ? (bends ? PART.PAW_L : PART.ARM_L) : name === 'handR' ? (bends ? PART.PAW_R : PART.ARM_R) : PART.HEAD;
-    return this.partPoint(out.copy(this.model.anchors[name]), part);
+    return out.copy(this.model.anchors[name]).applyMatrix4(this.parts[part]);
   }
 
   /** A point of a part, given in the model's own frame at rest (`out`), moved to where the part, the squash
    * and the lean now put it in the body's own frame, as the shader moves it. */
   private partPoint(out: THREE.Vector3, part: number): THREE.Vector3 {
-    out.applyMatrix4(this.parts[part]);
+    return this.deform(out.applyMatrix4(this.parts[part]));
+  }
+
+  /** A point in the body's own frame as posed (`out`), squashed and leant as the shader does it. */
+  private deform(out: THREE.Vector3): THREE.Vector3 {
     const s = this.uniforms.uSquash.value;
     const k = 1 / Math.sqrt(s);
     const lean = this.uniforms.uLean.value;
@@ -832,14 +1024,74 @@ export class Character implements EmoteHost {
     return Math.hypot(this.velocity.x, this.velocity.z);
   }
 
+  /** How fast they walk, run and sprint (metres a second), at their own pace (Gait.pace). */
+  get walkSpeed(): number {
+    return this.def.walkSpeed * this.gait.pace;
+  }
+
+  get runSpeed(): number {
+    return this.def.runSpeed * this.gait.pace;
+  }
+
+  get sprintSpeed(): number {
+    return this.runSpeed * SPRINT;
+  }
+
+  /** On their feet: their pace eased toward the one they want as a critically damped spring does (`easing` its
+   * rate), quicker as they slow down or turn than as they speed up along the way they go (see GET_GOING). */
+  private ease(dt: number): void {
+    const v = this.velocity;
+    const want = this.desired;
+    const e = this.easing;
+    const speed = this.speed();
+    const ahead = speed > 1e-3 ? (want.x * v.x + want.z * v.z) / speed : Math.hypot(want.x, want.z);
+    const w = (ahead > speed ? GET_GOING : SLOW_DOWN) * this.gait.quick;
+    const k = Math.exp(-w * dt);
+    const ox = v.x - want.x;
+    const oz = v.z - want.z;
+    const bx = e.x + w * ox;
+    const bz = e.z + w * oz;
+    v.set(want.x + (ox + bx * dt) * k, 0, want.z + (oz + bz * dt) * k);
+    e.set((e.x - w * bx * dt) * k, 0, (e.z - w * bz * dt) * k);
+  }
+
+  /** In the air: on as they were going, steered a little the way they want to go (AIR_STEER), never slowed by
+   * letting the stick go. */
+  private steerInAir(dt: number): void {
+    this.easing.set(0, 0, 0);
+    const want = this.desired;
+    if (want.x * want.x + want.z * want.z < 1e-4) return;
+    _v.set(want.x - this.velocity.x, 0, want.z - this.velocity.z);
+    const most = AIR_STEER * dt;
+    if (_v.lengthSq() > most * most) _v.setLength(most);
+    this.velocity.add(_v);
+  }
+
+  /** Stopped short by what they walked (or jumped) into, by (`shortX`, `shortZ`) of where their pace would have
+   * taken them from `from` to `at`: their pace is what they moved, and their easing on into it stops (so they
+   * get going along a wall they slide on as before, and do not shoot off past its end). */
+  private stopped(from: THREE.Vector3, at: THREE.Vector3, shortX: number, shortZ: number, dt: number): void {
+    const inv = 1 / Math.max(dt, 1e-4);
+    this.velocity.x = (at.x - from.x) * inv;
+    this.velocity.z = (at.z - from.z) * inv;
+    const n = Math.hypot(shortX, shortZ);
+    if (n < 1e-9) return;
+    const into = -(this.easing.x * shortX + this.easing.z * shortZ) / n;
+    if (into > 0) {
+      this.easing.x += (shortX / n) * into;
+      this.easing.z += (shortZ / n) * into;
+    }
+  }
+
   private updateLocomotion(dt: number, ctx: FrameContext): void {
     const prevX = this.velocity.x;
     const prevZ = this.velocity.z;
-    _v.copy(this.desired).sub(this.velocity);
-    _v.y = 0;
-    const maxDv = ACCEL * dt;
-    if (_v.lengthSq() > maxDv * maxDv) _v.setLength(maxDv);
-    this.velocity.add(_v);
+    this.jumpEarly = Math.max(0, this.jumpEarly - dt);
+    this.jumpLate = Math.max(0, this.jumpLate - dt);
+    // (Crouched to jump, they keep the pace they jump with, as in the air.)
+    const springing = this.airborne || this.crouch >= 0;
+    if (springing) this.steerInAir(dt);
+    else this.ease(dt);
 
     const pos = this.root.position;
     // A seat raised off the floor under it (a stool, a log, a bed, the pier's edge, the boat), not the ground.
@@ -854,6 +1106,7 @@ export class Character implements EmoteHost {
       this.airborne = false;
       this.crouch = -1;
       this.velocity.set(0, 0, 0);
+      this.easing.set(0, 0, 0);
       this.facing = this.targetFacing = this.ride.yaw;
       this.root.rotation.y = this.facing;
       return;
@@ -863,10 +1116,15 @@ export class Character implements EmoteHost {
     _from.y = this.feet;
     pos.x += this.velocity.x * dt;
     pos.z += this.velocity.z * dt;
+    const goneX = pos.x;
+    const goneZ = pos.z;
     // In the air they carry on over gaps, drops and water, stopped only by what stands higher than
     // their feet; on their feet they keep to what they can walk on.
     if (this.airborne && ctx.air) ctx.air(pos, _from, this.feet + this.jumpY);
     else ctx.clamp(pos, _from);
+    // (Not as they crouch to jump: from the very edge of a stepping stone, which stops their feet, they jump on
+    // as fast as they ran up to it.)
+    if ((pos.x !== goneX || pos.z !== goneZ) && this.crouch < 0) this.stopped(_from, pos, pos.x - goneX, pos.z - goneZ, dt);
 
     const inv = 1 / Math.max(dt, 1e-4);
     const k = Math.min(1, dt * 12);
@@ -876,11 +1134,23 @@ export class Character implements EmoteHost {
     const speed = this.speed();
     if (this.look !== null) this.targetFacing = this.look;
     else if (speed > 0.15) this.targetFacing = Math.atan2(this.velocity.x, this.velocity.z);
-    // Turning after their head to what they watch, unhurried.
-    this.facing += wrapAngle(this.targetFacing - this.facing) * Math.min(1, dt * (this.turningToWatch ? TURN_RATE : 10));
+    // Turning after their head to what they watch, unhurried; the one whose eyes you look out of with your eyes,
+    // anyone else no faster than they turn (TURN_MOST).
+    let turn = wrapAngle(this.targetFacing - this.facing) * Math.min(1, dt * (this.turningToWatch ? TURN_RATE : 10));
+    if (this.look === null) {
+      const most = TURN_MOST * this.gait.quick * dt;
+      turn = clamp(turn, -most, most);
+    }
+    this.facing += turn;
+    // Turning on the spot, they step round as they turn.
+    this.turnRate += (turn / Math.max(dt, 1e-4) - this.turnRate) * k;
+    const still = 1 - smoothstep(0.05, 0.5, speed);
+    this.turnSteps += (still * smoothstep(0.8, 2.5, Math.abs(this.turnRate)) - this.turnSteps) * Math.min(1, dt * 10);
+    this.turnPhase += (Math.abs(turn) / TURN_STEP) * Math.PI * still;
 
-    const run = smoothstep(this.def.walkSpeed * 0.95, this.def.runSpeed * 0.9, speed);
-    this.phase += (speed / (0.62 + 0.43 * run)) * Math.PI * 2 * dt;
+    const run = smoothstep(this.walkSpeed * 0.95, this.runSpeed * 0.9, speed);
+    const dash = smoothstep(this.runSpeed * 1.02, this.sprintSpeed * 0.95, speed);
+    this.phase += (speed / ((0.62 + 0.43 * run + 0.3 * dash) * this.gait.stride)) * Math.PI * 2 * dt;
     if (this.action && speed > 0.3 && !ACTIONS[this.action.id].allowMove) this.stopAction();
 
     if (this.crouch >= 0) {
@@ -888,6 +1158,7 @@ export class Character implements EmoteHost {
       if (this.crouch < 0) {
         this.vy = JUMP_SPEED;
         this.airborne = true;
+        this.jumpLate = 0;
         this.squash.velocity += 2.5;
       }
     }
@@ -908,6 +1179,7 @@ export class Character implements EmoteHost {
         this.jumpY = 0;
         this.vy = 0;
         this.airborne = false;
+        this.jumpEarly = 0;
         this.velocity.set(0, 0, 0);
       } else {
         this.feet = under;
@@ -924,10 +1196,11 @@ export class Character implements EmoteHost {
       }
       const below = ctx.groundHeight(pos.x, pos.z, this.feet);
       if (!this.airborne && ctx.air && below < this.feet - DROP) {
-        // Walked off an edge: they fall from where their feet were.
+        // Walked off an edge: they fall from where their feet were (and may still jump a moment).
         this.airborne = true;
         this.vy = 0;
         this.jumpY = this.feet - below;
+        this.jumpLate = JUMP_LATE;
       }
       this.feet = below;
     }
@@ -940,14 +1213,20 @@ export class Character implements EmoteHost {
     this.squash.velocity -= 1.4;
   }
 
-  /** Coming down on their feet: a squash and a bounce of the ears, as hard as they came down. */
+  /** Coming down on their feet: a squash and a bounce of the ears, as hard as they came down; and, a jump asked
+   * for just before (JUMP_EARLY), into the crouch for it. */
   private land(): void {
     const impact = Math.min(1.4, -this.vy / JUMP_SPEED);
     this.vy = 0;
     this.airborne = false;
+    this.jumpLate = 0;
     this.squash.velocity -= 3.2 * impact;
     for (const s of this.earBend) s.velocity += 7 * impact;
     for (const s of this.earPitch) s.velocity += 2.5 * impact;
+    if (this.jumpEarly > 0) {
+      this.jumpEarly = 0;
+      this.jump();
+    }
   }
 
   /** Whether they are off the ground: jumping, falling, or crouched to jump. In the air, feetY is the
@@ -994,45 +1273,70 @@ export class Character implements EmoteHost {
       p.armLSwing = p.armRSwing = REST_ARM.swing;
       p.armLBend = p.armRBend = REST_ARM.bend;
       p.pawLBend = p.pawRBend = REST_ARM.paw;
-      // A paw that holds a thing brings it up before them (see placeHand), and the cave's torch higher.
+      // A paw that holds a thing holds it out before their side (see placeHand), and the cave's torch up.
+      const breathe = 0.04 * Math.sin(tm * 2.3 + 0.8);
       if (this.torch) {
-        p.armRRaise = HOLD_ARM.torchRaise;
-        p.armRSwing = HOLD_ARM.swing;
-        p.armRBend = HOLD_ARM.bend;
+        p.armRRaise = TORCH_ARM.raise;
+        p.armRSwing = TORCH_ARM.swing;
+        p.armRBend = TORCH_ARM.bend;
       } else if (this.hand && !this.instrument?.visible) {
+        p.armRRaise = HOLD_ARM.raise + breathe;
         p.armRSwing = HOLD_ARM.swing;
         p.armRBend = HOLD_ARM.bend;
         p.pawRBend = HOLD_ARM.paw;
       }
       if (this.carried) {
         // Kurimanju's can, in the other paw.
+        p.armLRaise = HOLD_ARM.raise + breathe;
         p.armLSwing = HOLD_ARM.swing;
         p.armLBend = HOLD_ARM.bend;
         p.pawLBend = HOLD_ARM.paw;
       }
     }
+    const g = this.gait;
+    if (this.turnSteps > 0.01) {
+      // Stepping round as they turn on the spot: a foot lifted and set down a little further round each TURN_STEP
+      // (turning to their right, the left foot forward and the right back), their weight going from foot to foot.
+      const t = this.turnSteps;
+      const ts = Math.sin(this.turnPhase);
+      const way = Math.sign(this.turnRate);
+      p.footLY += t * Math.max(0, ts) * 0.03 * g.lift;
+      p.footRY += t * Math.max(0, -ts) * 0.03 * g.lift;
+      p.footLZ += t * Math.max(0, ts) * 0.025 * way;
+      p.footRZ -= t * Math.max(0, -ts) * 0.025 * way;
+      p.rootY += t * Math.abs(ts) * 0.012 * g.bounce;
+      p.rootRoll += t * ts * 0.03 * g.sway;
+    }
     const speed = this.speed();
     const walk = smoothstep(0.05, 0.5, speed);
     if (walk <= 0) return;
-    const run = smoothstep(this.def.walkSpeed * 0.95, this.def.runSpeed * 0.9, speed);
+    const run = smoothstep(this.walkSpeed * 0.95, this.runSpeed * 0.9, speed);
+    // Sprinting: leaning in, longer strides, the feet and the arms thrown higher (see SPRINT).
+    const dash = smoothstep(this.runSpeed * 1.02, this.sprintSpeed * 0.95, speed);
     const s = Math.sin(this.phase);
     const c = Math.cos(this.phase);
-    const amp = 1 + 0.6 * run;
-    p.rootY += walk * Math.abs(s) * 0.035 * amp;
-    p.squash += walk * (Math.abs(s) - 0.5) * 0.05 * amp;
-    p.leanX += walk * s * 0.03 * (1 - 0.5 * run);
-    p.rootYaw += walk * s * 0.07;
-    p.rootRoll += walk * s * 0.035;
-    p.footLZ += walk * s * 0.07 * amp;
-    p.footRZ -= walk * s * 0.07 * amp;
-    p.footLY += walk * Math.max(0, c) * 0.035 * amp;
-    p.footRY += walk * Math.max(0, -c) * 0.035 * amp;
-    p.armLSwing -= walk * s * 0.45 * amp;
-    p.armRSwing += walk * s * 0.45 * amp;
-    p.armLRaise += walk * (0.12 + 0.25 * run);
-    p.armRRaise += walk * (0.12 + 0.25 * run);
+    const amp = 1 + 0.6 * run + 0.3 * dash;
+    const bob = 0.035 * amp * g.bounce;
+    p.rootY += walk * Math.abs(s) * bob;
+    p.squash += walk * (Math.abs(s) - 0.5) * 0.05 * amp * g.bounce;
+    p.leanX += walk * s * 0.03 * (1 - 0.5 * run) * g.sway;
+    p.leanZ += walk * dash * 0.03;
+    p.rootYaw += walk * s * 0.07 * g.sway;
+    p.rootRoll += walk * s * 0.035 * g.sway;
+    const reach = 0.07 * amp * g.stride;
+    p.footLZ += walk * s * reach;
+    p.footRZ -= walk * s * reach;
+    const lift = 0.035 * amp * g.lift * (1 + 0.5 * dash);
+    p.footLY += walk * Math.max(0, c) * lift;
+    p.footRY += walk * Math.max(0, -c) * lift;
+    const swing = 0.45 * amp * g.arms * (1 + 0.35 * dash);
+    // (A paw that holds something sways less, as one carries a thing.)
+    p.armLSwing -= walk * s * swing * (this.carried ? HOLD_ARM.sway : 1);
+    p.armRSwing += walk * s * swing * (this.hand || this.torch ? HOLD_ARM.sway : 1);
+    p.armLRaise += walk * (0.12 + 0.25 * run + 0.15 * dash);
+    p.armRRaise += walk * (0.12 + 0.25 * run + 0.15 * dash);
     p.skirtY += walk * s * 0.05;
-    p.earBend -= walk * run * 0.25;
+    p.earBend -= walk * (run * 0.25 + dash * 0.2);
   }
 
   /** Whether they hold up what they carry with their own clothes (Rakko's sword), in its action ('sword'); it is
@@ -1049,9 +1353,23 @@ export class Character implements EmoteHost {
       const def = ACTIONS[a.id];
       const prev = a.t;
       a.t += dt;
+      // One paw's gesture, that paw full: the other paw's (Kurimanju's, his can in it: small, it clears him). One that
+      // brings the paws up before or round the face: a full paw keeps holding what it holds out where it was.
+      const rightFull = (!!this.hand && !this.instrument?.visible) || !!this.torch;
+      const mirror = !!def.oneHand && rightFull;
+      if (mirror) mirrorArms(this.target);
       def.pose(a.t, this.target);
+      if (mirror) mirrorArms(this.target);
+      if (def.fullPawHolds && rightFull) keepArm(this.base, this.target, 'R');
+      if (def.fullPawHolds && this.carried) keepArm(this.base, this.target, 'L');
       def.tick?.(a.t, prev, this.actionCtx);
       if (a.t >= def.duration) this.stopAction();
+    }
+    // Seated, a paw that holds something holds it up off the ground (see HOLD_ARM).
+    const seated = this.target.sit;
+    if (seated > 0) {
+      if ((this.hand && !this.instrument?.visible) || this.torch) this.target.armRRaise += HOLD_ARM.seated * seated;
+      if (this.carried) this.target.armLRaise += HOLD_ARM.seated * seated;
     }
     if (this.blending) {
       this.blendT += dt;
@@ -1074,7 +1392,7 @@ export class Character implements EmoteHost {
     if (this.airborne) squashTarget += this.vy > 0 ? 0.07 : -0.02;
     const sq = this.squash.update(squashTarget, dt);
     const lx = this.leanX.update(p.leanX - ax * 0.004, dt);
-    const lz = this.leanZ.update(p.leanZ + this.speed() * 0.014 - az * 0.004, dt);
+    const lz = this.leanZ.update(p.leanZ + this.speed() * 0.014 * this.gait.lean - az * 0.004, dt);
 
     const air = this.airborne ? clamp(this.vy * 0.025, -0.3, 0.3) : 0;
     this.earPitch[0].update(p.earLPitch - lz * 1.5 - air, dt);
@@ -1318,7 +1636,7 @@ export class Character implements EmoteHost {
     }
   }
 
-  private updateShadowAndProp(ctx: FrameContext): void {
+  private updateShadowAndProp(ctx: FrameContext, dt: number): void {
     const pos = this.root.position;
     const ground = Number.isNaN(this.feet) ? ctx.groundHeight(pos.x, pos.z) : this.feet;
     const lift = this.jumpY + Math.max(0, this.pose.rootY);
@@ -1335,21 +1653,29 @@ export class Character implements EmoteHost {
     (this.fireShadow.material as THREE.MeshBasicMaterial).color.copy(_tint);
     this.updateFireShadow(ground, k);
 
-    if (this.torch) {
-      // Held up in the right hand, leaning a little forward and out, its flame over their head.
-      this.getAnchor('handR', _v);
-      this.torch.position.copy(_v);
-      this.torch.rotation.set(0.25, this.facing, -0.18, 'YXZ');
+    // What they hold turns as their body does (bowing, swaying), and is kept out of them (see Holding.ts), as their
+    // head and body are now.
+    _turnNow.setFromRotationMatrix(this.mesh.matrixWorld);
+    if (this.torch || this.hand || this.carried) {
+      const far = pos.distanceToSquared(ctx.camera.position);
+      this.fitDt += dt;
+      this.fitTick = (this.fitTick + 1) % FIT_SOMETIMES;
+      this.fitting = far < FIT_NEAR * FIT_NEAR && (far < FIT_ALWAYS * FIT_ALWAYS || this.fitTick === 0);
+      const u = this.uniforms;
+      this.bodyPose.set(u.uSquash.value, u.uLean.value, this.height, this.parts[PART.HEAD], this.parts[PART.SKIRT], u.uSkirtFlare.value / SKIRT_FLARE);
     }
+    if (this.torch && this.torchShape) {
+      // Held up in the right paw, leaning a little forward, its flame up beside their head.
+      this.placeHeld(this.torch, this.torchShape, 'upright', this.anchorLocal('handR', _grip), TORCH_TURN, this.torchFit);
+    }
+    if (this.hand) this.placeHand();
+    if (this.carried && this.carryShape) {
+      // Upright in the left paw, held by its side.
+      this.placeHeld(this.carried, this.carryShape, 'upright', this.anchorLocal('handL', _grip), CARRY_TURN, this.carryFit);
+    }
+    if (this.fitting) this.fitDt = 0;
     const s = Math.sin(this.facing);
     const c = Math.cos(this.facing);
-    if (this.hand) this.placeHand(s, c);
-    if (this.carried) {
-      // Upright in the left hand, its side against the hand's tip, a little out and forward of it.
-      this.getAnchor('handL', _v);
-      this.carried.position.set(_v.x - c * CARRY_OUT + s * CARRY_AHEAD, _v.y, _v.z + s * CARRY_OUT + c * CARRY_AHEAD);
-      this.carried.rotation.set(0, this.facing, 0);
-    }
     const playing = !!this.instrument?.visible;
     if (this.ownCarried) {
       // With their own clothes (Rakko's sword): on their back, or held up by its grip in the same hand as the
@@ -1358,46 +1684,64 @@ export class Character implements EmoteHost {
       if (this.holdsOwn && this.armRig) {
         // In both paws before him (see REACH_SWORD).
         this.ownCarried.position.copy(this.bodyPoint(SWORD_HOLD, _v));
-        this.ownCarried.rotation.set(SWORD_FORWARD, this.facing, -SWORD_OUT, 'YXZ');
+        this.ownCarried.quaternion.copy(_turnNow).multiply(SWORD_HELD_TURN);
       } else if (this.holdsOwn) {
         this.getAnchor('handL', _v);
         this.ownCarried.position.set(_v.x + s * SWORD_AHEAD + c * SWORD_INWARD, _v.y, _v.z + c * SWORD_AHEAD - s * SWORD_INWARD);
-        this.ownCarried.rotation.set(SWORD_FORWARD, this.facing, SWORD_OUT, 'YXZ');
+        this.ownCarried.quaternion.copy(_turnNow).multiply(SWORD_STUB_TURN);
       } else {
         this.ownCarried.position.copy(this.bodyPoint(SWORD_BACK_AT, _v));
-        this.ownCarried.quaternion.setFromAxisAngle(UP, this.facing).multiply(SWORD_BACK_TURN);
+        this.ownCarried.quaternion.copy(_turnNow).multiply(SWORD_BACK_TURN);
       }
     }
     if (this.instrument && playing) {
       // Across the tummy, its neck up to their left (the model's +x), tipped back a little.
       this.bodyPoint(UKULELE_AT, _v);
       this.instrument.position.copy(_v);
-      this.instrument.rotation.set(UKULELE_BACK, this.facing, UKULELE_UP, 'YXZ');
+      this.instrument.quaternion.copy(_turnNow).multiply(UKULELE_TURN);
     }
   }
 
-  /** What they hold in their right paw (see hold): up at their mouth while they eat, as the rice ball is; else
-   * upright in the paw, leaning a little forward, or flat on it; lit as the paw is. */
-  private placeHand(s: number, c: number): void {
+  /** What they hold in their right paw (see hold): up at their mouth while they eat, out before it as their head
+   * is turned; else upright in the paw, leaning a little forward, or flat on it; lit as the paw is. */
+  private placeHand(): void {
     const hand = this.hand as THREE.Object3D;
     // Put away while the cave's torch is in that paw, or they play what they play.
     hand.visible = !this.torch && !this.instrument?.visible;
     const light = hand.userData.light as HeldLight | undefined;
     if (light) this.lightHeld(light);
+    if (!hand.visible || !this.handShape) return;
+    let way: HoldWay;
+    let base: THREE.Quaternion;
     if (this.action?.id === 'eat') {
-      this.getAnchor('mouth', _v);
-      hand.position.set(_v.x + s * HAND_MOUTH_OUT, _v.y - HAND_MOUTH_DOWN, _v.z + c * HAND_MOUTH_OUT);
-      hand.rotation.set(-0.35, this.facing, 0, 'YXZ');
-      return;
-    }
-    this.getAnchor('handR', _v);
-    if (this.handFlat) {
-      hand.position.set(_v.x + s * HAND_FLAT_AHEAD, _v.y + HAND_FLAT_UP, _v.z + c * HAND_FLAT_AHEAD);
-      hand.rotation.set(0, this.facing, 0, 'YXZ');
+      way = 'eat';
+      _off.set(0, -HAND_MOUTH_DOWN, HAND_MOUTH_OUT).add(this.model.anchors.mouth);
+      this.partPoint(_grip.copy(_off), PART.HEAD);
+      base = _eatTurn.setFromRotationMatrix(this.parts[PART.HEAD]).multiply(HELD_TURN.eat);
     } else {
-      hand.position.set(_v.x + s * HAND_AHEAD, _v.y, _v.z + c * HAND_AHEAD);
-      hand.rotation.set(HAND_LEAN, this.facing, 0, 'YXZ');
+      way = this.handFlat ? 'flat' : 'upright';
+      this.anchorLocal('handR', _grip);
+      if (this.handFlat) {
+        _grip.y += HAND_FLAT_UP;
+        _grip.z += HAND_FLAT_AHEAD;
+      }
+      base = HELD_TURN[way];
     }
+    // (Held another way, it is fitted afresh.)
+    if (way !== this.handWay) {
+      this.handWay = way;
+      refit(this.handFit);
+    }
+    this.placeHeld(hand, this.handShape, way, _grip, base, this.handFit);
+  }
+
+  /** Puts `thing` (shaped `shape`), held `way` with its grip at `grip` (in their body's own frame as drawn) and turned
+   * `base` there, where it sits clear of them this moment (see fitHeld; fitted afresh as often as `fitting` says, and
+   * whenever it has not been), in the world. */
+  private placeHeld(thing: THREE.Object3D, shape: HeldShape, way: HoldWay, grip: THREE.Vector3, base: THREE.Quaternion, fit: HeldFit): void {
+    if (this.fitting || !fitted(fit)) fitHeld(shape, way, thing.scale.x, grip, base, this.depthIn, this.fitDt, fit);
+    this.mesh.localToWorld(heldAt(grip, fit, thing.position));
+    thing.quaternion.copy(_turnNow).multiply(heldTurn(base, fit, _heldTurn));
   }
 
   /**

@@ -24,7 +24,7 @@ import { loadSettings, saveSettings, type Settings } from './Settings';
 import { Hud } from '../ui/Hud';
 import { TestPanel } from '../ui/TestPanel';
 import { Character, type FrameContext } from '../characters/Character';
-import { CROWD_KINDS, DEFINITIONS } from '../characters/definitions';
+import { CROWD_KINDS, DEFINITIONS, islanderGait } from '../characters/definitions';
 import { CHARACTER_IDS, type CharacterId, type ExpressionId } from '../characters/types';
 import { loadCharacterModel, loadOutfitModel, type OutfitModel } from '../characters/Model';
 import { EmoteSystem } from '../characters/Emotes';
@@ -146,6 +146,7 @@ const _want = new THREE.Vector3();
 const _seat = new THREE.Vector3();
 const _flame = new THREE.Vector3();
 const _stick = new THREE.Vector3();
+const _caveHeld = new THREE.Vector3();
 const _seen = new THREE.Vector3();
 const _boatFlame = new THREE.Vector3();
 const _landing = new THREE.Vector3();
@@ -430,12 +431,13 @@ export class Game {
         const [x, z, yaw] = CROWD[i % CROWD.length];
         const [model, outfit] = crowdKinds[i % crowdKinds.length];
         const bare = (((Math.sin((i + 1) * 12.9898 + 5 * 78.233) * 43758.5453) % 1) + 1) % 1 < CROWD_BARE;
-        // They share the islanders' face and pace.
+        // They share the islanders' face, each walking a little differently.
         const extra = new Character(DEFINITIONS.hitoha, model, {
           crowd: { color: CROWD_COLOR },
           outfit: bare ? undefined : outfit,
           // The stage's ukulele, once they have it.
           instrument: createHeld(ukulele),
+          gait: islanderGait(i),
         });
         extra.teleport(x, z, yaw);
         extra.attach(this.scene, this.emotes);
@@ -447,7 +449,21 @@ export class Game {
       // Out of the cave, to the sea, she is drawn in the open air.
       this.siren?.setOutside(this.scene);
       // What lies about (public/data/things.json), there for everyone who lives here as for you.
-      this.things = new Things(items, this.scene, thingsPlan, FILM ? (x, y, z) => this.stage.shadeAt(x, y, z) : null);
+      // (What lies in the forbidden cave is lit by its own light there, as everyone in it is.)
+      this.things = new Things(
+        items,
+        this.scene,
+        thingsPlan,
+        FILM ? (x, y, z) => this.stage.shadeAt(x, y, z) : null,
+        (x, y, z, out) => this.stage.caveLightAt(x, y, z, out),
+      );
+      // The village's torches each hold a brand (things.json's stands): a thing with its place in its stand,
+      // which burns on its pole while it is there and goes dark while it is away.
+      this.stage.brands.forEach((brand, i) => {
+        const rule = thingsPlan.stands.find((s) => s.prop === brand.kind);
+        if (rule) this.things?.addStand(`stand:${brand.kind}:${i}`, rule.item, brand.at, i);
+      });
+      this.things.onStand = (i, filled) => this.stage.setBrand(i, filled);
       this.life = await Life.create(this.characters, this.crowd, this.emotes, this.things);
       this.makePlay(items);
       // Everyone where you left them; on a new island, at its welcome (the cast as HOMES has them).
@@ -685,9 +701,10 @@ export class Game {
   }
 
   /**
-   * In the forbidden cave: the torch up in your hand while you walk in it (in the boat it stands at the
-   * bow), lighting the way; the boat's button, to get in beside it and out at a shore; and the boat
-   * where it floats. Called after the characters have moved.
+   * In the forbidden cave: a torch you carry burns in your paw and lights the way (the user, 2026-10-23:
+   * your own, or one of those lying by its mouth; in the boat its own stands at the bow); a staged shot may
+   * put the cave's own torch in someone's hand; the boat's button, to get in beside it and out at a shore;
+   * and the boat where it floats. Called after the characters have moved.
    */
   private updateCave(): void {
     this.caveLabel = null;
@@ -697,14 +714,11 @@ export class Game {
     const me = this.me();
     const p = me.position;
     const inside = !this.staged && !this.lineup && cave.isInside(p.x, me.feetY + 0.3, p.z);
-    if (!this.staged) {
-      const hold = inside && !this.rowing;
-      if (hold !== me.holdsTorch) me.holdTorch(hold ? this.caveTorch : null);
-      for (const ch of this.characters.values()) if (ch !== me && ch.holdsTorch) ch.holdTorch(null);
-    }
+    if (!this.staged) for (const ch of this.characters.values()) if (ch.holdsTorch) ch.holdTorch(null);
     const held = [...this.characters.values()].some((ch) => ch.holdsTorch);
     this.caveTorch?.updateMatrixWorld(true);
-    this.stage.caveTorches.carried = held && this.caveTorch ? _flame.set(0, TORCH_FLAME_UP, 0).applyMatrix4(this.caveTorch.matrixWorld) : null;
+    const staged = held && this.caveTorch ? _flame.set(0, TORCH_FLAME_UP, 0).applyMatrix4(this.caveTorch.matrixWorld) : null;
+    this.stage.caveTorches.carried = staged ?? (inside ? (this.play?.torchFlame(_caveHeld) ?? null) : null);
     // Its stick lit as the cast are where it is, a little dimmer, as wood is (as the boat is).
     if (held && this.caveTorch && this.caveTorchLit) {
       const at = _stick.setFromMatrixPosition(this.caveTorch.matrixWorld);
@@ -715,7 +729,7 @@ export class Game {
     let label: string | null = null;
     if (this.staged || boat.sliding) label = null;
     else if (this.rowing) label = boat.shore(caveStandable, this.shoreAt) ? t('hud.getOut') : null;
-    else if (inside && boat.canBoard(p) && !this.play?.hand) label = t('hud.board');
+    else if (inside && boat.canBoard(p)) label = t('hud.board');
     this.caveLabel = label;
     if (!label || !this.input.consumeAction()) return;
     if (this.rowing) {
@@ -992,7 +1006,7 @@ export class Game {
     // The window's size is looked at each step as well as on its resize event: a window that loaded with
     // no size got its first one without the event reaching the game (seen 2026-10-23 in the browser pane).
     if (window.innerWidth !== this.sizedW || window.innerHeight !== this.sizedH) this.resize();
-    this.input.update();
+    this.input.update(dt);
     const me = this.me();
     const lookingOut = this.lookingOut;
     // Out of their eyes, the one you control faces the way you look; the rest face the way they walk.

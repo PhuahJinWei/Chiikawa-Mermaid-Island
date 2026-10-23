@@ -17,6 +17,19 @@ import { LAMP_COLOUR } from './Firelight';
  */
 export const FILM = !(typeof location !== 'undefined' && new URLSearchParams(location.search).has('toon'));
 
+/** How much less than its mark (0.5) a character's picture's alpha is where a fire lights it fully
+ * (see CharacterMaterial's fireTint): the night's grade leaves that much of it out of the night's
+ * blue (see GRADE), as the film paints its firelit cast a warm cream. */
+export const FIRE_MARK = 0.4;
+
+/** How much brighter than white the film look draws a fire's flame: one rule for every fire, the
+ * village's torches, the night feast's bonfire, a torch carried, the forbidden cave's torches and its
+ * ledge's fire. Its own colours, orange tongues round a yellow heart that alone glows a little, as
+ * the film paints its fire (`[anime] fire by the beach`). At three times past white, as the torches
+ * and the cave's fires had burned, a big flame near the camera burned white and the bloom spread it
+ * over the picture and whoever stood before it. */
+export const FLAME_BRIGHT = 1.4;
+
 /** In the film look, the render layer the calm water's mirror draws (see Stage.drawMirror): the
  * cast's bodies and what they hold (not their lines nor their shadows), the ferry, and a copy of the
  * pier and the quay of its own, which only the mirror draws. */
@@ -1170,6 +1183,11 @@ const GRADE = {
         // stay dark.
         // (Not named cast: GLSL keeps that word.)
         bool figure = c.a < 0.75;
+        // How much a fire lights the cast here, from their mark (see FIRE_MARK): that side keeps the
+        // fire's warm cream, as the film paints its cast by a fire ('chiikawa 6', 'hachiware 1'); only the
+        // side turned from it takes the night's pale blue. (The warmth read from the colour below misses
+        // firelit white, a pale cream.)
+        float firelit = figure ? clamp((0.5 - c.a) / ${FIRE_MARK.toFixed(2)}, 0.0, 1.0) : 0.0;
         float lc = clamp(l, 0.0, 1.0);
         float n = min(0.05 + max((lc - 0.5) * uContrast + 0.5, 0.25 * lc), 1.0);
         if (figure) n = min(n * (1.0 + 0.4 * smoothstep(0.15, 0.3, n)), 0.92);
@@ -1192,7 +1210,7 @@ const GRADE = {
         float top = max(max(g.r, g.g), g.b);
         float colourful = smoothstep(0.15, 0.6, (top - min(min(g.r, g.g), g.b)) / max(top, 1e-3)) * (1.0 - green)
           * smoothstep(0.06, 0.25, top);
-        g = mix(g, moonlit, night * (1.0 - 0.65 * colourful) * (1.0 - warm) * (1.0 - blue) * (figure ? 0.8 : 1.0));
+        g = mix(g, moonlit, night * (1.0 - 0.65 * colourful) * (1.0 - warm) * (1.0 - blue) * (figure ? 0.8 * (1.0 - firelit) : 1.0));
       }
       vec2 d = vUv - 0.5;
       g *= 1.0 - uVignette * dot(d, d);

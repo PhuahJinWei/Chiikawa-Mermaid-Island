@@ -2944,15 +2944,18 @@ def flame_pieces(foot, height, width, tongues=4):
 
 
 def build_torch(collection):
-    """A tiki torch: a pole with a woven cup on top, its big cartoon flame lit only at night."""
-    pieces = [(log(V(0.0, 0.0, -0.2), V(0.0, 0.0, 1.85), 0.05, segments=6), C["torch"])]
-    cup = L.Profile([(0.0, 1.78), (0.1, 1.8), (0.16, 2.0), (0.15, 2.05), (0.0, 2.0)], samples=6)
+    """A village torch: a stake planted in the ground, shoulder-high to an islander, a woven cup on top
+    holding its brand (the torch thing anyone may take out of it: see things.json's stands), its flame the
+    brand's size, lit only at night. It had been a tiki torch twice an islander's height with a flame a
+    metre tall, which read as a lamp post, not as something to take (the user, 2026-10-23)."""
+    pieces = [(log(V(0.0, 0.0, -0.2), V(0.0, 0.0, 1.08), 0.035, segments=6), C["torch"])]
+    cup = L.Profile([(0.0, 1.03), (0.06, 1.04), (0.095, 1.17), (0.09, 1.2), (0.0, 1.17)], samples=6)
     pieces.append((L.lathe_bm(cup.samples, segments=8), C["basket"]))
     import paintmap as PM
     painter = PM.Painter("torch")
     body = painter.join("torch", pieces, collection, sharp=P.SHARP, grained=False, auto=wood_auto(True))
-    fire = P.join("torch_flame", flame_pieces(V(0.0, 0.0, 1.98), 1.0, 0.56), collection)  # lit at night
-    return [body, fire], {"footprint": {"circle": 0.15}, "height": 3.0, **painter.finish(P.OUT_MODELS)}
+    fire = P.join("torch_flame", flame_pieces(V(0.0, 0.0, 1.16), 0.26, 0.16), collection)  # lit at night
+    return [body, fire], {"footprint": {"circle": 0.1}, "height": 1.5, **painter.finish(P.OUT_MODELS)}
 
 
 def build_bonfire(collection):

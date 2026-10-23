@@ -2,11 +2,11 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { sceneryRamp } from '../core/toon';
 import { t, type StringKey } from '../i18n/I18n';
-import { fireLights, type FireKind, type Room, type SourceOptions } from './Firelight';
+import { FIRE_SOFT, fireLights, type FireKind, type Room, type SourceOptions } from './Firelight';
 import { glowMaterial, glowUniforms, paneMaterial } from './Glow';
 import { INK, addOutline, windUniforms } from './Ink';
 import { terrainHeight } from './Island';
-import { FILM, MIRROR_LAYER, paintThatch, paintWood } from './Look';
+import { FILM, FLAME_BRIGHT, MIRROR_LAYER, paintThatch, paintWood } from './Look';
 import { addBox, addCircle, addDeck } from './Obstacles';
 import { loadPropModel, type LabelInfo, type PartRole, type PropInfo, type PropModel } from './PropModels';
 
@@ -569,16 +569,16 @@ function roomOf(parts: { role: PartRole; geometry: THREE.BufferGeometry }[], mat
   };
 }
 
-/** How much brighter than white the film look burns flames, so they glow. */
-const FLAME_BRIGHT = 3;
+/** The props whose flame is a brand set in a stand, a thing anyone may take (see brands, Things' stands). */
+const BRANDS = new Set(['torch']);
 
 /** Unlit vertex colours: flames, which make their own light, licking and wavering, the more the
- * higher up the flame (which the colours tell: a pale yellow heart, orange tips). `size`: how big the flame
- * is beside the village torches' (a torch carried in the paw's, 0.15), for how far it licks; `bright`: how
- * much brighter than white it burns in the film look. */
-export function flameMaterial(size = 1, bright = FLAME_BRIGHT): THREE.MeshBasicMaterial {
+ * higher up the flame (which the colours tell: a pale yellow heart, orange tips), drawn as every fire is
+ * in the film look (FLAME_BRIGHT). `size`: how big the flame is beside the village torches' (a torch
+ * carried in the paw's, 0.15), for how far it licks. */
+export function flameMaterial(size = 1): THREE.MeshBasicMaterial {
   const material = new THREE.MeshBasicMaterial({ vertexColors: true });
-  if (FILM) material.color.setRGB(bright, bright, bright);
+  if (FILM) material.color.setRGB(FLAME_BRIGHT, FLAME_BRIGHT, FLAME_BRIGHT);
   const uFlameSize = { value: size };
   material.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, windUniforms, { uFlameSize });
@@ -842,6 +842,13 @@ export class Props {
   /** Where each flame, lit window and lantern is, for the firelight (see Firelight), with the room a
    * room's lantern lights, and each house's lantern's light out of its doorways and windows. */
   readonly fires: ({ position: THREE.Vector3; kind: FireKind } & SourceOptions)[] = [];
+  /** The brands the village's torches hold (BRANDS): each its prop's kind, where its flame burns (a thing
+   * with that place of its own: see Things' stands), its fire's place among the fires, the piece of a
+   * flame mesh that is its flame, and whether it is in its stand (see setBrand). */
+  readonly brands: { kind: string; at: THREE.Vector3; fire: number; piece: string; lit: boolean; kept?: Float32Array }[] = [];
+  /** Each placed part's piece of the mesh it was joined into (see collect, build): the mesh and its vertices'
+   * place in it. */
+  private readonly pieces = new Map<string, { mesh: THREE.Mesh; start: number; count: number }>();
   /** In the film look, where what the calm water mirrors stands (see MIRRORED): each piece of the
    * pier and the quay's copy, and each floater (bobbing a little round it). */
   readonly mirrored: THREE.Sphere[] = [];
@@ -953,15 +960,21 @@ export class Props {
           const uv = paintable ? (part.geometry.getAttribute('uv1') ?? (bake ? undefined : part.geometry.getAttribute('uv'))) : undefined;
           addPaint(geometry, uv, model.info.paint ? paint?.tiles.get(model.info.paint.map) : undefined);
         }
-        props.collect(key, level, kind, !UNLINED.has(p.kind), geometry);
+        const piece = props.collect(key, level, kind, !UNLINED.has(p.kind), geometry);
         if (FILM && MIRRORED.has(p.kind) && kind === 'body' && level !== 'far') {
           props.mirrorPieces.set(i, [...(props.mirrorPieces.get(i) ?? []), geometry]);
         }
         if ((kind === 'glow' && !(part.role === 'lamp' && lantern >= 0)) || kind === 'flame') {
           for (const spot of lightSpots(part.geometry)) {
             const lamp = part.role === 'lamp';
-            const fire = lamp ? 'lamp' : part.role === 'spot' ? 'spot' : kind;
-            props.fires.push({ position: spot.clone().applyMatrix4(matrix), kind: fire, room: lamp ? room : null });
+            const fire = lamp ? 'lamp' : part.role === 'spot' ? 'spot' : kind === 'glow' ? 'glow' : 'flame';
+            // Every fire lights from its whole flame, by its height (see FIRE_SOFT).
+            if (!geometry.boundingBox) geometry.computeBoundingBox();
+            const soft = kind === 'flame' ? FIRE_SOFT * ((geometry.boundingBox as THREE.Box3).max.y - (geometry.boundingBox as THREE.Box3).min.y) : 0;
+            const position = spot.clone().applyMatrix4(matrix);
+            // A village torch's flame is the brand it holds (see brands).
+            if (BRANDS.has(p.kind) && kind === 'flame') props.brands.push({ kind: p.kind, at: position, fire: props.fires.length, piece, lit: true });
+            props.fires.push({ position, kind: fire, room: lamp ? room : null, soft });
           }
         }
       }
@@ -1002,7 +1015,7 @@ export class Props {
     return props;
   }
 
-  private collect(key: string, level: Level, kind: Kind, lined: boolean, geometry: THREE.BufferGeometry): void {
+  private collect(key: string, level: Level, kind: Kind, lined: boolean, geometry: THREE.BufferGeometry): string {
     let group = this.groups.get(key);
     if (!group) {
       group = { geometries: new Map(), objects: new Map(), centre: new THREE.Vector3(), radius: 0 };
@@ -1012,6 +1025,31 @@ export class Props {
     const list = group.geometries.get(id) ?? [];
     list.push(geometry);
     group.geometries.set(id, list);
+    return `${key}|${id}|${list.length - 1}`;
+  }
+
+  /**
+   * Brand `i` (see brands) taken out of its stand (`lit` false): its flame gone from the torch, its vertices
+   * drawn in on themselves, until it is put back (`lit` true) and they are let out again. Its light is the
+   * firelight's to put out (see Firelight.setLit).
+   */
+  setBrand(i: number, lit: boolean): void {
+    const brand = this.brands[i];
+    const piece = brand ? this.pieces.get(brand.piece) : undefined;
+    if (!brand || !piece || brand.lit === lit) return;
+    brand.lit = lit;
+    const position = piece.mesh.geometry.getAttribute('position') as THREE.BufferAttribute;
+    const array = position.array as Float32Array;
+    if (!lit) {
+      brand.kept ??= array.slice(piece.start * 3, (piece.start + piece.count) * 3);
+      const x = position.getX(piece.start);
+      const y = position.getY(piece.start);
+      const z = position.getZ(piece.start);
+      for (let k = piece.start; k < piece.start + piece.count; k++) position.setXYZ(k, x, y, z);
+    } else if (brand.kept) {
+      array.set(brand.kept, piece.start * 3);
+    }
+    position.needsUpdate = true;
   }
 
   /**
@@ -1052,11 +1090,23 @@ export class Props {
     };
     const box = new THREE.Box3();
     const sphere = new THREE.Sphere();
-    for (const group of this.groups.values()) {
+    for (const [key, group] of this.groups) {
       box.makeEmpty();
       for (const [id, list] of group.geometries) {
         const [level, kind, lining] = id.split(':') as [Level, Kind, string];
         const mesh = new THREE.Mesh(mergeGeometries(list), materials[kind]);
+        // Where each piece's vertices lie in the joined mesh (see pieces).
+        let start = 0;
+        list.forEach((g, n) => {
+          const count = g.getAttribute('position').count;
+          this.pieces.set(`${key}|${id}|${n}`, { mesh, start, count });
+          start += count;
+        });
+        // A flame mesh with a brand in it is drawn in and let out again as the brand goes and comes (see
+        // setBrand): its vertices are kept (the stage lets go of a still mesh's once it is on the graphics card).
+        if (kind === 'flame' && this.brands.some((b) => b.piece.startsWith(`${key}|${id}|`))) {
+          (mesh.geometry.getAttribute('position') as THREE.BufferAttribute).setUsage(THREE.DynamicDrawUsage);
+        }
         mesh.geometry.computeBoundingBox();
         box.union(mesh.geometry.boundingBox as THREE.Box3);
         this.group.add(mesh);

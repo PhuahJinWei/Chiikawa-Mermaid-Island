@@ -30,9 +30,10 @@ export function createHeld(geometry: THREE.BufferGeometry, { mark = false }: { m
 
 /** The materials things lying about are drawn with, a kind's many at once (see Things): a held thing's body
  * and pen (see createHeld), each copy (instance) in a shade of its own, its instance colour, as the ground
- * where it lies is; in the open air, and never marked. */
-export function lyingMaterials(): { body: THREE.MeshToonMaterial; ink: THREE.ShaderMaterial } {
-  const light: HeldLight = { uShade: { value: new THREE.Color(1, 1, 1) }, uOpenAir: { value: 1 } };
+ * where it lies is; in the open air (or, `openAir` false, in the forbidden cave, lit only as its shade says:
+ * its own light there), and never marked. */
+export function lyingMaterials(openAir = true): { body: THREE.MeshToonMaterial; ink: THREE.ShaderMaterial } {
+  const light: HeldLight = { uShade: { value: new THREE.Color(1, 1, 1) }, uOpenAir: { value: openAir ? 1 : 0 } };
   return { body: heldBody(light, false, true), ink: heldInk(light, true) };
 }
 

@@ -1,4 +1,4 @@
-import type { CharacterDef, CharacterId, FaceStyle } from './types';
+import type { CharacterDef, CharacterId, FaceStyle, Gait } from './types';
 
 /**
  * Runtime settings per character.
@@ -38,6 +38,29 @@ const islanderFace: FaceStyle = {
   hatchWidth: 0.036,
 };
 
+/**
+ * An islander's own way of walking (see Gait): the plain one, a little different for each (by `seed`, always the
+ * same for them): their pace within a tenth either way, their steps, bob, sway, arm swing and lift, and how
+ * quickly they get going, a little more or less.
+ */
+export function islanderGait(seed: number): Partial<Gait> {
+  const r = (k: number) => {
+    const x = Math.sin((seed + 1) * 12.9898 + k * 78.233) * 43758.5453;
+    return x - Math.floor(x);
+  };
+  return {
+    pace: 0.9 + 0.2 * r(1),
+    stride: 0.9 + 0.2 * r(2),
+    bounce: 0.75 + 0.5 * r(3),
+    sway: 0.75 + 0.5 * r(4),
+    arms: 0.8 + 0.4 * r(5),
+    lift: 0.85 + 0.3 * r(6),
+    quick: 0.9 + 0.2 * r(7),
+  };
+}
+
+/** Each of the cast walks in their own way (see Gait; the user, 2026-10-23); you, Hitoha, Futaba and the islanders
+ * in the plain way, each of the islanders a little differently. */
 export const DEFINITIONS: Record<CharacterId, CharacterDef> = {
   // You: a nameless islander living on the island, the generic islander with round ears and a grey
   // flower crown, in the islanders' own grey-mauve (the crowd's light copy: seen only faintly, in the
@@ -59,6 +82,8 @@ export const DEFINITIONS: Record<CharacterId, CharacterDef> = {
     face: { ...roundFace },
     walkSpeed: 1.9,
     runSpeed: 3.4,
+    // Small quick steps, a little wobble.
+    gait: { stride: 0.85, sway: 1.4, quick: 1.1 },
   },
   hachiware: {
     id: 'hachiware',
@@ -68,6 +93,8 @@ export const DEFINITIONS: Record<CharacterId, CharacterDef> = {
     face: { ...roundFace, neutralMouth: 'catOpen' },
     walkSpeed: 2.0,
     runSpeed: 3.6,
+    // Even and bouncy, cheerful.
+    gait: { bounce: 1.3, sway: 0.9, arms: 1.1, lift: 1.1 },
   },
   usagi: {
     id: 'usagi',
@@ -77,6 +104,8 @@ export const DEFINITIONS: Record<CharacterId, CharacterDef> = {
     face: { ...roundFace, brows: 'usagi', browY: 0.4, neutralMouth: 'catOpen' },
     walkSpeed: 2.2,
     runSpeed: 4.0,
+    // Springy, swinging her arms wide; the quickest to get going, stop and turn.
+    gait: { stride: 1.05, bounce: 1.6, arms: 1.6, lift: 1.4, quick: 1.4 },
   },
   momonga: {
     id: 'momonga',
@@ -86,6 +115,8 @@ export const DEFINITIONS: Record<CharacterId, CharacterDef> = {
     face: { ...roundFace, neutralMouth: 'catOpen' },
     walkSpeed: 2.0,
     runSpeed: 3.7,
+    // Brisk short steps, a perky bounce.
+    gait: { stride: 0.8, bounce: 1.35, sway: 1.1, quick: 1.2 },
   },
   // A visiting guest, relaxed (PLAN.md), built from Chiikawa's model with a chestnut cap of its own.
   kurimanju: {
@@ -98,6 +129,8 @@ export const DEFINITIONS: Record<CharacterId, CharacterDef> = {
     runSpeed: 3.2,
     // Always with a drink (PLAN.md): a can of it (the user, 2026-10-22).
     carries: 'can',
+    // Relaxed and heavier: slower to get going and to turn, hardly bobbing, upright.
+    gait: { stride: 1.1, bounce: 0.5, sway: 0.8, arms: 0.7, lift: 0.7, lean: 0.5, quick: 0.7 },
   },
   // Rakko-sensei, a visiting guest, calm and watchful (PLAN.md), built from Chiikawa's model a tenth taller,
   // his star scar painted on his face. He wears his own clothes, his cape, and carries his sword, never the
@@ -112,6 +145,8 @@ export const DEFINITIONS: Record<CharacterId, CharacterDef> = {
     walkSpeed: 1.8,
     runSpeed: 3.3,
     plays: 'ukulele',
+    // Calm long strides, steady.
+    gait: { stride: 1.25, bounce: 0.6, sway: 0.5, lift: 0.9 },
   },
   // Furuhonya the crab, a visiting guest seen at the night beach (PLAN.md), built from Chiikawa's model with a
   // coral-pink cap, two claws on her head and two tiny antennae.
@@ -123,6 +158,8 @@ export const DEFINITIONS: Record<CharacterId, CharacterDef> = {
     face: { ...roundFace },
     walkSpeed: 1.8,
     runSpeed: 3.2,
+    // Quick shuffling little steps.
+    gait: { stride: 0.7, bounce: 0.5, sway: 0.6, arms: 0.6, lift: 0.6, quick: 1.15 },
   },
   // Shisa, a visiting guest, cheerful (PLAN.md), built from Hachiware's model for its cat ears, with a mane of
   // orange flames either side of the head.
@@ -134,6 +171,8 @@ export const DEFINITIONS: Record<CharacterId, CharacterDef> = {
     face: { ...roundFace },
     walkSpeed: 2.0,
     runSpeed: 3.6,
+    // Neat and brisk.
+    gait: { stride: 0.9, sway: 0.7, quick: 1.15 },
   },
   // The island's two named islanders, always together, and the only ones with leaves:
   // Hitoha has one, Futaba two. There is one of each.
@@ -144,6 +183,9 @@ export const DEFINITIONS: Record<CharacterId, CharacterDef> = {
     face: islanderFace,
     walkSpeed: 1.7,
     runSpeed: 3.0,
+    // As an islander walks, a little differently from each of them. (The islanders, made with Hitoha's own
+    // definition, are given theirs in Game.)
+    gait: islanderGait(101),
   },
   futaba: {
     id: 'futaba',
@@ -152,6 +194,7 @@ export const DEFINITIONS: Record<CharacterId, CharacterDef> = {
     face: islanderFace,
     walkSpeed: 1.7,
     runSpeed: 3.0,
+    gait: islanderGait(102),
   },
 };
 

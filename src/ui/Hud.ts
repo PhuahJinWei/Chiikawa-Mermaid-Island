@@ -199,6 +199,11 @@ export class Hud implements JoystickView {
     this.joyKnob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
   }
 
+  /** The stick goes pink while it sprints (held at its edge a moment: see Input.sprint). */
+  sprint(on: boolean): void {
+    this.joyBase.classList.toggle('sprint', on);
+  }
+
   /** Rest the joystick ring in the bottom-left corner as a hint of where to touch. */
   hide(): void {
     this.joyBase.classList.remove('active');

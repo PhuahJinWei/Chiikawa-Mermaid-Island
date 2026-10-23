@@ -1,6 +1,13 @@
 import * as THREE from 'three';
 import { lightBlocked } from './Obstacles';
 
+/** How far round its middle a fire gives its light from, as a share of its flame's height: one rule
+ * for every fire in the light grid (SourceOptions.soft), the torches', the bonfire's and a torch
+ * carried. Close in, a fire's light climbs no higher than from that far off, as a big flame lights
+ * from its whole body: the sand round the bonfire, lit from 0.9 m over it as from a point, had been
+ * lit up to six times past white. */
+export const FIRE_SOFT = 1.7;
+
 /** A room's lantern's light: the colour its bulb is drawn (see Glow), a warm cream. Seen from inside
  * the room by night, the picture is balanced to it (see GRADE in Look.ts). */
 export const LAMP_COLOUR = new THREE.Color('#FFE49D');
@@ -32,7 +39,11 @@ const KINDS: Record<string, { colour: THREE.Color; intensity: number; reach: num
 export type FireKind = 'flame' | 'glow' | 'spot' | 'lamp' | 'opening';
 /** A torch carried about (see Firelight.setHeld): its flame's colour, how bright, how far it reaches and how
  * much it warms who is near, as the island's flames are (KINDS), smaller. */
-const HELD = { colour: new THREE.Color('#FF9A40'), intensity: 4.5, reach: 7, warmth: 0.75 };
+const HELD = { colour: new THREE.Color('#FF9A40'), intensity: 4.5, reach: 7, warmth: 0.75, flame: 0.15 };
+/** How far round whoever carries the torch its light wraps (see CharacterMaterial's fireTint): held at
+ * the body, it lights them nearly all round, their far side and their underside too (seen in the water
+ * they bend over), where a fire off at a distance lights one side. The light's way is sent this short. */
+const HELD_WRAP = 0.3;
 /** The light memory (see lightsAt) of the torch carried about. */
 const HELD_SEEN = -1;
 /** How many of the sources reaching a character light them (see Firelight.lightsAt), the strongest. */
@@ -89,6 +100,9 @@ export interface SourceOptions {
   room?: Room | null;
   opening?: Opening | null;
   owner?: number;
+  /** How far round its middle, in metres, a fire bigger than a torch's gives its light from: close
+   * in, its light climbs no higher than from that far off (see FIRE_LIGHT). */
+  soft?: number;
 }
 
 interface Source {
@@ -100,11 +114,15 @@ interface Source {
   /** The lantern whose light, on its own house, is baked into the house, or -1: the grid leaves the
    * lantern and its light out of the house's openings off that house (see NIGHT_MAP). */
   owner: number;
+  soft: number;
+  /** Burning (false: a torch whose brand has been taken out of its stand: see setLit). */
+  lit: boolean;
 }
 
 /**
  * The light grid, for everything lit (see fireLights): each source in a texel column (row 0, its
- * place and reach; 1, its colour this moment; 2 and 3, its room's middle and half sizes with the
+ * place and reach; 1, its colour this moment and how far round it its light comes from (see
+ * SourceOptions.soft); 2 and 3, its room's middle and half sizes with the
  * cosine and sine of its turn, or its opening's middle and way out with its half width and height;
  * 4, how it lights (SHAPE), its owner plus one, its opening's mask plus one and its decay), and the island in
  * cells of CELL metres, each listing the sources that reach it, the strongest first.
@@ -129,6 +147,8 @@ export const fireUniforms = {
    * while none is carried or by day), and its light this moment. */
   uFireHeld: { value: new THREE.Vector4(0, 0, 0, 0) },
   uFireHeldColour: { value: new THREE.Color(0, 0, 0) },
+  /** How far round its middle the torch carried gives its light from (see FIRE_SOFT). */
+  uFireHeldSoft: { value: 0 },
 };
 
 const FIRE_PARS = /* glsl */ `
@@ -141,6 +161,131 @@ uniform sampler2D uFireMasks;
 uniform float uFireRoofed;
 uniform vec4 uFireHeld;
 uniform vec3 uFireHeldColour;
+uniform float uFireHeldSoft;
+// How a fire's light falls off with distance (as three's point lights: see getDistanceAttenuation),
+// a fire bigger than a torch's lighting from its whole body (soft round its middle, see
+// SourceOptions.soft): close in, no brighter than from that far off.
+float fireFall(float d, float soft, float cutoff, float decay) {
+  float r = sqrt(d * d + soft * soft);
+  float fall = 1.0 / max(pow(r, decay), 0.01);
+  float edge = clamp(1.0 - pow(r / cutoff, 4.0), 0.0, 1.0);
+  return fall * edge * edge;
+}
+// How much of a lantern's light out of its opening (source fireI, hole and face rows) reaches
+// fireAt: beyond the opening, where the way from the lantern (fireSpot) passes through it, softly at
+// its frame, as much as its mask (row fireMaskRow, plus one; nought for none) lets through there;
+// nought behind it.
+float firePass(int fireI, vec3 fireAt, vec3 fireSpot, float fireMaskRow) {
+  vec4 fireHole = texelFetch(uFireLights, ivec2(fireI, 2), 0);
+  vec4 fireFace = texelFetch(uFireLights, ivec2(fireI, 3), 0);
+  if (dot(fireAt - fireHole.xyz, fireFace.xyz) <= 0.0) return 0.0;
+  float fireThrough = dot(fireHole.xyz - fireSpot, fireFace.xyz) / dot(fireAt - fireSpot, fireFace.xyz);
+  vec3 fireCross = fireSpot + (fireAt - fireSpot) * fireThrough - fireHole.xyz;
+  float fireAlong = dot(fireCross, normalize(vec3(fireFace.z, 0.0, -fireFace.x)));
+  float pass = (1.0 - smoothstep(fireHole.w - ${OPENING_SOFT.toFixed(2)}, fireHole.w + ${OPENING_SOFT.toFixed(2)}, abs(fireAlong)))
+    * (1.0 - smoothstep(fireFace.w - ${OPENING_SOFT.toFixed(2)}, fireFace.w + ${OPENING_SOFT.toFixed(2)}, abs(fireCross.y)));
+  if (pass <= 0.0 || fireMaskRow < 0.5) return pass;
+  vec2 fireMask = clamp(vec2(fireAlong / fireHole.w, fireCross.y / fireFace.w) * 0.5 + 0.5, 0.0, 1.0) * ${MASK - 1}.0 + 0.5;
+  return pass * texture2D(uFireMasks, vec2(fireMask.x, (fireMaskRow - 1.0) * ${MASK}.0 + fireMask.y) / vec2(textureSize(uFireMasks, 0))).r;
+}
+`;
+
+/**
+ * GLSL for a shader with no lights of three's own (the water's): the firelight falling on a point
+ * `at` of a face turned `n` (up, for the water), summed over every fire the grid lists for its cell
+ * (the torches', the bonfire's, the lanterns', the light out of the houses' doorways and windows; not
+ * a room's lantern, which lights only its room) and the torch carried about (fireGlow); and the
+ * broken streaks of the flames' light on the water between the eye and each flame that burns in the
+ * open, as the moon's road is drawn (fireRoad). Both nought by day. Needs FIRE_PARS (see
+ * fireUniforms), which it brings.
+ */
+export const FIRE_GLOW_GLSL = /* glsl */ `
+${FIRE_PARS}
+bool fireCellAt(vec3 at, out ivec2 texel) {
+  vec2 cell = (at.xz - uFireGridMap.xy) / uFireGridMap.z;
+  ivec2 cells = textureSize(uFireGrid, 0);
+  if (cell.x < 0.0 || cell.y < 0.0 || cell.x >= float(cells.x / ${TEXELS}) || cell.y >= float(cells.y)) return false;
+  texel = ivec2(int(cell.x) * ${TEXELS}, int(cell.y));
+  return true;
+}
+vec3 fireGlow(vec3 at, vec3 n) {
+  vec3 sum = vec3(0.0);
+  if (uFireOn < 0.5) return sum;
+  ivec2 texel;
+  if (fireCellAt(at, texel)) {
+    for (int t = 0; t < ${TEXELS}; t++) {
+      vec4 slots = texelFetch(uFireGrid, texel + ivec2(t, 0), 0) * 255.0;
+      for (int k = 0; k < 4; k++) {
+        if (slots[k] > 254.5) break;
+        int i = int(slots[k] + 0.5);
+        vec4 how = texelFetch(uFireLights, ivec2(i, 4), 0);
+        if (how.x > 0.5 && how.x < 1.5) continue;
+        vec4 spot = texelFetch(uFireLights, ivec2(i, 0), 0);
+        vec3 way = spot.xyz - at;
+        float d = length(way);
+        if (d >= spot.w) continue;
+        float pass = how.x > 1.5 ? firePass(i, at, spot.xyz, how.z) : 1.0;
+        if (pass <= 0.0) continue;
+        vec4 light = texelFetch(uFireLights, ivec2(i, 1), 0);
+        sum += light.rgb * pass * fireFall(d, light.w, spot.w, how.w) * max(dot(n, way / d), 0.0);
+      }
+      if (slots.w > 254.5) break;
+    }
+  }
+  if (uFireHeld.w > 0.0) {
+    vec3 way = uFireHeld.xyz - at;
+    float d = length(way);
+    if (d < uFireHeld.w) sum += uFireHeldColour * fireFall(d, uFireHeldSoft, uFireHeld.w, 2.0) * max(dot(n, way / max(d, 1e-3)), 0.0);
+  }
+  return sum;
+}
+// A flame's road on the water at a point, seen from the eye: the streak lies on the line from the eye to
+// the flame's foot, widening toward the flame and brightest under it, broken by the ripples; the
+// flame's own light, as far as it reaches.
+float fireRoadAt(vec3 at, vec3 eye, vec3 flame, float time) {
+  vec2 toward = at.xz - eye.xz;
+  vec2 foot = flame.xz - eye.xz;
+  float span = max(length(foot), 1e-3);
+  vec2 m = foot / span;
+  float along = dot(toward, m);
+  float off = abs(toward.x * m.y - toward.y * m.x);
+  float width = 0.12 + 0.1 * along;
+  float road = (1.0 - smoothstep(width * 0.5, width, off)) * smoothstep(0.0, min(1.0, span * 0.5), along)
+    * (1.0 - smoothstep(span - 0.2, span + 0.4, along)) * smoothstep(0.0, 1.0, along / span);
+  if (road <= 0.0) return 0.0;
+  return road * step(0.4, fract(along * 0.45 + 0.35 * sin(at.x * 0.9 + time * 0.8) + 0.25 * sin(at.z * 1.2 - time * 0.6)));
+}
+vec3 fireRoad(vec3 at, vec3 eye, float time) {
+  vec3 sum = vec3(0.0);
+  if (uFireOn < 0.5) return sum;
+  ivec2 texel;
+  if (fireCellAt(at, texel)) {
+    for (int t = 0; t < ${TEXELS}; t++) {
+      vec4 slots = texelFetch(uFireGrid, texel + ivec2(t, 0), 0) * 255.0;
+      for (int k = 0; k < 4; k++) {
+        if (slots[k] > 254.5) break;
+        int i = int(slots[k] + 0.5);
+        vec4 how = texelFetch(uFireLights, ivec2(i, 4), 0);
+        if (how.x > 0.5) continue;
+        vec4 spot = texelFetch(uFireLights, ivec2(i, 0), 0);
+        float d = distance(spot.xyz, at);
+        if (d >= spot.w) continue;
+        float road = fireRoadAt(at, eye, spot.xyz, time);
+        if (road <= 0.0) continue;
+        vec4 light = texelFetch(uFireLights, ivec2(i, 1), 0);
+        sum += light.rgb * road * fireFall(d, light.w, spot.w, how.w);
+      }
+      if (slots.w > 254.5) break;
+    }
+  }
+  // The torch carried about: its flame's short road right under it, as the water gives back a flame
+  // held over it.
+  if (uFireHeld.w > 0.0) {
+    float d = distance(uFireHeld.xyz, at);
+    if (d < uFireHeld.w) sum += uFireHeldColour * fireRoadAt(at, eye, uFireHeld.xyz, time) * fireFall(d, uFireHeldSoft, uFireHeld.w, 2.0);
+  }
+  return sum;
+}
 `;
 
 /** GLSL, after three's own lights: every source the grid lists for this point's cell, lit as three
@@ -190,27 +335,15 @@ if (uFireOn > 0.5) {
         if (fireHow.y > 0.5 && abs(fireHow.y - vNight.x) < 0.5) continue;
         #endif
         vec4 fireSpot = texelFetch(uFireLights, ivec2(fireI, 0), 0);
-        vec3 fireColour = texelFetch(uFireLights, ivec2(fireI, 1), 0).rgb;
+        vec4 fireLight = texelFetch(uFireLights, ivec2(fireI, 1), 0);
+        vec3 fireColour = fireLight.rgb;
         vec3 fireWay = fireSpot.xyz - fireAt;
         float fireD = length(fireWay);
         if (fireHow.x > 1.5) {
-          // Out through a doorway or a window: beyond it, where the way from the lantern passes
-          // through it, softly at its frame, as much as its mask lets through there.
-          vec4 fireHole = texelFetch(uFireLights, ivec2(fireI, 2), 0);
-          vec4 fireFace = texelFetch(uFireLights, ivec2(fireI, 3), 0);
-          if (dot(fireAt - fireHole.xyz, fireFace.xyz) <= 0.0) continue;
-          float fireThrough = dot(fireHole.xyz - fireSpot.xyz, fireFace.xyz) / dot(fireAt - fireSpot.xyz, fireFace.xyz);
-          vec3 fireCross = fireSpot.xyz + (fireAt - fireSpot.xyz) * fireThrough - fireHole.xyz;
-          float fireAlong = dot(fireCross, normalize(vec3(fireFace.z, 0.0, -fireFace.x)));
-          float firePass = (1.0 - smoothstep(fireHole.w - ${OPENING_SOFT.toFixed(2)}, fireHole.w + ${OPENING_SOFT.toFixed(2)}, abs(fireAlong)))
-            * (1.0 - smoothstep(fireFace.w - ${OPENING_SOFT.toFixed(2)}, fireFace.w + ${OPENING_SOFT.toFixed(2)}, abs(fireCross.y)));
-          if (firePass <= 0.0) continue;
-          if (fireHow.z > 0.5) {
-            vec2 fireMask = clamp(vec2(fireAlong / fireHole.w, fireCross.y / fireFace.w) * 0.5 + 0.5, 0.0, 1.0) * ${MASK - 1}.0 + 0.5;
-            firePass *= texture2D(uFireMasks, vec2(fireMask.x, (fireHow.z - 1.0) * ${MASK}.0 + fireMask.y) / vec2(textureSize(uFireMasks, 0))).r;
-            if (firePass <= 0.0) continue;
-          }
-          fireColour *= firePass;
+          // Out through a doorway or a window (see firePass).
+          float pass = firePass(fireI, fireAt, fireSpot.xyz, fireHow.z);
+          if (pass <= 0.0) continue;
+          fireColour *= pass;
         } else if (fireHow.x > 0.5) {
           if (!fireInRoom) continue;
           // Only what faces into the room: a wall's outer face can lie inside the box too.
@@ -218,7 +351,9 @@ if (uFireOn > 0.5) {
         }
         if (fireD >= fireSpot.w) continue;
         directLight.direction = mat3(viewMatrix) * (fireWay / fireD);
-        directLight.color = fireColour * getDistanceAttenuation(fireD, fireSpot.w, fireHow.w);
+        // A fire bigger than a torch's lights from its whole body (fireLight.w round its middle): close
+        // in, no brighter than from that far off.
+        directLight.color = fireColour * fireFall(fireD, fireLight.w, fireSpot.w, fireHow.w);
         directLight.visible = true;
         RE_Direct(directLight, geometryPosition, geometryNormal, geometryViewDir, geometryClearcoatNormal, material, reflectedLight);
       }
@@ -233,7 +368,7 @@ if (uFireOn > 0.5) {
     float heldD = length(heldWay);
     if (heldD < uFireHeld.w) {
       directLight.direction = mat3(viewMatrix) * (heldWay / max(heldD, 1e-3));
-      directLight.color = uFireHeldColour * getDistanceAttenuation(heldD, uFireHeld.w, 2.0);
+      directLight.color = uFireHeldColour * fireFall(heldD, uFireHeldSoft, uFireHeld.w, 2.0);
       directLight.visible = true;
       RE_Direct(directLight, geometryPosition, geometryNormal, geometryViewDir, geometryClearcoatNormal, material, reflectedLight);
     }
@@ -372,7 +507,15 @@ export class Firelight {
       room: options.room ?? null,
       opening: options.opening ?? null,
       owner,
+      soft: options.soft ?? 0,
+      lit: true,
     });
+  }
+
+  /** Source `i` burning or not: a village torch's goes out while its brand is away (see Props.setBrand). */
+  setLit(i: number, on: boolean): void {
+    const s = this.sources[i];
+    if (s) s.lit = on;
   }
 
   /** A torch carried about, its flame at `at` (null: none): it lights what is round it after dark, as the
@@ -517,6 +660,7 @@ export class Firelight {
     if (this.held && glow > 0) {
       held.set(this.held.x, this.held.y, this.held.z, HELD.reach);
       fireUniforms.uFireHeldColour.value.copy(HELD.colour).multiplyScalar(HELD.intensity * glow * this.heldFlicker());
+      fireUniforms.uFireHeldSoft.value = FIRE_SOFT * HELD.flame;
     } else {
       held.w = 0;
     }
@@ -524,8 +668,8 @@ export class Firelight {
     const width = this.sources.length;
     this.sources.forEach((s, i) => {
       const kind = KINDS[s.kind];
-      const k = kind.intensity * glow * this.flicker(s);
-      table.set([kind.colour.r * k, kind.colour.g * k, kind.colour.b * k, 0], (width + i) * 4);
+      const k = s.lit ? kind.intensity * glow * this.flicker(s) : 0;
+      table.set([kind.colour.r * k, kind.colour.g * k, kind.colour.b * k, s.soft], (width + i) * 4);
     });
     lights.needsUpdate = true;
   }
@@ -553,7 +697,7 @@ export class Firelight {
       const dy = s.position.y - y;
       const dz = s.position.z - z;
       const d = Math.hypot(dx, dy, dz);
-      if (d >= kind.reach) {
+      if (d >= kind.reach || !s.lit) {
         seen.delete(i);
         return;
       }
@@ -599,7 +743,9 @@ export class Firelight {
             out[k].copy(out[k - 1]);
             k--;
           }
-          out[k].set(dx / d, dy / d, dz / d, w);
+          // Wrapping round whoever holds it (HELD_WRAP), the more the nearer: its way sent short.
+          const wrap = 1 - HELD_WRAP * (1 - d / HELD.reach);
+          out[k].set((dx / d) * wrap, (dy / d) * wrap, (dz / d) * wrap, w);
           if (k === 0) from.copy(h);
         }
       }

@@ -82,6 +82,25 @@ export interface FaceStyle {
  * forbidden cave (see Siren.ts). */
 export type ResidentId = 'siren' | 'mermaid';
 
+/**
+ * How someone walks, each as a share of the plain way of walking, which you and the islanders have (1; see
+ * Character.locomotionPose): how fast they go (their walk and their run, `pace`); how long their steps are
+ * for that (shorter, the quicker they step); how much they bob up and down, sway from side to side, swing
+ * their arms, lift their feet and lean into their pace; and how quickly they get going, stop and turn
+ * (`quick`). Each of the cast walks in their own way, and each islander a little differently (the user,
+ * 2026-10-23).
+ */
+export interface Gait {
+  pace: number;
+  stride: number;
+  bounce: number;
+  sway: number;
+  arms: number;
+  lift: number;
+  lean: number;
+  quick: number;
+}
+
 export interface CharacterDef {
   id: CharacterId | ResidentId;
   nameKey: StringKey;
@@ -96,6 +115,8 @@ export interface CharacterDef {
   face: FaceStyle;
   walkSpeed: number;
   runSpeed: number;
+  /** Their own way of walking, where it is not the plain one (see Gait). */
+  gait?: Partial<Gait>;
   /** What they always have in their left hand, from its Blender prop (art/blender/build_props.py): Kurimanju's
    * can of drink. */
   carries?: 'can';

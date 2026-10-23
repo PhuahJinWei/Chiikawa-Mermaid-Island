@@ -125,6 +125,16 @@ body {
   transition: none;
 }
 
+/* Sprinting, the stick held at its edge a moment: its ring and its knob go pink. */
+.joy-base.sprint {
+  border-color: var(--pink-strong);
+  background: rgba(247, 205, 211, 0.35);
+}
+
+.joy-base.sprint .joy-knob {
+  background: var(--pink);
+}
+
 .joy-knob {
   position: absolute;
   left: 50%;

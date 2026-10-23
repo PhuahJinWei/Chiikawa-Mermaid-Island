@@ -448,6 +448,11 @@ export class Life {
     return blocks.sort((a, b) => a.at - b.at);
   }
 
+  /** The part of `r`'s day the hour has them in now (begun, or waiting on them parting from you). */
+  dayPart(r: Resident): Block {
+    return this.blockAt(r, this.hours);
+  }
+
   /** The block of `r`'s day the hour falls in. */
   private blockAt(r: Resident, hours: number): Block {
     let found = r.plan[0];
@@ -673,14 +678,15 @@ export class Life {
 
   /**
    * Each morning (`day`, see Game.keepUp): what anyone borrowed and still has goes back where it lay (theirs
-   * to its owner, in the night), and what someone who lives here took from its place of its own (the stage's
-   * ukulele) back to it, as they would have taken it on their way had the night not come first; then what
-   * lies about is seen to (see Things.morning): nothing with a place of its own is made anew while you have it.
+   * to its owner, in the night), and what has a place of its own (the stage's ukulele, a village torch, a
+   * book) goes back to it from anyone's paws, yours too (the user, 2026-10-23: the island tidies up overnight;
+   * what is yours to keep is what has no place of its own); then what lies about is seen to (see
+   * Things.morning).
    */
   morning(day: number): void {
     for (const hands of this.allHands()) {
       for (const c of hands.all) {
-        const home = c.home && hands.who !== 'player' ? this.things.homes.get(c.home) : null;
+        const home = c.home ? this.things.homes.get(c.home) : null;
         if (!c.lent && !home) continue;
         hands.remove(c);
         if (c.lent) {
@@ -878,7 +884,14 @@ export class Life {
     return this.residents
       .filter(
         (r) =>
-          r !== but && !r.far && r.ch.shown && !r.busy && !r.line && !r.chat && r.block?.kind !== 'sleep' && flat(r.pos, at) <= reach,
+          r !== but &&
+          !r.far &&
+          r.ch.shown &&
+          (!r.busy || r.parting) &&
+          !r.line &&
+          !r.chat &&
+          r.block?.kind !== 'sleep' &&
+          flat(r.pos, at) <= reach,
       )
       .sort((a, b) => flat(a.pos, at) - flat(b.pos, at));
   }
@@ -977,7 +990,8 @@ export class Life {
         if (this.now >= r.leavesWelcome) r.endWelcome(block);
         continue;
       }
-      if (block !== r.block) r.begin(block);
+      // (Not while they are with you: the hour's next part of their day waits till they have parted from you.)
+      if (block !== r.block && !r.withPlayer) r.begin(block);
     }
     for (const r of this.residents) if (r.ch !== f.me) r.step(dt);
     this.nav.work(2500);

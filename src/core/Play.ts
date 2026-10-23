@@ -13,7 +13,6 @@ import type { Life } from '../life/Life';
 import type { Resident } from '../life/Resident';
 import type { Seat, Stall } from '../life/Places';
 import { groundHeight, waterLevelAt } from '../world/Island';
-import { glowUniforms } from '../world/Glow';
 import type { Sound } from './Sound';
 
 /**
@@ -35,8 +34,10 @@ import type { Sound } from './Sound';
  * would put down what you hold lies a sketch of it.
  */
 
-/** How far you reach from your eyes for what you look at (metres), and for a seat from your feet. */
+/** How far you reach from your eyes for what you look at (metres), and for a seat from your feet; a brand
+ * burning in its stand, on top of a torch's stake, a little further. */
 const REACH = 2.1;
+const STAND_REACH = 2.4;
 const SEAT_REACH = 1.9;
 /** How near the middle of your view something must be to be what you look at (the angle's cosine), and how
  * far from the middle what you look at may drift before you have looked away from it (the user, 2026-10-23:
@@ -61,7 +62,9 @@ export type Target =
   | { kind: 'thing'; thing: Thing }
   | { kind: 'seat'; seat: Seat; bed: boolean }
   | { kind: 'resident'; r: Resident }
-  | { kind: 'place'; at: THREE.Vector3 };
+  | { kind: 'place'; at: THREE.Vector3 }
+  /** An empty stand (a village torch's pole) for the brand you hold (see Things' stands). */
+  | { kind: 'stand'; home: string; at: THREE.Vector3; yaw: number };
 
 /** What Play needs from the game each frame. */
 export interface PlayFrame {
@@ -109,8 +112,6 @@ export class Play {
   /** To sleep through the night: the game takes you to the morning. */
   onSleep: () => void = () => {};
   private label: string | null = null;
-  /** In the forbidden cave, where your paw holds its torch instead (see Game.updateCave). */
-  private inCave = false;
   /** Picked from the きもち panel, to do on the next frame (see emote). */
   private emoteQueued: ActionId | null = null;
   /** What your paw and pouch showed last (to show them again when they change). */
@@ -180,26 +181,25 @@ export class Play {
   update(f: PlayFrame): void {
     const me = f.me;
     this.keepHand(me);
-    const night = glowUniforms.uGlow.value > 0;
-    // (Put out while a staged shot or the lineup has you elsewhere.)
-    const lit = this.hand === 'torch' && night && !f.inCave && f.free;
+    // A torch burns whenever it is held, day and night (the user, 2026-10-23); its light reaches what is round
+    // it after dark and in the forbidden cave (see Firelight.setHeld, Game.updateCave). (Put out while a staged
+    // shot or the lineup has you elsewhere.)
+    const lit = this.hand === 'torch' && f.free;
     this.view.lit = lit;
     const flame = this.hands.copy?.userData.flame;
     if (flame) flame.visible = lit;
 
-    this.inCave = f.inCave;
     const walking = this.input.move.lengthSq() > 0.04;
     if (this.using) this.useOn(f, walking);
     if (this.seat && walking && f.free) this.standUp(me);
 
-    // (In the cave your paw holds its torch: what you hold waits till you are out.)
-    this.target = f.free && !this.sleeping && !f.inCave ? this.aim(f) : null;
+    this.target = f.free && !this.sleeping ? this.aim(f) : null;
     this.label = this.sleeping || !f.free ? null : this.labelFor(this.target);
     // What you look at, shown: the ▽ over it, and the sketch of what you would put down (see Focus).
     const held = this.hands.hand ? { item: this.hands.hand.item, nibbled: this.hands.nibbled } : null;
     this.focus.update(f.dt, this.target, held, me);
     const use = this.hand ? ITEMS[this.hand].use : null;
-    const useLabel = f.free && !this.sleeping && !f.inCave && use ? t(this.using ? 'hud.stop' : (`hud.${use}` as StringKey)) : null;
+    const useLabel = f.free && !this.sleeping && use ? t(this.using ? 'hud.stop' : (`hud.${use}` as StringKey)) : null;
     this.hud.setUse(useLabel);
     if (!f.buttonTaken && this.input.consumeAction() && this.label) this.act(me);
     if (this.input.consumeUse() && useLabel) this.toggleUse(me);
@@ -244,7 +244,7 @@ export class Play {
 
   /** Your paw before your eyes, after the camera has moved. */
   updateView(dt: number, camera: THREE.PerspectiveCamera, me: Character, on: boolean, speed: number): void {
-    this.view.update(dt, camera, me, on && !this.sleeping && !this.inCave, speed);
+    this.view.update(dt, camera, me, on && !this.sleeping, speed);
   }
 
   // ---------------------------------------------------------------- what you hold
@@ -336,7 +336,7 @@ export class Play {
   private useOn(f: PlayFrame, walking: boolean): void {
     const using = this.using;
     if (!using) return;
-    if (walking || !f.free || f.inCave) {
+    if (walking || !f.free) {
       this.stopUsing(f.me);
       return;
     }
@@ -401,7 +401,13 @@ export class Play {
     }
     for (const thing of this.things.list) {
       if (!thing.shown) continue;
-      consider(thing.grip, REACH, { kind: 'thing', thing });
+      consider(thing.grip, thing.hidden ? STAND_REACH : REACH, { kind: 'thing', thing });
+    }
+    // The brand you hold, back into its stand if it is empty.
+    const brand = this.hands.hand;
+    const stand = brand?.home ? this.things.homes.get(brand.home) : undefined;
+    if (brand?.home && stand?.stand !== undefined && !this.things.list.some((t) => t.home === brand.home)) {
+      consider(stand.at, STAND_REACH, { kind: 'stand', home: brand.home, at: stand.at, yaw: stand.yaw });
     }
     if (!this.seat && !f.inCave) {
       for (const seat of this.seats) {
@@ -430,6 +436,8 @@ export class Play {
         return was.kind === 'resident' && was.r === target.r;
       case 'seat':
         return was.kind === 'seat' && was.seat === target.seat;
+      case 'stand':
+        return was.kind === 'stand' && was.home === target.home;
       default:
         return false;
     }
@@ -469,6 +477,8 @@ export class Play {
         // Bitten into, it is not put down but eaten (or drunk) up.
         if (this.hand && this.hands.nibbled) return t(ITEMS[this.hand].use === 'drink' ? 'hud.drinkUp' : 'hud.eatUp');
         return t('hud.put');
+      case 'stand':
+        return t('hud.putBack');
     }
   }
 
@@ -504,6 +514,12 @@ export class Play {
         break;
       case 'place':
         this.putDown(target.at, me);
+        break;
+      case 'stand':
+        // The brand back in its stand, burning there again (see Things' stands).
+        if (this.using) this.stopUsing(me);
+        this.hands.putDown(target.at, target.yaw);
+        this.sound?.putDown();
         break;
     }
   }
