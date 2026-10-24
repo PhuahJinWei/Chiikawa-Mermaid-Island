@@ -250,6 +250,11 @@ export class Focus {
         return out.copy(target.seat.at).setY(target.seat.at.y + OVER_SEAT);
       case 'stand':
         return out.copy(target.at).setY(target.at.y + OVER_THING);
+      case 'siren':
+        // Over the top of her head, as over anyone's.
+        target.ch.getAnchor('top', out);
+        out.y += OVER_HEAD;
+        return out;
       case 'place': {
         // (Bitten into, it is not put down but eaten up: nothing to show.)
         if (!held || held.nibbled) return null;

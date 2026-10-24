@@ -581,6 +581,11 @@ twice in one talk, drifting to their own talk and warming to you; a last
 line once they have said it all); `[face action]` cues at the start of a line
 in ja.json (faces from characters/types.ts, actions from Actions.ts,
 Kurimanju's new `drink`), ~600 lines cued.
+The Siren talks (2026-10-24, the user: on her ledge, sweet but a little
+eerie; this changes "never interacts" above): `life/SirenTalk.ts`, her
+voice after the manga (short sentences ending in の, calm, innocent, her
+laugh キャーハハ…, わかったッ), with もっとはなす and her faces; at sea she
+still never comes near.
 
 ### 6.6 "Monitoring" the island
 

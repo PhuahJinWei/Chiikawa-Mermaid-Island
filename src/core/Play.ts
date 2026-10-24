@@ -11,6 +11,7 @@ import { Hands, SLOTS, type SavedHands } from '../life/Hands';
 import { Things, type Thing } from '../life/Things';
 import type { Life } from '../life/Life';
 import type { Resident } from '../life/Resident';
+import type { SirenTalk } from '../life/SirenTalk';
 import type { Seat, Stall } from '../life/Places';
 import { groundHeight, waterLevelAt } from '../world/Island';
 import type { Sound } from './Sound';
@@ -65,6 +66,8 @@ export type Target =
   | { kind: 'thing'; thing: Thing }
   | { kind: 'seat'; seat: Seat; bed: boolean }
   | { kind: 'resident'; r: Resident }
+  /** The Siren, on her ledge in the cave (see SirenTalk): her character. */
+  | { kind: 'siren'; ch: Character }
   | { kind: 'place'; at: THREE.Vector3 }
   /** An empty stand (a village torch's pole) for the brand you hold (see Things' stands). */
   | { kind: 'stand'; home: string; at: THREE.Vector3; yaw: number };
@@ -118,6 +121,8 @@ export class Play {
   sleeping = false;
   /** To sleep through the night: the game takes you to the morning. */
   onSleep: () => void = () => {};
+  /** Talking with the Siren, once the game has her (see SirenTalk). */
+  siren: SirenTalk | null = null;
   private label: string | null = null;
   /** Picked from the きもち panel, to do on the next frame (see emote). */
   private emoteQueued: ActionId | null = null;
@@ -484,6 +489,16 @@ export class Play {
       _eyes.set(p.x, THREE.MathUtils.clamp(eye.y + along * _fwd.y, feet + 0.1, feet + r.ch.height), p.z);
       consider(_eyes, REACH + 0.3, { kind: 'resident', r });
     }
+    // The Siren on her ledge, anywhere on her as anyone (calm: roused, she is no one to chat with), her tail's
+    // bowl round her (about a metre) beyond your reach of anyone.
+    const siren = this.siren?.siren;
+    if (siren && siren.where === 'ledge' && siren.currentMood === 'calm' && siren.character.shown) {
+      const sc = siren.character;
+      const p = sc.position;
+      const along = level > 1e-6 ? ((p.x - eye.x) * _fwd.x + (p.z - eye.z) * _fwd.z) / level : 0;
+      _eyes.set(p.x, THREE.MathUtils.clamp(eye.y + along * _fwd.y, sc.feetY + 0.1, sc.feetY + sc.height), p.z);
+      consider(_eyes, REACH + 1.3, { kind: 'siren', ch: sc });
+    }
     // A brand in its stand, and an empty stand for the brand you hold: anywhere on the stake, as someone is
     // anywhere on them (the user, 2026-10-23: looking at the pole found nothing, only its flame did).
     const stakePoint = (at: THREE.Vector3): THREE.Vector3 => {
@@ -527,6 +542,8 @@ export class Play {
         return was.kind === 'thing' && was.thing === target.thing;
       case 'resident':
         return was.kind === 'resident' && was.r === target.r;
+      case 'siren':
+        return was.kind === 'siren';
       case 'seat':
         return was.kind === 'seat' && was.seat === target.seat;
       case 'stand':
@@ -564,6 +581,8 @@ export class Play {
       case 'resident':
         // (What you have bitten into you cannot give.)
         return this.hand && !this.hands.nibbled ? t('hud.give') : t('hud.talk');
+      case 'siren':
+        return t('hud.talk');
       case 'seat':
         return target.bed && this.night() ? t('hud.sleep') : t('hud.sit');
       case 'place':
@@ -600,6 +619,9 @@ export class Play {
       case 'resident':
         if (this.hand && !this.hands.nibbled) this.give(target.r, me);
         else this.life.talk(target.r, me.position);
+        break;
+      case 'siren':
+        this.siren?.begin();
         break;
       case 'seat':
         if (target.bed && this.night()) this.sleep(target.seat, me);

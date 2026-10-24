@@ -30,6 +30,7 @@ import { CHARACTER_IDS, type CharacterId, type ExpressionId } from '../character
 import { loadCharacterModel, loadOutfitModel, type OutfitModel } from '../characters/Model';
 import { EmoteSystem } from '../characters/Emotes';
 import { Siren } from '../characters/Siren';
+import { SirenTalk } from '../life/SirenTalk';
 import { PlayerController, type Heading } from '../characters/PlayerController';
 import { createHeld } from '../characters/Props';
 import { loadProp } from '../world/PropModels';
@@ -520,6 +521,8 @@ export class Game {
     const focus = new Focus(items, this.scene, FILM ? (x, y, z) => this.stage.shadeAt(x, y, z) : null, this.emotes);
     const play = new Play(things, life, this.hud, view, focus, this.input, this.me(), this.sound);
     play.onSleep = () => void this.sleepThrough();
+    // Talking with the Siren on her ledge (see SirenTalk).
+    if (this.siren) play.siren = new SirenTalk(this.siren, this.hud.dialogue, () => play.hand);
     this.play = play;
     // Only the game's camera draws your paw before your eyes.
     this.camera.layers.enable(HAND_LAYER);
@@ -1205,6 +1208,7 @@ export class Game {
         life && living ? { hours: this.clock.hours, day: life.day, camera: this.camera } : null,
       ),
     );
+    this.part('siren talk', () => this.play?.siren?.update(dt, me.position));
     // What is said to you, in the text box: the action button, E or Enter show the rest of a line, or the next
     // (held, skipping through them); asked something, the keyboard's numbers choose (1 the first, 0 the tenth).
     const box = this.hud.dialogue;

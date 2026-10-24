@@ -1177,12 +1177,12 @@ export class Resident {
 
   /** With you from now till `brain` is done, and then parting from you if `part` (see partFrom): their eyes on
    * you (see Life.attend) the whole while, and their day's next part waiting till they have (see Life.update). */
-  private *withYou(brain: Brain, part = false): Brain {
+  private *withYou(brain: Brain, part = false, bye: () => boolean = () => false): Brain {
     this.withPlayer = true;
     this.focusUntil = 0;
     try {
       yield* brain;
-      if (part) yield* this.partFrom();
+      if (part) yield* this.partFrom(bye());
     } finally {
       this.withPlayer = false;
     }
@@ -1195,7 +1195,7 @@ export class Resident {
    * and off. With nowhere to be, they stay with you a while, the fonder of you the longer, till you go off, then
    * wave you goodbye. Seated, or behind their counter, only the moment; in a stall's line, none (the line moves).
    */
-  private *partFrom(): Brain {
+  private *partFrom(bye = false): Brain {
     if (this.line) return;
     const you = this.life.playerAt;
     if (!you) return;
@@ -1203,6 +1203,18 @@ export class Resident {
     try {
       const turned = (seconds: number): Brain<boolean> => this.turnedTo(you, seconds);
       const where = this.somewhereToBe();
+      if (bye) {
+        // You said またね (`bye`, the user, 2026-10-24): their goodbye at once, a wave and a word (where they are off
+        // to, if anywhere), not standing on with you; seated or behind their counter, only the word.
+        const line = this.life.line(this, where ?? 'part.bye');
+        if (this.seat || !this.free) {
+          yield* this.speak(line, PART_LEAVE, true, () => {
+            this.halt();
+            this.faceTo(you);
+          });
+        } else yield* this.leaveTaking(you, line, PART_LEAVE);
+        return;
+      }
       if (this.seat || !this.free) {
         yield* turned(PART_MOMENT);
         return;
@@ -1474,6 +1486,8 @@ export class Resident {
         const labels = kinds.map((k) => words(k === 'more' ? 'talk.more' : k === 'seek' ? 'talk.seek' : 'talk.bye'));
         const pick = yield* this.sayTo(you, line, TALK, true, labels);
         const kind = pick >= 0 ? kinds[pick] : 'bye';
+        // (またね chosen, not walked off from or left unanswered: their goodbye at once, see partFrom.)
+        bye = pick >= 0 && kind === 'bye';
         if (kind === 'more') {
           const next = this.life.moreLine(this, turn);
           more = next !== null;
@@ -1488,7 +1502,8 @@ export class Resident {
         return;
       }
     };
-    yield* this.withYou(talking.call(this), true);
+    let bye = false;
+    yield* this.withYou(talking.call(this), true, () => bye);
   }
 
   /** You hopped at them, standing at `you`: after a moment they hop back, or wave. */

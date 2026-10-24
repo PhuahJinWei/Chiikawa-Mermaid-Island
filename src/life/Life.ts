@@ -1119,7 +1119,8 @@ export class Life {
     this.playerAt = f.me.position;
     // What is said to you by someone you have gone off from (or who went off), out of the text box.
     const you = this.playerAt;
-    this.box?.dropIf((who) => (who as Resident).far || flat((who as Resident).pos, you) > BOX_AWAY);
+    // (Only those who live here: the Siren's talk keeps its own distance, see SirenTalk.)
+    this.box?.dropIf((who) => who instanceof Resident && (who.far || flat(who.pos, you) > BOX_AWAY));
 
     // The welcome over once you come up the beach (or go off elsewhere, or after a while): each goes off into
     // their day, one after another.

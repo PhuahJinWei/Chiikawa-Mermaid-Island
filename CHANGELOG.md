@@ -160,6 +160,25 @@ stage, and along every path. Not yet checked on a real phone.
   talking, cheering and crying bubbles over their heads are theirs too
   (`bubble.talk.chiikawa`..., any character's own `key.<id>` in
   `Character`'s action words).
+- You can talk with the Siren on her ledge in the forbidden cave (the user,
+  2026-10-24: sweet but a little eerie; `src/life/SirenTalk.ts`). She speaks
+  as in the manga's Siren arc: short plain sentences, nearly all ending in
+  の, calm and innocent (「ここ、わたしたちの場所なの」「ずっと、ここにいるの。
+  …ずっと」), her high laugh キャーハハ…, a flash of her angry red-eyed face
+  on 「この子たちに、さわらないでね。…ね？」, and a closing 「…わかったッ。
+  もう、おしまいなの」; never of eating or revenge. On first meeting she asks
+  who you are; she speaks of the book, a torch, a weapon, food, a shell or
+  the ukulele in your paw. Her lines go through the text box with もっとはなす
+  (never one twice in a talk) and またね, her faces from the lines' cues; she
+  knows nothing of where anyone is. Calm and on her ledge only; walking 5 m
+  from her middle ends the talk. 23 lines (talk.*.siren), a draft for the
+  user to review.
+- Saying またね gets a goodbye at once (the user, 2026-10-24): whoever you
+  were talking with waves and says theirs (where they are off to, if
+  anywhere, else their own またね), then goes on with their day, rather than
+  standing on with you till you walk off. Seated or behind a counter, the
+  word without the wave; the Siren says 「…またね、なの」. Walking off or
+  leaving them unanswered parts as before.
 - Someone at the welcome you are talking with no longer walks off when the
   welcome ends: they go once they have parted from you, as at any other
   change in their day.
