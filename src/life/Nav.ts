@@ -37,6 +37,14 @@ const WET = 3;
 const PORTAL_BASE = 1 << 28;
 /** Searching costs about this many cells' expansion to work out a chunk. */
 const CHUNK_COST = 400;
+/**
+ * How many chunks a frame's searching works out at most (see work): one, about 3 ms on the dev PC and some 10 on a
+ * phone. A search that needs another waits for the next frame (DEFERRED, see chunk), where it goes on. Up to six had
+ * been worked out in one frame, 15 to 20 ms here, a dropped frame or two on a phone, whenever ways led through a
+ * part of the island not walked yet (the user, 2026-10-24: the frame rate dropping now and then).
+ */
+const CHUNKS_A_FRAME = 1;
+const DEFERRED = Symbol('deferred');
 /** How far a portal reaches for the cells round it to join, and a way's ends for the cell they start or
  * end at, in metres. A portal none of whose cells are that near (steps up to a door can leave the nearest
  * outside it just out of reach) reaches as far as PORTAL_REACH_MOST. */
@@ -181,6 +189,10 @@ export class Nav {
   /** The cells joined to portals, and the portals each is joined to. */
   private readonly gridLinks = new Map<number, Link[]>();
   private readonly queue: Search[] = [];
+  /** While a frame's searching runs (see work): how many chunks it may still work out (see chunk). Elsewhere (a
+   * way sought at once, a height asked for) chunks are worked out as needed. */
+  private gate = false;
+  private allowance = 0;
   private readonly heap = new Heap();
   private stamp = 0;
   /** Cells expanded and chunks worked out, all told (for the dev tools). */
@@ -258,13 +270,25 @@ export class Nav {
     return Math.floor(gj / CHUNK) * this.chunks + Math.floor(gi / CHUNK);
   }
 
-  /** The chunk, worked out if it has not been yet. */
+  /** The chunk, worked out if it has not been yet: in a frame's searching (see work), only while it may still
+   * work one out this frame, else the search is put off to the next (DEFERRED, caught in advance). */
   private chunk(index: number): Chunk {
     let c = this.grid[index];
     if (c) return c;
+    if (this.gate) {
+      if (this.allowance <= 0) throw DEFERRED;
+      this.allowance--;
+    }
     c = this.build(index);
     this.grid[index] = c;
-    for (const p of this.portalsIn.get(index) ?? []) this.joinPortal(p);
+    // (A portal joined whole: the chunks its other side needs, worked out now whatever the frame's allowance.)
+    const gate = this.gate;
+    this.gate = false;
+    try {
+      for (const p of this.portalsIn.get(index) ?? []) this.joinPortal(p);
+    } finally {
+      this.gate = gate;
+    }
     return c;
   }
 
@@ -431,12 +455,19 @@ export class Nav {
     return this.queue.length > 0;
   }
 
-  /** Works on the ways being sought, about `budget` cells' worth; call once a frame. */
+  /** Works on the ways being sought, about `budget` cells' worth and at most CHUNKS_A_FRAME chunks; call once a
+   * frame. */
   work(budget: number): void {
-    while (budget > 0 && this.queue.length > 0) {
-      const search = this.queue[0];
-      budget = this.advance(search, budget);
-      if (search.way.status !== 'seeking') this.queue.shift();
+    this.gate = true;
+    this.allowance = CHUNKS_A_FRAME;
+    try {
+      while (budget > 0 && this.queue.length > 0) {
+        const search = this.queue[0];
+        budget = this.advance(search, budget);
+        if (search.way.status !== 'seeking') this.queue.shift();
+      }
+    } finally {
+      this.gate = false;
     }
   }
 
@@ -453,8 +484,15 @@ export class Nav {
     if (!search.started) {
       search.started = true;
       const builtBefore = this.built;
-      search.start = this.endNode(way.from);
-      search.goal = this.endNode(way.to);
+      try {
+        search.start = this.endNode(way.from);
+        search.goal = this.endNode(way.to);
+      } catch (e) {
+        if (e !== DEFERRED) throw e;
+        // (A chunk it needs waits for the next frame: begun again then.)
+        search.started = false;
+        return 0;
+      }
       budget -= (this.built - builtBefore) * CHUNK_COST;
       if (search.start < 0 || search.goal < 0) {
         way.status = 'none';
@@ -490,7 +528,16 @@ export class Nav {
       }
       this.setState(id, 2, search.stamp);
       const builtBefore = this.built;
-      this.expand(id, search);
+      try {
+        this.expand(id, search);
+      } catch (e) {
+        if (e !== DEFERRED) throw e;
+        // (A chunk it needs waits for the next frame: this node open again, to be expanded then; what its
+        // neighbours were given so far only stands to be bettered.)
+        this.setState(id, 1, search.stamp);
+        this.heap.push(id, this.g(id, search.stamp) + this.guess(id, search.goalAt));
+        return 0;
+      }
       budget -= 1 + (this.built - builtBefore) * CHUNK_COST;
       this.expanded++;
     }

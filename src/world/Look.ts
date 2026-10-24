@@ -1446,8 +1446,9 @@ const FOCUS = {
  */
 export class FilmPost {
   private readonly composer: EffectComposer;
-  /** The scene as rendered, with its depth (read by the depth of field). */
-  private readonly picture: THREE.WebGLRenderTarget;
+  /** The scene as rendered, with its depth (read by the depth of field); where the scene's shaders must be compiled
+   * for (see Stage.warmShaders). */
+  readonly picture: THREE.WebGLRenderTarget;
   /** The depth of field (see FOCUS). */
   readonly focus: ShaderPass;
   /** The brushwork (see PAINT). */

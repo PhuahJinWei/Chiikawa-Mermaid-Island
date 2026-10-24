@@ -494,15 +494,23 @@ export class Game {
       // Everyone where you left them; on a new island, at its welcome (the cast as HOMES has them).
       const cast = Object.fromEntries(Object.entries(HOMES).filter(([id]) => id !== 'player'));
       this.life.settle(this.clock.hours, this.me(), this.saved ? 'saved' : 'welcome', cast);
-      await this.stage.warmShaders(this.renderer, this.camera);
+      await this.stage.warmShaders(this.renderer, this.camera, this.post?.picture ?? null);
     } catch (err) {
       console.error(err);
       this.hud.showError();
       return;
     }
-    this.hud.doneLoading();
     this.rig.snapTo(this.focusPoint());
     this.eyes.lookFrom(this.me());
+    // One frame drawn behind the loading screen: what compiles only as it is first drawn (the sun's shadows' depth,
+    // the finishing passes, the water's mirror, the footprints) compiles here, not in the first frame seen, which
+    // had taken 0.8 s on the dev PC (2026-10-24).
+    this.part('warm', () => {
+      this.stage.update(this.camera, this.time);
+      this.stage.tread(this.renderer, this.camera, 0, this.me());
+      this.draw();
+    });
+    this.hud.doneLoading();
     this.running = true;
     this.renderer.setAnimationLoop(this.frame);
   }

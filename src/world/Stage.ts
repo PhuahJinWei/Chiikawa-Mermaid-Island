@@ -428,12 +428,20 @@ export class Stage {
    */
   reflectPool(renderer: THREE.WebGLRenderer, camera: THREE.Camera): void {
     const pool = this.pool;
-    if (!pool || pool.face >= 6 || camera.position.distanceTo(pool.surface.position) > POOL_REACH) return;
+    if (!pool || pool.face >= 6) return;
+    if (camera.position.distanceTo(pool.surface.position) > POOL_REACH) {
+      this.vegetation?.release();
+      return;
+    }
     const { surface, probe } = pool;
+    // The plants round the pool put together ahead of the capture, a little a frame, and kept through its six
+    // faces (see Vegetation.prepare): each face had put them together again and let them go, 20 to 30 ms a frame
+    // on the dev PC (2026-10-24).
+    if (this.vegetation && !this.vegetation.prepare(probe.position)) return;
     const shown = this.cast.map((ch) => ch.root.visible);
     for (const ch of this.cast) ch.root.visible = false;
     surface.visible = false;
-    this.vegetation?.update(probe as unknown as THREE.Camera);
+    this.vegetation?.update(probe as unknown as THREE.Camera, null, true);
     this.sky.position.copy(probe.position);
     // The last frame's shadows, once there are any: the first capture, before the first frame has
     // drawn them, draws its own, or everything lit would be left out of the mirror.
@@ -449,6 +457,7 @@ export class Stage {
     renderer.render(this.scene, probe.children[pool.face] as THREE.Camera);
     renderer.setRenderTarget(before);
     pool.face++;
+    if (pool.face >= 6) this.vegetation?.release();
     renderer.shadowMap.autoUpdate = auto;
     this.sky.position.copy(camera.position);
     this.vegetation?.update(camera);
@@ -833,12 +842,21 @@ export class Stage {
   /** Compiles the shaders of everything in the scene ahead of its first frame, so none stalls the
    * game as it first comes into view, the props' painted textures drawn into place meanwhile; and has
    * the island's shapes let go of their vertices once they are on the GPU (see releaseOnUpload).
-   * Called once everything is in the scene. */
-  async warmShaders(renderer: THREE.WebGLRenderer, camera: THREE.Camera): Promise<void> {
+   * Called once everything is in the scene. Compiled for `into`, where the scene is drawn (the film look's
+   * picture, see FilmPost): a shader is compiled for where it draws to (its colour space), so compiled for the
+   * screen they were all compiled again as each first came into view, 0.1 to 0.9 s each on the dev PC, a
+   * stutter on a phone (found 2026-10-24). */
+  async warmShaders(renderer: THREE.WebGLRenderer, camera: THREE.Camera, into: THREE.WebGLRenderTarget | null = null): Promise<void> {
     for (const group of [this.vegetation?.group, this.props?.group, this.landmarks?.group, this.cave?.group]) {
       if (group) releaseOnUpload(group);
     }
-    await Promise.all([this.props?.uploadPaint(renderer), renderer.compileAsync(this.scene, camera)]);
+    const target = renderer.getRenderTarget();
+    renderer.setRenderTarget(into);
+    try {
+      await Promise.all([this.props?.uploadPaint(renderer), renderer.compileAsync(this.scene, camera)]);
+    } finally {
+      renderer.setRenderTarget(target);
+    }
   }
 
   update(camera: THREE.Camera, time: number): void {

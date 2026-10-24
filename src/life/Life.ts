@@ -41,6 +41,8 @@ const islanderId = (i: number) => `islander${String(i + 1).padStart(2, '0')}`;
 const HIDE = 85;
 const FAR = 70;
 const MID = 32;
+/** How much of the ways being sought is worked out a frame (cells expanded; see Nav.work). */
+const NAV_WORK = 700;
 /** How many stalls are kept open each day (the user: 5), and the hour their keepers stop work and close them (the
  * user, 2026-10-24: 18:00; they had kept them till the feast, after 21:30): then out and about, to the feast with
  * everyone. Supper at the stalls is before then (see planFor). */
@@ -1265,7 +1267,8 @@ export class Life {
       if (block !== r.block && !r.withPlayer) r.begin(block);
     }
     for (const r of this.residents) if (r.ch !== f.me) r.step(dt);
-    this.nav.work(2500);
+    // (About 1 to 4 ms on the dev PC: 2500 took up to 14, a dropped frame on a phone; a long way takes a few frames.)
+    this.nav.work(NAV_WORK);
     this.chats();
     this.attend(f);
     this.avoid(f.me);

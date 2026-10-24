@@ -20,6 +20,9 @@ const CANOPY_REACH = 38;
 const UNDERSTORY_AHEAD = 6;
 const UNDERSTORY_BUILD = 12000;
 const UNDERSTORY_KEEP = 12;
+/** The understory round the waterfall's pool, for its mirror (see Stage.reflectPool, prepare): plants this far from
+ * the pool's probe, in metres (the mirror is small and faint: the nearest are what shows in it). */
+export const PROBE_REACH = 18;
 
 /**
  * Toon-shaded plants that move in the wind, by the sway weight on each vertex. In the film look
@@ -129,6 +132,8 @@ export class Vegetation {
   private readonly canopy: Patch[] = [];
   /** The understory's patches to be put together, nearest the camera first (see update). */
   private building: UnderPatch[] = [];
+  /** The understory kept together round a point however far the camera is (see prepare), or null. */
+  private held: { at: THREE.Vector3; reach: number } | null = null;
   private underMaterial: THREE.Material | null = null;
   private underShadow: THREE.Material | null = null;
 
@@ -257,16 +262,23 @@ export class Vegetation {
    * of them together, 11,549 plants of 58 shapes on 2026-10-21, are 3.7 million vertices and 176 MB on
    * the GPU, of which the camera needs a few patches at a time.
    */
-  update(camera: THREE.Camera, lookout: { x: number; z: number; r: number } | null = null): void {
+  update(camera: THREE.Camera, lookout: { x: number; z: number; r: number } | null = null, probe = false): void {
     const p = camera.position;
     const seen = (patch: { centre: THREE.Vector3; radius: number }) =>
       !lookout || Math.hypot(patch.centre.x - lookout.x, patch.centre.z - lookout.z) - patch.radius < lookout.r;
     const away = (patch: UnderPatch) => p.distanceTo(patch.centre) - patch.radius;
+    const held = this.held;
+    const kept = (patch: UnderPatch) => !!held && held.at.distanceTo(patch.centre) - patch.radius < held.reach;
+    // (The pool's probe only shows what is near it, put together ahead by prepare: it neither lets go of nor
+    // queues the patches the camera has, which its own update sees to.)
+    const reach = probe ? PROBE_REACH : UNDERSTORY_REACH;
     for (const patch of this.understory) {
       const off = away(patch);
-      if (off > UNDERSTORY_REACH + UNDERSTORY_KEEP) this.letGo(patch);
-      else if (off < UNDERSTORY_REACH + UNDERSTORY_AHEAD && patch.objects.length === 0 && !this.building.includes(patch)) this.building.push(patch);
-      const near = off < UNDERSTORY_REACH && seen(patch);
+      if (probe) {
+        // (Nothing of its is missing, prepare having waited for it; put together at once if ever it is.)
+      } else if (off > reach + UNDERSTORY_KEEP && !kept(patch)) this.letGo(patch);
+      else if (off < reach + UNDERSTORY_AHEAD && patch.objects.length === 0 && !this.building.includes(patch)) this.building.push(patch);
+      const near = off < reach && seen(patch);
       if (near && patch.objects.length === 0) this.build(patch, Infinity);
       for (const m of patch.objects) m.visible = near;
     }
@@ -279,6 +291,27 @@ export class Vegetation {
       for (const m of patch.meshes) m.visible = near && show;
       for (const m of patch.far) m.visible = !near && show;
     }
+  }
+
+  /**
+   * Keeps the understory within `reach` of `at` together however far the camera is, and puts its patches together
+   * ahead, a little a frame (see update): for the pool's mirror (Stage.reflectPool), which draws it from there.
+   * Returns whether all of it is together.
+   */
+  prepare(at: THREE.Vector3, reach = PROBE_REACH): boolean {
+    this.held = { at, reach };
+    let ready = true;
+    for (const patch of this.understory) {
+      if (at.distanceTo(patch.centre) - patch.radius >= reach || patch.objects.length > 0) continue;
+      ready = false;
+      if (!this.building.includes(patch)) this.building.push(patch);
+    }
+    return ready;
+  }
+
+  /** Lets the understory held together for the pool's mirror go again as the camera's distance says (see prepare). */
+  release(): void {
+    this.held = null;
   }
 
   /**

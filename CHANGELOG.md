@@ -3227,6 +3227,27 @@ outlined is drawn twice, once for its pen line. To get there:
 
 **Fixed**
 
+- Stutters now and then on a phone (the user, 2026-10-24: the frame rate
+  dropping by half, at times to 20 fps), three causes found on the dev PC:
+  - Every shader was compiled again the first time its thing came into view
+    (0.1 to 0.9 s each here: the village's houses, the night's lanterns, the
+    book): the warm-up at the start compiled them for drawing to the screen,
+    and the film look draws into its own picture, another colour space, so
+    none of its work was used. It compiles for the picture now, and one frame
+    is drawn behind the loading screen for what compiles only as it is drawn.
+    Nothing compiles mid-play any more, by day, at night, at the feast or in
+    the cave.
+  - The waterfall's pool put the plants round it together, let them go and
+    put them together again on each of the six frames of its mirror's capture
+    (every half hour of island time within 120 m of it): 20 to 30 ms a frame
+    here. They are put together ahead of a capture, a little a frame, and kept
+    through it: its worst frame fell from 48 ms to 4.
+  - The islanders' path-finding worked out up to six chunks of the island's
+    walking grid in one frame as ways led somewhere not walked yet, 15 to 34 ms
+    here (about three times that on a phone); it works out one a frame now, a
+    search that needs another waiting for the next frame, and does less
+    searching a frame (700 cells, from 2500). Its worst frame in the welcome's
+    rush fell from 34 ms to 8.
 - One thing going wrong in a frame no longer stops the game for good (the
   user, 2026-10-23). three asks for the next frame only once a frame has
   run, so an error thrown out of one ended the loop, and the island stood
