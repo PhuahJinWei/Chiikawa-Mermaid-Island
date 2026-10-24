@@ -167,6 +167,43 @@ const SPEAKER =
   '<path class="speaker-off" d="M15.5 9.5l5 5M20.5 9.5l-5 5"/>' +
   '</svg>';
 
+/** The full screen's button (the user, 2026-10-24): four corners pointing out, or, full screen, pointing in. */
+const FULL_SCREEN =
+  '<svg viewBox="0 0 24 24" aria-hidden="true">' +
+  '<path class="full-out" d="M4.5 9V4.5H9M15 4.5h4.5V9M19.5 15v4.5H15M9 19.5H4.5V15"/>' +
+  '<path class="full-in" d="M9 4.5V9H4.5M19.5 9H15V4.5M15 19.5V15h4.5M4.5 15H9v4.5"/>' +
+  '</svg>';
+
+/** Whether this browser lets a page fill the screen (not an iPhone's Safari, which keeps it for videos). */
+function canFillScreen(): boolean {
+  const doc = document as Document & { webkitFullscreenEnabled?: boolean };
+  return !!(doc.fullscreenEnabled || doc.webkitFullscreenEnabled);
+}
+
+/** Whether the page fills the screen now. */
+function filling(): boolean {
+  const doc = document as Document & { webkitFullscreenElement?: Element | null };
+  return !!(doc.fullscreenElement || doc.webkitFullscreenElement);
+}
+
+/** The page made to fill the screen (on), or back in its window (off); where the browser refuses, nothing. */
+function fillScreen(on: boolean): void {
+  const doc = document as Document & { webkitExitFullscreen?: () => void };
+  const page = document.documentElement as HTMLElement & { webkitRequestFullscreen?: () => void };
+  try {
+    if (on) {
+      if (page.requestFullscreen) void page.requestFullscreen({ navigationUI: 'hide' }).catch(() => {});
+      else page.webkitRequestFullscreen?.();
+    } else if (document.exitFullscreen) {
+      void document.exitFullscreen().catch(() => {});
+    } else {
+      doc.webkitExitFullscreen?.();
+    }
+  } catch {
+    // (Refused: it stays as it is.)
+  }
+}
+
 /** Your own marks, as they show on the screen out of your own eyes (see ownMark). */
 const OWN_MARKS: Record<EmoteKind, string> = { exclaim: '！', question: '？', note: '♪', heart: '♥', zzz: 'Z' };
 /** How long your own words show (as long as words over a head: Emotes.say), and a mark. */
@@ -241,6 +278,8 @@ export class Hud implements JoystickView {
   private readonly test = disc('hud-test', svg('test'));
   private readonly soundButton = disc('hud-sound', SPEAKER);
   private sound = true;
+  /** The full screen's button, by the sound's; only where the browser lets a page fill the screen. */
+  private readonly fullButton = disc('hud-full', FULL_SCREEN);
   private readonly emote = disc('emote-btn', svg('emote'));
   private readonly emotes = el('div', 'emotes');
   private readonly emoteChips: HTMLButtonElement[] = [];
@@ -333,7 +372,9 @@ export class Hud implements JoystickView {
     const emoteBox = el('div', 'emote-box');
     emoteBox.append(this.emote.button, this.emotes);
     const ctl = el('div', 'hud-ctl');
-    ctl.append(emoteBox, this.soundButton.button, this.test.button);
+    ctl.append(emoteBox, this.soundButton.button, this.fullButton.button, this.test.button);
+    this.fullButton.button.hidden = !canFillScreen();
+    for (const change of ['fullscreenchange', 'webkitfullscreenchange']) document.addEventListener(change, () => this.showFull());
     // The test panel's toggle only in dev mode (?dev in the address; the user, 2026-10-24).
     this.test.button.hidden = !DEV_MODE;
     top.append(timeBox, ctl);
@@ -342,6 +383,7 @@ export class Hud implements JoystickView {
     for (const [button, call] of [
       [this.camera.button, () => this.onCamera()],
       [this.soundButton.button, () => this.onSound(this.setSound(!this.sound))],
+      [this.fullButton.button, () => fillScreen(!filling())],
       [this.test.button, () => this.onTest()],
       [this.bag.button, () => this.togglePouch()],
       [this.emote.button, () => this.toggleEmotes()],
@@ -484,6 +526,8 @@ export class Hud implements JoystickView {
     this.bag.cap.textContent = t('hud.pouch');
     this.emote.cap.textContent = t('hud.emote');
     this.soundButton.cap.textContent = t('hud.sound');
+    this.fullButton.cap.textContent = t('hud.full');
+    this.showFull();
     (this.jumpButton.querySelector('.sr-only') as HTMLElement).textContent = t('hud.jump');
     this.jumpButton.setAttribute('aria-label', t('hud.jump'));
     this.setSound(this.sound);
@@ -833,6 +877,16 @@ export class Hud implements JoystickView {
     button.setAttribute('aria-label', label);
     button.title = label;
     return on;
+  }
+
+  /** The full screen's button as the page is now: its corners in while it fills the screen (lit, as anything on). */
+  private showFull(): void {
+    const on = filling();
+    const button = this.fullButton.button;
+    button.classList.toggle('is-on', on);
+    const label = t(on ? 'hud.fullOff' : 'hud.fullOn');
+    button.setAttribute('aria-label', label);
+    button.title = label;
   }
 
   /** All of the HUD shown, or put away while your camera is held up (the bag and the きもち panel shut first). */

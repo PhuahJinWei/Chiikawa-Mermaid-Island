@@ -317,6 +317,42 @@ body {
   display: inline;
 }
 
+/* In dev mode (?dev) on a phone held upright, the hour's chip with the frame rate and four discs up top (きもち,
+   the sound, the full screen, テスト) are wider than the screen: all a little smaller, to fit. */
+@media (max-width: 420px) {
+  .hud-top:has(.hud-test:not([hidden])) {
+    gap: 6px;
+  }
+
+  .hud-top:has(.hud-test:not([hidden])) .hud-chip {
+    gap: 5px;
+    padding: 0 10px 0 8px;
+  }
+
+  .hud-top:has(.hud-test:not([hidden])) .hud-ctl {
+    gap: 6px;
+  }
+
+  .hud-top:has(.hud-test:not([hidden])) .hud-ctl .ctl-icon,
+  .hud-top:has(.hud-test:not([hidden])) .hud-ctl .ctl-disc {
+    width: 46px;
+  }
+
+  .hud-top:has(.hud-test:not([hidden])) .hud-ctl .ctl-disc {
+    height: 46px;
+  }
+}
+
+/* The full screen's corners: out to fill it, in (on the accent) to leave it. */
+.hud-full .full-in,
+.hud-full.is-on .full-out {
+  display: none;
+}
+
+.hud-full.is-on .full-in {
+  display: inline;
+}
+
 .hud-sound.off .ctl-disc {
   color: var(--ink-soft);
 }

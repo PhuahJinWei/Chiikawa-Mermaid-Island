@@ -1097,5 +1097,8 @@
   "camera.saved": "ほぞんした",
   "hud.soundOn": "おと：オン",
   "hud.soundOff": "おと：オフ",
-  "hud.sound": "おと"
+  "hud.sound": "おと",
+  "hud.full": "ぜんがめん",
+  "hud.fullOn": "ぜんがめんにする",
+  "hud.fullOff": "ぜんがめんをやめる"
 }

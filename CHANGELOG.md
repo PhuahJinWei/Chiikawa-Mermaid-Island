@@ -11,6 +11,10 @@ stage, and along every path. Not yet checked on a real phone.
 
 **Added**
 
+- A full screen button (ぜんがめん, the user, 2026-10-24) by the sound's, top
+  right: the game fills the screen, its corners turned in on the accent while
+  it does; shown only where the browser lets a page fill the screen (not an
+  iPhone's Safari).
 - Life on the island (the user, 2026-10-22: we are one of many on it, not
   its middle), in `src/life/`. Everyone who lives here goes about a day
   planned each morning: asleep from midnight to six (the islanders in the
