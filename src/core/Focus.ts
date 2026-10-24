@@ -27,6 +27,8 @@ const SIZE = 0.11;
 const OVER_HEAD = 0.04;
 const OVER_THING = 0.06;
 const OVER_SEAT = 0.3;
+/** Over a stall's keeper (see Play's buy), this far up from their feet: over the head of the islanders who keep them. */
+const OVER_KEEPER = 1.35;
 /** A brand burning in its stand (a village torch's): its flame's height over where it sits, which the ▽ floats
  * over (over where the brand lies as a thing lies, it was lost in the flame). */
 const STAND_FLAME = 0.3;
@@ -271,6 +273,9 @@ export class Focus {
       }
       case 'stall':
         return null;
+      case 'buy':
+        // Over its keeper's head, behind the counter.
+        return out.copy(target.stall.keeper).setY(target.stall.keeper.y + OVER_KEEPER);
     }
   }
 

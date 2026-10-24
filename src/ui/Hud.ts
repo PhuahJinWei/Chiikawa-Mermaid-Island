@@ -121,6 +121,7 @@ const VERB_GLYPH: [StringKey, string][] = [
   ['hud.stand', 'stand'],
   ['hud.sleep', 'sleep'],
   ['hud.keepStall', 'stall'],
+  ['hud.buy', 'stall'],
   ['hud.eat', 'eat'],
   ['hud.eatUp', 'eat'],
   ['hud.drink', 'drink'],

@@ -11,6 +11,13 @@ stage, and along every path. Not yet checked on a real phone.
 
 **Added**
 
+- Buying food at a stall (the user, 2026-10-24: talking to its keeper did
+  nothing, and nothing said how): looking at an open stall's counter within
+  about 3 m, the action button says かう, and talking with its keeper behind
+  it, ちょうだい comes first among the answers. Either puts you in its line
+  where you stand, the keeper answering in their own voice (with its line
+  full, saying so), and you keep your place while near the counter till they
+  hand you its food. Walking up the line to the counter works as before.
 - A full screen button (ぜんがめん, the user, 2026-10-24) by the sound's, top
   right: the game fills the screen, its corners turned in on the accent while
   it does; shown only where the browser lets a page fill the screen (not an

@@ -41,6 +41,10 @@ import type { Sound } from './Sound';
  * to the top of its flame, this far above where its brand sits (see stakePoint). */
 const REACH = 2.1;
 const STAND_REACH = 2.4;
+/** A stall's counter (see Life.order) is looked at this far off at most, at this height over the ground in front
+ * of it (about a counter's, VILLAGER_SCALE's 0.58). */
+const BUY_REACH = 3.2;
+const COUNTER_UP = 0.6;
 const STAKE_FLAME = 0.3;
 const SEAT_REACH = 1.9;
 /** How near the middle of your view something must be to be what you look at (the angle's cosine), and how
@@ -63,6 +67,8 @@ const SLEEP_TO = 5;
 /** What you look at, that the action button would do something with. */
 export type Target =
   | { kind: 'stall'; stall: Stall; serve: boolean }
+  /** A stall's counter, its keeper behind it: to ask for what it sells (かう: see Life.order). */
+  | { kind: 'buy'; stall: Stall }
   | { kind: 'thing'; thing: Thing }
   | { kind: 'seat'; seat: Seat; bed: boolean }
   | { kind: 'resident'; r: Resident }
@@ -489,6 +495,13 @@ export class Play {
       _eyes.set(p.x, THREE.MathUtils.clamp(eye.y + along * _fwd.y, feet + 0.1, feet + r.ch.height), p.z);
       consider(_eyes, REACH + 0.3, { kind: 'resident', r });
     }
+    // An open stall's counter, its keeper behind it: anywhere between you and them at the counter's height.
+    const shop = this.life.stallToOrder(me.position);
+    if (shop) {
+      _p.addVectors(shop.line[0], shop.keeper).multiplyScalar(0.5);
+      _p.y = Math.max(shop.line[0].y, shop.keeper.y) + COUNTER_UP;
+      consider(_p, BUY_REACH, { kind: 'buy', stall: shop });
+    }
     // The Siren on her ledge, anywhere on her as anyone (calm: roused, she is no one to chat with), her tail's
     // bowl round her (about a metre) beyond your reach of anyone.
     const siren = this.siren?.siren;
@@ -548,6 +561,8 @@ export class Play {
         return was.kind === 'seat' && was.seat === target.seat;
       case 'stand':
         return was.kind === 'stand' && was.home === target.home;
+      case 'buy':
+        return was.kind === 'buy' && was.stall === target.stall;
       default:
         return false;
     }
@@ -575,6 +590,8 @@ export class Play {
     switch (target.kind) {
       case 'stall':
         return t(target.serve ? 'hud.serve' : 'hud.keepStall');
+      case 'buy':
+        return t('hud.buy');
       case 'thing':
         // Someone else's you borrow.
         return target.thing.owner && target.thing.owner !== 'player' ? t('hud.borrow') : t('hud.pickUp');
@@ -612,6 +629,13 @@ export class Play {
           this.life.handOver(target.stall);
           this.sound?.give();
         } else this.life.keepStall(target.stall);
+        break;
+      case 'buy':
+        // In its line where you stand, its keeper answering you.
+        if (this.life.order(target.stall)) {
+          const keeper = this.life.keeperOf(target.stall);
+          if (keeper) this.life.tell(keeper, this.life.line(keeper, 'order'));
+        }
         break;
       case 'thing':
         this.pickUp(target.thing);

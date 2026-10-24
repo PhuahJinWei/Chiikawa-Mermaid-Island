@@ -99,6 +99,17 @@ const EVENT_LIFE = 2.2;
 const SERVE: [number, number] = [2.5, 4.5];
 /** Served at a counter, you join its line again only once you have been this far from it (metres). */
 const SERVED_AWAY = 2.5;
+/**
+ * Asking for a stall's goods (the user, 2026-10-24: talking to its keeper had done nothing): かう on the action
+ * button looking at its counter from within ORDER_FROM, or ちょうだい talking with its keeper at their place
+ * (within KEEPER_AT of it), puts you in its line where you stand. So in it, you keep your place while within
+ * ORDER_STAY of its counter, and are served there once first in it within ORDER_REACH of the counter (walking up
+ * the line, you must stand at your place in it).
+ */
+const ORDER_FROM = 3;
+const KEEPER_AT = 0.8;
+const ORDER_STAY = 4.5;
+const ORDER_REACH = 3;
 /** You hopping: who sees it within this far hops or waves back, as many as this, each as likely as this. */
 const GREET_FROM = 6;
 const GREETERS = 3;
@@ -261,6 +272,8 @@ export class Life {
   /** You at a stall's counter: served (what you got), or waiting; read by the game. */
   playerServed: Stall | null = null;
   private playerLine: Stall | null = null;
+  /** Whether you are in that line because you asked for its goods (see ORDER_FROM), not by walking up it. */
+  private playerOrdered = false;
   /** The stall you were last served at, till you have walked away from it (see SERVED_AWAY). */
   private playerDone: Stall | null = null;
   /** Something given back to you for what you gave (see GIFT_BACK), and something of yours given back to
@@ -1311,7 +1324,8 @@ export class Life {
     const first = this.lines.get(stall)?.[0];
     if (!first) return null;
     const at = first === 'player' ? this.playerAt : first.pos;
-    return at && flat(at, stall.line[0]) <= 0.7 ? first : null;
+    const near = first === 'player' && this.playerOrdered ? ORDER_REACH : 0.7;
+    return at && flat(at, stall.line[0]) <= near ? first : null;
   }
 
   /** `stall`'s keeper hands its goods to whoever is at its counter, who leaves the line with them. Served by
@@ -1397,9 +1411,12 @@ export class Life {
     if (this.playerLine) {
       const place = this.linePlace(this.playerLine, 'player');
       const spot = place >= 0 ? this.playerLine.line[place] : null;
-      if (!spot || flat(p, spot) > 1.4 || !this.open.has(this.playerLine)) {
+      // (Asked for, your place is kept near the counter; walked up to, at your place in the line.)
+      const away = this.playerOrdered ? flat(p, this.playerLine.line[0]) > ORDER_STAY : !!spot && flat(p, spot) > 1.4;
+      if (!spot || away || !this.open.has(this.playerLine)) {
         this.leaveLine(this.playerLine, 'player');
         this.playerLine = null;
+        this.playerOrdered = false;
       }
       return;
     }
@@ -1413,6 +1430,55 @@ export class Life {
         return;
       }
     }
+  }
+
+  /** Who keeps `stall` today (not you), or null. */
+  keeperOf(stall: Stall): Resident | null {
+    return this.byId.get(this.keepers.get(stall) ?? '') ?? null;
+  }
+
+  /** The open stall `r` keeps today, if they stand at its keeper's place now (for ちょうだい: see Resident.talk). */
+  keptBy(r: Resident): Stall | null {
+    for (const [stall, id] of this.keepers) {
+      if (id === r.id && this.open.has(stall) && flat(r.pos, stall.keeper) < KEEPER_AT) return stall;
+    }
+    return null;
+  }
+
+  /** The open stall whose counter you could ask at from `at` (かう: see ORDER_FROM): its keeper at their place,
+   * you in no line of it already; the nearest, or null. */
+  stallToOrder(at: THREE.Vector3): Stall | null {
+    let best: Stall | null = null;
+    let bestD = ORDER_FROM;
+    for (const stall of this.open) {
+      const keeper = this.byId.get(this.keepers.get(stall) ?? '');
+      if (!keeper || this.keptBy(keeper) !== stall || this.playerLine === stall) continue;
+      const d = flat(at, stall.line[0]);
+      if (d < bestD) {
+        bestD = d;
+        best = stall;
+      }
+    }
+    return best;
+  }
+
+  /**
+   * You ask for `stall`'s goods (see ORDER_FROM): into its line where you stand, its keeper answering you, to be
+   * served once you are first in it. With its line full, its keeper says so. Returns whether you are in it.
+   */
+  order(stall: Stall): boolean {
+    const keeper = this.byId.get(this.keepers.get(stall) ?? '');
+    if (!keeper || !this.open.has(stall)) return false;
+    if (this.lineLength(stall) >= stall.line.length) {
+      this.tell(keeper, this.line(keeper, 'order.full'));
+      return false;
+    }
+    if (this.playerLine && this.playerLine !== stall) this.leaveLine(this.playerLine, 'player');
+    this.joinLine(stall, 'player');
+    this.playerLine = stall;
+    this.playerOrdered = true;
+    this.playerDone = null;
+    return true;
   }
 
   /** Whether you stand in a line, and where you should stand in it (for the dev tools and the HUD). */

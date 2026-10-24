@@ -1480,14 +1480,26 @@ export class Resident {
       let line = first;
       let more = true;
       // With each line, もっとはなす for another (the user, 2026-10-24: talking on without parting), till they have
-      // nothing left to say (see Life.moreLine); だれかさがしてる; またね.
+      // nothing left to say (see Life.moreLine); だれかさがしてる; またね. Behind the counter of the stall they
+      // keep, first ちょうだい: what it sells, asked for (the user, 2026-10-24: talking to a keeper had done
+      // nothing), you in its line where you stand (see Life.order).
       for (let turn = 1; ; turn++) {
-        const kinds: ('more' | 'seek' | 'bye')[] = [...(more ? (['more'] as const) : []), ...(seek.length > 0 ? (['seek'] as const) : []), 'bye'];
-        const labels = kinds.map((k) => words(k === 'more' ? 'talk.more' : k === 'seek' ? 'talk.seek' : 'talk.bye'));
+        const stall = this.life.keptBy(this);
+        const kinds: ('order' | 'more' | 'seek' | 'bye')[] = [
+          ...(stall ? (['order'] as const) : []),
+          ...(more ? (['more'] as const) : []),
+          ...(seek.length > 0 ? (['seek'] as const) : []),
+          'bye',
+        ];
+        const labels = kinds.map((k) => words(k === 'order' ? 'talk.order' : k === 'more' ? 'talk.more' : k === 'seek' ? 'talk.seek' : 'talk.bye'));
         const pick = yield* this.sayTo(you, line, TALK, true, labels);
         const kind = pick >= 0 ? kinds[pick] : 'bye';
         // (またね chosen, not walked off from or left unanswered: their goodbye at once, see partFrom.)
         bye = pick >= 0 && kind === 'bye';
+        if (kind === 'order') {
+          if (stall && this.life.order(stall)) yield* this.sayTo(you, this.life.line(this, 'order'));
+          return;
+        }
         if (kind === 'more') {
           const next = this.life.moreLine(this, turn);
           more = next !== null;
