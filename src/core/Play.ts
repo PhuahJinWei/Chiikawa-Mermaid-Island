@@ -147,6 +147,8 @@ export class Play {
   ) {
     this.hands = new Hands('player', me, things);
     life.playerHands = this.hands;
+    // あげる, chosen in a talk (see Resident.talk).
+    life.giveTo = (r) => this.give(r, me);
     const places = life.places;
     this.seats = [...places.seats, ...places.feast.seats, ...places.homes.flatMap((h) => [...h.beds, ...h.seats])];
     this.bed = life.playerHome?.beds[0] ?? null;
@@ -596,8 +598,8 @@ export class Play {
         // Someone else's you borrow.
         return target.thing.owner && target.thing.owner !== 'player' ? t('hud.borrow') : t('hud.pickUp');
       case 'resident':
-        // (What you have bitten into you cannot give.)
-        return this.hand && !this.hands.nibbled ? t('hud.give') : t('hud.talk');
+        // Always はなす (the user, 2026-10-24: holding something, you could only give it): あげる is in the talk.
+        return t('hud.talk');
       case 'siren':
         return t('hud.talk');
       case 'seat':
@@ -641,8 +643,7 @@ export class Play {
         this.pickUp(target.thing);
         break;
       case 'resident':
-        if (this.hand && !this.hands.nibbled) this.give(target.r, me);
-        else this.life.talk(target.r, me.position);
+        this.life.talk(target.r, me.position);
         break;
       case 'siren':
         this.siren?.begin();
@@ -696,12 +697,14 @@ export class Play {
   }
 
   private give(r: Resident, me: Character): void {
+    // (Theirs, lent you (see Life.lend): given back, which they are glad of.)
+    const theirs = this.hands.hand?.owner === r.id;
     const c = this.hands.give(r.hands);
     if (!c) {
       if (this.hands.hand) this.hud.toast(t('toast.noRoom').replace('{0}', this.life.nameOf(r.id)));
       return;
     }
-    this.life.gave(r, c, me.position, 'player');
+    this.life.gave(r, c, me.position, 'player', theirs);
     this.sound?.give();
   }
 

@@ -41,8 +41,11 @@ const islanderId = (i: number) => `islander${String(i + 1).padStart(2, '0')}`;
 const HIDE = 85;
 const FAR = 70;
 const MID = 32;
-/** How many stalls are kept open each day (the user: 5), and the hours their keepers keep them. */
+/** How many stalls are kept open each day (the user: 5), and the hour their keepers stop work and close them (the
+ * user, 2026-10-24: 18:00; they had kept them till the feast, after 21:30): then out and about, to the feast with
+ * everyone. Supper at the stalls is before then (see planFor). */
 const OPEN_STALLS = 5;
+const CLOSE_AT = 18;
 /** How near two people come before one gives way, between their middles, as a share of their widths (as
  * Game's APART). */
 const APART = 0.6;
@@ -152,7 +155,7 @@ const LISTEN_CHANCE = 0.35;
 /** How fond someone grows of you (see befriend): for a gift (more for what they like), for something of
  * theirs given back, for being served at your stall, for a word (at most once an hour of the island's), for
  * answering what you do; less fond for being pushed. Two who live here: for a gift, and for a word together. */
-const FOND = { gift: 0.12, back: 0.05, served: 0.04, talk: 0.02, answer: 0.01, pushed: -0.03, theirGift: 0.08, chat: 0.01 };
+const FOND = { gift: 0.12, back: 0.05, served: 0.04, talk: 0.02, answer: 0.01, pushed: -0.03, theirGift: 0.08, chat: 0.01, takenBack: -0.05 };
 /** How fond one is to begin with: of you (whoever lives with you, more), of their friends (FRIENDS, whoever
  * they go about with), of whoever they live with, of anyone else. */
 const FOND_START = { you: 0.2, youHome: 0.45, friend: 0.6, home: 0.5, anyone: 0.15 };
@@ -304,6 +307,12 @@ export class Life {
   private box: DialogueBox | null = null;
   /** Whether the Siren is out at sea in view this frame (see situation). */
   private sirenSeen = false;
+  /** You hand what you hold to `r` (あげる in a talk: see Resident.talk), once the game gives it (Play.give). */
+  giveTo: (r: Resident) => void = () => {};
+  /** What is to be done at the start of the next frame, outside anyone's brain (see soon). */
+  private readonly next: (() => void)[] = [];
+  /** When Rakko's sword was last looked for (see swordOut). */
+  private swordAt = 0;
 
   private constructor(
     readonly nav: Nav,
@@ -501,14 +510,15 @@ export class Life {
     const stall = [...this.keepers].find(([, id]) => id === r.id)?.[0];
     if (stall) {
       blocks.push({ at: wake + 0.25, kind: 'work', stall });
-      blocks.push({ at: 21.5 + rng() * 0.4, kind: 'feast' });
+      blocks.push({ at: CLOSE_AT, kind: 'about' });
+      blocks.push({ at: 19 + rng() * 1.6, kind: 'feast' });
     } else {
       blocks.push({ at: wake + 0.2, kind: 'about' });
-      // Breakfast, lunch and supper at the stalls, if they feel like it.
+      // Breakfast, lunch and supper at the stalls, if they feel like it (supper before they close at CLOSE_AT).
       for (const [from, to] of [
         [7.3, 8.6],
         [11.9, 13.0],
-        [17.2, 18.3],
+        [16.4, 17.2],
       ]) {
         if (rng() >= r.profile.hungry) continue;
         // An hour and a quarter for it, then out and about again.
@@ -761,8 +771,14 @@ export class Life {
    * Things.morning).
    */
   morning(day: number): void {
+    // Rakko's sword back on his back from wherever it is (see lend).
+    for (const thing of this.things.list.filter((x) => x.item === 'sword')) this.things.take(thing);
     for (const hands of this.allHands()) {
       for (const c of hands.all) {
+        if (c.item === 'sword') {
+          hands.remove(c);
+          continue;
+        }
         const home = c.home ? this.things.homes.get(c.home) : null;
         if (!c.lent && !home) continue;
         hands.remove(c);
@@ -811,6 +827,11 @@ export class Life {
       if (back) this.onGivenBack(c, by);
       else this.onGivenYou(c, by);
       return;
+    }
+    // Rakko's sword, lent (see lend) and given back: onto his back.
+    if (back && c.item === 'sword') {
+      to.hands.remove(c);
+      this.swordAt = -Infinity;
     }
     to.interrupt(to.thank(c, from, giver, back));
     this.notice(to.pos, to);
@@ -1057,6 +1078,87 @@ export class Life {
     return this.box.add(this.nameOf(r.id), cueOf(text).text, r, choices, faceOf(r.id));
   }
 
+  // ---------------------------------------------------------------- lending, and taking back (the user, 2026-10-24)
+  /** Does `then` at the start of the next frame: from inside someone's brain, what would stop it and give them a new
+   * one (handing them something, which they thank you for: see gave), which a brain cannot do to itself. */
+  soon(then: () => void): void {
+    this.next.push(then);
+  }
+
+  /** Whether you hold something you could hand to someone (あげる: not what you have bitten into). */
+  canGive(): boolean {
+    return !!this.playerHands?.hand && !this.playerHands.nibbled;
+  }
+
+  /** Whether Rakko's sword is out of his keeping (in anyone's paws or pouch, or lying about: see lend). */
+  private swordOut(): boolean {
+    return this.allHands().some((h) => h.has('sword')) || this.things.list.some((x) => x.item === 'sword');
+  }
+
+  /**
+   * What `r` would lend you if you asked (かして), if you have room for it; null if nothing: Kurimanju one of his
+   * cans (he always has one more: his to give, not to lend); Rakko his sword, while it is on his back; anyone else
+   * what is in their paw, or their own in their pouch, but what they eat or have bitten into, or have borrowed
+   * themselves.
+   */
+  lendable(r: Resident): Carried | null {
+    const room = (item: ItemId) => !!this.playerHands?.fits(item);
+    if (r.id === 'kurimanju') return room('can') ? carried('can') : null;
+    if (r.id === 'rakko' && !this.swordOut()) return room('sword') ? carried('sword', 'rakko') : null;
+    const theirs = (c: Carried) => !edible(c) && !(c.lent && c.owner !== r.id) && room(c.item);
+    const hand = r.hands.hand;
+    if (hand && !r.hands.nibbled && theirs(hand)) return hand;
+    return r.hands.all.find((c) => c !== hand && c.owner === r.id && theirs(c)) ?? null;
+  }
+
+  /** `r` lends you what they would (see lendable): into your paws, theirs still, back to their room overnight (a
+   * thing with a place of its own, to that); false if nothing. */
+  lend(r: Resident): boolean {
+    const c = this.lendable(r);
+    if (!c || !this.playerHands) return false;
+    if (r.hands.all.includes(c)) r.hands.remove(c);
+    if (c.item !== 'can') {
+      c.owner = r.id;
+      const room = r.home.room ?? r.pos;
+      if (!c.home && c.item !== 'sword') c.lent = [room.x, room.y, room.z, 0];
+    }
+    if (!this.playerHands.receive(c)) return false;
+    this.notice(r.pos, r);
+    if (c.item === 'sword') this.swordAt = -Infinity;
+    return true;
+  }
+
+  /** Something you gave `r` they still have (in their paw or pouch, not bitten into), the latest first; null if
+   * nothing, or no room for it. */
+  yourGift(r: Resident): Carried | null {
+    if (!this.playerHands) return null;
+    for (const m of [...r.memories].reverse()) {
+      if (m.who !== 'player' || m.kind !== 'gift') continue;
+      const c = r.hands.all.find((x) => x.item === m.item && !(x === r.hands.hand && r.hands.nibbled));
+      if (c && this.playerHands.fits(c.item)) return c;
+    }
+    return null;
+  }
+
+  /** You take back what you gave `r` (かえして: see yourGift): yours again, and they a little less fond of you and
+   * no longer thinking of it as your gift; false if nothing. */
+  takeBack(r: Resident): boolean {
+    const c = this.yourGift(r);
+    if (!c || !this.playerHands) return false;
+    r.hands.remove(c);
+    c.owner = 'player';
+    c.lent = null;
+    if (!this.playerHands.receive(c)) {
+      r.hands.receive(c);
+      return false;
+    }
+    const i = r.memories.findIndex((m) => m.who === 'player' && m.kind === 'gift' && m.item === c.item);
+    if (i >= 0) r.memories.splice(i, 1);
+    this.befriend(r, 'player', FOND.takenBack);
+    this.notice(r.pos, r);
+    return true;
+  }
+
   /** `id` as a choice in the text box: by their face if they have one (see Faces), else their name. */
   asChoice(id: string): Choice {
     return { text: this.nameOf(id), face: faceOf(id) };
@@ -1120,6 +1222,11 @@ export class Life {
     for (const [who, m] of this.music) if (m.until < this.now) this.music.delete(who);
     this.hours = f.hours;
     this.sirenSeen = f.sirenSeen;
+    for (const later of this.next.splice(0)) later();
+    if (this.now - this.swordAt > 0.5) {
+      this.swordAt = this.now;
+      this.byId.get('rakko')?.ch.lendOwn(this.swordOut());
+    }
     // A line's face, once the line is gone (see express).
     for (const r of this.residents) if (r.ch.lineFace && this.now > r.faceUntil) r.ch.lineFace = null;
     if (!Number.isNaN(this.lastHours) && f.hours < this.lastHours - 12) {

@@ -676,7 +676,7 @@ ITEMS = {
 # and what the game needs to know of them.
 WHOLE = {"book"}
 # build_props' hand-held things, drawn here only for their icons.
-BORROWED = {"can": P.build_can, "ukulele": P.build_ukulele}
+BORROWED = {"can": P.build_can, "ukulele": P.build_ukulele, "sword": P.build_sword}
 # The icons' order in the sheet (src/life/Items.ts reads it from item_icons.json): every item but the paw.
 ICONS = [i for i in ITEMS if i != "paw"] + list(BORROWED)
 

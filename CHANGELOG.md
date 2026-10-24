@@ -190,6 +190,21 @@ stage, and along every path. Not yet checked on a real phone.
   standing on with you till you walk off. Seated or behind a counter, the
   word without the wave; the Siren says 「…またね、なの」. Walking off or
   leaving them unanswered parts as before.
+- Things in a talk (the user, 2026-10-24: holding something you could only
+  give it; nothing could be had back or borrowed; asking whom you sought
+  could not be called off). Looking at someone is always はなす. In the talk,
+  at most one choice about things: あげる what you hold (handed over the
+  next frame, their thanks taking over), else かえして what you gave them and
+  they still have (yours again, they a little less fond, the gift forgotten),
+  else かして what they could lend you (what is in their paw or their own in
+  their pouch, never food or what they borrowed; back to their room
+  overnight). Kurimanju gives you one of his cans (he always has another);
+  Rakko lends his sword, a new thing `sword` (ラッコの剣, his prop, held up with
+  かまえる, its icon rendered by build_items.py's BORROWED), off his back
+  while lent (`Character.lendOwn`, his 剣をかまえる not his to do) and back
+  on it when you give it him (「…返してくれたか。恩に着る」) or overnight.
+  The faces of whom to ask after end with やっぱりいい, back to the talk. Their
+  words for each, in every voice (talk.lent, talk.takenBack, talk.seekNone).
 - Someone at the welcome you are talking with no longer walks off when the
   welcome ends: they go once they have parted from you, as at any other
   change in their day.
@@ -1425,6 +1440,11 @@ outlined is drawn twice, once for its pen line. To get there:
 
 **Changed**
 
+- The islanders who keep the festival's stalls stop work at 18:00 (the user,
+  2026-10-24; they had kept them open till the feast, after 21:30): the stalls
+  close, whoever waits in their lines goes elsewhere, and the keepers wander
+  till the feast, which they come to as everyone does. Supper at the stalls is
+  earlier for it, from about 16:30.
 - The game's icon is the user's drawing of Hachiware's face
   (`art/icons/icon_02hachiware.png`, 2026-10-24) on the island's sky and sea, the
   browser tab's the face alone (`npm run icons`, `scripts/make-icons.mjs`).

@@ -534,6 +534,8 @@ export class Character implements EmoteHost {
   private readonly carried: THREE.Object3D | null;
   /** What they carry with their own clothes (Rakko's sword: see CharacterOptions.own), or none. */
   private readonly ownCarried: THREE.Object3D | null;
+  /** Their own thing (Rakko's sword) lent out (see lendOwn): not on their back, nor theirs to hold up. */
+  private ownLent = false;
   /** What they play (see CharacterOptions.instrument), shown while they play it; or none. */
   private readonly instrument: THREE.Object3D | null;
   /** Where they sit while riding in the boat, or null on their own feet. */
@@ -922,10 +924,17 @@ export class Character implements EmoteHost {
     if (this.action && !ACTIONS[this.action.id].allowMove) this.stopAction();
   }
 
+  /** Their own thing (Rakko's sword, CharacterDef.own.carries) lent out, or back: while lent it is not on them, and
+   * the action holding it (剣をかまえる) is not theirs to do (see life/Life.lend). */
+  lendOwn(lent: boolean): void {
+    this.ownLent = lent;
+    if (lent && this.action && ACTIONS[this.action.id].prop === 'sword') this.stopAction();
+  }
+
   play(id: ActionId): void {
     const prop = ACTIONS[id].prop;
     // Only someone with an instrument plays it, and someone with a sword holds it.
-    if ((prop === 'ukulele' && !this.instrument) || (prop === 'sword' && !this.ownCarried)) return;
+    if ((prop === 'ukulele' && !this.instrument) || (prop === 'sword' && (!this.ownCarried || this.ownLent))) return;
     this.startBlend(ACTIONS[id].fadeIn);
     this.action = { id, t: 0 };
     // (Eating what they hold, it goes to their mouth: see placeHand.)
@@ -1731,7 +1740,7 @@ export class Character implements EmoteHost {
     if (this.ownCarried) {
       // With their own clothes (Rakko's sword): on their back, or held up by its grip in his right paw (handL), its
       // point leaning forward and out.
-      this.ownCarried.visible = !!this.ownOutfit?.visible;
+      this.ownCarried.visible = !!this.ownOutfit?.visible && !this.ownLent;
       if (this.holdsOwn && this.armRig) {
         // In both paws before him (see REACH_SWORD).
         this.ownCarried.position.copy(this.bodyPoint(SWORD_HOLD, _v));

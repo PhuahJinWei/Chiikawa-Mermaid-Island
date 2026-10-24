@@ -47,7 +47,8 @@ export type ItemId =
   | 'book'
   | 'weapon01'
   | 'weapon02'
-  | 'weapon03';
+  | 'weapon03'
+  | 'sword';
 
 /** What one does with a thing from the hand: eats it, drinks it, plays it, reads it, holds it up ready (かまえる, a
  * weapon); or keeps it. */
@@ -160,6 +161,9 @@ export const ITEMS: Record<ItemId, ItemDef> = {
   weapon01: { use: null, rest: 'lie', hand: 0.72 },
   weapon02: { use: 'ready', rest: 'lie', hand: 0.9, ready: [0, -0.25, 0] },
   weapon03: { use: 'ready', rest: 'lie', hand: 0.9, ready: [0, -0.25, 0] },
+  // Rakko's own sword, lent to you when you ask him (the user, 2026-10-24: see Life.lend); his prop, held by the
+  // middle of its grip, its blade up. It goes back to his back each morning, or when you give it him.
+  sword: { use: 'ready', rest: 'lie', model: 'sword', hand: 0.9, ready: [0, 0, 0] },
 };
 
 /** Every thing there is: those above, and any other the things' build makes (art/blender/build_items.py, its

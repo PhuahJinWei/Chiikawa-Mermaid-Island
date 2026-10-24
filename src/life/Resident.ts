@@ -86,6 +86,17 @@ const TALK = 3.6;
 /** Their words to you in the text box (see speak), they wait for you to read them at most this long
  * (seconds). */
 const READ_MOST = 15;
+/** What you may say to someone you talk with (see Resident.talk), and its words. */
+type TalkChoice = 'order' | 'more' | 'give' | 'back' | 'lend' | 'seek' | 'bye';
+const TALK_CHOICE: Record<TalkChoice, StringKey> = {
+  order: 'talk.order',
+  more: 'talk.more',
+  give: 'talk.give',
+  back: 'talk.takeBack',
+  lend: 'talk.borrow',
+  seek: 'talk.seek',
+  bye: 'talk.bye',
+};
 /** What no line's cue has anyone do (see Resident.cued): what needs a seat, food, or is not theirs. */
 const UNCUED = new Set<ActionId | 'hop'>(['sit', 'doze', 'eat', 'talk', 'readSeated', 'menace']);
 /** Asking you something (see speak's choices), they wait for your answer at most this long (seconds). */
@@ -1480,18 +1491,22 @@ export class Resident {
       let line = first;
       let more = true;
       // With each line, もっとはなす for another (the user, 2026-10-24: talking on without parting), till they have
-      // nothing left to say (see Life.moreLine); だれかさがしてる; またね. Behind the counter of the stall they
-      // keep, first ちょうだい: what it sells, asked for (the user, 2026-10-24: talking to a keeper had done
-      // nothing), you in its line where you stand (see Life.order).
+      // nothing left to say (see Life.moreLine); something to do with things, at most one (the user, 2026-10-24:
+      // holding something you could only give it, and nothing could be had back or borrowed): あげる what you hold,
+      // else かえして what you gave them, else かして what they could lend you; だれかさがしてる; またね. Behind the
+      // counter of the stall they keep, first ちょうだい: what it sells, asked for (the user, 2026-10-24: talking to
+      // a keeper had done nothing), you in its line where you stand (see Life.order).
       for (let turn = 1; ; turn++) {
         const stall = this.life.keptBy(this);
-        const kinds: ('order' | 'more' | 'seek' | 'bye')[] = [
+        const thing: TalkChoice | null = this.life.canGive() ? 'give' : this.life.yourGift(this) ? 'back' : this.life.lendable(this) ? 'lend' : null;
+        const kinds: TalkChoice[] = [
           ...(stall ? (['order'] as const) : []),
           ...(more ? (['more'] as const) : []),
+          ...(thing ? [thing] : []),
           ...(seek.length > 0 ? (['seek'] as const) : []),
           'bye',
         ];
-        const labels = kinds.map((k) => words(k === 'order' ? 'talk.order' : k === 'more' ? 'talk.more' : k === 'seek' ? 'talk.seek' : 'talk.bye'));
+        const labels = kinds.map((k) => words(TALK_CHOICE[k]));
         const pick = yield* this.sayTo(you, line, TALK, true, labels);
         const kind = pick >= 0 ? kinds[pick] : 'bye';
         // (またね chosen, not walked off from or left unanswered: their goodbye at once, see partFrom.)
@@ -1506,10 +1521,25 @@ export class Resident {
           line = next ?? this.life.line(this, 'talk.spent');
           continue;
         }
+        if (kind === 'give') {
+          // Into their paws, and their thanks (see Life.gave), which take over from this: next frame, as this ends.
+          this.life.soon(() => this.life.giveTo(this));
+          return;
+        }
+        if (kind === 'back' || kind === 'lend') {
+          const done = kind === 'back' ? this.life.takeBack(this) : this.life.lend(this);
+          line = this.life.line(this, !done ? 'talk.seekNone' : kind === 'back' ? 'talk.takenBack' : 'talk.lent');
+          continue;
+        }
         if (kind === 'seek') {
-          const asked = seek.map((id) => this.life.asChoice(id));
+          // Whom to ask after, or やっぱりいい (the user, 2026-10-24: there was no way out): back to the talk.
+          const asked = [...seek.map((id) => this.life.asChoice(id)), words('talk.never')];
           const who = yield* this.sayTo(you, this.life.line(this, 'talk.seekWho'), TALK, true, asked);
-          if (who >= 0) yield* this.sayTo(you, this.life.whereIs(seek[who], this));
+          if (who >= 0 && who < seek.length) yield* this.sayTo(you, this.life.whereIs(seek[who], this));
+          else if (who >= seek.length) {
+            line = this.life.line(this, 'talk.seekNone');
+            continue;
+          }
         }
         return;
       }
