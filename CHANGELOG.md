@@ -1414,6 +1414,12 @@ outlined is drawn twice, once for its pen line. To get there:
 
 **Changed**
 
+- Each house's room (its furniture, rugs and lantern) is drawn on its own, within
+  60 m of it, where it had been drawn with its whole group: the village's every
+  room whenever the village's edge was within 32 m, however far the room (the
+  user, 2026-10-24). 9 to 23% fewer triangles from the pier, the festival, the
+  village and the jungle paths, the same draw calls. Through an open window or
+  doorway more than 60 m off a room shows empty.
 - The festival stalls' floor is raised to 20 cm, with two even 10 cm steps
   up from the ground at each open side (the user, 2026-10-24: "the stage
   for the stall seems a little too short").

@@ -47,10 +47,20 @@ const UNLINED = new Set(['palm', 'starfish']);
  * would otherwise draw the whole festival. (What floats, the ferry, is its own object, and mirrored
  * as it is.) */
 const MIRRORED = new Set(['pier', 'quay']);
-/** A group's houses are drawn in full this close, and in their light far version beyond; their
- * rooms' insides only this close. */
+/** A group's houses are drawn in full this close, and in their light far version beyond; the windows' glass is
+ * clear this close (see PANE). */
 const NEAR_REACH = 75;
 const INSIDE_REACH = 32;
+/**
+ * A room's insides (its furniture, rugs and lantern; its walls are the house's own) are its own, drawn within
+ * ROOM_REACH of the room, past where its glass, if it has any, turns opaque (see PANE): through a doorway or an open
+ * window further off (a hut's, 15 by 20 pixels or less on a 1280 by 720 screen) the room shows empty, as rooms beyond
+ * their group's reach did before. They had been drawn with their whole group, for every room of the village once its
+ * edge was near, however far the room: 280k triangles with their pen from the jungle path. Each its own mesh, those
+ * out of view are left out besides (the user, 2026-10-24: 9 to 23% fewer triangles in most views; 90 m saved half as
+ * much, and drew more than before by the waterfall).
+ */
+const ROOM_REACH = 60;
 /**
  * The windows' glass (see paneMaterial): in the film look every room is lit by its lantern, from any
  * distance (see Firelight), so the glass is clear as far off as the rooms are drawn (a pane that near
@@ -77,6 +87,7 @@ const LABEL_GUTTER = 4;
  * along a string). */
 const LIGHT_GAP = 0.6;
 
+
 /** Which pieces of a group are drawn when: always, near, inside (closer still), far, or at night. */
 type Level = 'always' | 'near' | 'small' | 'inside' | 'far' | 'night';
 /** How a piece is drawn: as the props are, as a house lit at night by its own lantern's baked light
@@ -88,6 +99,8 @@ interface Group {
   objects: Map<Level, THREE.Object3D[]>;
   centre: THREE.Vector3;
   radius: number;
+  /** A room's insides alone (see ROOM_REACH). */
+  room?: boolean;
 }
 
 interface Label {
@@ -960,7 +973,12 @@ export class Props {
           const uv = paintable ? (part.geometry.getAttribute('uv1') ?? (bake ? undefined : part.geometry.getAttribute('uv'))) : undefined;
           addPaint(geometry, uv, model.info.paint ? paint?.tiles.get(model.info.paint.map) : undefined);
         }
-        const piece = props.collect(key, level, kind, !UNLINED.has(p.kind), geometry);
+        // A room's insides go with the room alone (see ROOM_REACH).
+        const roomKey = level === 'inside' ? `${key}#room${i}` : key;
+        if (roomKey !== key && !props.groups.has(roomKey)) {
+          props.groups.set(roomKey, { geometries: new Map(), objects: new Map(), centre: new THREE.Vector3(), radius: 0, room: true });
+        }
+        const piece = props.collect(roomKey, level, kind, !UNLINED.has(p.kind), geometry);
         if (FILM && MIRRORED.has(p.kind) && kind === 'body' && level !== 'far') {
           props.mirrorPieces.set(i, [...(props.mirrorPieces.get(i) ?? []), geometry]);
         }
@@ -1201,13 +1219,14 @@ export class Props {
     for (const group of this.groups.values()) {
       const d = camera.position.distanceTo(group.centre) - group.radius;
       const near = d < NEAR_REACH;
+      const inside = this.drawAll || d < (group.room ? ROOM_REACH : INSIDE_REACH);
       for (const [level, objects] of group.objects) {
         const shown =
           level === 'always' ||
           (level === 'near' && near) ||
           (level === 'far' && !near) ||
           (level === 'small' && d < SMALL_REACH) ||
-          (level === 'inside' && (d < INSIDE_REACH || this.drawAll)) ||
+          (level === 'inside' && inside) ||
           (level === 'night' && night);
         for (const o of objects) o.visible = shown;
       }
