@@ -4,7 +4,8 @@ import type { Siren } from '../characters/Siren';
 import type { DialogueBox, Spoken } from '../ui/DialogueBox';
 import { cueOf, linesOf } from './lines';
 import { faceOf } from '../ui/Faces';
-import { ITEMS, type ItemId } from './Items';
+import { ITEMS, itemName, type ItemId } from './Items';
+import type { Hands } from './Hands';
 
 /** Her lines' voice in locales/ja.json (`talk.own.siren.1`...: see lines.ts). */
 const VOICE = ['siren'];
@@ -23,7 +24,10 @@ const WAIT_MOST = 40;
  * and innocent, with her high laugh (キャーハハ…) and her sudden わかったッ; never of eating or of revenge, which
  * the game leaves out. Her lines go into the text box as everyone's do (see Life.boxed), her face as their cues
  * say (see lines.ts), with もっとはなす till she has said all she has to say (never one line twice in a talk) and
- * またね; walking off ends it. She knows nothing of where anyone is.
+ * またね; walking off ends it. She knows nothing of where anyone is. Holding something of your own, あげる (the user,
+ * 2026-10-24): she thanks you and keeps it (it goes from your paws: she is no shape to hold it as everyone does),
+ * and speaks of the last thing you gave her another time; never what is not yours to give (lent you, or with a
+ * place of its own, as the book).
  */
 export class SirenTalk {
   /** The line of hers in the box now, if she is talking with you. */
@@ -37,13 +41,31 @@ export class SirenTalk {
   private talkedAt = -Infinity;
   private met = false;
   private now = 0;
+  /** What the choices on her line in the box are (see say), and the last thing you gave her. */
+  private asked: ('more' | 'give' | 'bye')[] = [];
+  private gift: ItemId | null = null;
 
   constructor(
     readonly siren: Siren,
     private readonly box: DialogueBox,
-    /** What you hold in your paw now, if anything (she speaks of some things). */
-    private readonly holding: () => ItemId | null,
+    /** Your paws and pouch, once the game has them (what you hold, she speaks of; what is yours, you may give her). */
+    private readonly hands: () => Hands | null,
+    /** Something given (the game's sound of it). */
+    private readonly gave: () => void = () => {},
   ) {}
+
+  /** What you hold in your paw now, if anything. */
+  private holding(): ItemId | null {
+    return this.hands()?.hand?.item ?? null;
+  }
+
+  /** Whether what you hold is yours to give her: not bitten into, not lent you, not someone's, not with a place
+   * of its own (the book, the stage's ukulele, a village torch's brand). */
+  private canGive(): boolean {
+    const hands = this.hands();
+    const c = hands?.hand;
+    return !!c && !hands.nibbled && !c.lent && !c.home && (c.owner === null || c.owner === 'player');
+  }
 
   /** Whether she is talking with you. */
   get talking(): boolean {
@@ -63,9 +85,11 @@ export class SirenTalk {
     let group = 'talk.own';
     if (!this.met) group = 'talk.firstMeet';
     else if (again && Math.random() < 0.6) group = 'talk.again';
+    else if (this.gift && Math.random() < 0.4) group = this.eaten(this.gift) ? 'talk.remember.ate' : 'talk.remember.kept';
     else if (yours && Math.random() < 0.6) group = yours;
     this.met = true;
-    this.say(this.line(group));
+    const line = this.line(group);
+    this.say(this.gift ? line.replace('{0}', t(itemName(this.gift))) : line);
   }
 
   /** One frame: on to her next line when you ask for more, the talk over when you say またね, are silent long
@@ -87,11 +111,14 @@ export class SirenTalk {
       }
       return;
     }
-    if (s.chosen === 0 && this.more) {
+    const chose = s.chosen >= 0 ? this.asked[s.chosen] : null;
+    if (chose === 'more') {
       const next = this.nextLine();
       this.more = next !== null;
       this.say(next ?? this.line('talk.spent'));
-    } else if (s.chosen >= 0 && !this.parting) {
+    } else if (chose === 'give') {
+      this.give();
+    } else if (chose === 'bye' && !this.parting) {
       // You said またね (the user, 2026-10-24): her goodbye, then the talk is over.
       this.parting = true;
       this.say(this.line('part.bye'), false);
@@ -102,10 +129,32 @@ export class SirenTalk {
   private say(line: string, ask = true): void {
     const cue = cueOf(line);
     this.siren.character.lineFace = cue.face;
-    // (While she has more to say, the first choice is もっとはなす: see update. Her goodbye asks nothing.)
-    const choices = !ask ? [] : this.more ? [t('talk.more'), t('talk.bye')] : [t('talk.bye')];
+    // (もっとはなす while she has more to say, あげる while you hold something yours, またね; her goodbye asks nothing.)
+    this.asked = !ask ? [] : [...(this.more ? (['more'] as const) : []), ...(this.canGive() ? (['give'] as const) : []), 'bye'];
+    const words = { more: t('talk.more'), give: t('talk.give'), bye: t('talk.bye') };
     this.waited = 0;
-    this.spoken = this.box.add(t('char.siren'), cue.text, this, choices, faceOf('siren'));
+    this.spoken = this.box.add(t('char.siren'), cue.text, this, this.asked.map((k) => words[k]), faceOf('siren'));
+  }
+
+  /** You give her what you hold (see canGive): it goes from your paws, and she thanks you for it, as for something
+   * to eat (she will share it with her little mermaids), to keep, or anything. */
+  private give(): void {
+    const hands = this.hands();
+    const c = hands?.hand;
+    if (!hands || !c || !this.canGive()) {
+      this.say(this.line('talk.own'));
+      return;
+    }
+    hands.remove(c);
+    this.gift = c.item;
+    this.gave();
+    this.say(this.line(this.eaten(c.item) ? 'thanks.ate' : ITEMS[c.item].use === null ? 'thanks.kept' : 'thanks.got'));
+  }
+
+  /** Whether `item` is something to eat or drink. */
+  private eaten(item: ItemId): boolean {
+    const use = ITEMS[item].use;
+    return use === 'eat' || use === 'drink';
   }
 
   private end(): void {

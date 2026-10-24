@@ -41,6 +41,15 @@ const islanderId = (i: number) => `islander${String(i + 1).padStart(2, '0')}`;
 const HIDE = 85;
 const FAR = 70;
 const MID = 32;
+/**
+ * Out of the camera's view (with this much room round them, for their shadow and the step that brings them into
+ * it), worked out every OUT_OF_VIEW_EVERY frames: no one sees their paws, ears and skirt move, and a crowd behind
+ * you cost a phone's frame (the user, 2026-10-24: the frame rate dropping with many about). Within NEAR_ALWAYS
+ * of the camera, every frame all the same, to be walked into.
+ */
+const VIEW_MARGIN = 1.5;
+const OUT_OF_VIEW_EVERY = 4;
+const NEAR_ALWAYS = 4;
 /** How much of the ways being sought is worked out a frame (cells expanded; see Nav.work). */
 const NAV_WORK = 700;
 /** How many stalls are kept open each day (the user: 5), and the hour their keepers stop work and close them (the
@@ -174,25 +183,6 @@ const KEEP_NEAR = 0.6;
 const KEEP_LEAVE = 1.4;
 /** Placed by the clock (see settle), no two stand nearer than this (metres). */
 const SPACING = 1.5;
-/**
- * The welcome on a new island, your first day (the film's arrival, `bay 5`): the islanders line the way up
- * the beach from the pier's foot toward the welcome arch, either side of it, in two rows, turned to it and
- * toward the pier: the rows' distances out from the way's middle (x, metres), from and to how far up the
- * beach (z), and how far apart along a row. The cast stand as the game has them (see Game's HOMES); any of
- * them further than WELCOME_FROM from the pier's foot (Furuhonya on the night beach) are not at it.
- */
-const WELCOME_ROWS = { front: 4.3, back: 5.8, from: -1, to: -11, gap: 1.8 };
-const PIER_FOOT = new THREE.Vector3(0, 0, 1);
-const WELCOME_FROM = 20;
-/** The welcome lasts till you come this far up the beach (z), or go this far from the pier's foot, or this
- * long (seconds of the island's life); then each goes off into their day within so long of the others. */
-const WELCOME_PAST = -4.5;
-const WELCOME_AWAY = 12;
-const WELCOME_LAST = 100;
-const WELCOME_SPREAD = 6;
-/** At the welcome, a word over someone's head at most every so long (seconds), from someone this near you. */
-const WELCOME_WORD_EVERY = 1.6;
-const WELCOME_WORD_NEAR = 14;
 /** No one says the same thing twice running: the last so many lines of a group are passed over (fewer for a
  * small group: see line). Talked with again within so long (seconds) is "again". */
 const RECENT = 3;
@@ -207,6 +197,9 @@ const _from = new THREE.Vector3();
 const _to = new THREE.Vector3();
 const _eyes = new THREE.Vector3();
 const flat = (a: THREE.Vector3, b: THREE.Vector3) => Math.hypot(a.x - b.x, a.z - b.z);
+const _view = new THREE.Matrix4();
+const _frustum = new THREE.Frustum();
+const _sphere = new THREE.Sphere();
 
 interface Event {
   at: THREE.Vector3;
@@ -246,8 +239,8 @@ export interface SavedResident {
   indoors?: boolean;
 }
 
-/** How settle puts everyone: by the clock, where a save had them, or at the welcome. */
-export type SettleFrom = 'clock' | 'saved' | 'welcome';
+/** How settle puts everyone: by the clock, or where a save had them. */
+export type SettleFrom = 'clock' | 'saved';
 
 export class Life {
   readonly residents: Resident[] = [];
@@ -296,9 +289,6 @@ export class Life {
   private readonly kept = new Map<Resident, Required<Pick<SavedResident, 'at' | 'seat' | 'indoors'>>>();
   /** Every seat there is, in the same order each time (the save's seats are their places in it). */
   private seatList: Seat[] | null = null;
-  /** The welcome lasts till then (Life.now; -Infinity: none), and the next word of welcome may come then. */
-  private welcomeUntil = -Infinity;
-  private welcomeWordAt = 0;
   /** You took up keeping a stall, or left it: read by the game. */
   onKeeping: (stall: Stall, keeping: boolean) => void = () => {};
   /** The name of the place a point is in (the island's places, the cave), once the game gives it. */
@@ -549,15 +539,13 @@ export class Life {
 
   /**
    * Puts everyone where they belong and begins their day from there, `from`:
-   * - `clock` (after a night's sleep, a staged shot): where the hour has them (see placeFor): in bed, at
-   *   their stall, round the feast's fire, at one of their places, no two on top of each other;
+   * - `clock` (a new island, after a night's sleep, a staged shot): where the hour has them (see placeFor): in
+   *   bed, at their stall, round the feast's fire, at one of their places, no two on top of each other nor on you;
    * - `saved` (loading a save, the island's clock as it was): where the save had them, sitting where they sat,
    *   in their round hut, their day taken up from there (see Resident.resume); anyone it has no place for, or
-   *   whose place one cannot stand at now (the island since rebuilt), as the clock has them;
-   * - `welcome` (a new island, your first day): the film's welcome (see WELCOME_ROWS), the cast where `cast`
-   *   has them (x, z, facing), all turned to you, till you come up the beach (see update).
+   *   whose place one cannot stand at now (the island since rebuilt), as the clock has them.
    */
-  settle(hours: number, me: Character | null, from: SettleFrom = 'clock', cast: Record<string, [number, number, number]> = {}): void {
+  settle(hours: number, me: Character | null, from: SettleFrom = 'clock'): void {
     this.hours = hours;
     this.lastHours = hours;
     this.planDay();
@@ -569,13 +557,12 @@ export class Life {
     for (const h of this.places.homes) for (const s of [...h.beds, ...h.seats]) s.taken = null;
     for (const s of this.places.seats) s.taken = null;
     for (const thing of this.things.list) thing.sought = null;
-    this.welcomeUntil = from === 'welcome' ? this.now + WELCOME_LAST : -Infinity;
-    const placed: THREE.Vector3[] = [];
+    // (No one put where you stand.)
+    const placed: THREE.Vector3[] = me ? [me.position.clone()] : [];
     const usedSeats = new Set<Seat>();
-    const line = from === 'welcome' ? this.welcomeLine() : [];
     // Everyone placed first, the seats they are put on kept for them (see Resident.resume), so that no one's
     // day, begun, goes off to a seat someone after them is to be put on.
-    const starts: { r: Resident; block: Block; welcome: number | null }[] = [];
+    const starts: { r: Resident; block: Block }[] = [];
     for (const r of this.residents) {
       r.stop();
       r.chat = null;
@@ -583,7 +570,6 @@ export class Life {
       r.line = null;
       r.neededAt = NaN;
       r.resume = null;
-      r.welcoming = false;
       r.ch.setShown(true);
       if (r.ch === me) {
         this.kept.delete(r);
@@ -595,24 +581,10 @@ export class Life {
         // (Set by backWhereKept.)
         const resume = r.resume as Resident['resume'];
         if (resume?.seat) resume.seat.taken = r;
-        starts.push({ r, block, welcome: null });
+        starts.push({ r, block });
         continue;
       }
       this.kept.delete(r);
-      if (from === 'welcome') {
-        const own = cast[r.id];
-        let spot: { at: THREE.Vector3; yaw: number } | null = null;
-        if (own) {
-          const at = this.nearestStanding(_a.set(own[0], terrainHeight(own[0], own[1]), own[1]));
-          if (at && flat(at, PIER_FOOT) < WELCOME_FROM) spot = { at, yaw: own[2] };
-        } else if (r.id.startsWith('islander')) spot = line.shift() ?? null;
-        if (spot) {
-          r.place(spot.at, spot.yaw);
-          placed.push(spot.at.clone());
-          starts.push({ r, block, welcome: spot.yaw });
-          continue;
-        }
-      }
       const { at, yaw, seat } = this.placeFor(r, block, placed, usedSeats);
       if (at) {
         r.place(at, yaw);
@@ -623,12 +595,9 @@ export class Life {
         seat.taken = r;
         r.resume = { seat, indoors: false };
       }
-      starts.push({ r, block, welcome: null });
+      starts.push({ r, block });
     }
-    for (const { r, block, welcome } of starts) {
-      if (welcome !== null) r.beginWelcome(block, welcome);
-      else r.begin(block);
-    }
+    for (const { r, block } of starts) r.begin(block);
   }
 
   /** Where the hour has `r` (see settle): beside their bed, at their door, behind their stall's counter, on a
@@ -724,37 +693,6 @@ export class Life {
     r.place(at, yaw);
     placed.push(at);
     return true;
-  }
-
-  /** Where the islanders stand at the welcome (see WELCOME_ROWS): the front rows first, nearest the pier
-   * first, each turned to the way up the beach and toward the pier; as many as there is ground for. */
-  private welcomeLine(): { at: THREE.Vector3; yaw: number }[] {
-    const { front, back, from, to, gap } = WELCOME_ROWS;
-    const rows: { at: THREE.Vector3; yaw: number; order: number }[] = [];
-    for (const [out, off] of [
-      [front, 0],
-      [back, gap / 2],
-    ] as const) {
-      for (let z = from - off, k = 0; z >= to; z -= gap, k++) {
-        for (const side of [-1, 1]) {
-          const x = side * out;
-          const at = this.nearestStanding(_a.set(x, terrainHeight(x, z), z));
-          if (!at) continue;
-          rows.push({ at, yaw: Math.atan2(-at.x, 3), order: k * 2 + (out === back ? 1 : 0) });
-        }
-      }
-    }
-    return rows.sort((a, b) => a.order - b.order);
-  }
-
-  /** At the welcome, a word of welcome over `r`'s head (their own, or an islander's): when you have just come
-   * up to them (`close`), or now and then if no one has said one just now; only near you. */
-  welcomeWord(r: Resident, close: boolean): void {
-    const you = this.playerAt;
-    if (!you || flat(you, r.pos) > WELCOME_WORD_NEAR) return;
-    if (!close && (this.now < this.welcomeWordAt || this.random() > 0.35)) return;
-    this.welcomeWordAt = this.now + WELCOME_WORD_EVERY;
-    this.say(r, this.line(r, 'welcome'));
   }
 
   // ---------------------------------------------------------------- things
@@ -1244,25 +1182,10 @@ export class Life {
     // (Only those who live here: the Siren's talk keeps its own distance, see SirenTalk.)
     this.box?.dropIf((who) => who instanceof Resident && (who.far || flat(who.pos, you) > BOX_AWAY));
 
-    // The welcome over once you come up the beach (or go off elsewhere, or after a while): each goes off into
-    // their day, one after another.
-    if (this.welcomeUntil > -Infinity) {
-      const p = f.me.position;
-      if (this.now > this.welcomeUntil || p.z < WELCOME_PAST || flat(p, PIER_FOOT) > WELCOME_AWAY) {
-        this.welcomeUntil = -Infinity;
-        for (const r of this.residents) if (r.welcoming) r.leavesWelcome = this.now + this.random() * WELCOME_SPREAD;
-      }
-    }
-
-    // Each into the block of their day the hour is in (once off from the welcome), and a frame of it.
+    // Each into the block of their day the hour is in, and a frame of it.
     for (const r of this.residents) {
       if (r.ch === f.me) continue;
       const block = this.blockAt(r, f.hours);
-      if (r.welcoming) {
-        // (Not while they are with you, talking or asked something: they go once they have parted from you.)
-        if (this.now >= r.leavesWelcome && !r.withPlayer) r.endWelcome(block);
-        continue;
-      }
       // (Not while they are with you: the hour's next part of their day waits till they have parted from you.)
       if (block !== r.block && !r.withPlayer) r.begin(block);
     }
@@ -1273,7 +1196,8 @@ export class Life {
     this.attend(f);
     this.avoid(f.me);
 
-    // Everyone drawn and moved, as near the camera as they are, what they hold in their paws.
+    // Everyone drawn and moved, as near the camera as they are and as in view, what they hold in their paws.
+    _frustum.setFromProjectionMatrix(_view.multiplyMatrices(f.camera.projectionMatrix, f.camera.matrixWorldInverse));
     for (const r of this.residents) {
       const ch = r.ch;
       if (ch === f.me) continue;
@@ -1293,16 +1217,28 @@ export class Life {
         r.saved = 0;
       }
       ch.setDesiredVelocity(r.want);
-      if (d > MID) {
+      const every = d < NEAR_ALWAYS ? 1 : !this.inView(ch) ? OUT_OF_VIEW_EVERY : d > MID ? 2 : 1;
+      if (every > 1) {
         r.saved += dt;
         if (--r.skip > 0) continue;
-        r.skip = 2;
+        r.skip = every;
         ch.update(r.saved, f.ctx);
         r.saved = 0;
       } else {
-        ch.update(dt, f.ctx);
+        // (With the time put off while they were out of view.)
+        ch.update(dt + r.saved, f.ctx);
+        r.saved = 0;
+        r.skip = 0;
       }
     }
+  }
+
+  /** Whether someone is in the camera's view this frame, or about to be (see VIEW_MARGIN). */
+  private inView(ch: Character): boolean {
+    _sphere.center.copy(ch.root.position);
+    _sphere.center.y += ch.height * 0.5;
+    _sphere.radius = ch.height * 0.75 + VIEW_MARGIN;
+    return _frustum.intersectsSphere(_sphere);
   }
 
   /** After you have moved too: no one stands in anyone, and you push whoever you keep walking into (see
@@ -1660,8 +1596,8 @@ export class Life {
   }
 
   private choose(r: Resident, f: LifeFrame, players: THREE.Vector3): Resident | 'player' | 'fire' | null {
-    // With you (talking, thanking you, answering you), or welcoming you: on you, wherever you go.
-    if (r.withPlayer || r.welcoming) return 'player';
+    // With you (talking, thanking you, answering you): on you, wherever you go.
+    if (r.withPlayer) return 'player';
     if (r.chat) return r.chat.with;
     // At a counter: the keeper looks at whoever is at it, the customer at the keeper.
     if (r.block?.kind === 'work' && r.block.stall) {

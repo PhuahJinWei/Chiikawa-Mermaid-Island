@@ -134,8 +134,6 @@ const GIVE_CHASE = 10;
 /** Things they keep in their own room: at most so many, about so far from its middle (metres). */
 const ROOM_KEEPS = 8;
 const ROOM_SPREAD = 1.1;
-/** At the welcome: you coming this near, they cheer you (metres). */
-const WELCOME_PASS = 3;
 
 /** How someone answers what you do (see Life.reacted): with one of these, saying `line` if there is one, for
  * `seconds`; walking over to you first if `come` and they are more than a couple of metres off. */
@@ -268,9 +266,6 @@ export class Resident {
   /** Where their day takes up again on loading a save (see Life.settle): on the seat they sat on, or inside
    * their round hut; null to begin it afresh. */
   resume: { seat: Seat | null; indoors: boolean } | null = null;
-  /** At the welcome on your first day (see Life.settle), and when they leave it for their day (Life.now). */
-  welcoming = false;
-  leavesWelcome = Infinity;
 
   constructor(
     readonly id: string,
@@ -305,24 +300,6 @@ export class Resident {
     this.brain.next(0);
   }
 
-  /** At the welcome (see Life.settle): their day held, standing as it has them, `yaw` the way they face, till
-   * Life lets them go into it (see Life.update). */
-  beginWelcome(block: Block, yaw: number): void {
-    this.stop();
-    this.block = block;
-    this.welcoming = true;
-    this.leavesWelcome = Infinity;
-    this.brain = this.welcome(yaw);
-    this.brain.next(0);
-  }
-
-  /** Out of the welcome into their day, from where they stand. */
-  endWelcome(block: Block): void {
-    this.welcoming = false;
-    this.leavesWelcome = Infinity;
-    this.begin(block);
-  }
-
   /**
    * Their day taken up again from where a save had them: on the seat they sat on (their bed, a seat in their
    * room, by the feast's fire, a log a while), or inside their round hut; then on with the block as it goes.
@@ -351,35 +328,6 @@ export class Resident {
       }
     }
     yield* this.think(block);
-  }
-
-  /**
-   * At the welcome on your first day (the film's arrival, `bay 5`): standing where it has them, turned toward
-   * the pier, their eyes on you (see Life.attend); waving and cheering now and then, and cheering you as you
-   * come past them; a word of welcome now and then (see Life.welcomeWord).
-   */
-  private *welcome(yaw: number): Brain {
-    this.ch.setFacing(yaw);
-    let next = 0.5 + this.life.random() * 4;
-    let cheered = false;
-    try {
-      for (let t = 0; ; t += yield) {
-        this.halt();
-        const you = this.life.playerAt;
-        if (you && !cheered && flat(you, this.pos) < WELCOME_PASS) {
-          cheered = true;
-          this.ch.play('cheer');
-          this.life.welcomeWord(this, true);
-          next = t + 3 + this.life.random() * 3;
-        } else if (t >= next) {
-          if (!this.ch.actionId) this.ch.play(this.life.random() < 0.6 ? 'wave' : 'cheer');
-          this.life.welcomeWord(this, false);
-          next = t + 4 + this.life.random() * 6;
-        }
-      }
-    } finally {
-      if (this.ch.actionId === 'wave' || this.ch.actionId === 'cheer') this.ch.stopAction();
-    }
   }
 
   /** Stops what they are doing, tidying up after it. */

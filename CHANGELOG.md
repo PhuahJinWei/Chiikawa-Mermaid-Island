@@ -11,6 +11,59 @@ stage, and along every path. Not yet checked on a real phone.
 
 **Added**
 
+- A start card after loading (the user, 2026-10-24: "a minimal tap-to-start
+  card after loading: タップしてはじめる over the island; a tap starts the sound
+  and gives control"). The game had dropped you straight into the island.
+  - Once everything has loaded, the way in turns into a card over the
+    island: its sky thins to a light veil, its bar goes, and its words become
+    「タップしてはじめる」 on a pill, breathing (still for whoever asks for less
+    motion). The rest of the HUD waits out of sight.
+  - Under it the island goes on (its water, wind and sky, everyone breathing
+    where they stand), but its clock and everyone's day are held, so the
+    day waits for you (`Game.rest`).
+  - A tap anywhere, or any key, takes the card away, starts the sound and
+    gives you control. A key pressed to start does nothing more, so a space
+    is not a jump.
+  - The sound now starts as a touch lifts as well as when it lands. On a
+    phone only the lifting counts, and the browser had kept the sound
+    waiting.
+  - Scripts driving the game call `__game.begin()`.
+  - Checked in the game: on a new island and a saved one, at desktop and
+    phone size, by a tap, by a key and by `begin()`. While the card was up
+    the clock and the day stayed put. After the tap they ran, the sound was
+    on, and the console showed no errors.
+  - Then made after the film's title shot (the user, 2026-10-25, with that
+    frame and their picture of its title,
+    `images that can be use/title.png`):
+    - The island is seen from high over the bay, as the film's aerial shot
+      has it (`TITLE_VIEW` in `src/core/Game.ts`, the dev tools' `aerial`
+      shot).
+    - The film's title, 「映画 ちいかわ 人魚の島のひみつ」, stands over it
+      (`public/title.webp`), the pill near the foot, with no veil. Its white
+      letters are rimmed and haloed in the sea's deep blue so they read over
+      the pale sky and the sea (the user, 2026-10-25: white on its own was
+      hardly seen; a CSS filter, the user's picture untouched).
+    - The lens widens on a narrower screen to keep the whole island across
+      it. On a phone held upright the island nearly fills the screen's
+      width (the user, 2026-10-25: with a wide screen's margin of sea it was
+      "way too zoomed out" there; `TITLE_VIEW.upright`).
+    - The haze is cleared to the far sea for this view only
+      (`Stage.titleView`).
+    - Only the film's own eight clouds and their shadows show
+      (`FilmClouds.filmOnly`). The nine round the island for other high
+      views hung over it from there.
+    - The island is drawn 40 times to settle, then held as a still, so it
+      stays sharp and a waiting phone does nothing (drawn again only if
+      the screen changes its size).
+    - A tap dips the card to the sky's colour, drops you into your own eyes
+      on the pier under it, and lifts it.
+    - A frame stamped before the last one no longer runs the game
+      backwards.
+    - Checked at desktop and phone size, tapped, and by `begin()`. The lens,
+      the haze and the clouds come back as before, and the console showed
+      no errors.
+    - Down the cave's skylight its dark shows as a small dark pool on the
+      island's west.
 - Buying food at a stall (the user, 2026-10-24: talking to its keeper did
   nothing, and nothing said how): looking at an open stall's counter within
   about 3 m, the action button says かう, and talking with its keeper behind
@@ -205,6 +258,14 @@ stage, and along every path. Not yet checked on a real phone.
   on it when you give it him (「…返してくれたか。恩に着る」) or overnight.
   The faces of whom to ask after end with やっぱりいい, back to the talk. Their
   words for each, in every voice (talk.lent, talk.takenBack, talk.seekNone).
+- Gifts for the Siren (the user, 2026-10-24: she thanks you rather than
+  holding it, being so different a shape). Talking with her, holding
+  something of your own, あげる: it goes from your paws and she thanks you in
+  her voice, for something to eat (「おいしそうなの。…この子たちと、あとで
+  たべるの」), to keep (「きれいなの。…海の底に、かざるの」) or anything, and
+  another time speaks of the last thing you gave her (「このまえの{0}、この子
+  たち、よろこんでたの」). Never what is not yours to give: lent you (Rakko's
+  sword), someone's, or with a place of its own (the book, the ukulele).
 - Someone at the welcome you are talking with no longer walks off when the
   welcome ends: they go once they have parted from you, as at any other
   change in their day.
@@ -3188,6 +3249,17 @@ outlined is drawn twice, once for its pen line. To get there:
 
 **Removed**
 
+- The welcome on a new island (the user, 2026-10-25: everyone gathered on
+  the beach to cheer you was odd, you being one of the islanders). A new
+  island now starts you on the pier by its foot, looking up the beach to
+  the festival's arch as before, with everyone where the hour (10:00) has
+  them, about their day: at their stalls, on the beaches, in the fields,
+  the plaza and the village, no one put where you stand. Gone with it are
+  the two rows of islanders up the beach and the cast under the arch, their
+  waves and cheers as you passed, and their words of welcome (the
+  `welcome.*` lines; the arch's and the banner's words stay). Checked on
+  a fresh island: no one within 12 m of you or turned to you, no one
+  cheering in 30 s, and a saved island loading as before.
 - The notebook (ノート) and its page of where everyone is (the user,
   2026-10-23: it did not help). Nine of the ten of the cast read only as
   wandering about somewhere as wide as the beach, with nothing to do about
@@ -3227,6 +3299,21 @@ outlined is drawn twice, once for its pen line. To get there:
 
 **Fixed**
 
+- The frame rate with many about (the user, 2026-10-24: it drops on a phone
+  with many characters near). Measured at the night feast with 31 about on
+  the dev PC, the characters are a small share of the frame (about 1 ms of
+  a 12 ms picture, about 1 ms of working out a frame) and nothing about them
+  was out of the ordinary, so two things were cut that cost a phone more
+  than they do here:
+  - Everyone's shadows on the ground (the round one under each and the one
+    the firelight casts at night) are drawn in two draws together, from 65
+    at the feast: the characters take 94 draws there now, from 174. They
+    look as they did, pixel for pixel.
+  - Islanders out of view (and more than 4 m off) are worked out in full
+    every fourth frame, their time saved up for it, as those far off already
+    were every other frame: with the feast beside or behind you, the island's
+    life takes half the time it did. Anyone coming into view is worked out
+    that frame.
 - Stutters now and then on a phone (the user, 2026-10-24: the frame rate
   dropping by half, at times to 20 fps), three causes found on the dev PC:
   - Every shader was compiled again the first time its thing came into view

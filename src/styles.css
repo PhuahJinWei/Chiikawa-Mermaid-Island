@@ -1883,14 +1883,117 @@ body {
   gap: 20px;
   padding: 16px;
   text-align: center;
-  background: linear-gradient(#bfe6f8, var(--horizon));
+  isolation: isolate;
   pointer-events: auto;
   transition: opacity 0.45s ease;
+}
+
+/* Its sky behind the title, gone from over the island once that has loaded (is-ready); the colour the card dips
+   to as you go down into the island (is-leaving). */
+.loading::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(#bfe6f8, var(--horizon));
+  transition: opacity 0.6s ease;
 }
 
 .loading.is-gone {
   opacity: 0;
   pointer-events: none;
+}
+
+/* The film's title, shown on the start card: its white letters rimmed and haloed in the sea's deep blue, as the
+   film shades its own, so they read over the pale sky and the sea (the user, 2026-10-25: white on its own was hardly
+   seen there). */
+.loading-art {
+  display: none;
+  width: clamp(260px, 36vw, 540px);
+  height: auto;
+  filter: drop-shadow(0 0 1.5px #1f5f99) drop-shadow(0 0 1.5px #1f5f99) drop-shadow(0 3px 10px rgba(14, 52, 96, 0.55));
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+/* Loaded, the start card, as the film's title shot: the island from high over the bay with nothing over it, the
+   film's title high over it, the bar gone, the words a pill on offer near the foot asking for a tap, breathing
+   (still, for whoever asks for less motion). The rest of the HUD waits out of sight till the tap. */
+.loading.is-ready {
+  justify-content: space-between;
+  padding: 10vh 16px max(13vh, 72px);
+  cursor: pointer;
+}
+
+.loading.is-ready::before {
+  opacity: 0;
+}
+
+.loading.is-ready .loading-title,
+.loading.is-ready .loadbar {
+  display: none;
+}
+
+.loading.is-ready .loading-art {
+  display: block;
+  animation: art-in 0.9s ease both;
+}
+
+@keyframes art-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+}
+
+.loading.is-ready .loading-words {
+  --ring-w: 3px;
+  --ring-gap: 0px;
+  padding: 10px 24px;
+  border-radius: 999px;
+  background: var(--face);
+  box-shadow: var(--shell);
+  font-size: 16px;
+  animation: start-breathe 2.4s ease-in-out infinite;
+}
+
+@keyframes start-breathe {
+  50% {
+    transform: scale(1.05);
+  }
+}
+
+/* Tapped: the sky's colour comes over it all (LEAVE_DIP in Hud.ts), the title and the words going, and the card
+   lifts off your own view of the island under it (is-gone). */
+.loading.is-leaving::before {
+  opacity: 1;
+  transition-duration: 0.38s;
+}
+
+.loading.is-leaving .loading-art,
+.loading.is-leaving .loading-words {
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loading.is-ready .loading-words {
+    animation: none;
+  }
+
+  .loading.is-ready .loading-art {
+    animation-name: fade-in;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+.hud.is-waiting > :not(.loading) {
+  visibility: hidden;
 }
 
 .loading-title {
@@ -1937,7 +2040,7 @@ body {
   font-weight: 700;
 }
 
-.loading.error {
+.loading.error::before {
   background: #fff3f3;
 }
 

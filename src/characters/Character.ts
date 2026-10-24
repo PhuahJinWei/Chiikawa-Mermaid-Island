@@ -18,13 +18,13 @@ import {
 } from './Holding';
 import {
   createCharacterMaterials,
-  FOG_FRAGMENT,
   makeCharacterUniforms,
   makeOutfitUniforms,
   sharedUniforms,
   type CharacterUniforms,
 } from './CharacterMaterial';
 import { Face } from './Face';
+import { groundShadows } from './GroundShadows';
 import { Spring } from './Springs';
 import { copyPose, lerpPose, resetPose, restPose, type Pose } from './Pose';
 import { ACTIONS, type ActionContext, type ActionId } from './Actions';
@@ -304,83 +304,21 @@ const smoothstep = (a: number, b: number, x: number) => {
 };
 const wrapAngle = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
 
-let shadowTexture: THREE.Texture | null = null;
 const shadowGeometry = new THREE.PlaneGeometry(1, 1);
 
+/** A shadow on the ground: where it lies, its colour and how dark it is, drawn with everyone's (see
+ * GroundShadows). */
 function makeShadow(): THREE.Mesh {
-  if (!shadowTexture) {
-    const canvas = document.createElement('canvas');
-    canvas.width = canvas.height = 64;
-    const c = canvas.getContext('2d');
-    if (c) {
-      const g = c.createRadialGradient(32, 32, 0, 32, 32, 32);
-      g.addColorStop(0, 'rgba(60, 40, 30, 0.42)');
-      g.addColorStop(0.6, 'rgba(60, 40, 30, 0.26)');
-      g.addColorStop(1, 'rgba(60, 40, 30, 0)');
-      c.fillStyle = g;
-      c.fillRect(0, 0, 64, 64);
-    }
-    shadowTexture = new THREE.CanvasTexture(canvas);
-    shadowTexture.colorSpace = THREE.SRGBColorSpace;
-  }
-  const mesh = new THREE.Mesh(
-    shadowGeometry,
-    new THREE.MeshBasicMaterial({ map: shadowTexture, transparent: true, depthWrite: false }),
-  );
+  const mesh = new THREE.Mesh(shadowGeometry, new THREE.MeshBasicMaterial());
   mesh.rotation.x = -Math.PI / 2;
-  mesh.renderOrder = 1;
   return mesh;
 }
 
-let castTexture: THREE.Texture | null = null;
-
-/** A shadow cast along the ground: darkest at its foot (the bottom of its picture, toward the
- * character), fading toward its far end and its sides. */
+/** A shadow cast along the ground from their feet (see updateFireShadow), drawn with everyone's. */
 function makeCastShadow(): THREE.Mesh {
-  if (!castTexture) {
-    const canvas = document.createElement('canvas');
-    canvas.width = canvas.height = 64;
-    const c = canvas.getContext('2d');
-    if (c) {
-      const g = c.createRadialGradient(32, 54, 0, 32, 50, 58);
-      g.addColorStop(0, 'rgba(60, 40, 30, 0.55)');
-      g.addColorStop(0.5, 'rgba(60, 40, 30, 0.32)');
-      g.addColorStop(1, 'rgba(60, 40, 30, 0)');
-      c.fillStyle = g;
-      c.fillRect(0, 0, 64, 64);
-      // Soft at its sides.
-      const sides = c.createLinearGradient(0, 0, 64, 0);
-      sides.addColorStop(0, 'rgba(0, 0, 0, 0)');
-      sides.addColorStop(0.3, 'rgba(0, 0, 0, 1)');
-      sides.addColorStop(0.7, 'rgba(0, 0, 0, 1)');
-      sides.addColorStop(1, 'rgba(0, 0, 0, 0)');
-      c.globalCompositeOperation = 'destination-in';
-      c.fillStyle = sides;
-      c.fillRect(0, 0, 64, 64);
-    }
-    castTexture = new THREE.CanvasTexture(canvas);
-    castTexture.colorSpace = THREE.SRGBColorSpace;
-  }
-  const mesh = new THREE.Mesh(
-    shadowGeometry,
-    new THREE.MeshBasicMaterial({ map: castTexture, transparent: true, depthWrite: false }),
-  );
-  mesh.renderOrder = 1;
+  const mesh = new THREE.Mesh(shadowGeometry, new THREE.MeshBasicMaterial());
   mesh.visible = false;
   return mesh;
-}
-
-/**
- * A character's shadow takes the scene's fog only where the open air's light reaches them (`openAir`, their
- * uOpenAir), as their own body does: none in the forbidden cave, which has its own light. With the island's
- * fog, a shadow far off in the cave glowed faintly with its colour (found by the cave's dark test from the
- * lake, looking at the Siren on the ledge 30 m away, 2026-10-21).
- */
-function fogInOpenAir(mesh: THREE.Mesh, openAir: THREE.IUniform<number>): void {
-  (mesh.material as THREE.Material).onBeforeCompile = (shader) => {
-    shader.uniforms.uOpenAir = openAir;
-    shader.fragmentShader = `uniform float uOpenAir;\n${shader.fragmentShader.replace('#include <fog_fragment>', FOG_FRAGMENT)}`;
-  };
 }
 
 /** A pose the other way round: its arms left for right, its lean and its turn to the other side (see
@@ -677,8 +615,7 @@ export class Character implements EmoteHost {
     this.root.add(this.poseGroup);
     this.shadow = makeShadow();
     this.fireShadow = makeCastShadow();
-    fogInOpenAir(this.shadow, this.uniforms.uOpenAir);
-    fogInOpenAir(this.fireShadow, this.uniforms.uOpenAir);
+    groundShadows().keep(this.shadow, this.fireShadow, this.uniforms.uOpenAir);
     this.carried = options.carry ?? null;
     this.bodyShape = BodyShape.of(model, [options.outfit, options.own?.outfit], SKIRT_FLARE);
     if (this.carried) this.carryShape = HeldShape.of(this.carried);

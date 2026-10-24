@@ -49,6 +49,10 @@ const SEA_RADIUS = 600;
  * look, whose distant jungle and hills fade into a pale blue haze. */
 const FOG_NEAR = FILM ? 18 : 180;
 const FOG_FAR = FILM ? 320 : 900;
+/** The haze under the start card (see titleView), the island seen from high over the bay: as clear as the
+ * film's title shot, only the far sea paling. */
+const TITLE_FOG_NEAR = 520;
+const TITLE_FOG_FAR = 2600;
 /** The film look's sun shadows: how far round the spot ahead of the camera they reach, in metres,
  * and the shadow map's size (1024 over 84 m is 8.2 cm a texel, the user's choice, 2026-10-24, for about
  * a millisecond less a frame than 1536's 5.5 cm on the dev PC, the shadows a little softer under the
@@ -248,6 +252,8 @@ export class Stage {
   private hours = 10;
   private time = 0;
   private dark = false;
+  /** Whether the island is seen as under the start card (see titleView). */
+  private title = false;
   /** The island's named places, once the layout has loaded. */
   zones: Zones | null = null;
   /** The forbidden cave's inside, once it has loaded (see Cave.ts). */
@@ -559,6 +565,13 @@ export class Stage {
       if (!found.has(key)) found.set(key, { centre: [o.centre.x, o.centre.y, o.centre.z], out: [o.out.x, o.out.y, o.out.z], half: o.half });
     }
     return [...found.values()];
+  }
+
+  /** The island as the start card shows it, from high over the bay as the film's title shot has it (`on`):
+   * its haze cleared to the far sea, only the shot's own clouds round it; or as everywhere else again. */
+  titleView(on: boolean): void {
+    this.title = on;
+    this.filmClouds?.filmOnly(on);
   }
 
   /**
@@ -902,8 +915,8 @@ export class Stage {
     this.sea.position.set(camera.position.x, 0, camera.position.z);
     this.sea.scale.set(reach, 1, reach);
     const fog = this.scene.fog as THREE.Fog;
-    fog.near = FOG_NEAR * reach;
-    fog.far = (FOG_FAR * reach * (reach + 1)) / 2;
+    fog.near = this.title ? TITLE_FOG_NEAR : FOG_NEAR * reach;
+    fog.far = this.title ? TITLE_FOG_FAR : (FOG_FAR * reach * (reach + 1)) / 2;
     // The clouds hang far off in a ring around the camera, wherever it goes, as part of the sky.
     this.clouds.position.copy(camera.position);
     this.filmClouds?.update(camera);

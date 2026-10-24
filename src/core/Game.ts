@@ -29,6 +29,7 @@ import { CROWD_KINDS, DEFINITIONS, islanderGait } from '../characters/definition
 import { CHARACTER_IDS, type CharacterId, type ExpressionId } from '../characters/types';
 import { loadCharacterModel, loadOutfitModel, type OutfitModel } from '../characters/Model';
 import { EmoteSystem } from '../characters/Emotes';
+import { groundShadows } from '../characters/GroundShadows';
 import { Siren } from '../characters/Siren';
 import { SirenTalk } from '../life/SirenTalk';
 import { PlayerController, type Heading } from '../characters/PlayerController';
@@ -56,7 +57,8 @@ import { glowUniforms } from '../world/Glow';
 
 /** Where each character stands when you are not controlling it: x, z, facing. */
 const HOMES: Record<CharacterId, [number, number, number]> = {
-  // You, on the pier, looking up the beach at the cast gathered under the welcome arch.
+  // You, on the pier by its foot, looking up the beach to the festival through its arch: where a new island starts
+  // you, everyone about their day (see start).
   player: [0, 3.2, Math.PI],
   chiikawa: [0, 0, 0],
   hachiware: [-1.7, -1.3, 0.35],
@@ -96,6 +98,26 @@ const FOLLOW_DISTANCE = 7;
 /** The follow camera's lens (the lineup's, the third person's): a narrow one flattens perspective, like
  * the film's framing. Out of the eyes the lens is wider (see FirstPersonCamera). */
 const FOLLOW_FOV = 30;
+/**
+ * The start card's view (see rest), as the film's title shot has the island: from high over the bay to the
+ * south-south-west, as DevTools' aerial shot (matched to the film's) frames it, and how much of the view's width
+ * the screen takes in (degrees either side): with sea round the island on a wide screen (`across`), the island
+ * nearly edge to edge on a phone held upright (`upright`; the user, 2026-10-25: with the wide screen's margin it
+ * was "way too zoomed out" there). The lens is made as wide as that needs on the screen as it is.
+ */
+const TITLE_VIEW = {
+  position: [-97.5, 395.19, 399.9] as const,
+  target: [-18.4, 0, -99.7] as const,
+  across: 22.2,
+  upright: 16.5,
+  widest: 85,
+};
+/** How many times the title view is drawn before it is held still (see frame): enough for what is drawn from
+ * there to settle (the plants let go round where you stand, the water's mirror, the pen). */
+const TITLE_DRAWS = 40;
+/** Down from the title view into your own eyes (see start): how long the card waits, dipped to the sky's
+ * colour, while the island round you is gathered and first drawn, before it lifts (ms). */
+const LANDING = 160;
 /** Told where someone is (see Life.whereIs), a marker toward them this long (seconds), or till you are this
  * near them (metres). */
 const SOUGHT_FOR = 60;
@@ -298,6 +320,10 @@ export class Game {
   private sought: { who: Character; name: string; face: string | null; left: number } | null = null;
   private zeroDown = false;
   private running = false;
+  /** Whether the start card is up (see start and rest), and how many more times the island under it is drawn
+   * before it is left as a still (see frame). */
+  private waiting = false;
+  private titleDraws = 0;
   /** What has gone wrong in frames (see failed): each by its part and message, and how many times. */
   private readonly failures = new Map<string, number>();
   /** In the forbidden cave: its rowboat, the torch carried through it, whether you are rowing, and
@@ -466,6 +492,8 @@ export class Game {
         this.crowd.push(extra);
       }
       this.stage.setCast([...this.characters.values(), ...this.crowd]);
+      // Everyone's shadows on the ground, drawn together (see GroundShadows).
+      this.scene.add(groundShadows().group);
       this.makeCave();
       if (this.stage.cave) this.siren = await Siren.load(this.stage.cave, this.emotes);
       // Out of the cave, to the sea, she is drawn in the open air.
@@ -491,9 +519,9 @@ export class Game {
       this.life.placeAt = (p) => this.placeName(p);
       this.life.onSought = (who, name, face) => (this.sought = { who, name, face, left: SOUGHT_FOR });
       this.makePlay(items);
-      // Everyone where you left them; on a new island, at its welcome (the cast as HOMES has them).
-      const cast = Object.fromEntries(Object.entries(HOMES).filter(([id]) => id !== 'player'));
-      this.life.settle(this.clock.hours, this.me(), this.saved ? 'saved' : 'welcome', cast);
+      // Everyone where you left them; on a new island, where the hour has them, about their day, and you on the pier
+      // (the user, 2026-10-25: you are one of the islanders, so no one gathers on the beach to welcome you).
+      this.life.settle(this.clock.hours, this.me(), this.saved ? 'saved' : 'clock');
       await this.stage.warmShaders(this.renderer, this.camera, this.post?.picture ?? null);
     } catch (err) {
       console.error(err);
@@ -510,9 +538,25 @@ export class Game {
       this.stage.tread(this.renderer, this.camera, 0, this.me());
       this.draw();
     });
-    this.hud.doneLoading();
+    // The island going on under the start card, seen as the film's title shot has it, till a tap or a key (see
+    // rest): then down into your own eyes under the card's dip to the sky, its sound, its clock and everyone's
+    // day, and you yours to move.
+    this.stage.titleView(true);
+    this.titleDraws = TITLE_DRAWS;
+    this.waiting = true;
     this.running = true;
     this.renderer.setAnimationLoop(this.frame);
+    await this.hud.waitToStart(() => this.sound.wake());
+    this.stage.titleView(false);
+    this.input.dropQueued();
+    this.waiting = false;
+    await new Promise((done) => window.setTimeout(done, LANDING));
+    this.hud.doneLoading();
+  }
+
+  /** Takes the start card away as a tap would: for a script driving the game where no one taps. */
+  begin(): void {
+    this.hud.begin();
   }
 
   /**
@@ -530,7 +574,7 @@ export class Game {
     const play = new Play(things, life, this.hud, view, focus, this.input, this.me(), this.sound);
     play.onSleep = () => void this.sleepThrough();
     // Talking with the Siren on her ledge (see SirenTalk).
-    if (this.siren) play.siren = new SirenTalk(this.siren, this.hud.dialogue, () => play.hand);
+    if (this.siren) play.siren = new SirenTalk(this.siren, this.hud.dialogue, () => life.playerHands, () => this.sound?.give());
     this.play = play;
     // Only the game's camera draws your paw before your eyes.
     this.camera.layers.enable(HAND_LAYER);
@@ -1063,7 +1107,19 @@ export class Game {
    */
   private frame = (now: number) => {
     this.timer.update(now);
-    const dt = Math.min(this.timer.getDelta(), 1 / 20);
+    // (Never back in time: a frame stamped before the last one, as frames driven by hand and the browser's own
+    // interleaved can be, would run everything backwards and blow up what it eases.)
+    const dt = THREE.MathUtils.clamp(this.timer.getDelta(), 0, 1 / 20);
+    if (this.waiting) {
+      // Under the start card the island is drawn a few times to settle (and again when the screen changes its
+      // size), then left as it is: a still, sharp, and nothing for a phone to do while it waits.
+      if (window.innerWidth !== this.sizedW || window.innerHeight !== this.sizedH) this.titleDraws = TITLE_DRAWS;
+      if (this.titleDraws <= 0) return;
+      this.titleDraws--;
+      this.part('step', () => this.rest(dt));
+      this.part('draw', () => this.draw());
+      return;
+    }
     this.part('step', () => this.step(dt));
     this.part('draw', () => {
       this.draw();
@@ -1096,6 +1152,7 @@ export class Game {
   /** Draws the frame: straight to the screen, or through the film look's finishing passes, after
    * the calm water's mirror. */
   private draw(): void {
+    groundShadows().gather();
     if (this.post) {
       this.stage.drawMirror(this.renderer, this.camera);
       this.post.render();
@@ -1294,6 +1351,42 @@ export class Game {
     this.updateInk();
   }
 
+  /**
+   * A step while the start card is up (see start): the island seen from high over the bay as the film's title
+   * shot has it (TITLE_VIEW), going on below, its water, its wind, its sky and everyone in it breathing where they
+   * stand, but its clock and everyone's day are held, and nothing pressed is yours yet.
+   */
+  private rest(dt: number): void {
+    this.time += dt;
+    if (window.innerWidth !== this.sizedW || window.innerHeight !== this.sizedH) this.resize();
+    this.input.dropQueued();
+    const me = this.me();
+    const lookingOut = this.lookingOut;
+    for (const ch of this.characters.values()) {
+      ch.setUnseen(lookingOut && ch === me);
+      ch.update(dt, this.ctx);
+    }
+    for (const extra of this.crowd) extra.update(dt, this.ctx);
+    const view = TITLE_VIEW;
+    const aspect = this.camera.aspect;
+    const across = THREE.MathUtils.lerp(view.upright, view.across, THREE.MathUtils.smoothstep(aspect, 0.5, 1.3));
+    const fov = Math.min(view.widest, 2 * THREE.MathUtils.radToDeg(Math.atan(Math.tan(THREE.MathUtils.degToRad(across)) / aspect)));
+    if (Math.abs(this.camera.fov - fov) > 1e-3) {
+      this.camera.fov = fov;
+      this.camera.updateProjectionMatrix();
+    }
+    this.camera.position.set(...view.position);
+    this.camera.lookAt(...view.target);
+    this.camera.updateMatrixWorld();
+    this.part('things', () => this.things?.update(this.camera.position));
+    if (this.post) this.post.focus.uniforms.uSharp.value = lookingOut ? EYE_SHARP : FOLLOW_SHARP;
+    this.stage.setHour(this.clock.hours);
+    this.stage.setWaders(this.time);
+    this.stage.update(this.camera, this.time);
+    this.updateReflections();
+    this.updateInk(_focus.set(...view.target));
+  }
+
   /** Out of your own eyes, the zoom a chip of your camera's asked for (see CameraView), eased to; a pinch or the
    * wheel takes over from it. */
   private easeZoom(dt: number): void {
@@ -1363,17 +1456,19 @@ export class Game {
     this.stage.reflectPool(this.renderer, this.camera);
   }
 
-  /** One pen for the whole world, set from where the camera is looking; see world/Ink.ts. */
-  private updateInk(): void {
+  /** One pen for the whole world, set from where the camera is looking (`looking`: at that point, as the title
+   * view does); see world/Ink.ts. */
+  private updateInk(looking?: THREE.Vector3): void {
     this.camera.updateMatrixWorld();
-    const focus = this.staged ? _focus.set(...this.staged.camera.target) : this.rig.focus;
-    const distance = this.staged
-      ? this.camera.position.distanceTo(focus)
-      : this.freeCamOn
-        ? FREE_FOCUS
-        : this.lookingOut
-          ? EYE_FOCUS
-          : this.camera.position.distanceTo(focus);
+    const focus = looking ?? (this.staged ? _focus.set(...this.staged.camera.target) : this.rig.focus);
+    const distance =
+      looking || this.staged
+        ? this.camera.position.distanceTo(focus)
+        : this.freeCamOn
+          ? FREE_FOCUS
+          : this.lookingOut
+            ? EYE_FOCUS
+            : this.camera.position.distanceTo(focus);
     updatePen(this.camera, distance, this.ctx.viewHeight, this.ctx.pixelRatio);
     for (const ch of this.characters.values()) ch.updateOutline(this.ctx);
     for (const extra of this.crowd) extra.updateOutline(this.ctx);

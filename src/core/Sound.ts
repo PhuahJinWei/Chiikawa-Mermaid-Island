@@ -34,6 +34,8 @@ export interface Hearing {
 const KEY = 'mermaid-island:sound';
 /** How loud everything is together. */
 const MASTER = 0.55;
+/** What of yours lets the page sound (see wake): on a phone, a touch counts only as it lifts. */
+const WAKE_ON = ['pointerdown', 'pointerup', 'keydown'] as const;
 /** Rakko's tune at the feast (MIDI note numbers, 0 a rest), a beat each, and how fast (beats a minute). */
 const TUNE = [67, 69, 72, 69, 67, 64, 62, 0, 64, 67, 69, 72, 74, 72, 69, 0, 72, 74, 76, 74, 72, 69, 67, 0, 69, 67, 64, 62, 60, 0, 60, 0];
 const TEMPO = 96;
@@ -82,13 +84,20 @@ export class Sound {
       // No storage: on.
     }
     this.on = on;
-    const start = () => {
-      this.start();
-      window.removeEventListener('pointerdown', start);
-      window.removeEventListener('keydown', start);
+    // Each touch or key tries, till the page sounds.
+    const wake = () => {
+      this.wake();
+      if (this.ctx?.state !== 'running') return;
+      for (const type of WAKE_ON) window.removeEventListener(type, wake);
     };
-    window.addEventListener('pointerdown', start);
-    window.addEventListener('keydown', start);
+    for (const type of WAKE_ON) window.addEventListener(type, wake);
+  }
+
+  /** Lets the page sound, from a touch or a key of yours: its beds of sound laid out the first time (see start),
+   * woken if the browser kept them waiting for one that counts. */
+  wake(): void {
+    this.start();
+    if (this.ctx?.state === 'suspended' && !document.hidden) void this.ctx.resume();
   }
 
   get enabled(): boolean {

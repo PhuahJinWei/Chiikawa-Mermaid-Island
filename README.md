@@ -80,7 +80,7 @@ and glides to the next thing you look at; holding something, a see-through ghost
 
 The island keeps itself as you left it (the hour and the day, where you stood, where everyone who
 lives here stood, sat or slept, what you and they hold and keep, how fond each is of you, what lies
-where) in the browser; open the game with `?fresh` to start anew, with the welcome on the beach, and with `?dev` for dev mode (the テスト button and the FPS; `?dev&fresh` for both).
+where) in the browser; open the game with `?fresh` to start anew, on the pier with everyone about their day, and with `?dev` for dev mode (the テスト button and the FPS; `?dev&fresh` for both).
 
 ## Things lying about
 

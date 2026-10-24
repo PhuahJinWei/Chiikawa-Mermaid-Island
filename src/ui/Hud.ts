@@ -210,6 +210,9 @@ const OWN_MARKS: Record<EmoteKind, string> = { exclaim: '！', question: '？', 
 /** How long your own words show (as long as words over a head: Emotes.say), and a mark. */
 const OWN_WORDS_FOR = 1900;
 const OWN_MARK_FOR = 1300;
+/** How long the start card takes to dip to the sky's colour on its tap (ms), as `.loading.is-leaving` has it in
+ * styles.css; under it the island is seen from your own eyes again. */
+const LEAVE_DIP = 380;
 /** Over whoever it points to, the marker's disc is lifted this far (pixels), its tab's tip on them (see the
  * tab in styles.css: the disc's radius and the tab). */
 const GUIDE_LIFT = 35;
@@ -333,7 +336,12 @@ export class Hud implements JoystickView {
   private ownTimer = 0;
   private readonly loading = el('div', 'loading');
   private readonly loadingTitle = el('div', 'loading-title');
+  /** The film's title, as its title shot lays it over the island (the user's picture, public/title.webp): on
+   * the start card. */
+  private readonly loadingArt = el('img', 'loading-art');
   private readonly loadingWords = el('div', 'loading-words');
+  /** While the start card is up (see waitToStart), what a tap on it does. */
+  private beginNow: (() => void) | null = null;
   /** What is said to you, in the text box at the bottom (see DialogueBox). */
   readonly dialogue: DialogueBox;
   /** The marker toward whoever you were told of (see setGuide): their face on a disc (or their name), with a
@@ -469,7 +477,10 @@ export class Hud implements JoystickView {
 
     const bar = el('div', 'loadbar');
     bar.append(el('div', 'loadbar-fill'));
-    this.loading.append(this.loadingTitle, bar, this.loadingWords);
+    this.loadingArt.src = 'title.webp';
+    this.loadingArt.decoding = 'async';
+    this.loadingArt.draggable = false;
+    this.loading.append(this.loadingTitle, this.loadingArt, bar, this.loadingWords);
     // Under the hour, a word for a moment.
     const notes = el('div', 'hud-notes');
     notes.append(this.toastBox);
@@ -540,6 +551,7 @@ export class Hud implements JoystickView {
     this.verbGlyphs.clear();
     for (const [key, glyph] of VERB_GLYPH) this.verbGlyphs.set(t(key), glyph);
     this.loadingTitle.textContent = t('app.title');
+    this.loadingArt.alt = t('app.titleArt');
     if (!this.loading.classList.contains('error')) this.loadingWords.textContent = t('app.loading');
   }
 
@@ -916,6 +928,40 @@ export class Hud implements JoystickView {
   doneLoading(): void {
     this.loading.classList.add('is-gone');
     window.setTimeout(() => this.loading.remove(), 500);
+  }
+
+  /**
+   * The island loaded and drawn under the way in (from high over the bay, see Game.rest): it becomes the start
+   * card, the film's title over the island as its title shot lays it, its sky gone, the bar gone, its words
+   * asking for a tap, the rest of the HUD waiting out of sight. A tap on it anywhere, or any key, runs `onTap`
+   * while the browser still counts it as your own (so the page may sound), dips the card to the sky's colour and
+   * keeps the promise once it is (see Game.start, which takes it away with doneLoading).
+   */
+  waitToStart(onTap: () => void): Promise<void> {
+    this.loadingWords.textContent = t('app.start');
+    this.loading.classList.add('is-ready');
+    this.loading.setAttribute('role', 'button');
+    this.loading.tabIndex = 0;
+    this.root.classList.add('is-waiting');
+    return new Promise((resolve) => {
+      const begin = () => {
+        this.loading.removeEventListener('click', begin);
+        window.removeEventListener('keydown', begin);
+        this.beginNow = null;
+        onTap();
+        this.loading.classList.add('is-leaving');
+        this.root.classList.remove('is-waiting');
+        window.setTimeout(resolve, LEAVE_DIP);
+      };
+      this.beginNow = begin;
+      this.loading.addEventListener('click', begin);
+      window.addEventListener('keydown', begin);
+    });
+  }
+
+  /** Takes the start card away as a tap would (see waitToStart); nothing if it is not up. */
+  begin(): void {
+    this.beginNow?.();
   }
 
   showError(): void {

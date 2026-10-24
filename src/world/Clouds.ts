@@ -168,11 +168,17 @@ function skyCards(): Card[] {
   return out;
 }
 
+/** The film's aerial shot's clouds (see aerialCards): each at a point in its frame (across and down, 0 to
+ * 1), its width there (of the frame's), and how high it floats. */
+const AERIAL_SHOT: [number, number, number, number][] = [
+  [0.05, 0.72, 0.14, 230], [0.11, 0.93, 0.12, 250], [0.93, 0.22, 0.16, 210], [0.78, 0.13, 0.11, 190],
+  [0.04, 0.2, 0.1, 200], [0.13, 0.08, 0.08, 180], [0.22, 0.95, 0.09, 260], [0.64, 0.09, 0.06, 170],
+];
+
 /**
  * The clouds below the camera seen from high above: placed where the film's aerial shot has them,
- * through the camera matched to it (DevTools' 'aerial' shot), each at a point in the frame (across
- * and down, 0 to 1), its width there (of the frame's), and how high it floats; and a few more round
- * the island for other high views.
+ * through the camera matched to it (DevTools' 'aerial' shot), as AERIAL_SHOT gives them; and a few
+ * more round the island for other high views, after those.
  */
 function aerialCards(): Card[] {
   const eye = new THREE.Vector3(-78.73, 395.19, 427.39);
@@ -182,11 +188,7 @@ function aerialCards(): Card[] {
   const up = new THREE.Vector3().crossVectors(right, forward);
   const tan = Math.tan(THREE.MathUtils.degToRad(10));
   const aspect = 1.86;
-  const shot: [number, number, number, number][] = [
-    [0.05, 0.72, 0.14, 230], [0.11, 0.93, 0.12, 250], [0.93, 0.22, 0.16, 210], [0.78, 0.13, 0.11, 190],
-    [0.04, 0.2, 0.1, 200], [0.13, 0.08, 0.08, 180], [0.22, 0.95, 0.09, 260], [0.64, 0.09, 0.06, 170],
-  ];
-  const out: Card[] = shot.map(([u, v, w, altitude]) => {
+  const out: Card[] = AERIAL_SHOT.map(([u, v, w, altitude]) => {
     const ray = forward
       .clone()
       .addScaledVector(right, (2 * u - 1) * tan * aspect)
@@ -364,6 +366,7 @@ export class FilmClouds {
   };
   private readonly aerialFade = { value: 0 };
   private readonly shadowFade = { value: 0 };
+  private readonly aerialClouds: THREE.Mesh;
   private readonly shadows: THREE.Mesh;
   private readonly aerialCards: Card[];
   private shadowStrength = 1;
@@ -424,6 +427,7 @@ export class FilmClouds {
       }),
     );
     aerialClouds.frustumCulled = false;
+    this.aerialClouds = aerialClouds;
     this.shadows = new THREE.Mesh(
       this.buildShadows(),
       new THREE.ShaderMaterial({
@@ -559,6 +563,15 @@ export class FilmClouds {
   putOut(): void {
     this.uniforms.uLit.value.setRGB(0, 0, 0);
     this.uniforms.uShade.value.setRGB(0, 0, 0);
+  }
+
+  /** Only the film's own aerial clouds and their shadows (AERIAL_SHOT, round the island as its aerial shot
+   * frames it), as under the start card; or all of them again. Those round the island for other high
+   * views would hang over it from the shot's camera. */
+  filmOnly(on: boolean): void {
+    const count = on ? AERIAL_SHOT.length * 6 : Infinity;
+    this.aerialClouds.geometry.setDrawRange(0, count);
+    this.shadows.geometry.setDrawRange(0, count);
   }
 
   /** Each frame: the aerial clouds shown only from high above. */
