@@ -1414,6 +1414,10 @@ outlined is drawn twice, once for its pen line. To get there:
 
 **Changed**
 
+- The sun's shadow map is 1024 texels across instead of 1536 (the user,
+  2026-10-24): 8.2 cm a texel over its 84 m instead of 5.5, the shadows' edges a
+  touch softer, 0.35 to 1.3 ms a frame less on the dev PC (the most in the
+  jungle).
 - Each house's room (its furniture, rugs and lantern) is drawn on its own, within
   60 m of it, where it had been drawn with its whole group: the village's every
   room whenever the village's edge was within 32 m, however far the room (the

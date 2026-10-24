@@ -50,10 +50,11 @@ const SEA_RADIUS = 600;
 const FOG_NEAR = FILM ? 18 : 180;
 const FOG_FAR = FILM ? 320 : 900;
 /** The film look's sun shadows: how far round the spot ahead of the camera they reach, in metres,
- * and the shadow map's size (1536 over 84 m is 5.5 cm a texel; at 2048 the map cost about 3 ms
- * more a frame at 1920 x 1200 on the dev PC, for shadows hardly sharper under the soft filter). */
+ * and the shadow map's size (1024 over 84 m is 8.2 cm a texel, the user's choice, 2026-10-24, for about
+ * a millisecond less a frame than 1536's 5.5 cm on the dev PC, the shadows a little softer under the
+ * soft filter; at 2048 the map cost about 3 ms more a frame at 1920 x 1200, for shadows hardly sharper). */
 const SHADOW_REACH = 42;
-const SHADOW_MAP = 1536;
+const SHADOW_MAP = 1024;
 /** In the film look, how many of those wading in the water it rings round at once (see setWaders); and
  * out of your own eyes, how much of the foam hugging your own legs shows, the ring round your feet that
  * would otherwise frame the water you look into, and your face in it. */
