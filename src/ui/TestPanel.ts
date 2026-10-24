@@ -128,7 +128,8 @@ export class TestPanel {
           ACTION_IDS.map((a) => chip('action', a, t(`action.${a}` as StringKey))).join('') +
           // What they play, for those who play something (Rakko's ukulele), and their sword, for those who carry one.
           (DEFINITIONS[s.character].plays === 'ukulele' ? chip('action', 'ukulele', t('action.ukulele')) : '') +
-          (DEFINITIONS[s.character].own?.carries === 'sword' ? chip('action', 'sword', t('action.sword')) : ''),
+          (DEFINITIONS[s.character].own?.carries === 'sword' ? chip('action', 'sword', t('action.sword')) : '') +
+          (DEFINITIONS[s.character].carries === 'can' ? chip('action', 'drink', t('action.drink')) : ''),
       ),
       section(
         'panel.expressions',

@@ -568,6 +568,19 @@ speaker's name in the text box (the planned portrait), as the choices of
 whom to ask after (faces alone), and on the marker (the face alone, on a
 cream disc with a tab turned toward them). The islanders have none yet and
 show 島の子.
+Voices (2026-10-24): the lines are groups in `life/lines.ts`, plain for any
+islander and `group.<voice>` for each of the cast and for four islander
+voices (cheery, shy, elder, kid); `Life.line` picks in the speaker's voice
+and never repeats one of their last three. Every line the cast say is now in
+character; the islanders differ by voice; new situations (the Siren seen at
+sea, you in the water or in their house, what you or they hold, their stall's
+line, talking again, the first day) have lines; ~750 lines, a draft for the
+user's review. Weather and a journal of what was said are still to come.
+Talking on and cues (2026-10-24): もっとはなす with every line to you (no line
+twice in one talk, drifting to their own talk and warming to you; a last
+line once they have said it all); `[face action]` cues at the start of a line
+in ja.json (faces from characters/types.ts, actions from Actions.ts,
+Kurimanju's new `drink`), ~600 lines cued.
 
 ### 6.6 "Monitoring" the island
 
@@ -588,8 +601,9 @@ counted) and the album of your photos. It did not help the user: its page
 nearly always read as wandering about somewhere wide, nothing could be done
 with it, its hearts hardly moved, and a page knowing where everyone is sat
 ill with seeing the island out of your own eyes as one islander of many. So
-the island is not monitored from a menu: your photos open from the newest,
-under the camera button; the sound has a speaker button by きもち; fondness
+the island is not monitored from a menu: photos are the camera's (since
+2026-10-24 kept nowhere in the game, each downloaded or let go as it is
+taken); the sound has a speaker button by きもち; fondness
 shows as hearts floating up over whoever grows fonder of you; and asking an
 islander where someone is belongs to dialogue (6.5).
 
@@ -613,8 +627,13 @@ out of your own eyes; your pouch keeps more. Put it down where you look
 (おく), give it to whoever you look at (あげる: Kurimanju gives you one of his
 cans back, the crab who keeps the book shop a shell), eat or drink it (a bite
 at a time), play the ukulele, carry the torch (it lights your way at night).
-The stalls hand you what they sell. The camera button takes a photo, kept
-in your album (the newest under the button), to save or share. The island's sound is made as it
+The stalls hand you what they sell. The camera button (or C) holds up your
+camera (2026-10-24, the user's camera mode, as a phone's camera app, its
+black bars but no grid): the HUD away, you stand still and the photo's
+frame (4:3, 16:9 or 1:1) sits between the bars; drag to aim, zoom chips by
+the shutter. A photo comes
+up as a print asking whether to keep it: ほぞん downloads it, シェア shares
+it where the device can, とりなおす lets it go; the game keeps none. The island's sound is made as it
 plays (`core/Sound.ts`): the waves as near as the sea is, wind and birds,
 crickets, the waterfall, the festival's murmur, the feast's fire, your
 footsteps, Rakko's ukulele tune and yours, a hum from the sea at night.
@@ -635,11 +654,12 @@ them. They grow fond of you (hearts float up over them), remember what you gave
 them, come over to greet you, and ask for what you have to eat when hungry.
 You can keep a stall no one keeps today and serve whoever lines up. What
 lies about the island comes from `public/data/things.json`, so things can
-be added and scattered with nothing else to change. The pouch's six slots
-each stack up to 99 things of one kind; held sideways or on a computer they
-show on a bar along the bottom with your paw's, and the ふくろ button opens
+be added and scattered with nothing else to change. Seven boxes each stack
+up to 99 things of one kind, on a bar along the bottom of every screen, the
+one in your paw marked, as Minecraft has it (since 2026-10-24: tapping a box
+or its number puts it in your paw, and nothing moves); the ふくろ button opens
 the bag over the island, which says what each thing is. What has been bitten into goes into
-no pouch, down nowhere and to no one: put away it is gone, eaten up (たべきる).
+no other box, down nowhere and to no one: put away it is gone, eaten up (たべきる).
 A stall hands nothing to someone with no room for it; its keeper says so
 and they step out of the line. The onigiri is gone from the game. What you
 look at is shown (`core/Focus.ts`): a small cream ▽ floats over the thing,
@@ -779,7 +799,7 @@ src/
     TestPanel.ts       * actions, expressions, lineup, time of day
     DialogueBox.ts
     JournalPanel.ts
-    PhotoMode.ts
+    CameraView.ts      * your camera held up: the shutter, its zoom chips, the photo to download or share
   dev/
     DevTools.ts        * development only: staged film shots, portraits, captures for comparisons
 public/
@@ -822,8 +842,8 @@ testable on desktop with a fake touch layer.
 ### Installable PWA
 
 - `manifest.webmanifest`: name, icons (192, 512, maskable), any orientation
-  (it turns with the phone since 2026-10-23; held sideways the pouch has its
-  bar along the bottom), `display: standalone`, theme colour.
+  (it turns with the phone since 2026-10-23; the boxes' bar is along the
+  bottom either way), `display: standalone`, theme colour.
 - Service worker caches the built app and assets so it opens offline and
   loads instantly after the first visit.
 - iOS: Safari share sheet → "Add to Home Screen". Android: Chrome shows an

@@ -1,45 +1,73 @@
+import ja from '../locales/ja.json';
 import type { StringKey } from '../i18n/I18n';
+import { EXPRESSION_IDS, type ExpressionId } from '../characters/types';
+import { ACTIONS, type ActionId } from '../characters/Actions';
 
 /**
- * What everyone says when you talk with them (see Life.talk), by who they are, what they are doing and the hour:
- * keys into the game's text (locales/ja.json, talk.*), so the words stay in one place. The cast say what is
- * like them (Chiikawa and Usagi mostly sounds); the islanders say what islanders would.
+ * What everyone says, in their own voice (the user, 2026-10-24: every line suits whoever says it). The words
+ * live in locales/ja.json in groups: a group's lines are `group.1`, `group.2`... (or `group` alone, one line),
+ * and a voice's own are `group.<voice>.1`... (or `group.<voice>`). A voice is one of the cast, by id
+ * (`talk.own.chiikawa.3`), or an islander's way of speaking (`talk.own.kid.2`, see profiles.ts VOICES); the
+ * plain lines are any islander's. Someone's lines for a group are the first found of their voices', then
+ * the plain ones (see Life.line, which also keeps them from saying the same thing twice running).
+ *
+ * A line may begin with a cue in brackets (the user, 2026-10-24: faces and actions to go with the words), which is
+ * never shown: a face to make while it shows (`[happy]`, any of the faces: characters/types.ts), something to do as
+ * they say it (`[cheer]`, `[drink]`, `[sword]`, `[hop]`: the actions, characters/Actions.ts), or both (`[happy
+ * cheer]`). A face holds over the action's own; an action they cannot do (a sword they have not got, seated) is
+ * passed over (see Resident.speak).
  */
 
-const keys = (group: string, count: number) => Array.from({ length: count }, (_, i) => `talk.${group}.${i + 1}` as StringKey);
+const NUMBERED = /^(.+)\.(\d+)$/;
+/** Every numbered group's lines, in order, by the group's key (built once from the game's text). */
+const pools = new Map<string, StringKey[]>();
+for (const key of Object.keys(ja)) {
+  const m = NUMBERED.exec(key);
+  if (!m) continue;
+  const pool = pools.get(m[1]) ?? [];
+  pool.push(key as StringKey);
+  pools.set(m[1], pool);
+}
+for (const pool of pools.values()) pool.sort((a, b) => Number(NUMBERED.exec(a)?.[2]) - Number(NUMBERED.exec(b)?.[2]));
 
-/** Each of the cast's own. */
-export const CAST_LINES: Record<string, StringKey[]> = {
-  hitoha: keys('hitoha', 3),
-  futaba: keys('futaba', 3),
-  chiikawa: keys('chiikawa', 3),
-  hachiware: keys('hachiware', 3),
-  usagi: keys('usagi', 3),
-  momonga: keys('momonga', 3),
-  kurimanju: keys('kurimanju', 3),
-  rakko: keys('rakko', 3),
-  shisa: keys('shisa', 3),
-  furuhonya: keys('furuhonya', 3),
-};
+/** The lines under `prefix`: numbered, or the one line `prefix` itself; null if there are none. */
+function under(prefix: string): StringKey[] | null {
+  return pools.get(prefix) ?? (prefix in ja ? [prefix as StringKey] : null);
+}
 
-/** The islanders', any time of day. */
-export const ISLANDER_LINES = keys('islander', 8);
+/** A line's words, and the face and the action its cue (if any) has them make with it. */
+export interface Cue {
+  text: string;
+  face: ExpressionId | null;
+  act: ActionId | 'hop' | null;
+}
 
-/** Anyone's, at some hours or doing something: at their stall's counter, at the feast, in the fields. */
-export const MORNING_LINES = keys('morning', 2);
-export const EVENING_LINES = keys('evening', 2);
-export const NIGHT_LINES = keys('night', 2);
-export const WORK_LINES = keys('work', 3);
-export const FEAST_LINES = keys('feast', 2);
-export const FIELD_LINES = keys('fields', 1);
+const CUE = /^\[([A-Za-z ,]+)\]\s*/;
+const FACES = new Set<string>(EXPRESSION_IDS);
 
-/** Anyone's who is fond of you (see Life.fondness): talking with you, and coming over to greet you. */
-export const FOND_LINES = keys('fond', 3);
-export const GREET_LINES = Array.from({ length: 3 }, (_, i) => `greet.${i + 1}` as StringKey);
+/** `line` read for its cue (see above): its words without it, and the face and the action it names. */
+export function cueOf(line: string): Cue {
+  const m = CUE.exec(line);
+  const cue: Cue = { text: m ? line.slice(m[0].length) : line, face: null, act: null };
+  for (const word of m ? m[1].split(/[ ,]+/) : []) {
+    if (FACES.has(word)) cue.face = word as ExpressionId;
+    else if (word === 'hop' || word in ACTIONS) cue.act = word as ActionId | 'hop';
+  }
+  return cue;
+}
 
-/** Anyone's whom you stand in the way of, asking you to let them by (see Life.heldUp). */
-export const PASS_LINES = Array.from({ length: 3 }, (_, i) => `pass.${i + 1}` as StringKey);
+/** Who speaks in sounds only, never in words (the user, 2026-10-24: Chiikawa and Usagi): where a group has
+ * none of their lines, they make their own sounds (`sounds.<id>`), never say anyone else's words. Their lines
+ * name no one and nothing (no {0} or {1}: Life.whereIs shows where with its marker). */
+const WORDLESS = new Set(['chiikawa', 'usagi']);
 
-/** The islanders' at the welcome on your first day (see Life.welcomeWord); the cast have their own,
- * welcome.<id>. */
-export const WELCOME_LINES = Array.from({ length: 4 }, (_, i) => `welcome.${i + 1}` as StringKey);
+/** The lines of `group` for someone who speaks in `voices` (their own first): the first voice's that has
+ * any, else anyone's (or their sounds, for one who has no words); none if the group is unknown. */
+export function linesOf(group: string, voices: readonly string[]): StringKey[] {
+  for (const voice of voices) {
+    const own = under(`${group}.${voice}`);
+    if (own) return own;
+  }
+  for (const voice of voices) if (WORDLESS.has(voice)) return under(`sounds.${voice}`) ?? [];
+  return under(group) ?? [];
+}

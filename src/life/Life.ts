@@ -4,31 +4,19 @@ import type { Character, FrameContext } from '../characters/Character';
 import type { EmoteSystem } from '../characters/Emotes';
 import type { Choice, DialogueBox, Spoken } from '../ui/DialogueBox';
 import { faceOf } from '../ui/Faces';
-import { clampToWalkable, standAt, terrainHeight } from '../world/Island';
+import { clampToWalkable, standAt, terrainHeight, waterLevelAt } from '../world/Island';
 import { Nav, type Avoid } from './Nav';
 import { Places, type Home, type Seat, type Spot, type Stall } from './Places';
 import { FRIENDS, HOMES, ISLANDER_HOMES, PROFILES, hash, islanderProfile, seeded, type Profile } from './profiles';
 import { Resident, edible, type Answer, type Block, type Brain, type Memory } from './Resident';
 import { ACTIONS, type ActionId } from '../characters/Actions';
+import type { ExpressionId } from '../characters/types';
 import { ITEMS, STALL_ITEM, carried, isItem, itemName, type Carried, type ItemId } from './Items';
 import type { Hands, SavedHands } from './Hands';
 import type { Things } from './Things';
 import { Choices } from './Choices';
-import { has, t } from '../i18n/I18n';
-import {
-  CAST_LINES,
-  EVENING_LINES,
-  FEAST_LINES,
-  FIELD_LINES,
-  FOND_LINES,
-  GREET_LINES,
-  ISLANDER_LINES,
-  MORNING_LINES,
-  NIGHT_LINES,
-  PASS_LINES,
-  WELCOME_LINES,
-  WORK_LINES,
-} from './lines';
+import { t } from '../i18n/I18n';
+import { cueOf, linesOf } from './lines';
 
 /** The name an islander lives under (see Life.create): islander01 lives with you. */
 const islanderId = (i: number) => `islander${String(i + 1).padStart(2, '0')}`;
@@ -122,9 +110,11 @@ const GIFT_BACK_AFTER = 2.2;
 /** How long what someone says to you stays over their head (seconds). */
 const SAID_FOR = 3.4;
 /** What someone says to you goes into the text box (see boxed) if you are this near them (metres); further
- * off, over their head. In the box, it goes from it once you are this far from them. */
-const BOX_NEAR = 5;
-const BOX_AWAY = 7;
+ * off, over their head. In the box, it goes from it once you are this far from them (the user, 2026-10-24: walking
+ * off ends a talk; you talk from about 2 m, and parting counts you gone past Resident's PART_AWAY, 3.5 m), which
+ * is as good as またね: they part from you as you go (see Resident.partFrom). */
+const BOX_NEAR = 3.5;
+const BOX_AWAY = 4;
 /** Whom you may ask after (the user, 2026-10-23, after the notebook's list of everyone went: anyone, the cast
  * too, says where they are), in this order. Someone this near you (metres) is just there. */
 const SOUGHT = ['chiikawa', 'hachiware', 'usagi', 'momonga', 'kurimanju', 'rakko', 'shisa', 'furuhonya', 'hitoha', 'futaba'];
@@ -187,8 +177,10 @@ const WELCOME_SPREAD = 6;
 /** At the welcome, a word over someone's head at most every so long (seconds), from someone this near you. */
 const WELCOME_WORD_EVERY = 1.6;
 const WELCOME_WORD_NEAR = 14;
-/** The cast, whose thanks are their own (see thanks); the islanders share theirs. */
-const OWN_THANKS = new Set(['chiikawa', 'hachiware', 'usagi', 'momonga', 'kurimanju', 'rakko', 'shisa', 'furuhonya', 'hitoha', 'futaba']);
+/** No one says the same thing twice running: the last so many lines of a group are passed over (fewer for a
+ * small group: see line). Talked with again within so long (seconds) is "again". */
+const RECENT = 3;
+const AGAIN_WITHIN = 150;
 
 /** What `stall` hands over (see STALL_ITEM), or null. */
 const STALL_GOODS = (stall: Stall): ItemId | null => STALL_ITEM[stall.goods] ?? null;
@@ -217,6 +209,8 @@ export interface LifeFrame {
   me: Character;
   myEyes: THREE.Vector3;
   myWant: THREE.Vector3;
+  /** Whether the Siren is out at sea in view (those near you speak of it). */
+  sirenSeen: boolean;
 }
 
 /** What a save keeps of everyone who lives here: their paws and pouches, and how they are. */
@@ -295,6 +289,8 @@ export class Life {
   onSought: (who: Character, name: string, face: string | null) => void = () => {};
   /** The text box what is said to you goes into, once the game gives it (see useBox). */
   private box: DialogueBox | null = null;
+  /** Whether the Siren is out at sea in view this frame (see situation). */
+  private sirenSeen = false;
 
   private constructor(
     readonly nav: Nav,
@@ -414,7 +410,34 @@ export class Life {
 
   /** What `r` says coming over to greet you (see Resident.greetYou). */
   greeting(r: Resident): string {
-    return t(GREET_LINES[Math.floor(this.random() * GREET_LINES.length)]);
+    return this.line(r, 'greet');
+  }
+
+  /**
+   * What `r` says now from the lines of `group` (see lines.ts: in their own voice where they have one), never
+   * one of the last RECENT they said from it (as many as the group has but one), so no one repeats
+   * themselves; '' if the group has no lines.
+   */
+  line(r: Resident, group: string): string {
+    const pool = linesOf(group, r.voices);
+    if (pool.length === 0) return '';
+    const recent = r.said.get(group) ?? [];
+    const avoid = Math.min(RECENT, pool.length - 1);
+    const lately = avoid > 0 ? recent.slice(-avoid) : [];
+    // Nothing they have said already while talking with you (see talk), while there is anything else to say.
+    let fresh = pool.filter((key) => !lately.includes(key) && !r.convo.has(key));
+    if (fresh.length === 0) fresh = pool.filter((key) => !lately.includes(key));
+    const key = fresh[Math.floor(this.random() * fresh.length)];
+    recent.push(key);
+    while (recent.length > RECENT) recent.shift();
+    r.said.set(group, recent);
+    r.convo.add(key);
+    return t(key);
+  }
+
+  /** Whether `r` has anything in `group` they have not said yet while talking with you (see line). */
+  private fresh(r: Resident, group: string): boolean {
+    return linesOf(group, r.voices).some((key) => !r.convo.has(key));
   }
 
   /** A number from 0 to 1 (life's own, so a day replays the same from a save). */
@@ -706,8 +729,7 @@ export class Life {
     if (!you || flat(you, r.pos) > WELCOME_WORD_NEAR) return;
     if (!close && (this.now < this.welcomeWordAt || this.random() > 0.35)) return;
     this.welcomeWordAt = this.now + WELCOME_WORD_EVERY;
-    const key = OWN_THANKS.has(r.id) ? (`welcome.${r.id}` as StringKey) : WELCOME_LINES[Math.floor(this.random() * WELCOME_LINES.length)];
-    this.say(r, t(key));
+    this.say(r, this.line(r, 'welcome'));
   }
 
   // ---------------------------------------------------------------- things
@@ -797,7 +819,7 @@ export class Life {
     this.choices.took();
     if (c.lent && c.owner) {
       r.borrowed.set(c, this.hours + this.day * 24);
-      this.say(r, t('borrow.say'));
+      this.say(r, this.line(r, 'borrow.say'));
     }
   }
 
@@ -807,8 +829,8 @@ export class Life {
     const at = borrower === 'player' ? this.playerAt : this.byId.get(borrower)?.pos;
     if (!owner || !at || owner.far || flat(owner.pos, at) > NOTICE || owner.busy || owner.block?.kind === 'sleep') return;
     this.notice(at, borrower === 'player' ? 'player' : (this.byId.get(borrower) as Resident));
-    if (borrower === 'player') this.tell(owner, t('borrow.ok'));
-    else this.say(owner, t('borrow.ok'));
+    if (borrower === 'player') this.tell(owner, this.line(owner, 'borrow.ok'));
+    else this.say(owner, this.line(owner, 'borrow.ok'));
   }
 
   // ---------------------------------------------------------------- with you
@@ -819,9 +841,11 @@ export class Life {
       this.emotes.spawn('zzz', r.ch);
       return;
     }
+    const again = this.now - r.talkedAt < AGAIN_WITHIN;
     if (this.now - r.talkedAt > 60) this.befriend(r, 'player', FOND.talk);
     r.talkedAt = this.now;
-    r.interrupt(r.talk(from, this.lineText(r), this.sought(r)));
+    r.convo.clear();
+    r.interrupt(r.talk(from, this.lineText(r, again), this.sought(r)));
   }
 
   /** Whom you may ask `r` after (see SOUGHT): the cast, but them. */
@@ -829,19 +853,12 @@ export class Life {
     return SOUGHT.filter((id) => id !== r.id && this.byId.has(id));
   }
 
-  /** The words for `key` in `r`'s own way, if they have their own (`key`.<their id>: the cast), else
-   * anyone's. */
-  own(r: Resident, key: StringKey): string {
-    const theirs = `${key}.${r.id}`;
-    return t(has(theirs) ? theirs : key);
-  }
-
   /** Where `id` is, in words, as `asker` says it (asked by you: see Resident.talk; the user: where they are
    * now), and a marker toward them a while (see onSought): just there, at home (asleep), or in some place. */
   whereIs(id: string, asker: Resident): string {
     const r = this.byId.get(id);
     const name = this.nameOf(id);
-    const say = (key: StringKey, place = '') => this.own(asker, key).replace('{0}', name).replace('{1}', place);
+    const say = (group: string, place = '') => this.line(asker, group).replace('{0}', name).replace('{1}', place);
     const place = r ? this.placeAt(r.pos) : '';
     if (!r || (!place && !this.atHome(r))) return say('talk.seek.unknown');
     this.onSought(r.ch, name, faceOf(id));
@@ -858,21 +875,103 @@ export class Life {
     return r.indoors || (!!room && flat(r.pos, room) < 3.4 && Math.abs(r.pos.y - room.y) < 1.5);
   }
 
-  /** What `r` says to you, talking: now and then what they remember of you (a gift lately) or how fond of you
-   * they are; else as lineFor has it. */
-  private lineText(r: Resident): string {
-    const gift = [...r.memories].reverse().find((m) => m.who === 'player' && m.kind === 'gift' && this.day - m.day <= REMEMBER_DAYS);
-    if (gift && isItem(gift.item) && this.random() < 0.4) {
-      const key: StringKey = edible({ item: gift.item, home: null, owner: null, lent: null }) ? 'talk.remember.ate' : 'talk.remember.kept';
-      return t(key).replace('{0}', t(itemName(gift.item)));
+  /**
+   * What `r` says to you, talking (in their own voice: see line): now and then what they remember of you (a
+   * gift lately), that you talked just now (`again`), or how fond of you they are; else, mostly, what is going
+   * on (see situation: the Siren in view, you in the water, in their house, what you hold, what they are
+   * doing), or the hour and your first day; else something of their own.
+   */
+  private lineText(r: Resident, again: boolean): string {
+    const gift = this.lastGift(r);
+    if (gift && this.random() < 0.4) return this.line(r, gift.group).replace('{0}', gift.name);
+    if (again && this.random() < 0.6) return this.line(r, 'talk.again');
+    if (this.fondness(r, 'player') >= 0.7 && this.random() < 0.3) return this.line(r, 'talk.fond');
+    const going = this.situation(r);
+    if (going && this.random() < 0.6) return this.line(r, going);
+    const hour = this.hourGroup();
+    const cast = !r.id.startsWith('islander');
+    if (this.random() < (cast ? 0.4 : 0.5)) {
+      if (this.day === 0 && this.random() < 0.5) return this.line(r, 'talk.firstDay');
+      if (hour) return this.line(r, hour);
     }
-    if (this.fondness(r, 'player') >= 0.7 && this.random() < 0.3) return t(FOND_LINES[Math.floor(this.random() * FOND_LINES.length)]);
-    return t(this.lineFor(r));
+    return this.line(r, 'talk.own');
+  }
+
+  /**
+   * What `r` says next when you ask them to talk more (もっとはなす, the `turn`th time, from 1: see Resident.talk; the
+   * user, 2026-10-24: more to hear without parting and talking again): never anything they have said yet in
+   * this talk (see line), drifting from what goes on round them to their own talk, and warming to you (a gift
+   * remembered, how fond of you they are) the longer you talk; null once they have nothing left to say.
+   */
+  moreLine(r: Resident, turn: number): string | null {
+    const options: { weight: number; say: () => string }[] = [];
+    const offer = (group: string, weight: number, fill: (s: string) => string = (s) => s) => {
+      if (weight > 0 && this.fresh(r, group)) options.push({ weight, say: () => fill(this.line(r, group)) });
+    };
+    const gift = this.lastGift(r);
+    if (gift) offer(gift.group, 2, (s) => s.replace('{0}', gift.name));
+    offer('talk.fond', this.fondness(r, 'player') >= 0.45 ? 1 + 0.3 * turn : 0);
+    const going = this.situation(r);
+    if (going) offer(going, turn <= 2 ? 1 : 0.3);
+    const hour = this.hourGroup();
+    if (hour) offer(hour, 0.6);
+    if (this.day === 0) offer('talk.firstDay', 0.6);
+    offer('talk.own', 3);
+    if (options.length === 0) return null;
+    let roll = this.random() * options.reduce((sum, o) => sum + o.weight, 0);
+    for (const o of options) if ((roll -= o.weight) <= 0) return o.say();
+    return options[options.length - 1].say();
+  }
+
+  /** What `r` was last given by you within REMEMBER_DAYS, as the group of lines to speak of it with and its
+   * name; null if nothing. */
+  private lastGift(r: Resident): { group: string; name: string } | null {
+    const gift = [...r.memories].reverse().find((m) => m.who === 'player' && m.kind === 'gift' && this.day - m.day <= REMEMBER_DAYS);
+    if (!gift || !isItem(gift.item)) return null;
+    const ate = edible({ item: gift.item, home: null, owner: null, lent: null });
+    return { group: ate ? 'talk.remember.ate' : 'talk.remember.kept', name: t(itemName(gift.item)) };
+  }
+
+  /** The hour's group of lines (morning, evening, night), or null in the day. */
+  private hourGroup(): string | null {
+    const h = this.hours;
+    return h >= 5 && h < 10 ? 'talk.morning' : h >= 17 && h < 20 ? 'talk.evening' : h >= 20 || h < 5 ? 'talk.night' : null;
+  }
+
+  /** What is going on that `r` might speak of to you, as a group of lines (the first that holds), or null:
+   * the Siren in view out at sea, you standing in the water, you in their house, what you hold, what they
+   * are doing (keeping a stall, in its line, holding something to eat or a torch, at the feast, farming). */
+  private situation(r: Resident): string | null {
+    const you = this.playerAt;
+    if (this.sirenSeen) return 'talk.siren';
+    if (you && terrainHeight(you.x, you.z) < waterLevelAt(you.x, you.z) - 0.05) return 'talk.wading';
+    if (this.atHome(r)) return 'talk.indoors';
+    const yours = this.playerHands?.hand ?? null;
+    if (yours) {
+      const def = ITEMS[yours.item];
+      if (def.light) return 'talk.yours.torch';
+      if (def.use === 'eat') return 'talk.yours.food';
+      if (def.use === 'drink') return 'talk.yours.drink';
+      if (def.use === 'read') return 'talk.yours.book';
+      if (def.use === 'play') return 'talk.yours.ukulele';
+      if (def.use === 'ready') return 'talk.yours.weapon';
+      return 'talk.yours.keep';
+    }
+    const kind = r.block?.kind;
+    if (kind === 'work') return 'talk.work';
+    if (r.line) return 'talk.inLine';
+    const theirs = r.hands.hand;
+    if (theirs && ITEMS[theirs.item].light) return 'talk.holding.torch';
+    if (theirs && edible(theirs)) return 'talk.holding.food';
+    if (kind === 'feast') return 'talk.feast';
+    const h = this.hours;
+    if (r.profile.habits?.some((b) => b.spot === 'fields' && h >= b.from && h < b.to)) return 'talk.fields';
+    return null;
   }
 
   /** What `r` says thanking you: for what you gave them (`got`), after eating it (`ate`), for keeping it. */
   thanks(r: Resident, kind: 'got' | 'ate' | 'kept'): string {
-    return t(`thanks.${kind}.${OWN_THANKS.has(r.id) ? r.id : 'islander'}` as StringKey);
+    return this.line(r, `thanks.${kind}`);
   }
 
   /**
@@ -913,7 +1012,19 @@ export class Life {
 
   /** Words over `r`'s head (see Resident.talk). */
   say(r: Resident, text: string): void {
-    this.emotes.say(r.ch, text, SAID_FOR);
+    // (Not while they say something to you in the text box: their words over their head are hushed then, and the
+    // box's line has the face.)
+    if (this.box?.speaking(r)) return;
+    const cue = cueOf(text);
+    this.express(r, cue.face, SAID_FOR);
+    this.emotes.say(r.ch, cue.text, SAID_FOR);
+  }
+
+  /** `r` makes `face` (a line's: see lines.ts cues) for `seconds`; nothing if none. */
+  private express(r: Resident, face: ExpressionId | null, seconds: number): void {
+    if (!face) return;
+    r.ch.lineFace = face;
+    r.faceUntil = this.now + seconds;
   }
 
   /** What is said to you goes into `box` (the HUD's text box), and whoever has words in it says nothing over
@@ -930,7 +1041,7 @@ export class Life {
     const you = this.playerAt;
     if (!this.box || !you || r.far || flat(r.pos, you) > BOX_NEAR) return null;
     this.emotes.unsay(r.ch);
-    return this.box.add(this.nameOf(r.id), text, r, choices, faceOf(r.id));
+    return this.box.add(this.nameOf(r.id), cueOf(text).text, r, choices, faceOf(r.id));
   }
 
   /** `id` as a choice in the text box: by their face if they have one (see Faces), else their name. */
@@ -940,29 +1051,14 @@ export class Life {
 
   /** `r` says `text` to you: in the text box if you are near them, else over their head (see boxed). */
   tell(r: Resident, text: string): void {
-    if (!this.boxed(r, text)) this.say(r, text);
+    const cue = cueOf(text);
+    this.express(r, cue.face, SAID_FOR);
+    if (!this.boxed(r, cue.text)) this.say(r, cue.text);
   }
 
   /** `s` (see boxed) out of the text box, read or not. */
   unbox(s: Spoken): void {
     this.box?.drop(s);
-  }
-
-  private lineFor(r: Resident): StringKey {
-    const pick = (keys: StringKey[]) => keys[Math.floor(this.random() * keys.length)];
-    const kind = r.block?.kind;
-    if (kind === 'work') return pick(WORK_LINES);
-    if (kind === 'feast' && this.random() < 0.5) return pick(FEAST_LINES);
-    const h = this.hours;
-    const own = CAST_LINES[r.id];
-    // The cast mostly say what is like them; the islanders what the hour and the place bring to mind.
-    if (!own || this.random() < 0.45) {
-      if (h < 10 && h >= 5) return pick(MORNING_LINES);
-      if (h >= 17 && h < 20) return pick(EVENING_LINES);
-      if (h >= 20 || h < 5) return pick(NIGHT_LINES);
-      if (r.profile.habits?.some((b) => b.spot === 'fields' && h >= b.from && h < b.to)) return pick(FIELD_LINES);
-    }
-    return pick(own ?? ISLANDER_LINES);
   }
 
   /** You hopped where you stand: some of those near who see it hop or wave back (the user: jumping as a
@@ -1010,6 +1106,9 @@ export class Life {
     }
     for (const [who, m] of this.music) if (m.until < this.now) this.music.delete(who);
     this.hours = f.hours;
+    this.sirenSeen = f.sirenSeen;
+    // A line's face, once the line is gone (see express).
+    for (const r of this.residents) if (r.ch.lineFace && this.now > r.faceUntil) r.ch.lineFace = null;
     if (!Number.isNaN(this.lastHours) && f.hours < this.lastHours - 12) {
       // Past midnight: a new day, planned as it begins.
       this.day++;
@@ -1223,7 +1322,7 @@ export class Life {
     const item = STALL_GOODS(stall);
     if (first === 'player' && item && this.playerHands && !this.playerHands.fits(item)) {
       const keeper = this.byId.get(this.keepers.get(stall) ?? '');
-      if (keeper) this.tell(keeper, t('stall.handsFull'));
+      if (keeper) this.tell(keeper, this.line(keeper, 'stall.handsFull'));
       this.playerDone = stall;
     } else if (first === 'player') {
       this.playerServed = stall;
@@ -1672,7 +1771,7 @@ export class Life {
     if (by === 'player') {
       if (r.blockedFor > ASK_AFTER && this.now - r.askedPassAt > ASK_AGAIN) {
         r.askedPassAt = this.now;
-        this.say(r, t(PASS_LINES[Math.floor(this.random() * PASS_LINES.length)]));
+        this.say(r, this.line(r, 'pass'));
         r.focusOn = 'player';
         r.focusing = true;
         r.focusUntil = this.now + 2;

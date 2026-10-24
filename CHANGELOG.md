@@ -86,6 +86,80 @@ stage, and along every path. Not yet checked on a real phone.
   the marker is their face alone on a cream disc, a tab on its rim pointing
   down at them while they are in view, or out toward them from the screen's
   edge. The islanders have no face yet and show 島の子.
+- Everyone speaks in their own voice, and no one repeats themselves (the
+  user, 2026-10-24: the cast broke character in every shared line, the
+  islanders were all one voice, and lines came up twice running). The words
+  are now in groups (`src/life/lines.ts`): a group's plain lines are any
+  islander's, and `group.<voice>` holds a voice's own, resolved by
+  `Life.line`, which also passes over the last three said from a group.
+  Every group the cast reach has a line of their own for each of the ten
+  (about 350: greetings, parting, letting them by, thanks, asking for food,
+  answering your crying, remembering a gift, the hour, the first day,
+  "again", and what is going on), in their ways: Chiikawa and Usagi in
+  sounds, Rakko in fragments, Shisa's ですっ, Kurimanju's old-man talk,
+  Momonga's vanity, Furuhonya's わ. The islanders have four voices by
+  profile (cheery, shy, elder, kid: `profiles.ts` VOICES), each with its own
+  everyday lines, hours, greetings and feast, field and stall lines. The cast
+  have eight own lines each instead of three. New situations spoken of: the
+  Siren in view at sea (`LifeFrame.sirenSeen`, `Siren.seenFrom`), you
+  standing in the water, you in their house, what you hold (food, drink, a
+  torch, the book, the ukulele, a weapon, a keepsake), what they hold, their
+  stall's line, and talking with them again within a couple of minutes;
+  your first day has its own lines. Wrong lines gone: islanders no longer say
+  the cast have "settled in" on your first day, nor speak of vegetables or
+  shells the game does not show; Hachiware no longer asks after Chiikawa
+  standing beside her. About 750 lines in all, a draft for the user to
+  review.
+- Talking on, and faces and actions to go with the words (the user,
+  2026-10-24). Every line someone says to you comes with もっとはなす as well
+  as だれかさがしてる and またね: another line straight away, never one they
+  have said yet in that talk, drifting from what goes on to their own talk
+  and warming to you the longer it goes (`Life.moreLine`); once they have
+  said everything, a last line of their own (`talk.spent`) and the choice
+  goes. A line may begin with a cue in brackets, never shown (`lines.ts`
+  `cueOf`): a face to make while it shows (`[happy]`, `[worried]`...) and
+  something to do as they say it (`[cheer]`, `[bow]`, `[hula]`, `[hop]`,
+  `[sword]`, `[ukulele]`, `[ready]`, `[drink]`), passed over when they
+  cannot (seated, no sword of their own). About 600 lines are cued.
+  Kurimanju drinks from his can (a new `drink` action, also in the Test
+  panel: up to his mouth with his eyes shut, then his painted ハ〜 face) on
+  about half his lines; Rakko draws his sword on his training lines and at
+  the Siren; Shisa bows; Usagi hops and dances; Momonga cheers and dances;
+  Hachiware readies her さすまた when you hold yours. A line's face holds
+  over any action's own (`Character.lineFace`).
+- The text box holds still while you read (the user, 2026-10-24: the answers
+  pushed the words up as they appeared). It keeps one size, room for two
+  lines of words and the answers (194 px on a phone held upright, where the
+  three answers take two rows; 150 px where they fit in one), with the words
+  at its top and the answers at its foot. The answers' room is kept from a
+  line's first character and they fade in once it is out; the box slides in
+  only as it opens, not with every line. Checked: across 24 lines from four
+  speakers, upright and sideways, the words never moved.
+- Walking off ends a talk (the user, 2026-10-24: the box stayed till you
+  were far away). The text box closes once you are 4 m from whoever speaks
+  (it was 7), as good as またね: they part from you as you go, waving and
+  now and then calling またね after you over their head. What is said to you
+  from further than 3.5 m (it was 5) shows over their head.
+- Words and marks over heads are no longer seen through walls nor hazed with
+  the forest behind them (the user, 2026-10-24). They were drawn on top of
+  everything, and the film look hazed them as far as whatever lay behind.
+  They are now drawn over the finished picture, after the film look's passes
+  (`EmoteSystem.overlay`, `Game.draw`), each testing itself against the
+  scene's depth (`FilmPost.depth`): a bubble or a ！ hides where the scene is
+  more than 1.2 m nearer than it (a wall, a hut), never for whoever stands
+  just before its speaker; a note or a heart as if it were in the scene. They
+  are not night-graded either. Without the film look (`?toon`) they are drawn
+  as before. The ▽ over what you look at is drawn the same way (the user,
+  2026-10-24), through `EmoteSystem.overlayMaterial`.
+- Chiikawa and Usagi never say a word (the user, 2026-10-24: Usagi had
+  answered ヤハ！お祭り通り！). Every line of theirs is sounds only (ワ…,
+  ワァ…！, …！, フワァ…; ウラ！, ヤハ〜！, ハ？, プルルル…), with their faces and
+  actions saying the rest; asked where someone is, they answer in a sound and
+  the marker shows where. Where a group has no line of theirs they make their
+  own sounds (`sounds.<id>`, `lines.ts` WORDLESS), never anyone's words; the
+  talking, cheering and crying bubbles over their heads are theirs too
+  (`bubble.talk.chiikawa`..., any character's own `key.<id>` in
+  `Character`'s action words).
 - Someone at the welcome you are talking with no longer walks off when the
   welcome ends: they go once they have parted from you, as at any other
   change in their day.
@@ -129,9 +203,21 @@ stage, and along every path. Not yet checked on a real phone.
     `public/ui/things/` by `build_icons.py`, show on the bar, in the bag and
     on the card in place of the renders of the things' models, much
     sharper in your paw's big slot (256 px against the sheet's 128). The
-    book and the torch are drawn; every other thing keeps its render till
-    it is. Three drawn weapons wait in `art/icons/` for things of their
-    own.
+    book and the torch were drawn first, then the three weapons; on
+    2026-10-24 the user drew the other 29: every food and drink, the shell,
+    the starfish, Kurimanju's can and the ukulele. All 34 things now show
+    the user's drawing; the renders are only for a thing added later, till
+    it is drawn.
+  - The candy floss you hold is white now, as the user's icon draws it (it
+    had been pink); the bags hanging at its stall keep their colours.
+  - Every thing's line on its card in the bag tells where it is from on the
+    island or whose it is (the user, 2026-10-24: tied to the anime and the
+    original story): the さすまた are Chiikawa's and Hachiware's 討伐 weapons
+    brought to the island, the spring weapon is the one Hitoha, Futaba and
+    Momonga carry, the book is Hitoha and Futaba's with the mermaid's page,
+    the can and the beer are Kurimanju's (ハーッ), the ukulele is the one
+    Rakko plays at the night feast, and the foods are the island festival's
+    stalls'. Nothing of the film's dark side.
   - What has been bitten into goes into no pouch (the user): put away, it
     is gone, eaten up. Nor can it be put down or given: the action button
     says たべきる (のみきる) and finishes it. The same for everyone.
@@ -501,9 +587,23 @@ stage, and along every path. Not yet checked on a real phone.
   as you look about; your paw comes up to wave, cheer, dance or wipe your
   eyes; your own words (わーい！) and marks (♪, ！, ？) show low in the
   middle of the screen, as do your hearts as you eat.
-- Your photos: the newest under the camera button, from which the album
-  opens, each photo there to save, share or throw away. A photo just taken
-  comes in with a little pop.
+- Your camera (the user, 2026-10-24: a camera mode, as a phone's camera
+  app, to take a photo more carefully), `src/ui/CameraView.ts`: the camera
+  button (or C) holds it up. The HUD and your paw go, you stand still, and
+  the photo's frame sits in the middle of the screen with black bars round
+  it, its shape 4:3, 16:9 or 1:1 (no grid: the user found it too much). On
+  the bars are × and the shape along the top and the white shutter along
+  the bottom (down the left and the right on a wide screen), with zoom
+  chips by it (1×, 2×, 3× as far as the lens reaches; the one reached says
+  how near, 1.4×, in pink). Drag
+  anywhere to aim, pinch or scroll to zoom; Space or Enter takes it. The
+  screen blinks dark and the photo comes up as a print over the island
+  dimmed, asking このしゃしん、ほぞんする？: ほぞん downloads it to your device,
+  シェア (where the device shares) sends it on, とりなおす lets it go.
+  Nothing is kept in the game. It is drawn finer than the screen for the
+  photo, up to 1600 pixels on its long side. Photos the old album kept in
+  the browser are thrown away once, the first time the game starts after
+  this (the user's wish).
 - The sound's button, a speaker by the きもち button, crossed out when off.
 - Hearts over anyone growing fonder of you (the user, 2026-10-23: in the
   moment, not as a meter): one when they do (for a word, an answer, being
@@ -1295,6 +1395,94 @@ outlined is drawn twice, once for its pen line. To get there:
 
 **Changed**
 
+- The festival stalls' floor is raised to 20 cm, with two even 10 cm steps
+  up from the ground at each open side (the user, 2026-10-24: "the stage
+  for the stall seems a little too short").
+  - It had been 12 cm, its step 6 cm. From your eyes, 0.63 m up, that read
+    as two boards lying on the sand.
+  - At the villagers' size the new floor is a low stage, and each step an
+    ordinary stair's.
+  - The counter stays 0.58 m high so you see over it. Keepers stand 8 cm
+    higher, their eyes 20 cm over yours, and show over it from their middle
+    up.
+  - The film's stall frames never show the floor (their keepers' heads
+    about level with the customers'), so the height was ours to choose.
+  - The work table and everything on it rise with the floor, and the game
+    reads the keeper's floor from the model.
+  - Rebuilt: the six stall colours and the 25 goods kits (`STALL` in
+    `art/blender/build_village.py`), with nothing flickering. Their
+    footprints are unchanged, so nothing was replanted.
+  - Checked in the game: all 28 keepers' spots stand at 20 cm. You walk in
+    from either side of a stall up to its keeper's spot and back down.
+    Islanders kept their stalls through the morning, midday and evening,
+    and no one was left stuck.
+- The villagers' kitchen counter remodelled after the film (the user,
+  2026-10-24, with `villager hut interior 11` and `4`: "remodel the kitchen
+  sink in the village huts, to look exactly like the film"). Done in
+  `furnish_hut` in `art/blender/houses.py`; the stilt huts and the plank
+  hut were rebuilt.
+  - The top is pale cream, no longer bare brown wood, and plain, with no
+    worn paint. It stands a little out over the cabinet, its front corners
+    rounded.
+  - Its sink is now a deep steel basin with rounded corners let into the
+    top right of its middle, nearly half the counter long. The top reaches
+    into the basin at the back in a rounded tongue round the tap's foot,
+    as the film draws it. It was a small shallow tray.
+  - The tap is short and stout: a domed foot, a thick stem, and a rounded
+    hood leaning forward over the basin with a short spout under it. It was
+    a thin pipe.
+  - Its parts are measured against the basin in the film: the stem about
+    an eighth of the basin's length across, the hood twice that, about a
+    quarter of a metre high before the furniture is made the villagers'
+    size.
+  - The stove is a round blue-grey plate with a dark burner ring and six
+    round knobs, toward the back of the left end. It was dark iron with a
+    cross of bars.
+  - The cutting board is big, wider than it is tall, with rounded corners.
+    It stands behind the tap leaning on the wall, kept clear of the spoon
+    and fork hanging over it, so it is a little lower in the plank huts.
+  - The fruit stands at the right end. The cabinet is open on top, where
+    the basin hangs down into it. Its front is as before.
+  - Checked in the game from about the film's two viewpoints and at night,
+    in both kinds of hut, with nothing flickering (`check_flicker.py`).
+- The pouch the Minecraft way, with seven boxes (the user, 2026-10-24, after
+  a look at how easy it was to use: your paw had been a box of its own, so
+  things moved about as you switched and the same kind showed twice; on a
+  phone held upright there was no bar, and the jump button hid what you
+  held). `src/life/Hands.ts`, `src/core/Play.ts`, `src/ui/Hud.ts`:
+  - Seven boxes, each a stack of one kind (up to 99). The box in your paw is
+    lifted, ringed pink, with the paw mark on its corner, and you hold one of
+    its things. Tap a box, or press 1 to 7, and it is in your paw; nothing in
+    the boxes moves. Tap it again, or press its number again, and your paw
+    is empty. Things change boxes only when you drag them.
+  - Give, put down or eat what you hold, and the next of its kind is in your
+    paw: five shells are given one after another without taking each out.
+  - What you pick up, buy or are given goes onto its own stack, or into an
+    empty box; with your paw empty you hold it at once, as before.
+  - The bar is along the bottom on every screen. On a phone held upright it
+    runs across the foot, its boxes as big as fit (43 px on a 375 px wide
+    phone), with the jump button and the verbs lifted over it, the text box
+    over those. What you hold out of your own eyes is lifted too, clear of
+    the jump button. On a computer each box shows its key.
+  - The bag shows the same seven boxes bigger: four a row on a phone, all
+    seven in a row on a wide screen.
+  - The islanders' paws work the same way, eating one thing at a time, not
+    the next of its kind it leaves in their paw. A save from before keeps
+    everything: what was in your paw goes into the first box, in your paw
+    still, and the pouch's six slots after it, as the bar showed them.
+  - Still the user's rule: something bitten into goes into no other box. Put
+    away, or moved off by a drag, it is gone, eaten up.
+- The hint low in the middle of the screen (how to move and look about, and
+  the free camera's) is gone, at the user's word (2026-10-24), and so is the
+  name of the place you walk into, which showed under the time.
+- The テスト button and the frame rate beside the time show only in dev mode,
+  the game opened with `?dev` in its address, wherever it is served from;
+  without it the game is as everyone plays it (the user, 2026-10-24).
+- The time, top left, is a button (the user, 2026-10-24): tapped, あさ, ひる,
+  ゆうがた and よる open under it, and picking one moves the time on to it
+  as sleeping does, the screen dark a moment, everyone where that hour has
+  them. Time only goes forward: an hour earlier than now is tomorrow's,
+  and the new day begins with its morning.
 - Who lives where (the user, 2026-10-24): Chiikawa, Hachiware and Usagi now
   live in the orange guest house (by 12, -110.5), and Kurimanju and Shisa in
   the tan one (by 21, -100.5), the other way round from before. Chiikawa's
@@ -1319,12 +1507,11 @@ outlined is drawn twice, once for its pen line. To get there:
   offer, and the round Zen Maru Gothic type (from Google Fonts, in slices of
   the letters used, kept by the service worker for play offline). The hour
   is a chip top left, with the sun or the moon; きもち, the sound and テスト
-  are discs with their words under them top right, and the bag, the camera
-  and your newest photo go down the right (held sideways, into the top
-  row). The jump is a big disc in the bottom right corner, the verbs on
-  offer stacked over it as pills with glyphs of their own, the lowest, the
-  one on offer, in pink. The bag, the album, the test panel and the text box
-  are paper cards in ink; the name of the place you walk into and the words
+  are discs with their words under them top right, and the bag and the
+  camera go down the right (held sideways, into the top row). The jump is a
+  big disc in the bottom right corner, the verbs on offer stacked over it as
+  pills with glyphs of their own, the lowest, the one on offer, in pink. The
+  bag, the test panel and the text box are paper cards in ink; the name of the place you walk into and the words
   of a moment are notices under the hour, one under the other, clear of the
   text box (held sideways, down the left); the way in has a pink bar
   running under the title.
@@ -2943,8 +3130,9 @@ outlined is drawn twice, once for its pen line. To get there:
   wandering about somewhere as wide as the beach, with nothing to do about
   it, its hearts hardly moved, and a page that knows where everyone is sat
   ill with seeing the island out of your own eyes, one islander of many.
-  What it kept went elsewhere: the photos with the camera, the sound to its
-  own button, the hearts over whoever grows fonder of you.
+  What it kept went elsewhere: the photos to the camera (which keeps none
+  since 2026-10-24: each is downloaded or let go), the sound to its own
+  button, the hearts over whoever grows fonder of you.
 - The onigiri (the user, 2026-10-23: it makes no sense in the game now):
   the thing to hold and its icon, its name, its model from
   `build_props.py`, and the rice ball the eat action showed in an empty

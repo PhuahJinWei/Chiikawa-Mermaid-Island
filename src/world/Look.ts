@@ -1494,6 +1494,12 @@ export class FilmPost {
     this.setTexel(size.x, size.y);
   }
 
+  /** How far the scene drawn last lies at each pixel (for what is drawn over the finished picture to be hidden
+   * where the scene comes in front of it: see EmoteSystem.overlay). */
+  get depth(): THREE.DepthTexture {
+    return this.picture.depthTexture as THREE.DepthTexture;
+  }
+
   /** Sizes the pictures to the drawing buffer (`width` × `height` CSS pixels at `pixelRatio`). */
   setSize(width: number, height: number, pixelRatio: number): void {
     const w = Math.floor(width * pixelRatio);

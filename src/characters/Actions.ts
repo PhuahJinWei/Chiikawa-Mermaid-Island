@@ -21,7 +21,8 @@ export type ActionId =
   | 'read'
   | 'readSeated'
   | 'ready'
-  | 'menace';
+  | 'menace'
+  | 'drink';
 
 /** The actions the Test panel offers the cast. The Siren's own ('menace') is not one of them, nor 'ukulele' and
  * 'sword', offered only to those who play it (CharacterDef.plays) or carry one (CharacterDef.own). */
@@ -84,6 +85,9 @@ export interface ActionDef {
 }
 
 const TAU = Math.PI * 2;
+/** Kurimanju's drink: when the can comes down from his mouth (seconds), his ハ〜 after. */
+const DRINK_DOWN = 1.6;
+
 const smooth = (x: number) => {
   const t = Math.min(1, Math.max(0, x));
   return t * t * (3 - 2 * t);
@@ -485,6 +489,25 @@ export const ACTIONS: Record<ActionId, ActionDef> = {
       reachL(p, 1, REACH_SWORD.lower);
       reachR(p, 1, REACH_SWORD.upper);
       p.squash = 1 + 0.008 * Math.sin(t * 2.0);
+    },
+  },
+
+  // Kurimanju drinks from the can always in his left paw (the pose's R: see CharacterDef.carries; the user,
+  // 2026-10-24): up to his mouth, leaning back with his eyes shut as he drinks, then down, and his ハ〜 (his special
+  // face, which his painted 'shocked' is: art/faces/kurimanju/expressions.txt), with a little shake of pleasure.
+  drink: {
+    duration: 2.9,
+    fadeIn: 0.25,
+    fadeOut: 0.35,
+    expression: (t) => (t < DRINK_DOWN ? 'smile' : 'shocked'),
+    eyesClosed: (t) => t > 0.35 && t < DRINK_DOWN,
+    pose(t, p) {
+      const up = smooth(t / 0.35) * (1 - smooth((t - DRINK_DOWN) / 0.35));
+      reachR(p, up, REACH.mouth, 0, 0.02);
+      p.leanZ = -0.05 * up;
+      const after = smooth((t - DRINK_DOWN) / 0.2);
+      p.squash = 1 + 0.03 * after * Math.max(0, Math.sin((t - DRINK_DOWN) * 9));
+      p.rootRoll = 0.03 * after * Math.sin((t - DRINK_DOWN) * 6);
     },
   },
 

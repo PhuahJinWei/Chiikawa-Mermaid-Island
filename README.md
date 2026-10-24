@@ -56,19 +56,19 @@ You see the island out of your own eyes, as a nameless islander.
 | Jump button | Space | Jump; hold it to jump higher (whoever is near may hop or wave back) |
 | Action button (ひろう, かりる, おく, もどす, あげる, はなす, すわる, ねる, たつ, みせばん, わたす, たべきる, のみきる) | E or Enter | What you look at: pick it up (borrow it, if it is someone's), put down what you hold, put a torch's brand back on its pole, give it, talk, sit, sleep through the night in your own bed, get up; behind a stall's counter no one keeps today, keep it, and hand its goods to whoever lines up. What you have bitten into cannot be put down or given: たべきる / のみきる finishes it |
 | Text box (what is said to you), or the action button (つぎ) | E or Enter | The rest of the line at once, or the next line; hold to skip through them. A line goes on its own a moment after it is all out |
-| A choice in the text box | 1 to 9, 0 | Answer what you are asked. Talking with anyone, だれかさがしてる asks where one of the cast is: they tell you, and a marker points you to them a while |
+| A choice in the text box | 1 to 9, 0 | Answer what you are asked. Talking with anyone, もっとはなす has them say something more (never the same thing twice in one talk), and だれかさがしてる asks where one of the cast is: they tell you, and a marker points you to them a while |
 | Use button (たべる, のむ, ひく, よむ, かまえる) | F | Eat, drink, play or read what you hold. A book comes up before your eyes and opens; press again (とじる) or walk off to shut it. A さすまた is held up ready before you in both paws, pointing ahead; you may walk so, and press again (おろす) to lower it |
-| Held sideways, or on a computer: the bar along the bottom | 1 to 6 | Your paw (its paw mark on its corner) and your pouch of six slots, each a stack of one kind (up to 99, its count on its corner). Tap a slot: what is in your paw goes into the pouch (onto its own stack if there is one) and one thing of the slot comes into your paw, its name over the bar a moment. Tap your paw's slot to put what you hold away. Drag a slot onto another to move its things there or swap the two; onto your paw, one comes into it. Hold a slot (or right-click it) to open the bag with it picked. Something you have bitten into goes into no pouch: put away, it is gone, eaten up |
-| Bag (ふくろ) button | Tab; Esc closes it | The bag, over the island: your paw's slot big and the six beside it. Tap a slot to see under them what it is: its name and how many, what it is for, a line about it, and whether it is borrowed, goes back to its place each morning or is bitten into. もつ (or tapping the picked slot again) takes one into your paw; for your paw's slot, しまう puts it away. Dragging works as on the bar. On a phone held upright the bag is the pouch's only place |
+| The bar along the bottom (every screen) | 1 to 7 | Seven boxes, each a stack of one kind (up to 99, its count on its corner). The one in your paw is lifted, ringed pink, with the paw mark on its corner: you hold one of its things, as in Minecraft. Tap a box (or press its number) and it comes into your paw, its name over the bar a moment; nothing in the boxes moves. Tap the box in your paw again to empty your paw. Give, put down or eat what you hold and the next of its kind is in your paw. Picked up or handed to you, a thing goes onto its own stack, or into an empty box; with your paw empty, you hold it. Drag a box onto another to move its things there or swap the two. Hold a box (or right-click it) to open the bag with it picked. Something you have bitten into goes into no other box: put away, it is gone, eaten up |
+| Bag (ふくろ) button | Tab; Esc closes it | The bag, over the island: the seven boxes bigger. Tap a box to see under them what it is: its name and how many, what it is for, a line about it, and whether it is borrowed, goes back to its place each morning or is bitten into. もつ (or tapping the picked box again) puts it in your paw; for the box in your paw, しまう empties your paw. Dragging works as on the bar |
 | きもち button (top right), then one of its nine | R, then 1 to 9 | Do something yourself: wave, bow, cheer, hop, dance, chat, look about, start, cry. Whoever is near may answer it |
-| Camera (カメラ) button | | Take a photo |
-| Your newest photo, under the camera button | | Your photos (しゃしん): open one to save, share or throw it away |
+| Camera (カメラ) button | C | Hold up your camera, as a phone's camera app: the HUD goes and you stand still, the photo's frame in the middle of the screen with black bars round it (its shape 4:3, 16:9 or 1:1 from the chip across from ×, kept for next time). Drag anywhere to aim; pinch, the wheel or a zoom chip (1×, 2×, 3× where the lens reaches) to zoom; the white shutter, Space or Enter takes it. The photo is kept nowhere in the game: it comes up as a print asking このしゃしん、ほぞんする？ — ほぞん downloads it to your device, シェア (where the device can share) sends it on, とりなおす lets it go. × (Esc, or C again) puts the camera away |
+| The time (top left) | Click it | Move the time on to あさ, ひる, ゆうがた or よる: the screen goes dark a moment and everyone is where that hour has them. Time only goes forward, so an hour earlier than now is tomorrow's (with its morning, as after sleeping). How fast the game draws (FPS) shows beside the time only in dev mode (`?dev`) |
 | Speaker button (top right, by きもち) | | The sound on or off (kept for your next visit) |
-| Test (テスト) button | Test (テスト) button | Test panel: actions, expressions, lineup, whose eyes, the follow camera from behind (三人称カメラ) |
+| Test (テスト) button (only in dev mode: open the game with `?dev`, e.g. `http://localhost:5280/?dev`) | Test (テスト) button | Test panel: actions, expressions, lineup, whose eyes, the follow camera from behind (三人称カメラ) |
 
 The buttons wear the look of the user's other Chiikawa game, Chiikawa-Hidamari: cream faces in a
-brown ring with a white rim, the pink accent on what is on offer, paper cards for the bag, the album
-and the text box, and the round Zen Maru Gothic type (`src/styles.css`). The type comes from Google
+brown ring with a white rim, the pink accent on what is on offer, paper cards for the bag and the
+text box, and the round Zen Maru Gothic type (`src/styles.css`). The type comes from Google
 Fonts in slices of the letters used; the service worker keeps them, so after one visit online it shows
 offline too (until then, the device's own type).
 
@@ -79,14 +79,14 @@ and glides to the next thing you look at; holding something, a see-through ghost
 
 The island keeps itself as you left it (the hour and the day, where you stood, where everyone who
 lives here stood, sat or slept, what you and they hold and keep, how fond each is of you, what lies
-where) in the browser; open the game with `?fresh` to start anew, with the welcome on the beach.
+where) in the browser; open the game with `?fresh` to start anew, with the welcome on the beach, and with `?dev` for dev mode (the テスト button and the FPS; `?dev&fresh` for both).
 
 ## Things lying about
 
 Everyone on the island, you and the islanders alike, can take up what lies about, keep it, give it,
 eat it, play it or put it down. Everyone's paws are the same (`src/life/Hands.ts`): one thing in the
-right paw and a pouch of six slots, each a stack of up to 99 things of one kind, each thing keeping
-whose it is. A stall hands over nothing to someone with no room for it: its keeper says so. What lies
+right paw and seven boxes, each a stack of up to 99 things of one kind, one of them in the paw (what
+it holds is the top of that box's stack), each thing keeping whose it is. A stall hands over nothing to someone with no room for it: its keeper says so. What lies
 about comes from `public/data/things.json`:
 
 - `kept`: things with a place of their own (the stage's ukulele, the torch by your door, the two torches

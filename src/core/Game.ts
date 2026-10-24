@@ -50,8 +50,7 @@ import { Focus } from './Focus';
 import { Play } from './Play';
 import { loadSave, writeSave, type SaveData } from './Save';
 import { Sound, type Hearing } from './Sound';
-import { Album, SIDE } from './Album';
-import { AlbumView } from '../ui/AlbumView';
+import { CameraView, forgetOldPhotos, type Frame } from '../ui/CameraView';
 import { glowUniforms } from '../world/Glow';
 
 /** Where each character stands when you are not controlling it: x, z, facing. */
@@ -144,6 +143,14 @@ const RATIO_STEP = 0.25;
 const START_PIXELS = 1.5e6;
 const SLOW = 48;
 const FAST = 58;
+/**
+ * A photo (see takePhoto) is at most this many pixels on its longest side; to have that many, it is drawn at a
+ * finer resolution than the screen may be drawn at, up to PHOTO_RATIO device pixels per CSS pixel. A zoom chip
+ * eases the zoom to its own this quickly, per second (see CameraView).
+ */
+const PHOTO_SIDE = 1600;
+const PHOTO_RATIO = 2;
+const ZOOM_EASE = 9;
 const ZERO = new THREE.Vector3();
 const _fwd = new THREE.Vector3();
 const _right = new THREE.Vector3();
@@ -239,18 +246,21 @@ export class Game {
   private caveLabel: string | null = null;
   /** The day the things lying about were last seen to for (see Things.morning). */
   private morningDay = -1;
+  /** The time is being moved on (see passTime). */
+  private passing = false;
   /** Seconds since the island was last kept (see save), and where you last stood on your own feet. */
   private sinceSave = 0;
   private readonly standing = new THREE.Vector3(Number.NaN, 0, 0);
   private standingYaw = 0;
   private readonly saved: SaveData | null = loadSave();
-  /** The island's sound, and your album of photos (opened from the newest, by the camera's button) and the
-   * newest's picture there (an object URL, or null). */
+  /** The island's sound. */
   private readonly sound = new Sound();
-  private readonly album = new Album();
-  private readonly albumView: AlbumView;
-  private lastPhoto: string | null = null;
-  private handView: HandView | null = null;
+  /** Your camera, held up (the camera's button, or C: see CameraView), and the zoom the eyes had before it was;
+   * the zoom a chip of its asks for, eased to (null: none). */
+  private readonly cameraView: CameraView;
+  private framing = false;
+  private zoomBefore = 0;
+  private zoomGoal: number | null = null;
   /** How near the sea is where you hear from (see shoreness), looked at a few times a second; the footfalls
    * out of your own eyes heard so far (see FirstPersonCamera.footfalls). */
   private shore = 0;
@@ -324,7 +334,7 @@ export class Game {
     this.rig = new CameraRig(this.camera, cameraLimit, cameraClear);
     this.freeCam = new FreeCamera(this.camera, groundHeight);
     this.player = new PlayerController(this.input);
-    this.emotes = new EmoteSystem(this.scene);
+    this.emotes = new EmoteSystem();
     this.emotes.camera = this.camera;
     // Your own marks and words, out of your own eyes: on the screen.
     this.emotes.own = { mark: (kind) => this.hud.ownMark(kind), words: (text) => this.hud.ownWords(text) };
@@ -362,26 +372,15 @@ export class Game {
         mermaids: this.siren?.mermaids.where ?? null,
       }),
     );
-    this.albumView = new AlbumView(ui);
     this.hud.setSound(this.sound.enabled);
     this.hud.onSound = (on) => this.sound.setOn(on);
-    this.albumView.onAlbum = async () =>
-      (await this.album.list()).map((photo) => {
-        const h = Math.floor(photo.hours);
-        const m = String(Math.floor((photo.hours - h) * 60)).padStart(2, '0');
-        return {
-          id: photo.id,
-          url: URL.createObjectURL(photo.blob),
-          label: t('album.label').replace('{0}', String(photo.day + 1)).replace('{1}', `${h}:${m}`),
-        };
-      });
-    this.albumView.onDelete = async (id) => {
-      await this.album.remove(id);
-      await this.showLastPhoto();
-    };
-    this.hud.onCamera = () => this.takePhoto();
-    this.hud.onPhotos = () => this.albumView.toggle();
-    void this.showLastPhoto();
+    this.cameraView = new CameraView(ui);
+    forgetOldPhotos();
+    this.cameraView.onShutter = (frame) => this.takePhoto(frame);
+    this.cameraView.onClose = () => this.setFraming(false);
+    this.cameraView.onZoom = (times) => (this.zoomGoal = this.eyes.zoomFor(times));
+    this.hud.onCamera = () => this.setFraming(true);
+    this.hud.onTime = (hours) => void this.passTime(hours);
     this.hud.onJump = () => {
       this.input.queueJump();
       this.input.holdJump(true);
@@ -392,7 +391,6 @@ export class Game {
     this.hud.onUse = () => this.input.queueUse();
     this.hud.onTest = () => this.panel.toggle();
     this.panel.onToggle = (open) => (this.viewLiftTarget = open ? 1 : 0);
-    this.input.onFirstMove = () => this.hud.hideHint();
 
     this.ctx = {
       camera: this.camera,
@@ -518,9 +516,8 @@ export class Game {
     const things = this.things;
     if (!life || !things) return;
     const view = new HandView(items, this.scene);
-    this.handView = view;
     // What you look at, shown (the ▽ over it, the sketch of what you would put down).
-    const focus = new Focus(items, this.scene, FILM ? (x, y, z) => this.stage.shadeAt(x, y, z) : null);
+    const focus = new Focus(items, this.scene, FILM ? (x, y, z) => this.stage.shadeAt(x, y, z) : null, this.emotes);
     const play = new Play(things, life, this.hud, view, focus, this.input, this.me(), this.sound);
     play.onSleep = () => void this.sleepThrough();
     this.play = play;
@@ -572,59 +569,102 @@ export class Game {
   /** Asleep in your bed at night: the night goes by while the screen is dark, and you wake to the morning,
    * everyone where the morning has them. */
   private async sleepThrough(): Promise<void> {
-    const life = this.life;
     const play = this.play;
-    if (!life || !play) return;
-    await this.hud.fade(true);
+    if (!play || !(await this.passTime(WAKE, true))) return;
     const me = this.me();
-    // Gone to bed before midnight, you wake the next day.
-    if (this.clock.hours >= 12) life.day++;
-    this.clock.set(WAKE);
-    life.settle(this.clock.hours, me);
-    this.morningDay = life.day;
-    life.morning(life.day);
     play.wake(me);
     // Sitting up, looking out over the room.
     this.eyes.lookFrom(me);
-    this.save();
     await this.hud.fade(false);
     this.sound.morning();
     this.hud.toast(t('toast.morning'));
   }
 
   /**
-   * A photo of what you see (the camera's button): drawn now, without your paw before your eyes, read back at
-   * no more than SIDE pixels on its longest side and kept in your album (see Album); the screen flashes.
+   * The time moved on to `to` (hours past midnight) while the screen goes dark: your bed's night, or the hour
+   * picked by the clock's chip (the user, 2026-10-24: players change the time by tapping it). Time only goes on: an
+   * hour no later than now is tomorrow's, and a new day begins with its morning (see Life.morning; your bed's
+   * night always ends in one). Everyone is put where the hour has them. Left dark if `sleeping` (the caller wakes
+   * you, then fades back); false if the time could not be moved now.
    */
-  private takePhoto(): void {
-    if (!this.running) return;
-    const view = this.handView;
-    const shown = view?.group.visible ?? false;
-    if (view) view.group.visible = false;
-    this.draw();
-    const from = this.renderer.domElement;
-    const k = Math.min(1, SIDE / Math.max(from.width, from.height));
-    const shot = document.createElement('canvas');
-    shot.width = Math.round(from.width * k);
-    shot.height = Math.round(from.height * k);
-    shot.getContext('2d')?.drawImage(from, 0, 0, shot.width, shot.height);
-    if (view) view.group.visible = shown;
-    const hours = this.clock.hours;
-    const day = this.life?.day ?? 0;
-    shot.toBlob((blob) => {
-      if (blob) void this.album.add(blob, hours, day).then(() => this.showLastPhoto(true));
-    }, 'image/jpeg', 0.9);
-    this.hud.flash();
-    this.sound.shutter();
-    this.hud.toast(t('toast.photo'));
+  private async passTime(to: number, sleeping = false): Promise<boolean> {
+    const life = this.life;
+    if (!life || !this.play || this.passing || this.staged || this.lineup) return false;
+    this.passing = true;
+    await this.hud.fade(true);
+    const me = this.me();
+    if (to <= this.clock.hours) life.day++;
+    this.clock.set(to);
+    life.settle(this.clock.hours, me);
+    if (sleeping || life.day !== this.morningDay) {
+      this.morningDay = life.day;
+      life.morning(life.day);
+    }
+    this.save();
+    this.passing = false;
+    if (!sleeping) await this.hud.fade(false);
+    return true;
   }
 
-  /** Your newest photo by the camera's button (none, the album empty), come in with a pop if just `taken`. */
-  private async showLastPhoto(taken = false): Promise<void> {
-    const newest = await this.album.newest();
-    if (this.lastPhoto) URL.revokeObjectURL(this.lastPhoto);
-    this.lastPhoto = newest ? URL.createObjectURL(newest.blob) : null;
-    this.hud.setLastPhoto(this.lastPhoto, taken);
+  /**
+   * Your camera held up (on: the camera's button, or C), or put away (×, Escape, C again): you stand where you are
+   * and every drag aims it, the HUD, the test panel and your paw before your eyes away, nothing done with your paws
+   * till it is put away (see CameraView, Play's framing); put away, the eyes' zoom is as it was.
+   */
+  private setFraming(on: boolean): void {
+    if (on === this.framing || (on && (!this.running || this.staged))) return;
+    this.framing = on;
+    this.input.setMoveEnabled(!on && !this.lineup);
+    this.hud.setShown(!on);
+    this.zoomGoal = null;
+    if (on) {
+      this.zoomBefore = this.eyes.zoom;
+      this.panel.toggle(false);
+      // (The view no longer lifted over the test panel, at once: it would be in the photo.)
+      this.viewLift = this.viewLiftTarget = 0;
+      this.applyViewLift();
+      this.cameraView.open();
+    } else {
+      this.cameraView.close();
+      this.eyes.zoom = this.zoomBefore;
+    }
+  }
+
+  /**
+   * The shutter: what is in the camera's `frame` (CSS pixels on the screen) drawn now, without your paw before your
+   * eyes or the ▽ (put away while your camera is held up), and read back, at no more than PHOTO_SIDE pixels on its
+   * longest side; drawn finer for it than the screen is if that gives it more of them (see PHOTO_RATIO). Kept
+   * nowhere: the camera asks what to do with it.
+   */
+  private takePhoto(frame: Frame): HTMLCanvasElement | null {
+    if (!this.running) return null;
+    const was = this.pixelRatio;
+    const ratio = clamp(PHOTO_SIDE / Math.max(frame.width, frame.height, 1), was, PHOTO_RATIO);
+    const finer = ratio > was + 0.01;
+    if (finer) {
+      this.setPixelRatio(ratio);
+      this.updateInk();
+    }
+    this.draw();
+    const from = this.renderer.domElement;
+    const k = from.width / window.innerWidth;
+    const sx = Math.max(0, Math.round(frame.x * k));
+    const sy = Math.max(0, Math.round(frame.y * k));
+    const sw = Math.min(from.width - sx, Math.round(frame.width * k));
+    const sh = Math.min(from.height - sy, Math.round(frame.height * k));
+    const scale = Math.min(1, PHOTO_SIDE / Math.max(sw, sh));
+    const shot = document.createElement('canvas');
+    shot.width = Math.max(1, Math.round(sw * scale));
+    shot.height = Math.max(1, Math.round(sh * scale));
+    shot.getContext('2d')?.drawImage(from, sx, sy, sw, sh, 0, 0, shot.width, shot.height);
+    if (finer) {
+      // Back as it was, drawn again at once, so the screen is never left blank till the next frame.
+      this.setPixelRatio(was);
+      this.updateInk();
+      this.draw();
+    }
+    this.sound.shutter();
+    return shot;
   }
 
   /** How near the sea is to `p`: 1 on the shore or over the water, less the further it is to any water all
@@ -847,7 +887,6 @@ export class Game {
     if (on && this.lineup) this.setLineup(false);
     this.freeCamOn = on;
     this.hud.setControlsVisible(!on);
-    this.hud.showHint(on ? t('hud.freeHint') : null);
     this.input.setMoveEnabled(true);
     if (on) {
       this.freeCam.begin();
@@ -1052,6 +1091,16 @@ export class Game {
     } else {
       this.renderer.render(this.scene, this.camera);
     }
+    // The marks and words over heads, over the finished picture, each hidden where the scene is in front of it
+    // (see EmoteSystem.overlay).
+    this.emotes.beforeOverlay(this.post?.depth ?? null);
+    this.renderer.setRenderTarget(null);
+    const clear = this.renderer.autoClear;
+    this.renderer.autoClear = false;
+    // (Over the film look's picture, the screen's own depth is not the scene's: each mark tests the scene's.)
+    if (this.post) this.renderer.clearDepth();
+    this.renderer.render(this.emotes.overlay, this.camera);
+    this.renderer.autoClear = clear;
   }
 
   /** Advance the whole simulation by dt seconds, without drawing. */
@@ -1061,6 +1110,9 @@ export class Game {
     // no size got its first one without the event reaching the game (seen 2026-10-23 in the browser pane).
     if (window.innerWidth !== this.sizedW || window.innerHeight !== this.sizedH) this.resize();
     this.input.update(dt);
+    // Your camera held up or put away from the keyboard; held up, what is pressed is the camera's (see CameraView).
+    if (this.input.consumeCamera()) this.setFraming(!this.framing);
+    if (this.framing) this.input.dropQueued();
     const me = this.me();
     const lookingOut = this.lookingOut;
     // Out of their eyes, the one you control faces the way you look; the rest face the way they walk.
@@ -1113,7 +1165,16 @@ export class Game {
     const life = this.life;
     const living = !!life && !this.staged && !this.lineup;
     const frame = living
-      ? { dt, hours: this.clock.hours, camera: this.camera, ctx: this.ctx, me, myEyes: _myEyes, myWant: this.player.want }
+      ? {
+          dt,
+          hours: this.clock.hours,
+          camera: this.camera,
+          ctx: this.ctx,
+          me,
+          myEyes: _myEyes,
+          myWant: this.player.want,
+          sirenSeen: this.siren?.seenFrom(this.camera) ?? false,
+        }
       : null;
     // Everyone who lives here goes about their day (see life/Life.ts); you, and whoever no one's day
     // moves (the islander you are while you look out of someone else's eyes), as you are. (The island's life,
@@ -1168,6 +1229,7 @@ export class Game {
           lookingOut,
           hours: this.clock.hours,
           free: !this.staged && !this.lineup && !this.freeCamOn && !this.rowing,
+          framing: this.framing,
           inCave,
           buttonTaken: this.caveLabel !== null,
           speed: Math.hypot(me.velocity.x, me.velocity.z),
@@ -1183,6 +1245,7 @@ export class Game {
     } else if (this.freeCamOn) {
       this.freeCam.update(dt, this.input);
     } else if (lookingOut) {
+      this.easeZoom(dt);
       this.eyes.update(dt, this.input, me);
     } else {
       if (this.camera.fov !== FOLLOW_FOV) {
@@ -1191,13 +1254,17 @@ export class Game {
       }
       this.rig.update(dt, this.input, this.focusPoint());
     }
+    // (Its zoom chips only out of your own eyes: the follow camera and the free one zoom as they do.)
+    if (this.framing) this.cameraView.update(lookingOut ? this.eyes.magnified : null, this.eyes.mostZoom);
     // Out of their eyes you see the one you control only in the calm water; the film look's depth of
     // field leaves the ground at their feet sharp.
     for (const ch of this.characters.values()) ch.setUnseen(lookingOut && ch === me);
     this.part('marker', () => this.updateSought(dt));
-    // Your paw before your eyes, and the light of a torch you carry.
+    // Your paw before your eyes (not while your camera is held up: it would be in the photo), and the light of a
+    // torch you carry.
     this.camera.updateMatrixWorld();
-    this.part('play', () => play?.updateView(dt, this.camera, me, lookingOut, Math.hypot(me.velocity.x, me.velocity.z)));
+    const pawShown = lookingOut && !this.framing;
+    this.part('play', () => play?.updateView(dt, this.camera, me, pawShown, Math.hypot(me.velocity.x, me.velocity.z)));
     this.stage.setHeldLight(play?.torchFlame(_torch) ?? null);
     this.part('things', () => this.things?.update(this.camera.position));
     this.part('saving', () => this.keepUp(dt, me));
@@ -1213,6 +1280,20 @@ export class Game {
     this.stage.tread(this.renderer, this.camera, dt, me);
     this.updateReflections();
     this.updateInk();
+  }
+
+  /** Out of your own eyes, the zoom a chip of your camera's asked for (see CameraView), eased to; a pinch or the
+   * wheel takes over from it. */
+  private easeZoom(dt: number): void {
+    const goal = this.zoomGoal;
+    if (goal === null) return;
+    if (this.input.zoomPending) {
+      this.zoomGoal = null;
+      return;
+    }
+    const z = this.eyes.zoom + (goal - this.eyes.zoom) * (1 - Math.exp(-dt * ZOOM_EASE));
+    this.eyes.zoom = Math.abs(goal - z) < 1e-3 ? goal : z;
+    if (this.eyes.zoom === goal) this.zoomGoal = null;
   }
 
   /** Whether one can stand with their feet at (x, y, z): on ground or a deck within FOOTING of it, in the
@@ -1351,7 +1432,8 @@ export class Game {
     });
   }
 
-  /** Names the place the character you control walks into. */
+  /** Keeps up which place the character you control is in (for what you hear and the test panel's line; its name
+   * no longer shows as you walk in: the user, 2026-10-24). */
   private updateZone(dt: number): void {
     this.zoneTimer -= dt;
     if (this.zoneTimer > 0 || !this.stage.zones || this.staged || this.lineup) return;
@@ -1360,9 +1442,7 @@ export class Game {
     const p = this.freeCamOn ? this.camera.position : this.me().position;
     const y = this.freeCamOn ? p.y : this.me().feetY + 0.3;
     const zone = this.stage.cave?.isInside(p.x, y, p.z) ? 'cave' : this.stage.zones.at(p.x, p.z);
-    if (zone === this.zone) return;
     this.zone = zone;
-    this.hud.showPlace(zoneName(zone));
   }
 
   /** Steps the drawing resolution down when frames are slow, and back up when there is room. */
@@ -1445,6 +1525,7 @@ export class Game {
   devApi(): DevApi {
     return {
       stage: (shot) => {
+        this.setFraming(false);
         this.staged = shot;
         // Everyone's day on hold while the shot stands, all of them shown.
         this.life?.hold();

@@ -174,7 +174,7 @@ export class Choices {
       const yours = life.playerHands?.hand ?? null;
       // (Not what you have bitten into, which you cannot give.)
       if (d < ASK_NEAR && edible(yours) && !yours?.lent && !life.playerHands?.nibbled && r.needs.hunger > 0.55 && fond >= FOND_ASK && r.askedOn !== life.day) {
-        add(1.2 * r.needs.hunger, () => r.askYou(t('ask.food')));
+        add(1.2 * r.needs.hunger, () => r.askYou(life.line(r, 'ask.food')));
       }
     }
 

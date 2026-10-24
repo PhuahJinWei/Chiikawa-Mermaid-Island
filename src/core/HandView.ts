@@ -33,6 +33,10 @@ const AHEAD = 0.45;
 const SIZE = 2.6;
 const GRIP_IN = 0.24;
 const GRIP_UP = 0.2;
+/** On a screen held upright, the boxes' bar along the foot and the jump button over it take the bottom right
+ * corner (see styles.css): the grip is lifted this much more (a share of the view's half height), so what you
+ * hold shows over them (the user, 2026-10-24: the jump button had hidden it). */
+const UPRIGHT_LIFT = 0.24;
 /** Seconds to lower it out of sight, or to raise it. */
 const LOWER = 0.22;
 /** A step's sway (metres, at its own size). Its strides are your eyes' (two steps: see
@@ -201,8 +205,13 @@ export class HandView {
   private readyT = 0;
   private item: ItemCopy | null = null;
   private itemId: ItemId | null = null;
-  /** What should be in it: once what is there is lowered out of sight, this comes up. */
+  /** What should be in it: once what is there is lowered out of sight, this comes up. (Which one it is, too: the
+   * next of the same kind, after one is eaten up or given, comes up as a thing of its own: see set.) */
   private wanted: ItemId | null = null;
+  private wantedOne: object | null = null;
+  private heldOne: object | null = null;
+  /** How much of what shows is left, kept as it is lowered (`left` being the next one's by then). */
+  private shownLeft = 1;
   /** 0 lowered out of sight, 1 held up. */
   private up = 0;
   private readonly copies = new Map<ItemId, ItemCopy>();
@@ -235,9 +244,11 @@ export class HandView {
     scene.add(this.group);
   }
 
-  /** Puts `id` in your paw (null: empties it): what was there is lowered first. */
-  set(id: ItemId | null): void {
+  /** Puts `id` in your paw (null: empties it): what was there is lowered first, as it is if `one` (which of its
+   * kind) is another than the one there, though of the same kind. */
+  set(id: ItemId | null, one: object | null = null): void {
     this.wanted = id;
+    this.wantedOne = one;
   }
 
   /** Reads what is in your paw, if it is a book (on), or shuts it and puts it back down by the corner: brought up before
@@ -290,12 +301,13 @@ export class HandView {
     g.across += (_wanted.across - g.across) * ease;
     g.roll += (_wanted.roll - g.roll) * ease;
     // Lowered, then the next thing raised (a book read shut and brought down first); empty, raised only to gesture.
-    const going = this.wanted !== this.itemId;
+    const going = this.wanted !== this.itemId || this.wantedOne !== this.heldOne;
     const shown = (!going || this.readT > 0) && (!!this.itemId || g.raise > 0.05);
     this.up = THREE.MathUtils.clamp(this.up + (shown ? dt : -dt) / LOWER, 0, 1);
     if (going && this.up === 0) {
       this.item?.removeFromParent();
       this.itemId = this.wanted;
+      this.heldOne = this.wantedOne;
       this.item = this.itemId ? this.copyOf(this.itemId) : null;
       if (this.item) this.group.add(this.item);
       this.left = 1;
@@ -332,7 +344,7 @@ export class HandView {
     const gripX = wide - GRIP_IN * size;
     _grip.set(
       gripX + (Math.sin(phase) * BOB * walk + this.lag) * size,
-      -high + (GRIP_UP - Math.abs(Math.cos(phase)) * BOB * walk - down * 0.6) * size,
+      -high + (GRIP_UP - Math.abs(Math.cos(phase)) * BOB * walk - down * 0.6) * size + (camera.aspect < 1 ? UPRIGHT_LIFT * high : 0),
       -AHEAD,
     );
     // Held leaning in toward the middle of the screen, its front turned to you and a little toward the
@@ -400,7 +412,8 @@ export class HandView {
     }
     // (In the corner as big as it is shown there, ItemDef.hand; shut, it comes up a little smaller than it is read,
     // growing as it opens.)
-    const held = size * this.left * (def?.hand ?? 1) * (1 + (READY_GROW - 1) * readied);
+    if (!going) this.shownLeft = this.left;
+    const held = size * this.shownLeft * (def?.hand ?? 1) * (1 + (READY_GROW - 1) * readied);
     const scale = THREE.MathUtils.lerp(held, fit * THREE.MathUtils.lerp(READ_SHUT, 1, opened), rise);
     if (item && book && rise > 0) {
       _mid.multiplyScalar(scale).applyQuaternion(_held);

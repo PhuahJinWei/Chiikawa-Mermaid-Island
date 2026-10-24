@@ -168,6 +168,7 @@ export class DialogueBox {
    * choices under it (someone by their face, if they have one); the box shut with none. */
   private show(): void {
     const s = this.lines[0];
+    const opening = this.box.hidden;
     this.box.hidden = !s;
     if (!s) return;
     s.state = 'shown';
@@ -207,7 +208,9 @@ export class DialogueBox {
     );
     this.box.classList.toggle('asks', s.choices.length > 0);
     this.reveal(0, true);
-    // Come in afresh, as a new line.
+    // Come in as the box opens; from one line to the next it stays as it is, only its words typing anew (the user,
+    // 2026-10-24: nothing moving while you read).
+    if (!opening) return;
     this.box.classList.remove('shown');
     void this.box.offsetWidth;
     this.box.classList.add('shown');

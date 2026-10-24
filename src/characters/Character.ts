@@ -29,7 +29,7 @@ import { Spring } from './Springs';
 import { copyPose, lerpPose, resetPose, restPose, type Pose } from './Pose';
 import { ACTIONS, type ActionContext, type ActionId } from './Actions';
 import type { EmoteHost, EmoteSystem } from './Emotes';
-import { t } from '../i18n/I18n';
+import { has, t } from '../i18n/I18n';
 import { penAt } from '../world/Ink';
 import { showOpen, type HeldLight } from './Props';
 import { CANOPY_SHADE, FILM, MIRROR_LAYER } from '../world/Look';
@@ -456,6 +456,8 @@ export class Character implements EmoteHost {
   facing = 0;
   /** The face shown when no action is playing (the Test panel's choice); null for neutral. */
   expressionOverride: ExpressionId | null = null;
+  /** The face a line they say has them make while it shows (see life/lines.ts cues), over any action's own. */
+  lineFace: ExpressionId | null = null;
   /** The way they face whichever way they walk: where you look, out of their eyes (see
    * FirstPersonCamera); null to face the way they walk. */
   look: number | null = null;
@@ -612,8 +614,11 @@ export class Character implements EmoteHost {
       else this.emotes?.spawn(kind, this, side ?? 1);
     },
     say: (key) => {
-      if (this.unseen) this.emotes?.own?.words(t(key));
-      else this.emotes?.say(this, t(key));
+      // In their own way where they have one (`key.<id>`: Chiikawa's and Usagi's sounds, who have no words).
+      const theirs = `${key}.${this.def.id}`;
+      const words = t(has(theirs) ? theirs : key);
+      if (this.unseen) this.emotes?.own?.words(words);
+      else this.emotes?.say(this, words);
     },
   };
 
@@ -1626,7 +1631,7 @@ export class Character implements EmoteHost {
     const def = a ? ACTIONS[a.id] : null;
     // Every action (and a jump) has its own face; the chosen expression shows between them.
     const actionExpression = a && def ? def.expression(a.t) : this.airborne ? 'happy' : null;
-    this.face.expression = actionExpression ?? this.expressionOverride ?? 'neutral';
+    this.face.expression = this.lineFace ?? actionExpression ?? this.expressionOverride ?? 'neutral';
     this.face.talking = !!def?.talking;
     this.face.chewing = !!def?.chewing;
     this.face.eyesClosed = !!(a && def?.eyesClosed?.(a.t));

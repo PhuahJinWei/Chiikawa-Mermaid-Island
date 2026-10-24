@@ -4,6 +4,7 @@ import { EMOTES, type ActionId } from '../characters/Actions';
 import type { EmoteKind } from '../characters/Emotes';
 import { DialogueBox } from './DialogueBox';
 import { loadFaces } from './Faces';
+import { DEV_MODE } from '../core/Settings';
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, className: string): HTMLElementTagNameMap[K] {
   const node = document.createElement(tag);
@@ -39,8 +40,8 @@ export interface IconSpot {
   rows: number;
 }
 
-/** A thing in the pouch, or in your paw: its name, icon and how many; for its card (see Hud.showCard), what it is for,
- * a line about it, and a word on it of its own (borrowed, back to its place each morning, bitten into), if any. */
+/** A box's things: their name, icon and how many; for the card in the bag (see Hud.pick), what they are for, a line
+ * about them, and a word of its own on the top one (borrowed, back to its place each morning, bitten into), if any. */
 export interface PouchThing {
   name: string;
   icon: IconSpot;
@@ -50,10 +51,10 @@ export interface PouchThing {
   note: string | null;
 }
 
-/** The pouch: what is in your paw and in each of its slots (null: empty). */
+/** The boxes: what is in each (null: empty), and which is in your paw (-1: none, your paw empty). */
 export interface PouchView {
-  hand: PouchThing | null;
   slots: (PouchThing | null)[];
+  paw: number;
 }
 
 const ICONS = 'models/props/item_icons.webp';
@@ -135,20 +136,28 @@ const VERB_GLYPH: [StringKey, string][] = [
   ['hud.getOut', 'boat'],
 ];
 
-/** The paw slot's mark: a paw print. */
+/** The mark on the box in your paw: a paw print. */
 const PAW =
   '<svg viewBox="0 0 24 24" aria-hidden="true">' +
   '<ellipse cx="12" cy="15.5" rx="5.6" ry="4.6" fill="currentColor"/>' +
   '<circle cx="6" cy="9.6" r="2.3" fill="currentColor"/><circle cx="10" cy="6.4" r="2.3" fill="currentColor"/>' +
   '<circle cx="14" cy="6.4" r="2.3" fill="currentColor"/><circle cx="18" cy="9.6" r="2.3" fill="currentColor"/>' +
   '</svg>';
-/** In the pouch: how long a slot is pressed before it is a long press (milliseconds), and how far it is pulled
+/** In the pouch: how long a box is pressed before it is a long press (milliseconds), and how far it is pulled
  * before it is dragged (pixels). How long a thing's name shows over the bar once it comes into your paw. */
 const LONG_PRESS = 450;
 const DRAG_FROM = 8;
 const NAME_FOR = 1600;
-/** Your paw's slot, among the pouch's (0 to 5). */
-const PAW_SLOT = -1;
+/** How many boxes there are (Hands.SLOTS), one of them in your paw. */
+const BOXES = 7;
+
+/** The times the hour's chip moves on to, in hours past midnight (as the test panel's: dawn, midday, dusk, night). */
+const TIMES: [StringKey, number][] = [
+  ['clock.morning', 6.3],
+  ['clock.noon', 12],
+  ['clock.evening', 18.1],
+  ['clock.night', 22],
+];
 
 /** The sound's button: a speaker, sounding (its waves) or not (crossed out). */
 const SPEAKER =
@@ -178,25 +187,25 @@ function disc(className: string, glyph: string): { button: HTMLButtonElement; fa
   return { button, face, cap };
 }
 
-/** One of the pouch's slots (PAW_SLOT your paw's, with its mark), on the bar or in the bag. */
-function slotButton(slot: number): HTMLButtonElement {
-  const node = el('button', slot === PAW_SLOT ? 'pack-slot is-paw' : 'pack-slot');
+/** One of the boxes, on the bar (its key with it: the keyboard's 1 to 7) or in the bag; the paw mark on it shows
+ * while it is in your paw (see .is-held). */
+function slotButton(slot: number, key: boolean): HTMLButtonElement {
+  const node = el('button', 'pack-slot');
   node.type = 'button';
   node.dataset.slot = String(slot);
-  if (slot === PAW_SLOT) {
-    const paw = el('span', 'pack-paw');
-    paw.innerHTML = PAW;
-    node.append(paw);
-  }
+  if (key) node.dataset.key = String(slot + 1);
+  const paw = el('span', 'pack-paw');
+  paw.innerHTML = PAW;
+  node.append(paw);
   return node;
 }
 
 /** Title (on the way in), the hour, the floating joystick, the jump button, the verbs on offer (the action button:
  * pick up, put down, give, sit, sleep, get into the cave's boat; the use button: eat, drink, play, read what you
- * hold), the pouch (its bar on a wide screen, its bag), the camera's button and your newest photo under it (the
- * album), the きもち button and its panel (what you do yourself: wave, bow, dance...), the sound's button, your own
- * words and marks out of your own eyes, the text box of what is said to you, a word now and then, and the test
- * toggle. Every control wears the shell of the user's Chiikawa-Hidamari (see styles.css). */
+ * hold), the seven boxes (their bar along the foot, the one in your paw marked, and the bag), the camera's button (to hold it up: see CameraView), the
+ * きもち button and its panel (what you do yourself: wave, bow, dance...), the sound's button, your own words and
+ * marks out of your own eyes, the text box of what is said to you, a word now and then, and the test toggle. Every
+ * control wears the shell of the user's Chiikawa-Hidamari (see styles.css). */
 export class Hud implements JoystickView {
   onJump: () => void = () => {};
   /** The jump button let go of (held, you jump higher). */
@@ -204,25 +213,31 @@ export class Hud implements JoystickView {
   onAction: () => void = () => {};
   onUse: () => void = () => {};
   onTest: () => void = () => {};
-  /** A slot of the pouch tapped (0 to 5): what is in it and what is in your paw change places. */
+  /** A box tapped on the bar (0 to 6), or もつ in the bag: into your paw (in it already, your paw emptied). */
   onSlot: (slot: number) => void = () => {};
-  /** Your paw's slot tapped: what is in your paw put away into the pouch. */
+  /** しまう in the bag: your paw emptied. */
   onStow: () => void = () => {};
-  /** A slot's things dragged onto another slot (0 to 5 each): onto its stack, or the two change places. */
+  /** A box's things dragged onto another box (0 to 6 each): onto its stack, or the two change places. */
   onMoveSlot: (from: number, to: number) => void = () => {};
-  /** The camera's button (a photo), and your newest photo under it (the album). */
+  /** The camera's button: your camera held up (see CameraView). */
   onCamera: () => void = () => {};
-  onPhotos: () => void = () => {};
   /** The sound turned on or off with its button. */
   onSound: (on: boolean) => void = () => {};
   /** Something to do picked from the きもち panel. */
   onEmote: (id: ActionId) => void = () => {};
+  /** A time picked under the hour's chip, to move on to (hours past midnight). */
+  onTime: (hours: number) => void = () => {};
 
+  /** All of it, put away while your camera is held up (see setShown). */
+  private readonly root = el('div', 'hud');
   /** The hour, top left: the sun or the moon, the time, and how fast the game draws. */
   private readonly chipMark = el('span', 'chip-mark');
   private readonly chipTime = el('span', 'chip-word');
   private readonly chipFps = el('span', 'chip-sub');
   private chipNight: boolean | null = null;
+  private chip: HTMLButtonElement | null = null;
+  /** The times to move on to, opening under the hour's chip (see TIMES). */
+  private readonly times = el('div', 'times');
   private readonly test = disc('hud-test', svg('test'));
   private readonly soundButton = disc('hud-sound', SPEAKER);
   private sound = true;
@@ -231,7 +246,6 @@ export class Hud implements JoystickView {
   private readonly emoteChips: HTMLButtonElement[] = [];
   private readonly bag = disc('bag-btn', svg('bag'));
   private readonly camera = disc('camera-btn', svg('camera'));
-  private readonly photoButton = el('button', 'photo-btn');
   private readonly joyBase = el('div', 'joy-base');
   private readonly joyKnob = el('div', 'joy-knob');
   private readonly jumpButton = el('button', 'act act-jump');
@@ -242,14 +256,14 @@ export class Hud implements JoystickView {
   private readonly useButton = el('button', 'ix');
   private use: string | null = null;
   private readonly verbGlyphs = new Map<string, string>();
-  /** The pouch's bar along the bottom, on a wide screen: your paw and the six slots; the name of what comes into your
-   * paw over it a moment. */
+  /** The boxes' bar along the foot of the screen, the one in your paw marked (the user, 2026-10-24: the Minecraft way,
+   * on every screen); the name of what comes into your paw over it a moment. */
   private readonly hotbar = el('div', 'hotbar');
   private readonly barSlots: HTMLButtonElement[] = [];
   private readonly barName = el('div', 'hotbar-name');
   private barNameTimer = 0;
   private shownHand: string | null = null;
-  /** The bag: your paw and the six slots, bigger, and what the one picked is, with what to do with it. */
+  /** The bag: the boxes bigger, and what the one picked is, with what to do with it. */
   private readonly sheet = el('div', 'sheet');
   private readonly bagSlots: HTMLButtonElement[] = [];
   private readonly detail = el('div', 'detail');
@@ -260,16 +274,16 @@ export class Hud implements JoystickView {
   private readonly detailMeta = el('div', 'detail-meta');
   private readonly detailHint = el('p', 'detail-hint');
   private readonly detailAct = el('button', 'act-btn is-live');
-  /** The slot picked in the bag (PAW_SLOT your paw's), or null. */
+  /** The box picked in the bag, or null. */
   private picked: number | null = null;
-  /** A thing dragged from slot to slot, under your finger. */
+  /** A thing dragged from box to box, under your finger. */
   private readonly dragIcon = el('div', 'pack-ghost');
-  /** A slot pressed: which, on the bar or in the bag, by which pointer, from where, and whether it became a long
+  /** A box pressed: which, on the bar or in the bag, by which pointer, from where, and whether it became a long
    * press or a drag. */
   private press: { slot: number; inBag: boolean; id: number; x: number; y: number; timer: number; long: boolean; drag: boolean } | null =
     null;
-  /** What the pouch and your paw hold, as last shown. */
-  private pouchView: PouchView = { hand: null, slots: [] };
+  /** What the boxes hold and which is in your paw, as last shown. */
+  private pouchView: PouchView = { slots: [], paw: -1 };
   private readonly toastBox = el('div', 'hud-toast');
   private toastTimer = 0;
   private readonly fadeBox = el('div', 'hud-fade');
@@ -277,10 +291,6 @@ export class Hud implements JoystickView {
   private readonly own = el('div', 'hud-own');
   private readonly ownBubble = el('div', 'own-words');
   private ownTimer = 0;
-  private readonly flashBox = el('div', 'hud-flash');
-  private readonly hint = el('div', 'hud-hint');
-  private readonly place = el('div', 'hud-place');
-  private placeTimer = 0;
   private readonly loading = el('div', 'loading');
   private readonly loadingTitle = el('div', 'loading-title');
   private readonly loadingWords = el('div', 'loading-words');
@@ -295,25 +305,42 @@ export class Hud implements JoystickView {
   private readonly guideName = el('span', 'guide-name');
 
   constructor(ui: HTMLElement) {
-    const root = el('div', 'hud');
+    const root = this.root;
     // Top left the hour; top right what you do with the game (how you feel, the sound, the tests), and down the
-    // side what you have and keep (the bag, the camera and its photos).
+    // side what you have and keep (the bag, the camera).
     const top = el('div', 'hud-top');
-    const chip = el('div', 'hud-chip');
-    const rule = el('span', 'chip-rule');
-    chip.append(this.chipMark, this.chipTime, rule, this.chipFps);
+    // The hour's chip: tapped, the times to move on to (see TIMES). How fast the game draws only in dev mode (?dev),
+    // as the test panel's toggle (the user, 2026-10-24).
+    const chip = el('button', 'hud-chip');
+    chip.type = 'button';
+    chip.append(this.chipMark, this.chipTime);
+    if (DEV_MODE) chip.append(el('span', 'chip-rule'), this.chipFps);
+    chip.addEventListener('click', () => this.toggleTimes());
+    this.chip = chip;
+    for (const [key, hours] of TIMES) {
+      const timeChip = el('button', 'emote-chip time-chip');
+      timeChip.type = 'button';
+      timeChip.dataset.word = key;
+      timeChip.addEventListener('click', () => {
+        this.closeTimes();
+        this.onTime(hours);
+      });
+      this.times.append(timeChip);
+    }
+    this.times.hidden = true;
+    const timeBox = el('div', 'time-box');
+    timeBox.append(chip, this.times);
     const emoteBox = el('div', 'emote-box');
     emoteBox.append(this.emote.button, this.emotes);
     const ctl = el('div', 'hud-ctl');
     ctl.append(emoteBox, this.soundButton.button, this.test.button);
-    top.append(chip, ctl);
+    // The test panel's toggle only in dev mode (?dev in the address; the user, 2026-10-24).
+    this.test.button.hidden = !DEV_MODE;
+    top.append(timeBox, ctl);
     const side = el('div', 'hud-side');
-    side.append(this.bag.button, this.camera.button, this.photoButton);
-    this.photoButton.type = 'button';
-    this.photoButton.hidden = true;
+    side.append(this.bag.button, this.camera.button);
     for (const [button, call] of [
       [this.camera.button, () => this.onCamera()],
-      [this.photoButton, () => this.onPhotos()],
       [this.soundButton.button, () => this.onSound(this.setSound(!this.sound))],
       [this.test.button, () => this.onTest()],
       [this.bag.button, () => this.togglePouch()],
@@ -323,14 +350,14 @@ export class Hud implements JoystickView {
     }
     this.joyBase.append(this.joyKnob);
 
-    // The pouch's bar: your paw and the six slots, each tapped, long-pressed or dragged (see bindSlot).
-    for (const slot of [PAW_SLOT, 0, 1, 2, 3, 4, 5]) {
-      const node = slotButton(slot);
+    // The boxes' bar, each box tapped, long-pressed or dragged (see bindSlot).
+    for (let slot = 0; slot < BOXES; slot++) {
+      const node = slotButton(slot, true);
       this.bindSlot(node, slot, false);
       this.barSlots.push(node);
     }
     this.hotbar.append(...this.barSlots, this.barName);
-    // The bag: a card over the island, its tab, its close, the slots bigger, and what the one picked is.
+    // The bag: a card over the island, its tab, its close, the boxes bigger, and what the one picked is.
     const scrim = el('div', 'sheet-scrim');
     scrim.addEventListener('pointerdown', () => this.togglePouch());
     const card = el('div', 'sheet-card');
@@ -347,8 +374,8 @@ export class Hud implements JoystickView {
     close.innerHTML = svg('close');
     close.addEventListener('click', () => this.togglePouch());
     const grid = el('div', 'bag-grid');
-    for (const slot of [PAW_SLOT, 0, 1, 2, 3, 4, 5]) {
-      const node = slotButton(slot);
+    for (let slot = 0; slot < BOXES; slot++) {
+      const node = slotButton(slot, false);
       this.bindSlot(node, slot, true);
       this.bagSlots.push(node);
       grid.append(node);
@@ -367,6 +394,7 @@ export class Hud implements JoystickView {
     this.dragIcon.hidden = true;
     window.addEventListener('keydown', (e) => {
       if (e.code === 'Escape' && this.sheet.classList.contains('is-open')) this.togglePouch();
+      if (e.code === 'Escape') this.closeTimes();
     });
 
     EMOTES.forEach((id, i) => {
@@ -399,9 +427,9 @@ export class Hud implements JoystickView {
     const bar = el('div', 'loadbar');
     bar.append(el('div', 'loadbar-fill'));
     this.loading.append(this.loadingTitle, bar, this.loadingWords);
-    // Under the hour, the name of the place you walk into over a word for a moment: one under the other.
+    // Under the hour, a word for a moment.
     const notes = el('div', 'hud-notes');
-    notes.append(this.place, this.toastBox);
+    notes.append(this.toastBox);
 
     root.append(
       top,
@@ -411,15 +439,13 @@ export class Hud implements JoystickView {
       this.hotbar,
       verbs,
       this.jumpButton,
-      this.hint,
       this.own,
       this.sheet,
-      this.flashBox,
       this.fadeBox,
       this.loading,
       this.dragIcon,
     );
-    // (Over the hint, under your own words, the night's fade and the rest.)
+    // (Under your own words, the night's fade and the rest.)
     this.dialogue = new DialogueBox(root);
     root.insertBefore(this.dialogue.element, this.own);
     void loadFaces();
@@ -460,14 +486,14 @@ export class Hud implements JoystickView {
     this.soundButton.cap.textContent = t('hud.sound');
     (this.jumpButton.querySelector('.sr-only') as HTMLElement).textContent = t('hud.jump');
     this.jumpButton.setAttribute('aria-label', t('hud.jump'));
-    this.photoButton.setAttribute('aria-label', t('album.title'));
     this.setSound(this.sound);
     EMOTES.forEach((id, i) => (this.emoteChips[i].textContent = t(`action.${id}` as StringKey)));
     for (const node of this.sheet.querySelectorAll<HTMLElement>('[data-word]')) node.textContent = t(node.dataset.word as StringKey);
+    for (const node of this.times.querySelectorAll<HTMLElement>('[data-word]')) node.textContent = t(node.dataset.word as StringKey);
+    this.chip?.setAttribute('aria-label', t('hud.time'));
     (this.sheet.querySelector('.sheet-close') as HTMLElement).setAttribute('aria-label', t('panel.close'));
     this.verbGlyphs.clear();
     for (const [key, glyph] of VERB_GLYPH) this.verbGlyphs.set(t(key), glyph);
-    this.hint.textContent = t('hud.hint');
     this.loadingTitle.textContent = t('app.title');
     if (!this.loading.classList.contains('error')) this.loadingWords.textContent = t('app.loading');
   }
@@ -492,20 +518,6 @@ export class Hud implements JoystickView {
     this.joyBase.classList.remove('active');
     this.joyBase.style.transform = `translate(92px, ${window.innerHeight - 150}px)`;
     this.joyKnob.style.transform = 'translate(-50%, -50%)';
-  }
-
-  hideHint(): void {
-    this.hint.classList.add('gone');
-  }
-
-  /** Shows a hint in the hint's place, or hides it again with null. */
-  showHint(text: string | null): void {
-    if (text === null) {
-      this.hideHint();
-      return;
-    }
-    this.hint.textContent = text;
-    this.hint.classList.remove('gone');
   }
 
   /** The hour in its chip, top left: the sun by day and the moon by night, the time (`label`), and `fps`. */
@@ -548,14 +560,15 @@ export class Hud implements JoystickView {
     this.useButton.classList.toggle('is-primary', this.actionButton.hidden && !this.useButton.hidden);
   }
 
-  /** Opens the bag, or shuts it (and the きもち panel, which opens near it). Opened, what your paw holds is picked. */
+  /** Opens the bag, or shuts it (and the きもち panel, which opens near it). Opened, the box in your paw is picked. */
   togglePouch(): void {
     const open = !this.sheet.classList.contains('is-open');
     this.sheet.classList.toggle('is-open', open);
     this.bag.button.classList.toggle('is-on', open);
     if (open) {
       this.closeEmotes();
-      this.pick(this.pouchView.hand ? PAW_SLOT : null);
+      this.closeTimes();
+      this.pick(this.pouchView.paw);
     }
   }
 
@@ -565,11 +578,29 @@ export class Hud implements JoystickView {
     this.pick(slot);
   }
 
+  /** Opens the times under the hour's chip, or shuts them (the きもち panel and the pouch shut first). */
+  toggleTimes(): void {
+    if (!this.times.hidden) {
+      this.closeTimes();
+      return;
+    }
+    this.closeEmotes();
+    if (this.sheet.classList.contains('is-open')) this.togglePouch();
+    this.times.hidden = false;
+    this.chip?.classList.add('is-on');
+  }
+
+  closeTimes(): void {
+    this.times.hidden = true;
+    this.chip?.classList.remove('is-on');
+  }
+
   /** Opens the きもち panel, or shuts it (and the pouch). */
   toggleEmotes(): void {
     if (this.emotes.hidden) {
       this.emotes.hidden = false;
       this.emote.button.classList.add('is-on');
+      this.closeTimes();
       if (this.sheet.classList.contains('is-open')) this.togglePouch();
     } else {
       this.closeEmotes();
@@ -621,32 +652,34 @@ export class Hud implements JoystickView {
     window.setTimeout(() => mark.remove(), OWN_MARK_FOR);
   }
 
-  /** What the pouch and your paw hold now: on the bar and in the bag alike. */
+  /** What the boxes hold now, and which is in your paw (marked with the paw, empty or not): on the bar and in the bag
+   * alike. */
   setPouch(view: PouchView): void {
     this.pouchView = view;
     const show = (node: HTMLElement, what: PouchThing | null) => {
       node.title = what?.name ?? '';
       node.setAttribute('aria-label', what?.name ?? t('hud.empty'));
       node.classList.toggle('is-empty', !what);
-      // How many a slot's stack has, on its foot (none for one).
+      node.classList.toggle('is-held', Number(node.dataset.slot) === view.paw);
+      // How many a box's stack has, on its foot (none for one).
       node.dataset.count = what && what.count > 1 ? String(what.count) : '';
       iconOn(node, what?.icon ?? null);
     };
     for (const nodes of [this.barSlots, this.bagSlots]) {
       nodes.forEach((node) => show(node, this.thingIn(Number(node.dataset.slot))));
     }
-    // (The bag as the pouch has it now; and, on the bar, the name of what has just come into your paw.)
-    if (this.sheet.classList.contains('is-open')) this.pick(this.picked !== null && this.thingIn(this.picked) ? this.picked : view.hand ? PAW_SLOT : null);
-    const hand = view.hand?.name ?? null;
+    // (The bag as the boxes have it now; and, on the bar, the name of what has just come into your paw.)
+    if (this.sheet.classList.contains('is-open')) this.pick(this.picked !== null && this.thingIn(this.picked) ? this.picked : view.paw);
+    const hand = this.thingIn(view.paw)?.name ?? null;
     if (hand !== this.shownHand) {
       this.shownHand = hand;
       if (hand) this.flashName(hand);
     }
   }
 
-  /** What is in slot `slot` of the pouch as last shown (PAW_SLOT: your paw), or null. */
+  /** What is in box `slot` as last shown, or null. */
   private thingIn(slot: number): PouchThing | null {
-    return (slot === PAW_SLOT ? this.pouchView.hand : this.pouchView.slots[slot]) ?? null;
+    return this.pouchView.slots[slot] ?? null;
   }
 
   /** Over the bar, a thing's name for a moment (as it comes into your paw, or is pressed). */
@@ -658,12 +691,11 @@ export class Hud implements JoystickView {
   }
 
   /**
-   * A slot of the pouch (PAW_SLOT your paw's), on the bar or in the bag (`inBag`). On the bar, tapped, its things and
-   * your paw's change places (your paw's slot tapped, what it holds is put away), its name over the bar; held (or
-   * clicked with the mouse's other button), the bag opens with it picked. In the bag, tapped or held, it is picked
-   * (see pick), and tapped again it is used (see usePicked). Either way, dragged onto another slot, at once or after a
-   * hold, its things go onto that one's stack or the two change places (dragged onto your paw, one comes into it;
-   * your paw's onto a slot, as a tap on that slot). With the mouse, pointing at a slot on the bar says its name.
+   * A box, on the bar or in the bag (`inBag`). On the bar, tapped, it comes into your paw (the box in your paw tapped,
+   * your paw is emptied), its name over the bar; held (or clicked with the mouse's other button), the bag opens with it
+   * picked. In the bag, tapped or held, it is picked (see pick), and tapped again it is used (see usePicked). Either
+   * way, dragged onto another box, at once or after a hold, its things go onto that one's stack or the two change
+   * places. With the mouse, pointing at a box on the bar says its name.
    */
   private bindSlot(node: HTMLButtonElement, slot: number, inBag: boolean): void {
     node.addEventListener('pointerdown', (e) => {
@@ -710,9 +742,8 @@ export class Hud implements JoystickView {
         if (inBag) {
           if (this.picked === slot) this.usePicked();
           else this.pick(slot);
-        } else if (slot === PAW_SLOT) this.onStow();
-        else {
-          const what = this.thingIn(slot);
+        } else {
+          const what = slot === this.pouchView.paw ? null : this.thingIn(slot);
           this.onSlot(slot);
           if (what) this.flashName(what.name);
         }
@@ -745,22 +776,20 @@ export class Hud implements JoystickView {
     nodes.find((n) => Number(n.dataset.slot) === to)?.classList.add('is-over');
   }
 
-  /** The pouch's slot at (x, y) on the screen (PAW_SLOT your paw's), or null. */
+  /** The box at (x, y) on the screen, or null. */
   private slotAt(x: number, y: number): number | null {
     const node = document.elementFromPoint(x, y)?.closest<HTMLElement>('.pack-slot');
     return node?.dataset.slot !== undefined ? Number(node.dataset.slot) : null;
   }
 
-  /** A slot's things dropped onto another's (see bindSlot). */
+  /** A box's things dropped onto another's (see bindSlot). */
   private dropped(from: number, to: number): void {
-    if (from === PAW_SLOT) this.onSlot(to);
-    else if (to === PAW_SLOT) this.onSlot(from);
-    else this.onMoveSlot(from, to);
+    this.onMoveSlot(from, to);
   }
 
-  /** In the bag, `slot` picked (PAW_SLOT your paw's; null none): lifted among the slots, and under them what it is
-   * (its icon, name and how many, what it is for, a line about it, a word of its own) with what to do with it: to
-   * hold it (もつ), or, in your paw, to put it away (しまう). Nothing picked, how the bag is used. */
+  /** In the bag, box `slot` picked (null, or an empty box: none): lifted among the boxes, and under them what it
+   * holds (its icon, name and how many, what it is for, a line about it, a word of its own) with what to do with it:
+   * to hold it (もつ), or, in your paw, to put it away (しまう). Nothing picked, how the bag is used. */
   private pick(slot: number | null): void {
     const what = slot === null ? null : this.thingIn(slot);
     this.picked = what ? slot : null;
@@ -776,14 +805,14 @@ export class Hud implements JoystickView {
     this.detailKind.textContent = what.kind;
     this.detailMeta.textContent = what.note ?? '';
     this.detailAbout.textContent = what.about ?? '';
-    this.detailAct.textContent = t(slot === PAW_SLOT ? 'pouch.stow' : 'pouch.hold');
+    this.detailAct.textContent = t(slot === this.pouchView.paw ? 'pouch.stow' : 'pouch.hold');
   }
 
-  /** What is picked in the bag, used: into your paw (もつ), or out of it into the pouch (しまう). */
+  /** What is picked in the bag, used: into your paw (もつ), or, in it, put away (しまう). */
   private usePicked(): void {
     const slot = this.picked;
     if (slot === null) return;
-    if (slot === PAW_SLOT) this.onStow();
+    if (slot === this.pouchView.paw) this.onStow();
     else this.onSlot(slot);
   }
 
@@ -793,18 +822,6 @@ export class Hud implements JoystickView {
     this.toastBox.classList.add('shown');
     window.clearTimeout(this.toastTimer);
     this.toastTimer = window.setTimeout(() => this.toastBox.classList.remove('shown'), 2200);
-  }
-
-  /** Your newest photo under the camera's button, to open the album with (null: none yet, and no button); one
-   * just taken comes in with a little pop (`taken`). */
-  setLastPhoto(url: string | null, taken = false): void {
-    this.photoButton.hidden = !url;
-    this.photoButton.style.backgroundImage = url ? `url(${url})` : '';
-    this.photoButton.classList.remove('taken');
-    if (url && taken) {
-      void this.photoButton.offsetWidth;
-      this.photoButton.classList.add('taken');
-    }
   }
 
   /** Shows the sound on or off on its button; returns `on`. */
@@ -818,11 +835,14 @@ export class Hud implements JoystickView {
     return on;
   }
 
-  /** The camera's flash, over the screen for a moment. */
-  flash(): void {
-    this.flashBox.classList.remove('on');
-    void this.flashBox.offsetWidth;
-    this.flashBox.classList.add('on');
+  /** All of the HUD shown, or put away while your camera is held up (the bag and the きもち panel shut first). */
+  setShown(on: boolean): void {
+    if (!on) {
+      this.closeEmotes();
+      this.closeTimes();
+      if (this.sheet.classList.contains('is-open')) this.togglePouch();
+    }
+    this.root.hidden = !on;
   }
 
   /** Fades the screen to the night's dark (true) or back (false), resolving once it has. */
@@ -837,13 +857,6 @@ export class Hud implements JoystickView {
     this.hotbar.classList.toggle('is-off', !on);
   }
 
-  /** The name of the place just walked into, showing for a moment under the hour. */
-  showPlace(name: string): void {
-    this.place.textContent = name;
-    this.place.classList.add('shown');
-    window.clearTimeout(this.placeTimer);
-    this.placeTimer = window.setTimeout(() => this.place.classList.remove('shown'), 2600);
-  }
 
   doneLoading(): void {
     this.loading.classList.add('is-gone');

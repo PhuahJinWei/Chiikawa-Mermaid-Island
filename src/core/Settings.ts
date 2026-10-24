@@ -1,5 +1,9 @@
 import { CHARACTER_IDS, type CharacterId } from '../characters/types';
 
+/** Dev mode: the address has ?dev (the user, 2026-10-24), wherever the game is served from. It shows the テスト
+ * button and how fast the game draws; without it, the game as everyone plays it. */
+export const DEV_MODE = typeof location !== 'undefined' && new URLSearchParams(location.search).has('dev');
+
 /** v2 since you play a nameless islander (2026-10-21): a choice of the cast saved before that starts
  * as the islander again. */
 const KEY = 'mermaid-island:settings:v2';

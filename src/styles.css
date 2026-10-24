@@ -110,7 +110,7 @@ body {
 
 /* ---------------------------------------------------------------- the corners
    Top left the hour; top right what you do with the game (how you feel, the sound, the tests), and down the
-   right what you have (the bag, the camera and its photos); bottom left the stick, bottom right the jump and the
+   right what you have (the bag, the camera); bottom left the stick, bottom right the jump and the
    verbs on offer over it. */
 .hud-top {
   position: absolute;
@@ -123,19 +123,60 @@ body {
   gap: 10px;
 }
 
-/* The hour: the sun or the moon, the time, a rule, how fast the game draws. */
+/* The hour: the sun or the moon, the time (and, served for development, a rule and how fast the game draws).
+   Tapped, the times to move on to open under it (the user, 2026-10-24), and it wears the accent while they show. */
+.time-box {
+  position: relative;
+  flex: none;
+}
+
 .hud-chip {
   --ring-w: 3.5px;
   --ring-gap: 2px;
+  pointer-events: auto;
   flex: none;
   display: flex;
   align-items: center;
   gap: 7px;
   height: 40px;
   padding: 0 14px 0 12px;
+  border: none;
   border-radius: 20px;
   background: var(--face);
   box-shadow: var(--shell);
+  cursor: pointer;
+  transition: transform 0.12s ease;
+}
+
+.hud-chip:active {
+  transform: translateY(2px) scale(0.97);
+}
+
+.hud-chip.is-on {
+  background: var(--accent);
+  box-shadow: var(--shell-live);
+}
+
+/* The times, under the hour's chip, as the きもち panel opens under its disc. */
+.times {
+  pointer-events: auto;
+  position: absolute;
+  top: calc(100% + 10px);
+  left: 0;
+  z-index: 5;
+  width: max-content;
+  display: grid;
+  grid-template-columns: repeat(2, auto);
+  gap: 8px;
+  padding: 12px;
+  border: 2.5px solid var(--ink);
+  border-radius: 24px;
+  background: rgba(255, 253, 247, 0.97);
+  box-shadow: 0 6px 18px rgba(91, 76, 68, 0.14);
+  font-size: 13px;
+  font-weight: 700;
+  transform-origin: top left;
+  animation: panel-in 0.26s cubic-bezier(0.22, 1.2, 0.36, 1);
 }
 
 .chip-mark {
@@ -278,40 +319,6 @@ body {
 
 .hud-sound.off .ctl-disc {
   color: var(--ink-soft);
-}
-
-/* Your newest photo, under the camera: the album opens from it; one just taken comes in with a pop. */
-.photo-btn {
-  --ring-w: 3px;
-  --ring-gap: 2px;
-  pointer-events: auto;
-  width: 50px;
-  height: 40px;
-  border: none;
-  border-radius: 12px;
-  background-color: var(--face);
-  background-size: cover;
-  background-position: center;
-  box-shadow: var(--shell);
-  padding: 0;
-  cursor: pointer;
-}
-
-.photo-btn:active {
-  transform: scale(0.94);
-}
-
-.photo-btn.taken {
-  animation: photo-taken 0.35s ease-out;
-}
-
-@keyframes photo-taken {
-  from {
-    transform: scale(1.35);
-  }
-  to {
-    transform: scale(1);
-  }
 }
 
 /* The きもち panel: what you do yourself, opening under its disc. */
@@ -606,8 +613,9 @@ body {
 }
 
 /* ---------------------------------------------------------------- the pouch
-   Its slots, on the bar and in the bag alike: a rounded square in ink, dashed while empty, its count on its foot;
-   your paw's with its paw mark on its corner and the accent round it. */
+   Its seven boxes, on the bar and in the bag alike: a rounded square in ink, dashed while empty, its count on its
+   foot; the one in your paw (the user, 2026-10-24: the Minecraft way) with the accent round it and the paw mark on
+   its corner, empty or not. */
 .pack-slot {
   position: relative;
   aspect-ratio: 1;
@@ -633,15 +641,19 @@ body {
   background-color: rgba(255, 253, 247, 0.55);
 }
 
-.pack-slot.is-paw {
-  box-shadow: 0 0 0 3px var(--accent), 0 0 0 4.5px rgba(91, 76, 68, 0.5);
+.pack-slot.is-held {
+  box-shadow: 0 0 0 3.5px var(--accent), 0 0 0 5.5px var(--ink);
+}
+
+.pack-slot.is-held.is-empty {
+  border-color: rgba(91, 76, 68, 0.6);
 }
 
 .pack-paw {
   position: absolute;
   top: -9px;
   left: -9px;
-  display: grid;
+  display: none;
   place-items: center;
   width: 22px;
   height: 22px;
@@ -650,6 +662,10 @@ body {
   color: var(--ring);
   box-shadow: 0 0 0 2px var(--ring), 0 0 0 3.5px var(--rim);
   pointer-events: none;
+}
+
+.pack-slot.is-held .pack-paw {
+  display: grid;
 }
 
 .pack-paw svg {
@@ -711,32 +727,54 @@ body {
   pointer-events: none;
 }
 
-/* The bar, on a wide screen: your paw and the six slots on a paper tray at the foot of the view, between the
-   thumbs; the name of what comes into your paw over it a moment. */
+/* The bar, on every screen: the seven boxes on a paper tray at the foot of the view, between the thumbs (on a
+   narrow screen across its foot, the jump over it: see below), the one in your paw lifted; the name of what comes
+   into your paw over it a moment. */
 .hotbar {
   --ring-w: 3.5px;
   --ring-gap: 2px;
+  --slot: 46px;
+  --slot-gap: 7px;
   pointer-events: auto;
   position: absolute;
   left: 50%;
   bottom: calc(12px + env(safe-area-inset-bottom));
   transform: translateX(-50%);
-  display: none;
+  display: flex;
   align-items: center;
-  gap: 7px;
+  gap: var(--slot-gap);
   padding: 7px 10px;
   border-radius: 22px;
   background: var(--face);
   box-shadow: var(--shell);
 }
 
+.hotbar.is-off {
+  display: none;
+}
+
 .hotbar .pack-slot {
-  width: 46px;
+  width: var(--slot);
   border-radius: 13px;
 }
 
-.hotbar .pack-slot.is-paw {
-  margin-right: 6px;
+.hotbar .pack-slot.is-held {
+  transform: translateY(-3px);
+}
+
+/* Each box's key, where there is a keyboard: 1 to 7, faint in its corner. */
+@media (hover: hover) and (pointer: fine) {
+  .hotbar .pack-slot::before {
+    content: attr(data-key);
+    position: absolute;
+    top: 3px;
+    right: 5px;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1;
+    opacity: 0.42;
+    pointer-events: none;
+  }
 }
 
 /* (Its paw mark kept on the tray.) */
@@ -774,18 +812,26 @@ body {
   transform: translate(-50%, 0);
 }
 
-@media (orientation: landscape) and (min-width: 600px) {
+/* On a narrow screen (a phone held upright), the bar across the foot, its boxes as big as fit beside one another,
+   and the jump and the verbs over it lifted clear of it. */
+@media (max-width: 599px) {
   .hotbar {
-    display: flex;
+    --slot-gap: 5px;
+    --slot: min(46px, calc((100vw - 24px - env(safe-area-inset-left) - env(safe-area-inset-right) - 20px - 30px) / 7));
+    bottom: calc(10px + env(safe-area-inset-bottom));
   }
 
-  .hotbar.is-off {
-    display: none;
+  .act-jump {
+    bottom: calc(86px + env(safe-area-inset-bottom));
+  }
+
+  .hud-verbs {
+    bottom: max(calc(178px + env(safe-area-inset-bottom)), 17vh);
   }
 }
 
-/* The bag: a paper card over the island, its tab, its close, the slots bigger (your paw's two wide and two tall),
-   and under them what the one picked is and what to do with it. */
+/* The bag: a paper card over the island, its tab, its close, the seven boxes bigger (four a row; on a wide screen
+   all in one, as on the bar), and under them what the one picked is and what to do with it. */
 .sheet {
   pointer-events: auto;
   position: absolute;
@@ -898,28 +944,24 @@ body {
 
 .bag-grid {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 9px;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  padding: 6px 4px 0;
 }
 
-.bag-grid .pack-slot.is-paw {
-  grid-column: 1 / span 2;
-  grid-row: 1 / span 2;
-  margin: 4px 6px 4px 4px;
+.bag-grid .pack-slot {
   border-width: 3px;
-  border-radius: 20px;
+  border-radius: 18px;
 }
 
-.bag-grid .pack-slot.is-paw .pack-paw {
-  top: -10px;
-  left: -10px;
-  width: 26px;
-  height: 26px;
-}
+@media (min-width: 600px) and (min-height: 501px) {
+  .sheet-card {
+    width: min(92vw, 560px);
+  }
 
-.bag-grid .pack-slot.is-paw .pack-paw svg {
-  width: 15px;
-  height: 15px;
+  .bag-grid {
+    grid-template-columns: repeat(7, 1fr);
+  }
 }
 
 /* What the one picked is: its icon, its name and how many, what it is for and a word of its own, a line about
@@ -1132,20 +1174,44 @@ body {
   }
 }
 
-/* The camera's flash. */
-.hud-flash {
+/* ---------------------------------------------------------------- the camera
+   Held up (the camera's button; the user, 2026-10-24: as a phone's camera app looks, its black bars but no grid,
+   which was too much): the photo's frame in the middle of the screen (its place and size from CameraView.layout:
+   --fx, --fy, --fw, --fh), the dark round it; in the middle of the dark, in white as a phone's are, each on a shade
+   of its own, × and the photo's shape along the top and the shutter with its zoom chips along the bottom (down
+   the left and the right, on a wide screen or one held sideways), over the frame's edge where too little dark is
+   left for them; the one live thing the accent. A photo taken comes up as a print over the island dimmed, asking
+   what to do with it. (A button's words take the size of what they are in: see #ui button.) */
+.cam {
   position: absolute;
   inset: 0;
-  background: #fff;
-  opacity: 0;
+  z-index: 20;
+  color: #fff;
   pointer-events: none;
 }
 
-.hud-flash.on {
-  animation: flash 0.5s ease-out;
+.cam-frame {
+  position: absolute;
+  left: var(--fx);
+  top: var(--fy);
+  width: var(--fw);
+  height: var(--fh);
+  box-shadow: 0 0 0 200vmax #0d0b0a;
 }
 
-@keyframes flash {
+/* The shutter: the frame dark a moment, as a phone's goes. */
+.cam-blink {
+  position: absolute;
+  inset: 0;
+  background: #000;
+  opacity: 0;
+}
+
+.cam-blink.on {
+  animation: cam-blink 0.3s ease-out;
+}
+
+@keyframes cam-blink {
   from {
     opacity: 0.85;
   }
@@ -1154,171 +1220,322 @@ body {
   }
 }
 
-/* ---------------------------------------------------------------- the album
-   Your photos, opened from the newest one by the camera: a card as the bag's; a photo opened large on a card of
-   its own, its buttons the accent. */
-.album-panel {
+/* ×, top left, and the photo's shape, top right (down the left, held sideways: × at its top, the shape at its
+   foot): in the middle of the dark. */
+.cam-close,
+.cam-tool {
   pointer-events: auto;
   position: absolute;
-  inset: 0;
-  z-index: 11;
+  top: max(calc(16px + env(safe-area-inset-top)), calc(var(--fy) / 2 - 22px));
+  left: calc(16px + env(safe-area-inset-left));
   display: grid;
   place-items: center;
-  background: rgba(91, 76, 68, 0.3);
-  backdrop-filter: blur(2px);
-  -webkit-backdrop-filter: blur(2px);
-  padding: calc(16px + env(safe-area-inset-top)) 16px calc(16px + env(safe-area-inset-bottom));
-}
-
-.album-card {
-  position: relative;
-  width: min(92vw, 440px);
-  max-height: min(80vh, 640px);
-  display: flex;
-  flex-direction: column;
-  border: 3px solid var(--ink);
-  border-radius: 26px;
-  background: var(--paper);
-  box-shadow: 0 10px 26px rgba(91, 76, 68, 0.24);
-  overflow: hidden;
-  animation: card-in 0.24s cubic-bezier(0.22, 1.2, 0.36, 1);
-}
-
-@keyframes card-in {
-  from {
-    transform: scale(0.9);
-  }
-  to {
-    transform: scale(1);
-  }
-}
-
-.album-head {
-  display: flex;
-  align-items: center;
-  min-height: 56px;
-  padding: 14px 56px 6px 14px;
-}
-
-.album-title {
-  --ring-w: 3px;
-  padding: 5px 14px;
-  border-radius: 999px;
-  background: var(--accent);
-  box-shadow: var(--shell-flat-live);
-  font-weight: 700;
-  font-size: 13px;
-}
-
-.album-body {
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  touch-action: pan-y;
-  padding: 6px 14px 14px;
-  flex: 1;
-}
-
-.album {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 9px;
-}
-
-.album-photo {
-  aspect-ratio: 4 / 3;
-  border: 2.5px solid var(--ink);
-  border-radius: 14px;
-  background-size: cover;
-  background-position: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.32);
   cursor: pointer;
+  touch-action: manipulation;
   transition: transform 0.12s ease;
 }
 
-.album-photo:active {
-  transform: scale(0.95);
+.cam-tool {
+  left: auto;
+  right: calc(16px + env(safe-area-inset-right));
 }
 
-.album-empty {
-  padding: 28px 8px;
-  text-align: center;
-  font-size: 13px;
-  font-weight: 500;
-  line-height: 1.5;
-  opacity: 0.6;
+.cam.is-wide .cam-close,
+.cam.is-wide .cam-tool {
+  top: calc(16px + env(safe-area-inset-top));
+  left: max(calc(16px + env(safe-area-inset-left)), calc(var(--fx) / 2 - 22px));
+  right: auto;
 }
 
-.photo-viewer {
+.cam.is-wide .cam-tool {
+  top: auto;
+  bottom: calc(16px + env(safe-area-inset-bottom));
+}
+
+.cam-close:active,
+.cam-tool:active {
+  transform: scale(0.92);
+}
+
+.cam-shape {
+  padding: 1px 5px;
+  border: 1.6px solid currentColor;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.3;
+  font-variant-numeric: tabular-nums;
+}
+
+.cam-close svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+/* The shutter in the middle of the dark, its zoom chips over it on the frame's edge (beside it, on a wide
+   screen). */
+.cam-controls {
+  position: absolute;
+  left: 50%;
+  bottom: max(calc(28px + env(safe-area-inset-bottom)), calc(var(--fy) / 2 - 39px));
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.cam.is-wide .cam-controls {
+  left: auto;
+  bottom: auto;
+  top: 50%;
+  right: max(calc(28px + env(safe-area-inset-right)), calc(var(--fx) / 2 - 39px));
+  transform: translateY(-50%);
+  flex-direction: row;
+}
+
+.cam.is-review .cam-close,
+.cam.is-review .cam-tool,
+.cam.is-review .cam-controls {
+  display: none;
+}
+
+/* The zoom chips: the one the zoom has reached a little bigger, saying in the accent how near it brings things
+   now. */
+.cam-zoom {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.25);
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.cam.is-wide .cam-zoom {
+  flex-direction: column-reverse;
+}
+
+.cam-chip {
+  pointer-events: auto;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.42);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: transform 0.15s ease;
+}
+
+#ui .cam-chip.is-on {
+  color: var(--accent);
+  transform: scale(1.14);
+}
+
+/* The shutter: a white disc in a white ring, as a phone's, a soft shade under it for the sky and the sand;
+   pressed, the disc gives. */
+.cam-shutter {
+  pointer-events: auto;
+  display: grid;
+  place-items: center;
+  width: 78px;
+  height: 78px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.12);
+  box-shadow: inset 0 0 0 4px #fff, 0 2px 12px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.cam-shutter-disc {
+  width: 62px;
+  height: 62px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.18);
+  transition: transform 0.1s ease, background 0.1s ease;
+}
+
+.cam-shutter:active .cam-shutter-disc {
+  transform: scale(0.86);
+  background: #ddd5ce;
+}
+
+/* A photo taken: a print over the island dimmed, the question and what to do under it (beside it, on a wide
+   screen): keep it on your device (the accent), share it, or take another. */
+.cam-review {
+  pointer-events: auto;
   position: absolute;
   inset: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
+  gap: 20px;
+  padding: calc(28px + env(safe-area-inset-top)) calc(20px + env(safe-area-inset-right))
+    calc(28px + env(safe-area-inset-bottom)) calc(20px + env(safe-area-inset-left));
+  background: rgba(13, 11, 10, 0.55);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+}
+
+.cam.is-wide .cam-review {
+  flex-direction: row;
+  gap: 28px;
+}
+
+.cam-print {
+  flex: 1 1 0;
+  align-self: stretch;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  align-items: center;
   justify-content: center;
-  gap: 12px;
-  padding: 16px;
-  background: rgba(58, 44, 38, 0.58);
-  backdrop-filter: blur(3px);
-  -webkit-backdrop-filter: blur(3px);
 }
 
-.photo-large {
+.cam-shot {
   display: block;
-  max-width: min(86vw, 420px);
-  max-height: 62vh;
-  object-fit: contain;
-  border-radius: 14px;
-  box-shadow: 0 0 0 6px var(--face), 0 0 0 9px var(--ring), 0 0 0 12px var(--rim), var(--drop);
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: 6px;
+  box-shadow: 0 0 0 4px #fff, 0 12px 30px rgba(0, 0, 0, 0.45);
+  animation: cam-print 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-.photo-caption {
-  padding: 3px 12px;
-  border-radius: 999px;
-  background: rgba(255, 253, 247, 0.9);
-  font-size: 12px;
+@keyframes cam-print {
+  from {
+    opacity: 0;
+    transform: scale(1.06);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.cam-panel {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.cam.is-wide .cam-panel {
+  width: 150px;
+}
+
+.cam-ask {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.4;
+  text-align: center;
+}
+
+.cam-ask span {
+  display: inline-block;
+}
+
+.cam-acts {
+  display: flex;
+  gap: 10px;
+  font-size: 14px;
   font-weight: 700;
 }
 
-.photo-buttons {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 8px;
+.cam.is-wide .cam-acts {
+  flex-direction: column-reverse;
+  align-self: stretch;
 }
 
-.photo-button {
-  --ring-w: 4px;
+.cam-act {
+  pointer-events: auto;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 76px;
-  height: 42px;
-  padding: 0 16px;
+  min-width: 92px;
+  height: 44px;
+  padding: 0 18px;
   border: none;
-  border-radius: 21px;
-  background: var(--accent);
-  box-shadow: var(--shell-live);
-  color: var(--ink);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.16);
+  font-size: 14px;
   font-weight: 700;
-  font-size: 13px;
   text-decoration: none;
   cursor: pointer;
+  touch-action: manipulation;
 }
 
-.photo-button:active {
+.cam-act:active {
   transform: scale(0.95);
+}
+
+.cam-act.is-save {
+  --ring-w: 3px;
+  background: var(--accent);
+  color: var(--ink);
+  box-shadow: var(--shell-flat-live);
+}
+
+.cam-act.is-wait {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+/* A word for a moment in the middle of the screen (ほぞんした). */
+.cam-toast {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  padding: 10px 20px;
+  border-radius: 999px;
+  background: rgba(13, 11, 10, 0.72);
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.9);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.cam-toast.shown {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
 }
 
 /* ---------------------------------------------------------------- what is said to you
    A paper card low on the screen (over the buttons on a phone held upright, between the stick and the buttons on
-   a wide screen or one held sideways, over the bar when it shows), the speaker's name on its corner in the
+   a wide screen or one held sideways, over the boxes' bar), the speaker's name on its corner in the
    accent, their face on a disc standing out of it, ▼ once the line is all out; what you may answer under it. */
 .dialogue {
   pointer-events: auto;
   position: absolute;
   left: calc(12px + env(safe-area-inset-left));
   right: calc(12px + env(safe-area-inset-right));
-  bottom: calc(206px + env(safe-area-inset-bottom));
-  min-height: 78px;
+  bottom: calc(240px + env(safe-area-inset-bottom));
+  /* One steady size (the user, 2026-10-24: a box that moves is hard to read): room for two lines of words (the
+     longest line is 31 characters) and the answers, the words at its top and the answers at its foot, so nothing
+     moves as a line types out or from one line to the next. On a phone held upright the three answers take two
+     rows; where the box is wider, one. */
+  display: flex;
+  flex-direction: column;
+  min-height: 194px;
   padding: 18px 20px 14px;
   border: 3px solid var(--ink);
   border-radius: 24px;
@@ -1339,11 +1556,12 @@ body {
 /* (Held sideways it is always between them: across the screen it would cover the jump and the verbs.) */
 @media (min-width: 700px), (orientation: landscape) {
   .dialogue {
+    min-height: 150px;
     left: 50%;
     right: auto;
     width: min(520px, 52vw);
     margin-left: calc(min(520px, 52vw) / -2);
-    bottom: calc(24px + env(safe-area-inset-bottom));
+    bottom: calc(86px + env(safe-area-inset-bottom));
   }
 }
 
@@ -1419,15 +1637,26 @@ body {
   left: 80px;
 }
 
+/* The answers' room is kept from the line's first character (a row of faces may take two), and they show once it
+   is all out, fading in where they were going to be. */
 .dialogue-choices {
   display: none;
   flex-wrap: wrap;
   gap: 8px;
-  margin-top: 12px;
+  margin-top: auto;
+  padding-top: 12px;
+}
+
+.dialogue.asks .dialogue-choices {
+  display: flex;
+  visibility: hidden;
+  opacity: 0;
 }
 
 .dialogue.asks.typed .dialogue-choices {
-  display: flex;
+  visibility: visible;
+  opacity: 1;
+  transition: opacity 0.2s ease;
 }
 
 .dialogue.asks .dialogue-next {
@@ -1547,9 +1776,9 @@ body {
 }
 
 /* ---------------------------------------------------------------- a word for a moment
-   Notices, as Hidamari's are: under the hour, the name of the place you walk into over what you picked up (that
-   the pouch is full...), one under the other, each taking its room only while it shows; low over the stick, the
-   hint on the way in, gone while someone talks to you. Each the cream face in the shell. */
+   Notices, as Hidamari's are: under the hour, what you picked up (that the pouch is full...), taking its room only
+   while it shows; the cream face in the shell. (The name of the place you walk into no longer shows: the user,
+   2026-10-24.) */
 .hud-notes {
   position: absolute;
   left: 50%;
@@ -1563,9 +1792,7 @@ body {
   pointer-events: none;
 }
 
-.hud-toast,
-.hud-place,
-.hud-hint {
+.hud-toast {
   --ring-w: 3px;
   --ring-gap: 2px;
   max-width: 100%;
@@ -1575,10 +1802,6 @@ body {
   line-height: 1.5;
   text-align: center;
   pointer-events: none;
-}
-
-.hud-toast,
-.hud-place {
   max-height: 0;
   padding: 0 16px;
   overflow: hidden;
@@ -1589,39 +1812,12 @@ body {
   transition: opacity 0.35s ease, transform 0.35s ease, max-height 0.35s ease, padding 0.35s ease, margin 0.35s ease;
 }
 
-.hud-toast.shown,
-.hud-place.shown {
+.hud-toast.shown {
   max-height: 90px;
   padding: 6px 16px;
   margin-bottom: 10px;
   opacity: 1;
   transform: none;
-}
-
-.hud-place {
-  font-size: 15px;
-}
-
-.hud-place.shown {
-  padding: 6px 20px;
-}
-
-.hud-hint {
-  position: absolute;
-  left: 50%;
-  bottom: calc(230px + env(safe-area-inset-bottom));
-  transform: translateX(-50%);
-  width: max-content;
-  max-width: min(86vw, 420px);
-  padding: 8px 16px;
-  font-size: 13px;
-  font-weight: 500;
-  transition: opacity 0.6s;
-}
-
-.hud-hint.gone,
-.hud:has(.dialogue.shown:not([hidden])) .hud-hint {
-  opacity: 0;
 }
 
 /* The night as you sleep through it, and the morning after. */
@@ -1824,8 +2020,8 @@ body {
 
 /* ---------------------------------------------------------------- held sideways, and on a wide screen
    Held sideways (short), the side's controls come up into the top row beside the rest, out of the way of the
-   verbs over the jump, and the notices under that row; with the bar along the foot (landscape, wide enough), the
-   text box of what is said to you and the hint sit over it. */
+   verbs over the jump, and the notices under that row. (The text box of what is said to you sits over the bar,
+   which is along the foot on every screen: see .dialogue.) */
 @media (max-height: 500px) {
   .hud-side {
     top: calc(12px + env(safe-area-inset-top));
@@ -1841,10 +2037,6 @@ body {
     transform: none;
     max-width: 200px;
     align-items: flex-start;
-  }
-
-  .hud-hint {
-    bottom: calc(196px + env(safe-area-inset-bottom));
   }
 
   /* The bag wider than tall: its slots on the left, what the one picked is on the right. */
@@ -1870,12 +2062,3 @@ body {
   }
 }
 
-@media (orientation: landscape) and (min-width: 600px) {
-  .dialogue {
-    bottom: calc(86px + env(safe-area-inset-bottom));
-  }
-
-  .hud-hint {
-    bottom: calc(196px + env(safe-area-inset-bottom));
-  }
-}

@@ -49,7 +49,14 @@ export interface Profile {
   curious?: number;
   /** What they like (see Taste). */
   likes?: Taste;
+  /** An islander's way of speaking (see VOICES and lines.ts); the cast speak as themselves. */
+  voice?: IslanderVoice;
 }
+
+/** The islanders' ways of speaking (the user, 2026-10-24: not all one voice): bright and chatty, quiet and
+ * halting, an old-timer, a child. Their lines are under `group.<voice>` in locales/ja.json. */
+export const VOICES = ['cheery', 'shy', 'elder', 'kid'] as const;
+export type IslanderVoice = (typeof VOICES)[number];
 
 /** Who the cast count as friends besides whoever they live and go about with (see Choices.friendsOf): to give
  * their keepsakes to and go over to for a word. */
@@ -224,6 +231,7 @@ export function islanderProfile(index: number, mate: string | null = null): Prof
     ...way,
     feast: index % 4 === 1 ? 'dance' : undefined,
     with: mate && index % 3 === 0 ? mate : undefined,
+    voice: VOICES[(index * 3 + 1) % VOICES.length],
     curious: 0.3 + 0.5 * seeded(index * 31 + 7)(),
   };
 }

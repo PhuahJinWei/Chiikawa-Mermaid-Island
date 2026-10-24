@@ -52,6 +52,25 @@ const BUBBLE_TOP = 0.9;
 const _ndc = new THREE.Vector3();
 const _eyes = new THREE.Vector3();
 const ON_TOP = new Set<EmoteKind | 'bubble'>(['exclaim', 'question', 'bubble']);
+/** Drawn over the finished picture (see EmoteSystem.overlay), a mark is hidden where the scene lies nearer than it
+ * by more than this (metres): a bubble or a ！ by so much, so that whoever stands just before the one it is over
+ * never cuts it, but a wall between does; anything else (a note, a heart) by a hair, as if it were in the scene. */
+export const SLACK_ON_TOP = 1.2;
+const SLACK = 0.05;
+/** Each mark's own test against the scene's depth (see SLACK), worked into the sprites' shader. */
+const DEPTH_TEST = `
+uniform sampler2D tSceneDepth;
+uniform float uUseDepth;
+uniform float uNear;
+uniform float uFar;
+uniform float uSlack;
+#include <packing>
+void main() {
+  if (uUseDepth > 0.5) {
+    float sceneZ = texture2D(tSceneDepth, gl_FragCoord.xy / vec2(textureSize(tSceneDepth, 0))).x;
+    if (perspectiveDepthToViewZ(sceneZ, uNear, uFar) > perspectiveDepthToViewZ(gl_FragCoord.z, uNear, uFar) + uSlack) discard;
+  }
+`;
 const INK = '#5A3A2E';
 export const ROUNDED_FONT =
   '"Hiragino Maru Gothic ProN","Hiragino Sans","BIZ UDPGothic","Yu Gothic UI","Meiryo","PingFang SC","Microsoft YaHei","Arial Rounded MT Bold",sans-serif';
@@ -166,6 +185,20 @@ export class EmoteSystem {
   camera: THREE.PerspectiveCamera | null = null;
   /** Where your own marks and words show out of your own eyes, once the game gives it. */
   own: OwnView | null = null;
+  /**
+   * The marks and words over heads, drawn over the finished picture after the film look's passes (the user,
+   * 2026-10-24: hazed with the forest behind them, and seen through walls): see Game.draw. Each hides itself
+   * where the scene lies in front of it (SLACK), read from the scene's depth (see beforeOverlay); without it
+   * (no film look) they are drawn as before, the bubbles over everything.
+   */
+  readonly overlay = new THREE.Scene();
+  /** The uniforms every mark's shader shares (see DEPTH_TEST); each has its own uSlack. */
+  private readonly shared = {
+    tSceneDepth: { value: null as THREE.Texture | null },
+    uUseDepth: { value: 0 },
+    uNear: { value: 0.1 },
+    uFar: { value: 1000 },
+  };
   /** Whose words go elsewhere now (into the text box: see Life.boxed), never in a bubble over their head. */
   hush: ((host: EmoteHost) => boolean) | null = null;
   private readonly textures: Record<EmoteKind, THREE.Texture>;
@@ -173,7 +206,7 @@ export class EmoteSystem {
   private readonly live: Live[] = [];
   private readonly right = new THREE.Vector3();
 
-  constructor(private readonly scene: THREE.Scene) {
+  constructor() {
     this.textures = buildTextures();
   }
 
@@ -237,6 +270,18 @@ export class EmoteSystem {
     for (const e of this.live) if (e.kind === 'bubble' && e.host === host) e.age = e.life;
   }
 
+  /** Ready to draw `overlay` over the finished picture, hidden where the scene drawn last (its `depth`, or null
+   * with no film look) lies in front, seen by the camera. */
+  beforeOverlay(depth: THREE.Texture | null): void {
+    const camera = this.camera;
+    this.shared.tSceneDepth.value = depth;
+    this.shared.uUseDepth.value = depth && camera ? 1 : 0;
+    if (camera) {
+      this.shared.uNear.value = camera.near;
+      this.shared.uFar.value = camera.far;
+    }
+  }
+
   update(dt: number): void {
     for (let i = this.live.length - 1; i >= 0; i--) {
       const e = this.live[i];
@@ -256,21 +301,37 @@ export class EmoteSystem {
     this.right.set(Math.cos(host.facing), 0, -Math.sin(host.facing));
   }
 
+  /** A sprite's material for `overlay`, drawn as the marks are over the finished picture (see DEPTH_TEST): hidden
+   * where the scene lies nearer than it by more than `slack` metres (its userData.slack, to change). Also the ▽
+   * over what you look at (see Focus). */
+  overlayMaterial(map: THREE.Texture, slack: number): THREE.SpriteMaterial {
+    const material = new THREE.SpriteMaterial({
+      map,
+      transparent: true,
+      depthWrite: false,
+      fog: false,
+      // (Drawn onto the finished picture, its colours as they are.)
+      toneMapped: false,
+    });
+    const uSlack = { value: slack };
+    material.userData.slack = uSlack;
+    material.onBeforeCompile = (shader) => {
+      Object.assign(shader.uniforms, this.shared, { uSlack });
+      shader.fragmentShader = shader.fragmentShader.replace('void main() {', DEPTH_TEST);
+    };
+    return material;
+  }
+
   private take(texture: THREE.Texture, onTop: boolean): THREE.Sprite {
     let sprite = this.pool.pop();
     if (!sprite) {
-      const material = new THREE.SpriteMaterial({
-        map: texture,
-        transparent: true,
-        depthWrite: false,
-        fog: false,
-      });
-      sprite = new THREE.Sprite(material);
-      this.scene.add(sprite);
+      sprite = new THREE.Sprite(this.overlayMaterial(texture, SLACK));
+      this.overlay.add(sprite);
     }
     const m = sprite.material;
     m.map = texture;
     m.depthTest = !onTop;
+    m.userData.slack.value = onTop ? SLACK_ON_TOP : SLACK;
     m.opacity = 1;
     sprite.renderOrder = onTop ? 20 : 10;
     sprite.center.set(0.5, 0.5);

@@ -100,9 +100,11 @@ C = {k: L.hex_color(v) for k, v in {
     "iron": "#3E3733",
     "water": "#86BFD8",
     "rattan": "#CDA36B",
-    # The huts' grey sink and its curved tap.
+    # The huts' grey sink and its curved tap; their stove's blue-grey plate and its dark burner.
     "steel": "#B9BEC2",
     "steelDark": "#8D9398",
+    "stove": "#7C8EAA",
+    "stoveDark": "#4E5C73",
     "paperLantern": "#FFD9A0",
     # The porches' potted plants, and the doors' handles.
     "succulent": "#B7A88E",
@@ -134,7 +136,7 @@ C = {k: L.hex_color(v) for k, v in {
     "hutCeiling": "#685739",
     "hutRafter": "#7A6448",
     # Their furnishing: the bed's dark frame, pale blue mattress and white pillow; the stump stool; the
-    # cream kitchen counter, its doors' panels and pale post, wooden top, black pans, cloth and wooden
+    # cream kitchen counter, its doors' panels and pale post, its paler top, black pans, cloth and wooden
     # spoons; the orange bookshelf and its books; the little tables; the brown woven vases; the rug's
     # cream and blues; the straw cushions; the fruit and the potted monstera.
     "bedFrame": "#5E4330",
@@ -148,7 +150,7 @@ C = {k: L.hex_color(v) for k, v in {
     "cabinetLight": "#F2E9D3",
     "cabinetLine": "#B49E78",
     "lace": "#FBF6EA",
-    "counterTop": "#B98352",
+    "counterTop": "#EFE3C4",
     "cuttingBoard": "#D3A56E",
     "pan": "#2F2B2A",
     "towel": "#EDE6D3",
@@ -1318,6 +1320,90 @@ def front_poly(points, y, colour, pieces, centre=None, closed=True):
     pieces.append((bm, colour))
 
 
+def rounded_outline(x0, x1, y0, y1, radii, steps=6):
+    """A rectangle's outline ((x, y), counter-clockwise seen from above, from its front edge toward -y), its
+    corners rounded as `radii` say: front right, back right, back left, front left (0 for a square one)."""
+    corners = (((x1, y0), (-1, 1), -math.pi / 2), ((x1, y1), (-1, -1), 0.0), ((x0, y1), (1, -1), math.pi / 2),
+               ((x0, y0), (1, 1), math.pi))
+    points = []
+    for ((cx, cy), (sx, sy), a0), r in zip(corners, radii):
+        if r <= 0.0:
+            points.append((cx, cy))
+            continue
+        ox, oy = cx + sx * r, cy + sy * r
+        points += [(ox + r * math.cos(a0 + math.pi / 2 * k / steps), oy + r * math.sin(a0 + math.pi / 2 * k / steps))
+                   for k in range(steps + 1)]
+    return points
+
+
+def sink_outline(x0, x1, y0, y1, tap, r=0.06, tongue=0.12, half=0.17, steps=12):
+    """A sink's hole, as the film draws the huts' (reference image `villager hut interior 11`): a rounded
+    rectangle from `x0` to `x1` and `y0` (the front) to `y1` (the back), the counter's top reaching into it at
+    the back in a rounded tongue `tongue` deep, `half` either side of `tap`, for the tap's foot to stand on.
+    Counter-clockwise seen from above."""
+    points = rounded_outline(x0, x1, y0, y1, (r, r, r, r), steps=6)
+    back = next(i for i, (x, y) in enumerate(points) if abs(y - y1) < 1e-9 and x < x1 - r + 1e-9)
+    bump = [(tap + half * u, y1 - tongue * (1.0 + math.cos(math.pi * u)) / 2)
+            for u in (1.0 - 2.0 * k / steps for k in range(1, steps))]
+    return points[:back + 1] + bump + points[back + 1:]
+
+
+def inset_outline(points, d):
+    """An outline (counter-clockwise) moved `d` in all round, each point along the middle of its two edges'
+    inward ways."""
+    out, n = [], len(points)
+    for i in range(n):
+        (px, py), (x, y), (qx, qy) = points[i - 1], points[i], points[(i + 1) % n]
+        e1 = Vector((x - px, y - py)).normalized()
+        e2 = Vector((qx - x, qy - y)).normalized()
+        n1, n2 = Vector((-e1.y, e1.x)), Vector((-e2.y, e2.x))
+        m = (n1 + n2).normalized()
+        k = d / max(m.dot(n1), 0.3)
+        out.append((x + m.x * k, y + m.y * k))
+    return out
+
+
+def holed_slab(outer, hole, z0, z1):
+    """A level slab from `z0` up to `z1` within the outline `outer`, the shape `hole` cut through it (a
+    counter's top round its sink), both outlines counter-clockwise (x, y)."""
+    bm = bmesh.new()
+    lows = [[bm.verts.new((x, y, z0)) for x, y in ring] for ring in (outer, hole)]
+    highs = [[bm.verts.new((x, y, z1)) for x, y in ring] for ring in (outer, hole)]
+    low, high = lows[0] + lows[1], highs[0] + highs[1]
+    for a, b, c in geometry.tessellate_polygon([[Vector((x, y, 0.0)) for x, y in ring] for ring in (outer, hole)]):
+        bm.faces.new((high[a], high[b], high[c]))
+        bm.faces.new((low[c], low[b], low[a]))
+    for lo, hi in zip(lows, highs):
+        for i in range(len(lo)):
+            j = (i + 1) % len(lo)
+            bm.faces.new((lo[i], lo[j], hi[j], hi[i]))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    return bm
+
+
+def tub_bm(outline, gap, wall, rim, floor):
+    """A sink's basin let into a hole of the shape `outline` (counter-clockwise (x, y)): its walls `wall`
+    thick, standing `gap` in from the hole's sides, from its rim at `rim` down to its floor at `floor`,
+    closed under its floor."""
+    outer, inner = inset_outline(outline, gap), inset_outline(outline, gap + wall)
+    bm = bmesh.new()
+    top_out = [bm.verts.new((x, y, rim)) for x, y in outer]
+    top_in = [bm.verts.new((x, y, rim)) for x, y in inner]
+    foot_in = [bm.verts.new((x, y, floor)) for x, y in inner]
+    foot_out = [bm.verts.new((x, y, floor - wall)) for x, y in outer]
+    n = len(outer)
+    for i in range(n):
+        j = (i + 1) % n
+        bm.faces.new((top_out[i], top_out[j], top_in[j], top_in[i]))
+        bm.faces.new((top_in[i], top_in[j], foot_in[j], foot_in[i]))
+        bm.faces.new((top_out[i], foot_out[i], foot_out[j], top_out[j]))
+    for ring in (foot_in, foot_out):
+        for a, b, c in geometry.tessellate_polygon([[v.co.copy() for v in ring]]):
+            bm.faces.new((ring[a], ring[b], ring[c]))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    return bm
+
+
 def front_wave(x0, x1, z, amp, wave, width, y, colour, pieces):
     """A wavy line painted on a face looking toward -y at `y`, from x0 to x1 about the height z: rising
     `amp` above it and falling as far below, each wave `wave` long, the line `width` thick."""
@@ -1630,14 +1716,20 @@ def furnish_hut(floor, xi, yi, wall_h, window):
     # cabinet, its front as the film's (reference images `villager hut interior 2` and `4`): at its left
     # end two drawers one over the other beside a pale post, then a pair of wide doors, each panel
     # standing a little proud, dark knobs where the doors meet, a white wavy line across each door near
-    # its top with white dots in its dips, and white clouds along its foot; a wooden top round a grey
-    # sink, a round iron stove at its left end.
+    # its top with white dots in its dips, and white clouds along its foot. Its top and what stands on it
+    # are the film's too (`villager hut interior 11`, `9` and `10`): a pale cream top, a deep steel basin
+    # let into it right of its middle, a thick steel tap bending over the basin from a round foot, a big
+    # cutting board leaning on the wall behind, a blue-grey stove at the left end and fruit at the right.
     kx0, kx1, ky0, ky1 = -xi + 0.18, -0.47, yi - 0.6, yi - 0.03
     kx, ky, span = (kx0 + kx1) / 2, (ky0 + ky1) / 2, kx1 - kx0
     start, kept = len(out), len(blocks)
     top = f + 0.72
-    # (its back a little short of the top's, so no two of their faces lie in one plane)
-    box(V(kx, ky - 0.003, f + 0.34), (span, ky1 - ky0 - 0.006, 0.68), C["cabinet"])
+    # (its back a little short of the top's, so no two of their faces lie in one plane; open on top, where
+    # the basin hangs down into it)
+    body = P.box_bm(V(kx, ky - 0.003, f + 0.34), (span, ky1 - ky0 - 0.006, 0.68))
+    body.normal_update()
+    bmesh.ops.delete(body, geom=[face for face in body.faces if face.normal.z > 0.5], context="FACES")
+    out.append((body, C["cabinet"]))
     lift = 0.006                                    # how far the panels stand out of the cabinet's face
     paint = ky0 - lift - 0.004                      # where their white patterns lie, just off them
     low, high = f + 0.07, f + 0.64                  # the panels' foot and top
@@ -1680,43 +1772,52 @@ def furnish_hut(floor, xi, yi, wall_h, window):
             front_poly([(dx + 0.014 * math.cos(2 * math.pi * i / 8), dz + 0.014 * math.sin(2 * math.pi * i / 8))
                         for i in range(8)], paint, C["lace"], out)
         clouds(x0 + 0.05, x1 - 0.05, 2, low + 0.02, 0.07)
-    s0, t0, t1 = kx0 + 0.82, yi - 0.48, yi - 0.2   # the sink's hole in the top
-    s1 = s0 + 0.5
-    for x0, x1, y0, y1 in ((kx0 - 0.03, s0, ky0 - 0.03, ky1), (s1, kx1 + 0.03, ky0 - 0.03, ky1), (s0, s1, ky0 - 0.03, t0),
-                           (s0, s1, t1, ky1)):
-        box(V((x0 + x1) / 2, (y0 + y1) / 2, top - 0.025), (x1 - x0, y1 - y0, 0.05), C["counterTop"], grain=V(0.7, 0.0, 0.0))
-    # The sink: a shallow grey basin, its rim standing a little proud of the top, set a few millimetres
-    # in from the hole's sides.
-    e = 0.003
-    for c, size in ((V(s0 + e + 0.0125, (t0 + t1) / 2, top - 0.013), (0.025, t1 - t0 - 2 * e, 0.05)),
-                    (V(s1 - e - 0.0125, (t0 + t1) / 2, top - 0.013), (0.025, t1 - t0 - 2 * e, 0.05)),
-                    (V((s0 + s1) / 2, t0 + e + 0.0125, top - 0.013), (s1 - s0 - 2 * e - 0.05, 0.025, 0.05)),
-                    (V((s0 + s1) / 2, t1 - e - 0.0125, top - 0.013), (s1 - s0 - 2 * e - 0.05, 0.025, 0.05))):
-        box(c, size, C["steel"])
-    box(V((s0 + s1) / 2, (t0 + t1) / 2, top - 0.03), (s1 - s0 - 0.04, t1 - t0 - 0.04, 0.008), C["steelDark"])
-    # The tap behind it, curving over it, clear of the sill's log on the wall.
-    tx, stem, arc, bend = (s0 + s1) / 2, yi - 0.16, yi - 0.22, 0.06
-    tap = [V(tx, stem, top - 0.005), V(tx, stem, top + 0.12), V(tx, stem, top + 0.24)]
-    tap += [V(tx, arc + bend * math.cos(a), top + 0.24 + bend * math.sin(a)) for a in (math.pi * k / 6 for k in range(1, 7))]
-    tap.append(V(tx, arc - bend, top + 0.19))
-    bent_log(tap, 0.02, C["steel"], C["steelDark"], out, normal=V(1.0, 0.0, 0.0), ends=(False, True))
-    out.append((P.segment_bm(V(tx, stem, top), V(tx, stem, top + 0.03), 0.034, 0.03, 10), C["steel"]))
-    # The stove: a round iron plate standing on the top, a darker ring inside it, and a cross of bars
-    # over it for a pot to stand on.
-    ox, oy = kx0 + 0.37, (ky0 + ky1) / 2
-    out.append((P.segment_bm(V(ox, oy, top - 0.005), V(ox, oy, top + 0.03), 0.17, 0.17, 16), C["iron"]))
-    out.append((P.segment_bm(V(ox, oy, top + 0.02), V(ox, oy, top + 0.036), 0.12, 0.12, 16), C["pan"]))
-    for k in range(4):
-        a = math.pi / 4 + k * math.pi / 2
-        d = V(math.cos(a), math.sin(a), 0.0)
-        out.append((oriented_box(V(ox, oy, top + 0.046) + d * 0.095, d, UP.cross(d), (0.11, 0.026, 0.022)), C["iron"]))
-    # A cutting board standing at the back beside the sink, an apple, a peach and a pear before it.
-    box(V(s1 + 0.17, yi - 0.17, top + 0.215), (0.3, 0.028, 0.43), C["cuttingBoard"], bevel=0.012, grain=UP * 0.7)
-    for kind, x, y in (("apple", kx1 - 0.51, yi - 0.38), ("peach", kx1 - 0.33, yi - 0.44), ("pear", kx1 - 0.39, yi - 0.27)):
+    # The rail on the wall over it all (see below), and where its cloth, spoon and fork hang along it.
+    rail_z = f + min(1.78, wall_h - 0.82)
+    cloth, spoon, fork = kx0 + 0.84, kx0 + 1.06, kx0 + 1.26
+    # The top: pale cream, standing a little out over the cabinet's front and ends, its front corners
+    # rounded. The basin's hole goes through it right of its middle, from near its front to near its back,
+    # where the top reaches into the hole in a rounded tongue for the tap's foot.
+    s0, s1 = kx0 + 0.4 * span, kx0 + 0.87 * span
+    t0, t1 = ky0 + 0.1, yi - 0.15
+    tx, ty = s0 + 0.6 * (s1 - s0), t1 - 0.015
+    hole = sink_outline(s0, s1, t0, t1, tx)
+    edge = rounded_outline(kx0 - 0.03, kx1 + 0.03, ky0 - 0.03, ky1, (0.03, 0.0, 0.0, 0.03))
+    out.append((holed_slab(edge, hole, top - 0.05, top), C["counterTop"]))
+    # The basin: deep steel, its rim just under the top inside the hole.
+    out.append((tub_bm(hole, 0.003, 0.012, top - 0.002, top - 0.2), C["steel"]))
+    # The tap on the tongue, short and stout as the film draws it (its parts measured against the basin in
+    # `villager hut interior 11`): a domed steel foot, a thick round stem, and over it a rounded hood
+    # reaching forward over the basin, a short spout under its front, its mouth dark.
+    foot = [(0.0, 0.0), (0.076, 0.0), (0.08, 0.018), (0.068, 0.04), (0.052, 0.058), (0.044, 0.072), (0.0, 0.072)]
+    out.append((turned(foot, V(tx, ty, top - 0.004), segments=20), C["steel"]))
+    out.append((P.segment_bm(V(tx, ty, top + 0.055), V(tx, ty, top + 0.225), 0.04, 0.042, 16), C["steel"]))
+    out.append((L.ellipsoid_bm(V(tx, ty - 0.075, top + 0.237), (0.068, 0.105, 0.06), u=16, v=10), C["steel"]))
+    out.append((P.segment_bm(V(tx, ty - 0.135, top + 0.215), V(tx, ty - 0.135, top + 0.155), 0.04, 0.038, 16), C["steel"]))
+    out.append((P.segment_bm(V(tx, ty - 0.135, top + 0.16), V(tx, ty - 0.135, top + 0.149), 0.03, 0.03, 12), C["steelDark"]))
+    # The stove at the left end, toward the back: a round blue-grey plate, a dark ring round its burner,
+    # six round knobs round that for a pot to stand on.
+    ox, oy = kx0 + 0.25 * span, yi - 0.27
+    out.append((P.segment_bm(V(ox, oy, top - 0.004), V(ox, oy, top + 0.026), 0.165, 0.158, 24), C["stove"]))
+    out.append((P.segment_bm(V(ox, oy, top + 0.02), V(ox, oy, top + 0.034), 0.08, 0.072, 18), C["stoveDark"]))
+    for k in range(6):
+        a = math.pi / 6 + k * math.pi / 3
+        out.append((L.ellipsoid_bm(V(ox + 0.118 * math.cos(a), oy + 0.118 * math.sin(a), top + 0.034), (0.03, 0.03, 0.022),
+                                   u=10, v=6), C["stove"]))
+    # The cutting board: big, wider than it is tall, its corners rounded, standing on the back of the top
+    # behind the tap and leaning back on the wall, clear of the spoon and the fork hanging over it.
+    cb0, cb1 = max(tx - 0.26, spoon + 0.08), tx + 0.54
+    bh = min(0.48, rail_z - 0.46 - top)
+    board = P.slab_bm(rounded_outline(-(cb1 - cb0) / 2, (cb1 - cb0) / 2, -0.004, bh, (0.05,) * 4), 0.03, 0.008,
+                      rims_only=True)
+    bmesh.ops.transform(board, matrix=Matrix.Translation(V((cb0 + cb1) / 2, yi - 0.085, top))
+                        @ Matrix.Rotation(-math.atan2(0.03, bh), 4, "X"), verts=board.verts[:])
+    out.append((board, C["cuttingBoard"], UP * 0.7))
+    # Fruit at the right end, before the board's end: an apple, a peach and a pear.
+    for kind, x, y in (("apple", s1 + 0.1, yi - 0.4), ("peach", s1 + 0.15, yi - 0.51), ("pear", s1 + 0.2, yi - 0.26)):
         fruit(kind, V(x, y, top), out)
     # Over the counter, a rail on the wall, below the corner's brace: two black pans over the stove, a
     # cloth, a wooden spoon and a fork.
-    rail_z = f + min(1.78, wall_h - 0.82)
     rail_y = yi - 0.06
     out.append((log(V(kx0 + 0.2, rail_y, rail_z), V(kx1 - 0.65, rail_y, rail_z), 0.022, segments=8), C["spoon"],
                 V(0.6, 0.0, 0.0)))
@@ -1725,7 +1826,6 @@ def furnish_hut(floor, xi, yi, wall_h, window):
     for x, r, z in ((kx0 + 0.29, 0.125, rail_z - 0.34), (kx0 + 0.58, 0.105, rail_z - 0.31)):
         out.append((P.segment_bm(V(x, yi - 0.085, z), V(x, yi - 0.115, z), r, r - 0.012, 16), C["pan"]))
         out.append((log(V(x, yi - 0.095, z + r - 0.01), V(x, yi - 0.07, rail_z - 0.01), 0.016, segments=6), C["pan"]))
-    cloth, spoon, fork = kx0 + 0.84, kx0 + 1.06, kx0 + 1.26
     box(V(cloth, yi - 0.07, rail_z - 0.17), (0.15, 0.022, 0.32), C["towel"], bevel=0.008)
     box(V(cloth, yi - 0.082, rail_z - 0.06), (0.152, 0.006, PEN), C["cabinetLine"])
     out.append((log(V(spoon, yi - 0.075, rail_z), V(spoon, yi - 0.085, rail_z - 0.35), 0.012, segments=6), C["spoon"],
@@ -2222,7 +2322,7 @@ def gltf_axis(v):
 # keep their own colours.
 BARE_WOOD = ("log", "logDark", "plank", "inside", "floor", "frame", "torch", "guestLog", "guestLogDark", "guestDoor",
              "guestDoorFrame", "guestInLog", "guestFloor", "guestRoofIn", "guestRafter", "shutter", "hutDoor", "hutLog",
-             "hutFloor", "hutCeiling", "hutRafter", "bedFrame", "stump", "counterTop", "cuttingBoard", "spoon", "shelf",
+             "hutFloor", "hutCeiling", "hutRafter", "bedFrame", "stump", "cuttingBoard", "spoon", "shelf",
              "shelfDark", "chest", "chestTop")
 PAINTED_WOOD = ("board", "boardEdge", "guestBoard", "cabinet", "cabinetPanel", "cabinetLight")
 # How wood out in the weather is painted, and in a room.

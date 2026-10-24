@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { Character } from '../characters/Character';
+import { SLACK_ON_TOP, type EmoteSystem } from '../characters/Emotes';
 import { sharedUniforms } from '../characters/CharacterMaterial';
 import { ITEMS, restingTurn, type ItemId, type ItemModels } from '../life/Items';
 import { PEN_METRES } from '../world/Ink';
@@ -177,15 +178,18 @@ export class Focus {
     scene: THREE.Object3D,
     /** The trees' shade at a point, 0 (sun) to 1 (see Stage.shadeAt), or null for none. */
     private readonly shadeAt: ((x: number, y: number, z: number) => number) | null,
+    /** The marks over heads, whose pass over the finished picture the ▽ is drawn in. */
+    marks: EmoteSystem,
   ) {
     this.group.name = 'focus';
     scene.add(this.group);
-    // Drawn as the marks over heads are (see Emotes.take), in the world: its tip is where it is put.
-    this.pointer = new THREE.Sprite(new THREE.SpriteMaterial({ map: pointerTexture(), transparent: true, depthWrite: false, fog: false }));
+    // Drawn as the marks over heads are (see EmoteSystem.overlay; the user, 2026-10-24: not hazed with what lies
+    // behind it, nor seen through walls), in the world: its tip is where it is put.
+    this.pointer = new THREE.Sprite(marks.overlayMaterial(pointerTexture(), SLACK_ON_TOP));
     this.pointer.center.set(0.5, 0);
     this.pointer.renderOrder = 10;
     this.pointer.visible = false;
-    this.group.add(this.pointer);
+    marks.overlay.add(this.pointer);
   }
 
   /**
@@ -217,6 +221,16 @@ export class Focus {
     pointer.scale.set(size, size, 1);
     pointer.position.copy(this.at);
     pointer.position.y += BOB * Math.sin((this.t * Math.PI * 2) / BOB_EVERY);
+  }
+
+  /** The ▽ and the ghost gone at once, not shrinking away (your camera held up: see Play). */
+  hide(): void {
+    this.shown = 0;
+    this.pointer.visible = false;
+    if (this.ghost) {
+      this.ghost.visible = false;
+      this.ghost = null;
+    }
   }
 
   /** Where the ▽'s tip floats for `target` (into `out`), the ghost shown if there is one; null for nothing to

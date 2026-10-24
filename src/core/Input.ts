@@ -20,13 +20,13 @@ const SPRINT_KEEP = 0.85;
  * Touch: a joystick appears wherever the left half is touched (held at its edge a moment, it sprints); dragging
  * the right half turns the camera, two fingers there pinch to zoom.
  * Desktop: WASD or arrows run, with Shift sprint, Space jumps, drag and wheel for the camera; E acts, F uses
- * what you hold, Tab and 1 to 6 the pouch, R the きもち panel (1 to 9 then pick from it).
+ * what you hold, 1 to 7 choose the box in your paw (pressed again, your paw emptied) and Tab opens the bag, R the
+ * きもち panel (1 to 9 then pick from it), C holds up your camera and puts it away.
  */
 export class Input {
   readonly move = new THREE.Vector2();
   /** Whether you sprint: Shift held as you go, or the stick held at its edge a moment (see SPRINT_HOLD). */
   sprint = false;
-  onFirstMove: (() => void) | null = null;
 
   private moveEnabled = true;
   private readonly look = new THREE.Vector2();
@@ -36,11 +36,12 @@ export class Input {
   private jumpButton = false;
   private actionQueued = false;
   private useQueued = false;
-  /** A pouch slot asked for from the keyboard (1 to 6), or with the きもち panel open what to do (1 to 9);
+  /** A box asked for from the keyboard (1 to 7), or with the きもち panel open what to do (1 to 9);
    * or -1. */
   private slotQueued = -1;
   private pouchQueued = false;
   private emotesQueued = false;
+  private cameraQueued = false;
   private joyId: number | null = null;
   private readonly joyOrigin = new THREE.Vector2();
   private readonly joyVec = new THREE.Vector2();
@@ -99,10 +100,6 @@ export class Input {
       this.sprint = sprint;
       this.joystick.sprint(sprint);
     }
-    if (this.onFirstMove && this.move.lengthSq() > 0) {
-      this.onFirstMove();
-      this.onFirstMove = null;
-    }
   }
 
   setMoveEnabled(on: boolean): void {
@@ -125,6 +122,11 @@ export class Input {
     const z = this.zoom;
     this.zoom = 0;
     return z;
+  }
+
+  /** Whether a pinch or the wheel has zoomed since the zoom was last taken (see consumeZoom). */
+  get zoomPending(): boolean {
+    return this.zoom !== 0;
   }
 
   queueJump(): void {
@@ -170,7 +172,7 @@ export class Input {
     return u;
   }
 
-  /** A number from the keyboard's 1 to 9 (0 to 8): a pouch slot, or what to do from the きもち panel; or -1. */
+  /** A number from the keyboard's 1 to 9 (0 to 8): a box, or what to do from the きもち panel; or -1. */
   consumeSlot(): number {
     const s = this.slotQueued;
     this.slotQueued = -1;
@@ -189,6 +191,20 @@ export class Input {
     const e = this.emotesQueued;
     this.emotesQueued = false;
     return e;
+  }
+
+  /** Your camera held up or put away from the keyboard (C). */
+  consumeCamera(): boolean {
+    const c = this.cameraQueued;
+    this.cameraQueued = false;
+    return c;
+  }
+
+  /** Everything pressed and not yet taken, forgotten (the jump, the action, the use, a number, the pouch, the
+   * きもち panel, the camera): while your camera is held up, the keys are its own (see CameraView). */
+  dropQueued(): void {
+    this.jumpQueued = this.actionQueued = this.useQueued = this.pouchQueued = this.emotesQueued = this.cameraQueued = false;
+    this.slotQueued = -1;
   }
 
   private onDown = (e: PointerEvent) => {
@@ -261,6 +277,7 @@ export class Input {
     if (e.code === 'KeyF' && !e.repeat) this.useQueued = true;
     if (/^Digit[1-9]$/.test(e.code) && !e.repeat) this.slotQueued = Number(e.code.slice(5)) - 1;
     if (e.code === 'KeyR' && !e.repeat) this.emotesQueued = true;
+    if (e.code === 'KeyC' && !e.repeat) this.cameraQueued = true;
     if (e.code === 'Tab') {
       e.preventDefault();
       if (!e.repeat) this.pouchQueued = true;

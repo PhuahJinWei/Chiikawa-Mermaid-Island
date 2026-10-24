@@ -320,10 +320,20 @@ a villager's height, the big-leaved ones over them.
   from the hub. Furnished as the film's: along the back wall from the left
   a cream kitchen counter (two drawers at its end beside a pale post, then
   a pair of wide doors, dark knobs where they meet, a white wavy line
-  strung with dots near their tops and white clouds along their feet), a
-  round iron stove at its end, a grey sink with a curved tap, a cutting
-  board and fruit, and a rail of black pans, a cloth and wooden spoons
-  over it, then a tree-stump stool by the head of a low dark-wood single
+  strung with dots near their tops and white clouds along their feet).
+  On its pale cream top, as the film's (`villager hut interior 11`, `4`,
+  `9`, `10`):
+  - a round blue-grey stove at its left end, six round knobs on it;
+  - right of the middle, a deep steel basin with rounded corners, the top
+    reaching into it at the back in a rounded tongue;
+  - on the tongue, a short stout steel tap: a domed foot, a thick stem
+    and a rounded hood leaning over the basin;
+  - behind the tap, a big cutting board, wider than it is tall, leaning
+    on the wall;
+  - fruit at the right end.
+
+  Over it hangs a rail of black pans, a cloth and wooden spoons. Then
+  comes a tree-stump stool by the head of a low dark-wood single
   bed running along the right wall to the room's middle (a thick pale blue
   mattress and a long white pillow, no quilt); a little table of fruit in
   the front right corner; in the middle of the left wall a tall orange
@@ -363,8 +373,10 @@ a villager's height, the big-leaved ones over them.
   along it, and a counter at the chest of the cast standing at it, framed
   in pale grey with white menu tags hanging off it. The booth is wide, so
   the counter reads long and low: about four times as wide as it is tall.
-  The islander keeping a stall stands on a low floor behind its counter,
-  showing over it from the chest up, the board above them.
+  The islander keeping a stall stands behind its counter on a floor as
+  high as a low stage (a fifth of their height), two even steps up from
+  the ground at each open side. They show over the counter from their
+  middle up, the board above them.
 - Each stall has its own things on its counter and work table, after what
   it sells: a kebab stall's two tall doner spits on the table behind its
   counter with their heaters glowing behind them; a candy-floss stall's

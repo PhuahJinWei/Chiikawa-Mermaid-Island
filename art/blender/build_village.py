@@ -319,9 +319,11 @@ STALL_STYLES = {
     "white": {"trim": "#4E8FCF", "inside": ("#E9845A", "#D96E47"), "counter": "#F4F1E8", "words": "#2F6FB5"},
 }
 # A stall's size, after the film's: its counter at the chest of an islander standing at it (about
-# a metre tall, their eyes 0.6 m up), and its keeper on a low floor behind it, a small step up from
-# the ground (a step at each open side), so they show over it from the chest up, the header board
-# above their head. How wide and how deep the booth is: square and roomy, as the film's, wide
+# a metre tall, their eyes 0.6 m up), and its keeper behind it on a floor as high as a low stage, two
+# even steps up from the ground (the first at each open side), each as high as a stair's at their
+# size, so they show over the counter from their middle up, the header board above their head (the
+# user, 2026-10-24: the floor had stood 0.12 m, its step 0.06 m, and looked "a little too short"). How
+# wide and how deep the booth is: square and roomy, as the film's, wide
 # enough that its counter is long and low, and as deep as it is wide, so its sign, repeated on its
 # side boards, fits them as it fits the front; the counter's top; the floor behind it and the step up
 # to it, each no higher than a walker steps up; the work table along its back wall, at the keeper's
@@ -330,7 +332,7 @@ STALL_STYLES = {
 # About a metre and a half clear between the counter and the work table for its keeper, and a metre
 # between neighbouring booths (3.42 m apart along their rows) for them to come in by. (The counter
 # had been 0.9 m, as tall as a customer, over the eyes of a villager seeing out of their own.)
-STALL = {"width": 2.4, "depth": 2.4, "counter": 0.58, "floor": 0.12, "step": 0.06, "table": 0.38, "board": (1.9, 2.76)}
+STALL = {"width": 2.4, "depth": 2.4, "counter": 0.58, "floor": 0.2, "step": 0.1, "table": 0.38, "board": (1.9, 2.76)}
 # The stall's name over the whole face of each header board, which runs a little wider than the
 # booth: how wide and how high.
 STALL_LABEL = (STALL["width"] + 0.1, round(STALL["board"][1] - STALL["board"][0], 3))

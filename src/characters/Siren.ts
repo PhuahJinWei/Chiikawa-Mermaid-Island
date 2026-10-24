@@ -158,6 +158,11 @@ export class Siren {
     return 'ledge';
   }
 
+  /** Whether she is out at sea where `camera` could see her (see visible): those near you speak of it. */
+  seenFrom(camera: THREE.Camera): boolean {
+    return this.place !== 'ledge' && this.visible(this.place, camera);
+  }
+
   /** Whether a place of hers could be seen from `camera`: the ledge from near the cave with its inside drawn
    * (far off, its skylight or mouth may be in view, the ledge deep in it never is), a spot at sea when near
    * enough and before the camera. */

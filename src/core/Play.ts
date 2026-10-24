@@ -7,7 +7,7 @@ import type { Hud, IconSpot, PouchThing } from '../ui/Hud';
 import { BITE, type HandView } from './HandView';
 import type { Focus } from './Focus';
 import { ITEMS, itemName, type Carried, type ItemId } from '../life/Items';
-import { Hands, type SavedHands } from '../life/Hands';
+import { Hands, SLOTS, type SavedHands } from '../life/Hands';
 import { Things, type Thing } from '../life/Things';
 import type { Life } from '../life/Life';
 import type { Resident } from '../life/Resident';
@@ -17,8 +17,9 @@ import type { Sound } from './Sound';
 
 /**
  * What you do on the island with your paws (the user, 2026-10-22): pick up what lies about, hold it in
- * your right paw (seen out of your own eyes at the bottom right of the screen: see HandView), keep it in
- * your pouch of six slots (each a stack of one kind, up to 99), put it down where you look, give it to whoever you look at, eat or drink it, play the
+ * your right paw (seen out of your own eyes at the bottom right of the screen: see HandView), keep it in one
+ * of seven boxes (each a stack of one kind, up to 99), the one in your paw chosen as in Minecraft (the user,
+ * 2026-10-24: see Hands), put it down where you look, give it to whoever you look at, eat or drink it, play the
  * ukulele, read the book (よむ: up before your eyes and open, till you press again or walk off); sit on whatever one sits on, and in your own bed at night sleep through to the morning (the
  * user: the bed skips the night). What you look at, near the middle of your view and within reach, is what
  * the action button does something with. From the きもち button you wave, bow, cheer, dance and the rest
@@ -78,6 +79,9 @@ export interface PlayFrame {
   hours: number;
   /** Whether you can do anything now: not in a staged shot, the lineup or the free camera, not rowing. */
   free: boolean;
+  /** Your camera held up (see CameraView): nothing looked at or done with your paws, the ▽ gone, what you were
+   * using put by; a torch you hold still burns. */
+  framing: boolean;
   /** In the forbidden cave, its torch in your paw. */
   inCave: boolean;
   /** The action button is the cave boat's this frame. */
@@ -135,7 +139,7 @@ export class Play {
     const places = life.places;
     this.seats = [...places.seats, ...places.feast.seats, ...places.homes.flatMap((h) => [...h.beds, ...h.seats])];
     this.bed = life.playerHome?.beds[0] ?? null;
-    hud.onSlot = (slot) => this.swap(slot);
+    hud.onSlot = (slot) => this.choose(slot);
     hud.onStow = () => this.stow();
     hud.onMoveSlot = (from, to) => this.moveSlot(from, to);
     hud.onEmote = (id) => (this.emoteQueued = id);
@@ -198,16 +202,19 @@ export class Play {
     if (this.using) this.useOn(f, walking);
     if (this.seat && walking && f.free) this.standUp(me);
 
-    this.target = f.free && !this.sleeping ? this.aim(f) : null;
-    this.label = this.sleeping || !f.free ? null : this.labelFor(this.target);
-    // What you look at, shown: the ▽ over it, and the sketch of what you would put down (see Focus).
+    const able = f.free && !f.framing && !this.sleeping;
+    this.target = able ? this.aim(f) : null;
+    this.label = able ? this.labelFor(this.target) : null;
+    // What you look at, shown: the ▽ over it, and the sketch of what you would put down (see Focus); through
+    // your camera, nothing (not in the photo).
     const held = this.hands.hand ? { item: this.hands.hand.item, nibbled: this.hands.nibbled } : null;
-    this.focus.update(f.dt, this.target, held, me);
+    if (f.framing) this.focus.hide();
+    else this.focus.update(f.dt, this.target, held, me);
     // (Not held up ready sitting down.)
     const use = this.hand && !(this.seat && ITEMS[this.hand].use === 'ready') ? ITEMS[this.hand].use : null;
     // (A book read is shut: とじる; a weapon held up ready, lowered: おろす.)
     const stop = this.using?.kind === 'read' ? 'hud.close' : this.using?.kind === 'ready' ? 'hud.lower' : 'hud.stop';
-    const useLabel = f.free && !this.sleeping && use ? t(this.using ? stop : (`hud.${use}` as StringKey)) : null;
+    const useLabel = able && use ? t(this.using ? stop : (`hud.${use}` as StringKey)) : null;
     this.hud.setUse(useLabel);
     if (!f.buttonTaken && this.input.consumeAction() && this.label) this.act(me);
     if (this.input.consumeUse() && useLabel) this.toggleUse(me);
@@ -218,7 +225,7 @@ export class Play {
       this.hud.closeEmotes();
       if (slot < EMOTES.length) this.emoteQueued = EMOTES[slot];
     } else if (slot >= 0) {
-      this.swap(slot);
+      this.choose(slot);
     }
     if (this.input.consumePouch()) this.hud.togglePouch();
     const emote = this.emoteQueued;
@@ -262,10 +269,11 @@ export class Play {
     const hands = this.hands;
     hands.attach(me);
     hands.keep();
-    this.view.set(this.hand);
+    // (The next of its kind lowered out of sight and raised as one is: see HandView.set.)
+    this.view.set(this.hand, hands.hand);
     this.view.left = hands.left;
     // (Bitten into too, which its card says.)
-    const shown = [`${hands.hand?.item ?? ''}${hands.bites}`, ...hands.pouch.map((s) => (s ? `${s[0].item}×${s.length}` : ''))].join(',');
+    const shown = [`${hands.paw}:${hands.bites}`, ...hands.slots.map((s) => (s ? `${s[0].item}×${s.length}` : ''))].join(',');
     if (shown !== this.shownPouch) {
       this.shownPouch = shown;
       this.showPouch();
@@ -274,8 +282,8 @@ export class Play {
     }
   }
 
-  /** Something handed to you (by a stall, given back for a gift): into your paw if it is empty, else your
-   * pouch; with both full, it is put down at your feet, yours. */
+  /** Something handed to you (by a stall, given back for a gift): into a box, in your paw if it is empty (see
+   * Hands.receive); with no room for it, it is put down at your feet, yours. */
   receive(c: Carried, me: Character | null = null): void {
     if (this.hands.receive(c)) return;
     if (!me) return;
@@ -284,44 +292,48 @@ export class Play {
     this.things.put(c, _p.set(at.x + Math.sin(me.facing) * 0.6, groundHeight(at.x, at.z, me.feetY), at.z + Math.cos(me.facing) * 0.6), me.facing);
   }
 
-  /** Pouch slot `slot`: what is in your paw into the pouch, one of the slot's into your paw (see Hands.swap).
-   * What you have bitten into goes into no pouch: it is gone, eaten up (the user, 2026-10-23). */
-  swap(slot: number): void {
-    if (this.sleeping) return;
-    if (this.using) this.stopUsing(this.hands.ch);
-    const eaten = this.hands.nibbled ? this.hands.hand : null;
-    if (!this.hands.swap(slot)) {
-      this.hud.toast(t('toast.full'));
+  /** Box `slot` tapped (or its number pressed): into your paw, as in Minecraft (the user, 2026-10-24); in your
+   * paw already, your paw emptied (see stow). Nothing in the boxes moves. What you have bitten into goes into no
+   * other box: it is gone, eaten up (the user, 2026-10-23). */
+  choose(slot: number): void {
+    if (this.sleeping || slot < 0 || slot >= SLOTS) return;
+    if (slot === this.hands.paw) {
+      this.stow();
       return;
     }
+    if (this.using) this.stopUsing(this.hands.ch);
+    const eaten = this.hands.nibbled ? this.hands.hand : null;
+    this.hands.choose(slot);
     if (eaten) this.eatenUp(eaten);
     this.sound?.pouch();
   }
 
-  /** What is in your paw put away into the pouch (your paw's slot tapped): onto its own stack, else into an empty
-   * slot; bitten into, it is gone, eaten up, as with swap. */
+  /** Your paw emptied, its box put away (the box in your paw tapped again, or しまう); bitten into, what you held is
+   * gone, eaten up, as when another box is chosen. */
   stow(): void {
-    if (this.sleeping || !this.hands.hand) return;
+    if (this.sleeping || this.hands.paw < 0) return;
     if (this.using) this.stopUsing(this.hands.ch);
     const eaten = this.hands.nibbled ? this.hands.hand : null;
-    if (!this.hands.stow()) {
-      this.hud.toast(t('toast.full'));
-      return;
-    }
+    this.hands.stow();
     if (eaten) this.eatenUp(eaten);
     this.sound?.pouch();
   }
 
-  /** Slot `from`'s things dragged onto slot `to` (see Hands.move). */
+  /** Box `from`'s things dragged onto box `to` (see Hands.move): what is in your paw is whatever is in its box
+   * now; bitten into and moved off, it is gone, eaten up. */
   moveSlot(from: number, to: number): void {
     if (this.sleeping) return;
+    const paw = this.hands.paw;
+    if (this.using && (from === paw || to === paw)) this.stopUsing(this.hands.ch);
+    const eaten = this.hands.nibbled && (from === paw || to === paw) ? this.hands.hand : null;
     this.hands.move(from, to);
+    if (eaten) this.eatenUp(eaten);
     this.sound?.pouch();
   }
 
-  /** The pouch on the screen as it is: each slot's things (and your paw's) by name, icon and how many; for their
-   * cards, what each is for, a line about it, and a word of its own on the one that would come into your paw (see
-   * noteOn). */
+  /** The boxes on the screen as they are: each one's things by name, icon and how many, and the one in your paw;
+   * for their cards, what each is for, a line about it, and a word of its own on the one that is or would be in your
+   * paw, its top (see noteOn). */
   private showPouch(): void {
     const models = this.things.models;
     const shown = (stack: Carried[] | null, nibbled = false): PouchThing | null => {
@@ -341,8 +353,8 @@ export class Play {
         note: this.noteOn(c, nibbled),
       };
     };
-    const hand = this.hands.hand;
-    this.hud.setPouch({ hand: shown(hand ? [hand] : null, this.hands.nibbled), slots: this.hands.pouch.map((s) => shown(s)) });
+    const hands = this.hands;
+    this.hud.setPouch({ slots: hands.slots.map((s, i) => shown(s, i === hands.paw && hands.nibbled)), paw: hands.paw });
   }
 
   /** A word of its own on a thing in your paws, for its card: bitten into; borrowed (whose it is); back to its place
@@ -402,7 +414,7 @@ export class Play {
   private useOn(f: PlayFrame, walking: boolean): void {
     const using = this.using;
     if (!using) return;
-    if ((walking && using.kind !== 'ready') || !f.free) {
+    if ((walking && using.kind !== 'ready') || !f.free || f.framing) {
       this.stopUsing(f.me);
       return;
     }

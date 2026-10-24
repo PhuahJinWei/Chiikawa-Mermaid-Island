@@ -125,9 +125,30 @@ export class FirstPersonCamera {
     this.zoom = 0;
   }
 
+  /** How many times nearer the film's lens brings things than the eyes' own, on this screen's shape: as far as
+   * the view narrows (see zoom). */
+  get mostZoom(): number {
+    return halfTan(this.wideFov()) / halfTan(FILM_FOV);
+  }
+
+  /** How many times nearer things are brought now than through the eyes' own lens: 1 to mostZoom. */
+  get magnified(): number {
+    return Math.pow(this.mostZoom, this.zoom);
+  }
+
+  /** The zoom (see zoom) that brings things `times` nearer than the eyes' own lens. */
+  zoomFor(times: number): number {
+    return clamp(Math.log(times) / Math.log(this.mostZoom), 0, 1);
+  }
+
+  /** The eyes' own lens on this screen's shape, in degrees tall (see UPRIGHT_FOV). */
+  private wideFov(): number {
+    return THREE.MathUtils.lerp(UPRIGHT_FOV, WIDE_FOV, THREE.MathUtils.smoothstep(this.camera.aspect, 0.6, 1.4));
+  }
+
   update(dt: number, input: Input, ch: Character): void {
     const camera = this.camera;
-    const wide = THREE.MathUtils.lerp(UPRIGHT_FOV, WIDE_FOV, THREE.MathUtils.smoothstep(camera.aspect, 0.6, 1.4));
+    const wide = this.wideFov();
     this.zoom = clamp(this.zoom - input.consumeZoom() * ZOOM, 0, 1);
     // Narrowed as a lens is, evenly in how much it shows.
     const t = Math.pow(halfTan(wide), 1 - this.zoom) * Math.pow(halfTan(FILM_FOV), this.zoom);

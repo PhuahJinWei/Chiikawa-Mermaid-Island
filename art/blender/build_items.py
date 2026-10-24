@@ -69,6 +69,8 @@ C.update({k: L.hex_color(v) for k, v in {
     "forkPink": "#F8B2D0",
     "forkBlue": "#7AAADA",
     "forkWhite": "#F8F6F1",
+    # The candy floss, white as the user's icon draws it (2026-10-24; the stalls' bags keep their colours).
+    "flossWhite": "#FAF8F6",
     "baneHead": "#ECE7D3",
     "baneWood": "#DEBD92",
 }.items()})
@@ -110,11 +112,11 @@ def pine(k):
 
 
 def wataame(k):
-    """Candy floss on its stick: a pink cloud of it."""
+    """Candy floss on its stick: a white cloud of it, as the user's icon has it."""
     k.stick(at(0, 0, -0.08), at(0, 0, 0.14))
     for x, y, z, r in ((0.0, 0.0, 0.2, (0.085, 0.08, 0.075)), (0.045, -0.012, 0.235, (0.055, 0.05, 0.05)),
                        (-0.042, 0.01, 0.24, (0.052, 0.05, 0.046)), (0.004, 0.004, 0.272, (0.05, 0.048, 0.04))):
-        k.ball(at(x, y, z), r, "flossPink", u=14, v=9)
+        k.ball(at(x, y, z), r, "flossWhite", u=14, v=9)
 
 
 def tornado(k):
