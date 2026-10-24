@@ -48,7 +48,8 @@ export type ItemId =
   | 'weapon01'
   | 'weapon02'
   | 'weapon03'
-  | 'sword';
+  | 'sword'
+  | 'mermaidScale';
 
 /** What one does with a thing from the hand: eats it, drinks it, plays it, reads it, holds it up ready (かまえる, a
  * weapon); or keeps it. */
@@ -80,6 +81,9 @@ export interface ItemDef {
   /** Held up ready (かまえる: see Character.placeHand, HandView.ready) by this point of it (in the prop's frame, as
    * `grip`), in both paws before them, pointing ahead and up: a staff by its foot, so nothing of it is behind the paws. */
   ready?: [number, number, number];
+  /** Left alone by everyone who lives here: never looked at nor taken up where it lies (the mermaid's scale, the
+   * island's secret: see Choices.open). */
+  secret?: boolean;
 }
 
 /** A thing as someone has it (see Hands), or as it lies (see Things): what it is, and where it belongs. */
@@ -164,6 +168,10 @@ export const ITEMS: Record<ItemId, ItemDef> = {
   // Rakko's own sword, lent to you when you ask him (the user, 2026-10-24: see Life.lend); his prop, held by the
   // middle of its grip, its blade up. It goes back to his back each morning, or when you give it him.
   sword: { use: 'ready', rest: 'lie', model: 'sword', hand: 0.9, ready: [0, 0, 0] },
+  // The mermaid's scale, 人魚のうろこ (the user, 2026-10-25: the remains of a mermaid one of the islanders ate, which
+  // the book says gives eternal life), after the user's photographs of one: red resin, kept in the cabinet under Hitoha
+  // and Futaba's kitchen counter (things.json), which the islanders leave alone. Lying flat, held flat on the paw.
+  mermaidScale: { use: null, rest: 'flat', flat: true, secret: true },
 };
 
 /** Every thing there is: those above, and any other the things' build makes (art/blender/build_items.py, its

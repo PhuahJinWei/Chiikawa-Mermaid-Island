@@ -111,7 +111,7 @@ export class Choices {
   /** Whether a thing lying about is one `r` might go to: not burning, not on its way to someone else, not left
    * in someone else's room. */
   private open(r: Resident, t: Thing): boolean {
-    if (t.sought || ITEMS[t.item].light) return false;
+    if (t.sought || ITEMS[t.item].light || ITEMS[t.item].secret) return false;
     if (t.owner && t.owner !== r.id) {
       for (const h of this.life.places.homes) if (h.room && flat(h.room, t.at) < ROOM && Math.abs(h.room.y - t.at.y) < 1) return false;
     }

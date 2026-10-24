@@ -22,6 +22,8 @@ export interface TestPanelState {
   siren: SirenMood | null;
   /** Where her little mermaids are, or are going; null until she has loaded. */
   mermaids: MermaidPlace | null;
+  /** Whether 島二郎 has loaded, standing in his shop. */
+  shimajiro: boolean;
 }
 
 /** The test panel's times of day: dawn, midday, dusk and night, in hours past midnight. */
@@ -53,6 +55,8 @@ export interface TestPanelHandlers {
   mermaids(place: MermaidPlace): void;
   /** Takes you to the forbidden cave's ledge, before the Siren. */
   visitSiren(): void;
+  /** Takes you into 島二郎's shop, before him. */
+  visitShimajiro(): void;
 }
 
 const escapeHtml = (s: string) =>
@@ -144,6 +148,7 @@ export class TestPanel {
               chip('visit', '1', t('siren.visit')) +
               MERMAID_PLACES.map((p) => chip('mermaid', p, t(`mermaid.${p}` as StringKey), s.mermaids === p)).join(''),
           ),
+      s.shimajiro ? section('panel.shimajiro', chip('shop', '1', t('shimajiro.visit'))) : '',
       `<section><h3>${escapeHtml(t('panel.info'))}</h3><div class="info" data-info></div></section>`,
     ].join('');
     this.info = this.el.querySelector('[data-info]');
@@ -172,6 +177,7 @@ export class TestPanel {
     else if (d.siren) this.handlers.sirenMood(d.siren as SirenMood);
     else if (d.mermaid) this.handlers.mermaids(d.mermaid as MermaidPlace);
     else if (d.visit) this.handlers.visitSiren();
+    else if (d.shop) this.handlers.visitShimajiro();
     if (!d.close) this.render();
   };
 }

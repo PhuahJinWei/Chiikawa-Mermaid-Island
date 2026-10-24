@@ -57,7 +57,7 @@ We keep the **setting** and drop the **plot**.
 |---|---|
 | The island itself: karst pillars, jungle, village, pier, beaches, lagoon, reef | The Siren as a threat |
 | Festival atmosphere: stalls, bunting, confetti, the night feast, the islanders' song | Any violence, injury, or revenge |
-| The visiting trio plus Rakko-sensei as guests on the island | The mermaid-flesh / eternal life storyline |
+| The visiting trio plus Rakko-sensei as guests on the island | The mermaid-flesh / eternal life storyline, played out (the user brought in its traces, 2026-10-25: the book's page, and the mermaid's scale hidden in Hitoha and Futaba's kitchen cabinet) |
 | Hitoha and Futaba as friendly, inseparable islanders | Hitoha and Futaba's fate |
 | Islanders as a chorus-like community with matching outfits | The flyer as a lure |
 | The food shop and its owner as a stall | Food as a weapon |
@@ -299,7 +299,7 @@ cheaper bob-only animation so phones stay smooth.
 | **Hitoha** | Islander. Timid but curious. Always with Futaba. | Islander body with **one** leaf sprout. |
 | **Futaba** | Islander. Steady, friendly. Always with Hitoha. | Islander body with **two** leaf sprouts. The two share a schedule. |
 | **Islanders** (21 generic) | Village life, stalls, feast, singing. | All the same islander grey, told apart by their heads as the film's crowds are: no ears, round ears, cat ears, long or short bunny ears, a spike, a knob, two horns or one; some without crowns. Never leaves: only Hitoha and Futaba have those. Can be instanced. |
-| **Food-shop owner** | Runs the food stall, toasts at the feast. | Large mustached figure in a 味自慢 loincloth, about twice Chiikawa's height. Name to be confirmed. |
+| **島二郎** | Keeps the restaurant at the end of the riverside path. So far he stands in his shop by his stove, his hands down at his sides, and watches you; you can talk with him, his arms folded on some of his lines (2026-10-25; the lines are placeholders for the user to rewrite). Cooking and the feast are still to come. | A big man in a dark grey 味自慢 apron, twice Chiikawa's height (1.8 m), a topknot, grey tufts and a handlebar mustache. Modelled by `art/blender/build_shimajiro.py`. |
 | **Small mermaids** (2) | Rare sightings in the deep and the cave. | White round head with rust cap and antennae, startled O mouth, pink band, rust scaled tail. Shy: dart away if approached fast. |
 | **Siren** (optional) | Silhouette with red eyes peeking from the sea at night. | Large, about 2.5× Chiikawa. Only if you choose option (b) or (c). |
 

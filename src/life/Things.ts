@@ -31,6 +31,9 @@ export interface Thing extends Carried {
   readonly yaw: number;
   /** Where a paw takes it up as it lies (its prop's origin): what you reach for (see Play). */
   readonly grip: THREE.Vector3;
+  /** Lying in its place of its own out of sight, inside something (the mermaid's scale in a cabinet: ThingsPlan.kept's
+   * `seen`): where it is looked at to be taken out instead (the cabinet's doors), the ▽ over it there; else null. */
+  readonly seen: THREE.Vector3 | null;
   /** The trees' shade it lies in as the light falls now (white in the sun), following the sun and the moon
    * over the day (see reshade); in the forbidden cave, the cave's own light on it, as it is on someone there. */
   readonly shade: THREE.Color;
@@ -75,7 +78,17 @@ export interface SavedThing {
  * A thing named there that the game has no model for is left out.
  */
 export interface ThingsPlan {
-  kept: { id: string; item: ItemId; x: number; z: number; y?: number; height?: number; yaw: number; owner?: string }[];
+  kept: {
+    id: string;
+    item: ItemId;
+    x: number;
+    z: number;
+    y?: number;
+    height?: number;
+    yaw: number;
+    owner?: string;
+    seen?: [number, number, number];
+  }[];
   stands: { prop: string; item: ItemId }[];
   daily: { items: Record<string, number>; box: [number, number, number, number]; avoid?: [number, number, number, number][]; shore?: [number, number]; apart?: number }[];
 }
@@ -131,7 +144,10 @@ export class Things {
   readonly group = new THREE.Group();
   /** The places some things have of their own (see Thing.home): where each lies and which way, and whose the thing
    * is if anyone's (ThingsPlan.kept's `owner`); a stand's (see ThingsPlan.stands) which stand it is (see Props.brands). */
-  readonly homes = new Map<string, { item: ItemId; at: THREE.Vector3; yaw: number; owner?: string; stand?: number }>();
+  readonly homes = new Map<
+    string,
+    { item: ItemId; at: THREE.Vector3; yaw: number; owner?: string; stand?: number; seen?: THREE.Vector3 }
+  >();
   /** A thing has gone into its stand (`filled`) or been taken out of it: the stand's prop shows it or not
    * (see Stage.setBrand). Set by the game. */
   onStand: (stand: number, filled: boolean) => void = () => {};
@@ -163,7 +179,8 @@ export class Things {
     for (const k of plan.kept) {
       if (!isItem(k.item)) continue;
       const at = new THREE.Vector3(k.x, k.height ?? groundHeight(k.x, k.z, k.y ?? Infinity), k.z);
-      this.homes.set(k.id, { item: k.item, at, yaw: k.yaw, owner: k.owner });
+      const seen = k.seen ? new THREE.Vector3(...k.seen) : undefined;
+      this.homes.set(k.id, { item: k.item, at, yaw: k.yaw, owner: k.owner, seen });
     }
   }
 
@@ -199,6 +216,8 @@ export class Things {
     // In its stand, if it has one and lies at it: the stand's prop shows it.
     const home = c.home ? this.homes.get(c.home) : undefined;
     const hidden = home?.stand !== undefined && home.at.distanceTo(at) < 0.3;
+    // Inside what it lies in, at its place (the cabinet), it is looked at where that is seen from (see Thing.seen).
+    const seen = home?.seen && home.at.distanceTo(at) < 0.3 ? home.seen.clone() : null;
     const thing: Thing = {
       item,
       home: c.home,
@@ -207,6 +226,7 @@ export class Things {
       at: new THREE.Vector3(at.x, at.y, at.z),
       yaw,
       grip: new THREE.Vector3(at.x, y, at.z),
+      seen,
       shade: new THREE.Color(1, 1, 1),
       inCave: !!this.caveLight?.(at.x, y, at.z, _cave),
       shown: false,

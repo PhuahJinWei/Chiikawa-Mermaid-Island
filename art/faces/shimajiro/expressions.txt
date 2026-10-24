@@ -1,0 +1,5 @@
+# 島二郎: which layers make up each expression (see ../README.md).
+# The first layers were drawn by art/blender/build_shimajiro.py after the user's drawings of him, as templates
+# to paint over; it never overwrites them. His mustache is part of his model, not a layer: _guide.png shows it.
+# His one face so far is his scowl with his teeth showing; expressions without a line show it.
+Neutral: brows 1 + eyes open + mouth closed

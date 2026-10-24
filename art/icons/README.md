@@ -42,8 +42,8 @@ the faces, the signs and the book.
   ジュース, `ramune` ラムネ, `beer` ビール, `torch` たいまつ, `seashell`
   貝がら, `starfish` ヒトデ, `book` 伝説の生物図鑑, `weapon01` バネのぶき,
   `weapon02` ピンクのさすまた, `weapon03` あおいさすまた, `can` 缶,
-  `ukulele` ウクレレ. Capitals do not matter (`icon_thing_shavedice.png`
-  works).
+  `ukulele` ウクレレ, `sword` ラッコの剣, `mermaidScale` 人魚のうろこ.
+  Capitals do not matter (`icon_thing_shavedice.png` works).
 - A drawing of a thing the game does not have yet waits here; the build says
   so, and it shows once there is a thing of that name.
 

@@ -10,7 +10,19 @@ drew the Siren's first layers as templates to draw over: the cast's whole
 set of layers and all nine expressions, on Chiikawa's head, which is hers
 too. `art/blender/build_mermaid.py` drew the little mermaids' one face the
 same way: `eyes open` (two dots), `mouth open` (the round "O") and `eyes
-closed` (two dashes, for their blinks). A folder holds that character's face as layers, each one a
+closed` (two dashes, for their blinks). `shimajiro` is 島二郎 of the
+restaurant; `art/blender/build_shimajiro.py` drew his first layers from the
+user's front drawing of him: `brows 1`, `eyes open`, `eyes closed`, `mouth
+closed` (his mouth under the mustache, one tooth over three) and `mouth
+half-open`, all one face so far. His mustache is part of his model, not a
+layer; his `_guide.png` shows it. His apron's 味自慢 is a painting of its own
+in `shimajiro/apron/`: white paint on a clear ground, over the `_guide.png`
+there (the apron's front, its grey), any size of the guide's proportions;
+what is painted is lettered. His side tufts are `shimajiro/side tuft.png`:
+the lightning bolt drawn on a canvas like a layer's, its dark line round
+its grey fill, its right end toward his face. The build traces it and lays
+it on each side of his head, mirrored, as drawn (no pen line added round
+it); it is no layer of his face. A folder holds that character's face as layers, each one a
 transparent PNG painted in place on a 1536 × 1536 canvas. The canvas covers the
 game's face area: two head radii wide, centred on the eye line. `_guide.png`
 shows the bare head to paint over; the game never shows it.
@@ -132,6 +144,20 @@ In Git Bash:
 
 ```bash
 "/c/Program Files/Blender Foundation/Blender 5.2/blender.exe" --background --factory-startup --disable-autoexec --python art/blender/build_mermaid.py -- --no-previews
+```
+
+島二郎 has his own script as well, which takes about a minute; the Test
+panel's 島二郎 section takes you to him. It also letters his apron again from
+its painting. In PowerShell:
+
+```powershell
+& "C:\Program Files\Blender Foundation\Blender 5.2\blender.exe" --background --factory-startup --disable-autoexec --python art/blender/build_shimajiro.py -- --no-previews
+```
+
+In Git Bash:
+
+```bash
+"/c/Program Files/Blender Foundation/Blender 5.2/blender.exe" --background --factory-startup --disable-autoexec --python art/blender/build_shimajiro.py -- --no-previews
 ```
 
 A rebuild that worked ends with `BUILT` and `SAVED` lines naming the model.

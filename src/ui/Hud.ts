@@ -112,6 +112,7 @@ function svg(name: string): string {
 const VERB_GLYPH: [StringKey, string][] = [
   ['hud.pickUp', 'grab'],
   ['hud.borrow', 'grab'],
+  ['hud.takeOut', 'grab'],
   ['hud.put', 'put'],
   ['hud.putBack', 'put'],
   ['hud.give', 'give'],

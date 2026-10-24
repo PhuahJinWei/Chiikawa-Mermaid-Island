@@ -22,6 +22,7 @@ export type ActionId =
   | 'readSeated'
   | 'ready'
   | 'menace'
+  | 'folded'
   | 'drink';
 
 /** The actions the Test panel offers the cast. The Siren's own ('menace') is not one of them, nor 'ukulele' and
@@ -137,6 +138,13 @@ export const REACH_SWORD: Record<'lower' | 'upper', Point> = {
 export const REACH_READY: Record<'lower' | 'upper', Point> = {
   lower: [0.08, -0.99, 0.85],
   upper: [0.08, -0.88, 0.9],
+};
+/** 島二郎's fists with his arms folded (the 'folded' action), in his face radii as REACH: each across his middle to the
+ * other arm before his belly's top, his right forearm lower and before his left, so that they cross (checked in the
+ * game: sent level, side by side, they bunched into one lump). */
+export const REACH_FOLDED: Record<'over' | 'under', Point> = {
+  over: [-0.2, -1.42, 1.08],
+  under: [-0.2, -1.18, 0.95],
 };
 
 /** Reaches the pose's left paw (the model's -x side, their own right, named as seen from before them) `w` of the
@@ -569,6 +577,22 @@ export const ACTIONS: Record<ActionId, ActionDef> = {
       p.armLRaise = p.armRRaise = up * (0.42 + 0.04 * breath);
       p.squash = 1 + up * (0.015 + 0.008 * breath);
       p.leanZ = 0.012 * up;
+    },
+  },
+
+  // 島二郎 folding his arms as he talks (a line's cue, `[folded]`: see lines.ts and ShimajiroTalk; the user, 2026-10-25:
+  // an expression of his to show when talking with him), as the user's drawing of him has them (`shimajiro himself
+  // three quarter`), his mouth going as he speaks. His alone: everyone else's arms are too short for his points.
+  folded: {
+    duration: Infinity,
+    fadeIn: 0.35,
+    fadeOut: 0.4,
+    talking: true,
+    expression: () => 'neutral',
+    pose(t, p) {
+      reachL(p, 1, REACH_FOLDED.over);
+      reachR(p, 1, REACH_FOLDED.under);
+      p.squash = 1 + 0.006 * Math.sin(t * 1.6);
     },
   },
 };

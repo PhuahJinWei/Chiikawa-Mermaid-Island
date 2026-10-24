@@ -80,7 +80,7 @@ export interface FaceStyle {
 
 /** Who lives on the island apart from the cast the Test panel lets you play: the Siren, resting in the
  * forbidden cave (see Siren.ts). */
-export type ResidentId = 'siren' | 'mermaid';
+export type ResidentId = 'siren' | 'mermaid' | 'shimajiro';
 
 /**
  * How someone walks, each as a share of the plain way of walking, which you and the islanders have (1; see
@@ -122,4 +122,7 @@ export interface CharacterDef {
   carries?: 'can';
   /** What they play, from its Blender prop, in its action: Rakko's ukulele ('ukulele'). */
   plays?: 'ukulele';
+  /** Their arms hang at rest as they were built, not as the cast's do (see Character.locomotionPose): 島二郎's, built
+   * hanging at his sides as the user's drawing has them (the user, 2026-10-25). */
+  armsAsBuilt?: boolean;
 }

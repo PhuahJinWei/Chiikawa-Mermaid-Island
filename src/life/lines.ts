@@ -13,9 +13,9 @@ import { ACTIONS, type ActionId } from '../characters/Actions';
  *
  * A line may begin with a cue in brackets (the user, 2026-10-24: faces and actions to go with the words), which is
  * never shown: a face to make while it shows (`[happy]`, any of the faces: characters/types.ts), something to do as
- * they say it (`[cheer]`, `[drink]`, `[sword]`, `[hop]`: the actions, characters/Actions.ts), or both (`[happy
- * cheer]`). A face holds over the action's own; an action they cannot do (a sword they have not got, seated) is
- * passed over (see Resident.speak).
+ * they say it (`[cheer]`, `[drink]`, `[sword]`, `[hop]`: the actions, characters/Actions.ts; `[folded]`, his arms
+ * folded, is 島二郎's alone: see ShimajiroTalk), or both (`[happy cheer]`). A face holds over the action's own; an
+ * action they cannot do (a sword they have not got, seated) is passed over (see Resident.speak).
  */
 
 const NUMBERED = /^(.+)\.(\d+)$/;

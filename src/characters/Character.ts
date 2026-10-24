@@ -1263,11 +1263,13 @@ export class Character implements EmoteHost {
     p.armLRaise = p.armRRaise = 0.04 * Math.sin(tm * 2.3 + 0.8);
     if (this.armRig) {
       // Arms that bend hang a little lower than the stubs did, soft at the elbow and the wrist, their paws in by
-      // their sides as the plush's are.
-      p.armLRaise = p.armRRaise = REST_ARM.raise + 0.04 * Math.sin(tm * 2.3 + 0.8);
-      p.armLSwing = p.armRSwing = REST_ARM.swing;
-      p.armLBend = p.armRBend = REST_ARM.bend;
-      p.pawLBend = p.pawRBend = REST_ARM.paw;
+      // their sides as the plush's are; arms built hanging at their sides (島二郎's) hang as built.
+      if (!this.def.armsAsBuilt) {
+        p.armLRaise = p.armRRaise = REST_ARM.raise + 0.04 * Math.sin(tm * 2.3 + 0.8);
+        p.armLSwing = p.armRSwing = REST_ARM.swing;
+        p.armLBend = p.armRBend = REST_ARM.bend;
+        p.pawLBend = p.pawRBend = REST_ARM.paw;
+      }
       // A paw that holds a thing holds it out before their side (see placeHand), and the cave's torch up: their right
       // (the pose's L: see HAND_LEAN).
       const breathe = 0.04 * Math.sin(tm * 2.3 + 0.8);

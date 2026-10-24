@@ -3,6 +3,7 @@
     { "id": "ukulele", "item": "ukulele", "x": 9.0, "z": -87.3, "y": 3, "yaw": 0.6 },
     { "id": "torch", "item": "torch", "x": -19.08, "z": -71.6, "y": 1.98, "yaw": 1.724 },
     { "id": "book", "item": "book", "x": -15.75, "z": -59.91, "height": 1.978, "yaw": 5.59 },
+    { "id": "mermaidScale", "item": "mermaidScale", "x": -15.145, "z": -57.547, "height": 1.982, "yaw": 0.9, "seen": [-15.245, 2.28, -57.773] },
     { "id": "cave_torch_1", "item": "torch", "x": -192.53, "z": -111.19, "height": 0.33, "yaw": 1.2 },
     { "id": "cave_torch_2", "item": "torch", "x": -194.13, "z": -110.98, "height": 0.346, "yaw": 2.9 },
     { "id": "weapon02", "item": "weapon02", "x": 12.36, "z": -111.92, "height": 1.946, "yaw": 1.658, "owner": "chiikawa" },

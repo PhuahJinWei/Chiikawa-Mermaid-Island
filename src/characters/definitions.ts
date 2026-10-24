@@ -226,6 +226,22 @@ export const MERMAID: CharacterDef = {
   runSpeed: 2.0,
 };
 
+/**
+ * 島二郎, who keeps the restaurant at the end of the riverside path (art/blender/build_shimajiro.py): a big, strong
+ * man in an apron, 1.8 m to his topknot's tip, his own shop's size (the user, 2026-10-25), his arms hanging at his
+ * sides as built. His face is painted (art/faces/shimajiro/), so its style here is only a fallback. He stays in his
+ * shop (see Shimajiro.ts); his pace is never used.
+ */
+export const SHIMAJIRO: CharacterDef = {
+  id: 'shimajiro',
+  nameKey: 'char.shimajiro',
+  model: 'models/shimajiro.glb',
+  face: { ...roundFace },
+  walkSpeed: 1.0,
+  runSpeed: 2.0,
+  armsAsBuilt: true,
+};
+
 /** An islander in the background crowd: its model, and the outfit it wears, if any. */
 export interface CrowdKind {
   model: string;

@@ -60,11 +60,11 @@ export class SirenTalk {
   }
 
   /** Whether what you hold is yours to give her: not bitten into, not lent you, not someone's, not with a place
-   * of its own (the book, the stage's ukulele, a village torch's brand). */
+   * of its own (the book, the stage's ukulele, a village torch's brand), not the island's secret (the mermaid's scale). */
   private canGive(): boolean {
     const hands = this.hands();
     const c = hands?.hand;
-    return !!c && !hands.nibbled && !c.lent && !c.home && (c.owner === null || c.owner === 'player');
+    return !!c && !hands.nibbled && !c.lent && !c.home && !ITEMS[c.item].secret && (c.owner === null || c.owner === 'player');
   }
 
   /** Whether she is talking with you. */

@@ -11,6 +11,88 @@ stage, and along every path. Not yet checked on a real phone.
 
 **Added**
 
+- 島二郎 himself (the user, 2026-10-25: "lets try modeling 島二郎 himself",
+  with their drawings of him from the front and three-quarters and a frame
+  of the film). He stands in his shop by his stove, his hands down at his
+  sides as the front drawing has them, and turns to keep his eyes on you as
+  everyone does. The Test panel's 島二郎:
+  会いに行く takes you to him.
+  - Being so much taller, he looks down at you, as the Siren does (the
+    user, 2026-10-25). He bows his head most of the way to your eyes, up
+    to 0.5 radians: 29° a step away, less from further off. Everyone's
+    gentle nod (0.25) had left his eyes behind his mustache from below, so
+    that he seemed to look over your head.
+  - You can talk with him (はなす, looking at him), as with the Siren: his
+    lines in the text box, もっとはなす and またね, walking off ending it.
+    His lines are placeholders for now, the user's to rewrite in
+    `src/locales/ja.json`: `talk.firstMeet.shimajiro`,
+    `talk.own.shimajiro.1` to `4`, `talk.again.shimajiro`,
+    `talk.spent.shimajiro` and `part.bye.shimajiro`.
+  - His arms folded are a cue his lines give, `[folded]` (the user,
+    2026-10-25: an expression of his to show when talking with him), as
+    the three-quarter drawing has him, his mouth going. On a line without
+    it he talks with his hands down, and after the talk they come down
+    again. Each fist goes across his middle, his right forearm lower and
+    before his left: sent level, side by side, they bunched into one lump.
+    It is his alone; the islanders' lines cannot cue it.
+  - Modelled by `art/blender/build_shimajiro.py`, 1.8 m to his topknot's
+    tip, twice Chiikawa (the user's choice): his own shop's size, as the
+    film sets him against his stool, table and door. His head is round
+    after the front drawing's outline, as wide as Chiikawa's, widest low at
+    his mustache. On it are a small onion-shaped topknot, a lightning bolt
+    of grey hair on each side and a big handlebar mustache standing off his
+    face, so that it shows in profile.
+  - The lightning bolts are the user's drawing of one (`side tuft.png` in
+    `art/faces/shimajiro/`, 2026-10-25), mirrored on each side, its right
+    end toward his face. The build traces it from the drawing, so a
+    redrawn tuft shows on the next build. It is laid on his head as drawn:
+    a dark piece the shape of the whole drawing and its grey fill a
+    millimetre over it, with no pen line round them, so the drawing's own
+    line and its solid tips show. Fused into one soft shape, as the
+    character's other pieces are, the fill had sunk behind the line and
+    the bolt's notch had blurred. On his left side the game had drawn it
+    from inside, its faces turned over by the mirror.
+  - A broad, heavy body: round shoulders, a smooth chest, a big round belly,
+    a round bottom. Strong arms that bend at the elbow and the wrist, ending
+    in big fists. Short, sturdy legs and bare feet with toes, turned a little
+    out.
+  - His shoulders and arms are the front drawing's, laid over it at the
+    same size. His shoulders had stood as big round balls, wider and higher
+    than the drawing's (the user: "a little too big"). Now they slope down
+    from his head to his arms, no wider than its. His arms are as long as
+    its, his fists by his apron's top.
+  - A dark grey apron over the front of his hips, 味自慢 on it in white, hung
+    from a band round his waist. No picture shows his back, so the band is
+    knotted there over his bare back and bottom (the user's choice). The
+    lettering is a painting of its own, in `art/faces/shimajiro/apron/`,
+    first taken from the user's front drawing. The game paints it from his
+    mask texture with no line round the letters.
+  - His face is the user's painting in `art/faces/shimajiro/` (2026-10-25),
+    over first layers drawn from the front drawing: small round eyes ringed
+    in black, short wavy brows with a frown mark, his mouth under the
+    mustache's middle with its teeth, the curve of his chin, and his mouth
+    open with its tongue as he talks. It has one expression so far.
+  - His arms hang as they were built, at his sides, his fists by his
+    apron's top (`armsAsBuilt`), rather than resting as the cast's do. He
+    stood with his arms folded at first, as the three-quarter drawing has
+    him, until the user asked for them down at his sides.
+  - 34,000 triangles, about the Siren's.
+- 人魚のうろこ, the mermaid's scale (the user, 2026-10-25: "very important":
+  the remains of a mermaid one of the islanders ate, which the book says
+  gives eternal life). After the film's frame of it the user sent (their
+  photographs of one came first, and the shape and colours were a little
+  off), built in `art/blender/build_items.py`: a thick pink jelly tile,
+  its top an arch and its sides falling to a narrower rounded foot (its
+  outline measured in the frame), a rose rim darkest across its top round
+  a lighter pink face, a white shine at its top right with a small one
+  beside it, and three grooves down its lower middle; 12 cm long. It lies hidden in the cabinet under
+  Hitoha and Futaba's kitchen counter (things.json), back there each
+  morning. Looking at the cabinet's doors shows the ▽ on them and offers
+  とりだす (a `kept` place can now say where it is looked at: `seen`).
+  Its card: 島のだれかが食べた人魚の、たったひとつののこり, and what the book
+  says. The islanders never touch it (`ItemDef.secret`). Held flat on the
+  paw; the pouch shows the user's drawing of it
+  (`art/icons/icon_thing_mermaidScale.png`).
 - A start card after loading (the user, 2026-10-24: "a minimal tap-to-start
   card after loading: タップしてはじめる over the island; a tap starts the sound
   and gives control"). The game had dropped you straight into the island.
@@ -266,6 +348,17 @@ stage, and along every path. Not yet checked on a real phone.
   another time speaks of the last thing you gave her (「このまえの{0}、この子
   たち、よろこんでたの」). Never what is not yours to give: lent you (Rakko's
   sword), someone's, or with a place of its own (the book, the ukulele).
+- 島二郎 talks in his own voice (the user, 2026-10-25: his lines had been
+  placeholders; after the manga's Siren arc: おれ, お前, short hearty
+  sentences ending in ッ like サービスだッ and またなッ, a good grown-up proud
+  of his 貝汁 and カツカレー). 35 lines: meeting him (「大丈夫ッ、こわくないぞ。
+  ここは店だッ」), ten of his own, again, his shop shut by night
+  (「今日はもう終わったよッ!!」, his first words in the manga, from 21:00 to
+  6:00), what you hold, his goodbye (「またなッ」), with his arms folded on
+  many. Like the Siren he takes gifts without holding them: あげる for what
+  is yours, his thanks naming food (「ほう、たこやきかッ。ありがたくいただくッ」),
+  and the last gift spoken of another time. Neither he nor the Siren takes
+  the mermaid's scale (the island's secret).
 - Someone at the welcome you are talking with no longer walks off when the
   welcome ends: they go once they have parted from you, as at any other
   change in their day.

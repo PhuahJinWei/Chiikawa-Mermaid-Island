@@ -31,7 +31,9 @@ import { loadCharacterModel, loadOutfitModel, type OutfitModel } from '../charac
 import { EmoteSystem } from '../characters/Emotes';
 import { groundShadows } from '../characters/GroundShadows';
 import { Siren } from '../characters/Siren';
+import { Shimajiro } from '../characters/Shimajiro';
 import { SirenTalk } from '../life/SirenTalk';
+import { ShimajiroTalk } from '../life/ShimajiroTalk';
 import { PlayerController, type Heading } from '../characters/PlayerController';
 import { createHeld } from '../characters/Props';
 import { loadProp } from '../world/PropModels';
@@ -91,6 +93,8 @@ const CROWD_COLOR = '#988584';
 const CROWD_BARE = 0.25;
 /** How far out from the Siren toward the water the Test panel's visit puts you, between your middles. */
 const SIREN_VISIT = 2.4;
+/** How far before 島二郎 the Test panel's visit puts you, between your middles. */
+const SHIMAJIRO_VISIT = 1.6;
 const LINEUP_SPACING = 1.0;
 const LINEUP_PITCH = 0.04;
 const FOLLOW_PITCH = 0.16;
@@ -260,6 +264,8 @@ export class Game {
   private readonly crowd: Character[] = [];
   /** The Siren, resting on the forbidden cave's ledge, once she has loaded. */
   private siren: Siren | null = null;
+  /** 島二郎, standing in his shop, once he has loaded. */
+  private shimajiro: Shimajiro | null = null;
   /** Everyone's days on the island (see life/Life.ts), once it has loaded. */
   private life: Life | null = null;
   /** What lies about the island, and what you do with your paws (see Play), once loaded. */
@@ -384,6 +390,7 @@ export class Game {
         sirenMood: (mood) => this.siren?.setMood(mood),
         mermaids: (place) => this.siren?.mermaids.choose(place),
         visitSiren: () => this.visitSiren(),
+        visitShimajiro: () => this.visitShimajiro(),
       },
       () => ({
         character: this.controlled,
@@ -397,6 +404,7 @@ export class Game {
         reflections: FILM ? this.stage.reflections : null,
         siren: this.siren?.currentMood ?? null,
         mermaids: this.siren?.mermaids.where ?? null,
+        shimajiro: this.shimajiro !== null,
       }),
     );
     this.hud.setSound(this.sound.enabled);
@@ -498,6 +506,7 @@ export class Game {
       if (this.stage.cave) this.siren = await Siren.load(this.stage.cave, this.emotes);
       // Out of the cave, to the sea, she is drawn in the open air.
       this.siren?.setOutside(this.scene);
+      this.shimajiro = await Shimajiro.load(this.scene, this.emotes);
       // What lies about (public/data/things.json), there for everyone who lives here as for you.
       // (What lies in the forbidden cave is lit by its own light there, as everyone in it is.)
       this.things = new Things(
@@ -575,6 +584,15 @@ export class Game {
     play.onSleep = () => void this.sleepThrough();
     // Talking with the Siren on her ledge (see SirenTalk).
     if (this.siren) play.siren = new SirenTalk(this.siren, this.hud.dialogue, () => life.playerHands, () => this.sound?.give());
+    if (this.shimajiro) {
+      play.shimajiro = new ShimajiroTalk(
+        this.shimajiro,
+        this.hud.dialogue,
+        () => life.playerHands,
+        () => this.sound?.give(),
+        () => this.clock.hours,
+      );
+    }
     this.play = play;
     // Only the game's camera draws your paw before your eyes.
     this.camera.layers.enable(HAND_LAYER);
@@ -987,6 +1005,26 @@ export class Game {
     else this.rig.snapTo(this.focusPoint());
   }
 
+  /** Testing: puts the character you control in 島二郎's shop, before him, facing him. */
+  private visitShimajiro(): void {
+    const shimajiro = this.shimajiro;
+    if (!shimajiro) return;
+    if (this.lineup) this.setLineup(false);
+    const me = this.me();
+    if (this.rowing) {
+      this.rowing = false;
+      this.boat?.leave();
+      me.ride = null;
+    }
+    me.stopAction();
+    const { x, z, yaw, feet } = shimajiro.spot;
+    me.teleport(x + Math.sin(yaw) * SHIMAJIRO_VISIT, z + Math.cos(yaw) * SHIMAJIRO_VISIT, yaw + Math.PI, feet);
+    this.rig.yaw = yaw;
+    this.eyes.lookFrom(me);
+    if (this.freeCamOn) this.setFreeCamera(false);
+    else this.rig.snapTo(this.focusPoint());
+  }
+
   private setOutfit(on: boolean): void {
     this.outfitOn = on;
     for (const ch of this.characters.values()) ch.setOutfitVisible(on);
@@ -1274,6 +1312,8 @@ export class Game {
       ),
     );
     this.part('siren talk', () => this.play?.siren?.update(dt, me.position));
+    this.part('shimajiro talk', () => this.play?.shimajiro?.update(dt, me.position));
+    this.part('shimajiro', () => this.shimajiro?.update(dt, this.ctx, this.staged || this.lineup || this.freeCamOn ? null : me));
     // What is said to you, in the text box: the action button, E or Enter show the rest of a line, or the next
     // (held, skipping through them); asked something, the keyboard's numbers choose (1 the first, 0 the tenth).
     const box = this.hud.dialogue;
@@ -1473,6 +1513,7 @@ export class Game {
     for (const ch of this.characters.values()) ch.updateOutline(this.ctx);
     for (const extra of this.crowd) extra.updateOutline(this.ctx);
     this.siren?.updateOutline(this.ctx);
+    this.shimajiro?.updateOutline(this.ctx);
   }
 
   private updateViewLift(dt: number): void {

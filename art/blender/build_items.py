@@ -73,6 +73,15 @@ C.update({k: L.hex_color(v) for k, v in {
     "flossWhite": "#FAF8F6",
     "baneHead": "#ECE7D3",
     "baneWood": "#DEBD92",
+    # The mermaid's scale, as the film's frame of it has it (2026-10-25): its pink face, lighter toward its foot's left;
+    # its rose rim, darkest across its top; its grooves, and its white shine.
+    "scaleFace": "#FD6BC1",
+    "scaleFaceLight": "#FC7BCE",
+    "scaleRimTop": "#EF3F75",
+    "scaleRimSide": "#F44E92",
+    "scaleRimFoot": "#F868C0",
+    "scaleGroove": "#E43C95",
+    "scaleShine": "#F3F0FF",
 }.items()})
 # The pen's colour, for the spring weapon's face painted onto its head (build_props' lines painted onto props).
 C["ink"] = P.C["ink"]
@@ -645,6 +654,200 @@ def spring_weapon(k):
     k.add(painted_line_bm(centre, axes, [face(along, up) for along, up in BANE_MOUTH], line), "ink")
 
 
+# The mermaid's scale, 人魚のうろこ (the user, 2026-10-25: the remains of a mermaid one of the islanders ate; the
+# book's page says eating a mermaid's flesh gives eternal life), after the film's frame of it the user sent (its shape
+# and colouring: the user's photographs of one had come first): a thick pink jelly tile, rounded, its top an arch, its
+# sides falling straight and a little in to its narrower foot, a darker rose rim round its lighter pink face, a big
+# glossy white shine at its top right with a small one beside it, and three grooves down its lower middle. Its length
+# and its width (a share of its length); its outline down its length from its top (how far along, a share) by how far
+# out its sides are (shares of its width from its middle, the same both sides), measured in the frame; how high its
+# top domes over its rim and its foot under it, and how round its rim is (the power of its round: below 1 its top is
+# flatter and its rim rounder). How far out toward its rim its face turns to its rim (shares of the way out: from,
+# to), and its rim's colour from its top down its sides to its foot (see C). Its grooves, each from its top end to its
+# foot (in the frame's shares: across from its left, down from its top), how wide they are drawn, and how far each
+# bows out from the middle; its shine (its middle, how far across and down it reaches, and its turn, radians) and the
+# small one beside it (its middle and how far round).
+SCALE_LONG = 0.12
+SCALE_WIDE = 0.846
+SCALE_OUTLINE = ((0.03, 0.223), (0.06, 0.3), (0.1, 0.365), (0.15, 0.42), (0.2, 0.453), (0.3, 0.49), (0.4, 0.5),
+                 (0.5, 0.4975), (0.55, 0.493), (0.6, 0.485), (0.65, 0.459), (0.7, 0.427), (0.75, 0.407), (0.8, 0.383),
+                 (0.85, 0.36), (0.9, 0.337), (0.94, 0.3), (0.97, 0.238))
+SCALE_DOME = (0.02, 0.008)
+SCALE_ROUND = 0.6
+SCALE_RIM = (0.74, 0.86)
+SCALE_RIM_COLOURS = ((0.0, "scaleRimTop"), (0.45, "scaleRimSide"), (1.0, "scaleRimFoot"))
+SCALE_GROOVES = (((0.385, 0.5), (0.395, 0.7)), ((0.54, 0.48), (0.535, 0.69)), ((0.67, 0.5), (0.66, 0.69)))
+SCALE_GROOVE_WIDE = 0.0026
+SCALE_GROOVE_BOW = 0.0014
+SCALE_SHINE = ((0.77, 0.245), (0.13, 0.115), 0.6)
+SCALE_GLINT = ((0.605, 0.285), 0.022)
+
+
+def catmull_closed(points, per):
+    """A closed Catmull-Rom curve through `points` ((x, y) tuples), `per` points between each two."""
+    n = len(points)
+    out = []
+    for i in range(n):
+        p0, p1, p2, p3 = (points[(i + d) % n] for d in (-1, 0, 1, 2))
+        for s in range(per):
+            t = s / per
+            t2, t3 = t * t, t * t * t
+            out.append(tuple(0.5 * ((2 * p1[j]) + (-p0[j] + p2[j]) * t + (2 * p0[j] - 5 * p1[j] + 4 * p2[j] - p3[j]) * t2
+                                    + (-p0[j] + 3 * p1[j] - 3 * p2[j] + p3[j]) * t3) for j in (0, 1)))
+    return out
+
+
+def mermaid_scale(k):
+    """The mermaid's scale (see SCALE_LONG), lying flat on the paw: a domed pink jelly tile from its top (+Y) to its
+    foot, its underside at the origin; its rim darker than its face, its shine and its grooves painted on its top (see
+    painted_dot_bm: one-sided, a hair off it, so the pen draws no outline round them)."""
+    long_, wide = SCALE_LONG, SCALE_LONG * SCALE_WIDE
+    top_h, foot_h = SCALE_DOME
+
+    def place(fx, fy):
+        """A point of the frame (across from its middle, in widths; down from its top, in lengths)."""
+        return (fx * wide, (0.5 - fy) * long_)
+
+    rim = [place(0.0, 0.0)] + [place(r, f) for f, r in SCALE_OUTLINE]
+    rim += [place(0.0, 1.0)] + [place(-r, f) for f, r in reversed(SCALE_OUTLINE)]
+    rim = catmull_closed(rim, 3)
+    cx = sum(p[0] for p in rim) / len(rim)
+    cy = sum(p[1] for p in rim) / len(rim)
+    e = SCALE_ROUND
+
+    def share(x, y):
+        """How far out toward its rim (x, y) is, 0 at its middle to 1 on its rim (its rim is round its middle)."""
+        dx, dy = x - cx, y - cy
+        d = math.hypot(dx, dy)
+        if d < 1e-9:
+            return 0.0
+        ux, uy = dx / d, dy / d
+        best = None
+        for (ax, ay), (bx, by) in zip(rim, rim[1:] + rim[:1]):
+            # Where the ray from the middle meets this edge of the rim.
+            ex, ey = bx - ax, by - ay
+            den = ux * ey - uy * ex
+            if abs(den) < 1e-12:
+                continue
+            t = ((ax - cx) * ey - (ay - cy) * ex) / den
+            u = ((ax - cx) * uy - (ay - cy) * ux) / den
+            if t > 0 and -1e-9 <= u <= 1 + 1e-9 and (best is None or t < best):
+                best = t
+        return d / best if best else 1.0
+
+    def top_at(x, y):
+        """Its top's height over (x, y) (inside its rim)."""
+        s = min(1.0, share(x, y))
+        c = s ** (1.0 / e)
+        return foot_h + top_h * max(0.0, 1.0 - c * c) ** (e / 2)
+
+    def mix(a, b, w):
+        return tuple(a[i] + (b[i] - a[i]) * w for i in range(3))
+
+    def colour_at(x, y, s):
+        """Its face's pink, turning to its rim's rose out toward its rim (`s`, see share), the rim darkest at its top."""
+        fy = 0.5 - y / long_
+        rim_colour = C[SCALE_RIM_COLOURS[-1][1]]
+        for (t0, c0), (t1, c1) in zip(SCALE_RIM_COLOURS, SCALE_RIM_COLOURS[1:]):
+            if fy <= t1:
+                rim_colour = mix(C[c0], C[c1], L.smoothstep(t0, t1, fy))
+                break
+        face = mix(C["scaleFace"], C["scaleFaceLight"], L.smoothstep(0.55, 0.95, fy) * L.smoothstep(0.1, -0.35, x / wide))
+        return mix(face, rim_colour, L.smoothstep(*SCALE_RIM, s))
+
+    # Its body: rings from its foot's middle out to its rim and in again over its top, each its rim drawn in
+    # toward the middle (see SCALE_ROUND).
+    bm = bmesh.new()
+    steps = 7
+    rings = []
+    shares = []
+    for j in range(-steps, steps + 1):
+        phi = math.pi / 2 * j / steps
+        c, s = math.cos(phi), math.sin(phi)
+        ring_s = abs(c) ** e
+        z = foot_h + (top_h if s > 0 else foot_h) * math.copysign(abs(s) ** e, s)
+        if abs(j) == steps:
+            rings.append([bm.verts.new((cx, cy, z))])
+            shares.append([0.0])
+        else:
+            rings.append([bm.verts.new((cx + (px - cx) * ring_s, cy + (py - cy) * ring_s, z)) for px, py in rim])
+            shares.append([ring_s] * len(rim))
+    for lo, hi in zip(rings, rings[1:]):
+        n = len(rim)
+        for i in range(n):
+            i2 = (i + 1) % n
+            if len(lo) == 1:
+                bm.faces.new((lo[0], hi[i2], hi[i]))
+            elif len(hi) == 1:
+                bm.faces.new((lo[i], lo[i2], hi[0]))
+            else:
+                bm.faces.new((lo[i], lo[i2], hi[i2], hi[i]))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    colours = {}
+    for ring, ring_shares in zip(rings, shares):
+        for v, s in zip(ring, ring_shares):
+            colours[v] = colour_at(v.co.x, v.co.y, s)
+    k.add(bm, [colours[v] for v in bm.verts])
+
+    def surface(x, y):
+        """The point of its top over (x, y), lifted a hair off it, and the way out of it there."""
+        h = 0.0005
+        z = top_at(x, y)
+        n = Vector((-(top_at(x + h, y) - top_at(x - h, y)) / (2 * h), -(top_at(x, y + h) - top_at(x, y - h)) / (2 * h), 1.0))
+        n.normalize()
+        return Vector((x, y, z)) + n * PAINT_LIFT, n
+
+    def upward(paint):
+        for f in paint.faces:
+            f.normal_update()
+            if f.normal.z < 0:
+                f.normal_flip()
+        return paint
+
+    def blob(x, y, rx, ry, turn=0.0, segments=12):
+        """A patch painted on its top round (x, y): an oval `rx` across and `ry` along, turned `turn`."""
+        mid, _ = surface(x, y)
+        paint = bmesh.new()
+        middle = paint.verts.new(mid)
+        edge = []
+        for i in range(segments):
+            a = 2 * math.pi * i / segments
+            ox, oy = rx * math.cos(a), ry * math.sin(a)
+            edge.append(paint.verts.new(surface(x + ox * math.cos(turn) - oy * math.sin(turn),
+                                                y + ox * math.sin(turn) + oy * math.cos(turn))[0]))
+        for i in range(segments):
+            paint.faces.new((middle, edge[i], edge[(i + 1) % segments]))
+        return upward(paint)
+
+    # The grooves, each a slight curve bowed out from the scale's middle, thickest at its middle, its ends round.
+    for (fx0, fy0), (fx1, fy1) in SCALE_GROOVES:
+        a, b = Vector(place(fx0 - 0.5, fy0)), Vector(place(fx1 - 0.5, fy1))
+        side = Vector((-(b - a).y, (b - a).x)).normalized()
+        if side.dot((a + b) / 2 - Vector((cx, cy))) < 0:
+            side = -side
+        path = [a.lerp(b, t) + side * (SCALE_GROOVE_BOW * math.sin(math.pi * t)) for t in (i / 10 for i in range(11))]
+        paint = bmesh.new()
+        left, right = [], []
+        for i, p in enumerate(path):
+            q = path[min(i + 1, len(path) - 1)] - path[max(i - 1, 0)]
+            half = SCALE_GROOVE_WIDE / 2 * (0.55 + 0.45 * math.sin(math.pi * i / (len(path) - 1)))
+            across = Vector((-q.y, q.x)).normalized() * half
+            left.append(paint.verts.new(surface(p.x + across.x, p.y + across.y)[0]))
+            right.append(paint.verts.new(surface(p.x - across.x, p.y - across.y)[0]))
+        for i in range(len(path) - 1):
+            paint.faces.new((left[i], right[i], right[i + 1], left[i + 1]))
+        for end in (path[0], path[-1]):
+            L.append_bm(paint, blob(end.x, end.y, SCALE_GROOVE_WIDE * 0.275, SCALE_GROOVE_WIDE * 0.275, segments=8))
+        k.add(upward(paint), "scaleGroove")
+    # The shine at its top right, and the small one beside it.
+    (fx, fy), (sx, sy), turn = SCALE_SHINE
+    x, y = place(fx - 0.5, fy)
+    k.add(blob(x, y, sx * wide, sy * long_, turn, segments=20), "scaleShine")
+    (fx, fy), r = SCALE_GLINT
+    x, y = place(fx - 0.5, fy)
+    k.add(blob(x, y, r * wide, r * wide, segments=10), "scaleShine")
+
+
 def book(name, collection):
     """The island's one book to read, 伝説の生物図鑑 (books.py): shut, lying flat and held flat on the paw as a tray
     is; and its two halves open, which the game shows while it is read. Its cover's picture, if built
@@ -670,6 +873,7 @@ ITEMS = {
     "book": book,
     # Named as the user's icons are (art/icons/icon_thing_<id>.png).
     "weapon01": spring_weapon, "weapon02": fork("forkPink"), "weapon03": fork("forkBlue"),
+    "mermaidScale": mermaid_scale,
     "paw": paw,
 }
 # Things made whole, of parts with UV maps and pictures (books.py), not of the kit's pieces: each returns its parts

@@ -241,6 +241,8 @@ export class Focus {
     switch (target.kind) {
       case 'thing': {
         const thing = target.thing;
+        // (Inside something, before where it is seen from: the cabinet's doors.)
+        if (thing.seen) return out.copy(thing.seen);
         return out.copy(thing.grip).setY(thing.grip.y + (thing.hidden ? STAND_FLAME : this.topOf(thing.item)) + OVER_THING);
       }
       case 'resident':
@@ -253,7 +255,8 @@ export class Focus {
       case 'stand':
         return out.copy(target.at).setY(target.at.y + OVER_THING);
       case 'siren':
-        // Over the top of her head, as over anyone's.
+      case 'shimajiro':
+        // Over the top of their head, as over anyone's.
         target.ch.getAnchor('top', out);
         out.y += OVER_HEAD;
         return out;

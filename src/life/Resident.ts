@@ -98,7 +98,7 @@ const TALK_CHOICE: Record<TalkChoice, StringKey> = {
   bye: 'talk.bye',
 };
 /** What no line's cue has anyone do (see Resident.cued): what needs a seat, food, or is not theirs. */
-const UNCUED = new Set<ActionId | 'hop'>(['sit', 'doze', 'eat', 'talk', 'readSeated', 'menace']);
+const UNCUED = new Set<ActionId | 'hop'>(['sit', 'doze', 'eat', 'talk', 'readSeated', 'menace', 'folded']);
 /** Asking you something (see speak's choices), they wait for your answer at most this long (seconds). */
 const CHOOSE_MOST = 40;
 /**

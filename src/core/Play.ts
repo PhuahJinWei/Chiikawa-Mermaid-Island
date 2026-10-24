@@ -12,6 +12,7 @@ import { Things, type Thing } from '../life/Things';
 import type { Life } from '../life/Life';
 import type { Resident } from '../life/Resident';
 import type { SirenTalk } from '../life/SirenTalk';
+import type { ShimajiroTalk } from '../life/ShimajiroTalk';
 import type { Seat, Stall } from '../life/Places';
 import { groundHeight, waterLevelAt } from '../world/Island';
 import type { Sound } from './Sound';
@@ -74,6 +75,8 @@ export type Target =
   | { kind: 'resident'; r: Resident }
   /** The Siren, on her ledge in the cave (see SirenTalk): her character. */
   | { kind: 'siren'; ch: Character }
+  /** 島二郎, in his shop (see ShimajiroTalk): his character. */
+  | { kind: 'shimajiro'; ch: Character }
   | { kind: 'place'; at: THREE.Vector3 }
   /** An empty stand (a village torch's pole) for the brand you hold (see Things' stands). */
   | { kind: 'stand'; home: string; at: THREE.Vector3; yaw: number };
@@ -129,6 +132,8 @@ export class Play {
   onSleep: () => void = () => {};
   /** Talking with the Siren, once the game has her (see SirenTalk). */
   siren: SirenTalk | null = null;
+  /** Talking with 島二郎, once the game has him (see ShimajiroTalk). */
+  shimajiro: ShimajiroTalk | null = null;
   private label: string | null = null;
   /** Picked from the きもち panel, to do on the next frame (see emote). */
   private emoteQueued: ActionId | null = null;
@@ -514,6 +519,14 @@ export class Play {
       _eyes.set(p.x, THREE.MathUtils.clamp(eye.y + along * _fwd.y, sc.feetY + 0.1, sc.feetY + sc.height), p.z);
       consider(_eyes, REACH + 1.3, { kind: 'siren', ch: sc });
     }
+    // 島二郎 in his shop, anywhere on him as anyone, his belly round him beyond your reach of anyone.
+    const owner = this.shimajiro?.shimajiro.character;
+    if (owner && owner.shown) {
+      const p = owner.position;
+      const along = level > 1e-6 ? ((p.x - eye.x) * _fwd.x + (p.z - eye.z) * _fwd.z) / level : 0;
+      _eyes.set(p.x, THREE.MathUtils.clamp(eye.y + along * _fwd.y, owner.feetY + 0.1, owner.feetY + owner.height), p.z);
+      consider(_eyes, REACH + 0.6, { kind: 'shimajiro', ch: owner });
+    }
     // A brand in its stand, and an empty stand for the brand you hold: anywhere on the stake, as someone is
     // anywhere on them (the user, 2026-10-23: looking at the pole found nothing, only its flame did).
     const stakePoint = (at: THREE.Vector3): THREE.Vector3 => {
@@ -524,7 +537,7 @@ export class Play {
     for (const thing of this.things.list) {
       if (!thing.shown) continue;
       if (thing.hidden) consider(stakePoint(thing.at), STAND_REACH, { kind: 'thing', thing });
-      else consider(thing.grip, REACH, { kind: 'thing', thing });
+      else consider(thing.seen ?? thing.grip, REACH, { kind: 'thing', thing });
     }
     // The brand you hold, back into its stand if it is empty.
     const brand = this.hands.hand;
@@ -559,6 +572,8 @@ export class Play {
         return was.kind === 'resident' && was.r === target.r;
       case 'siren':
         return was.kind === 'siren';
+      case 'shimajiro':
+        return was.kind === 'shimajiro';
       case 'seat':
         return was.kind === 'seat' && was.seat === target.seat;
       case 'stand':
@@ -595,12 +610,14 @@ export class Play {
       case 'buy':
         return t('hud.buy');
       case 'thing':
-        // Someone else's you borrow.
-        return target.thing.owner && target.thing.owner !== 'player' ? t('hud.borrow') : t('hud.pickUp');
+        // Someone else's you borrow; one inside something (the cabinet: see Thing.seen) you take out.
+        if (target.thing.owner && target.thing.owner !== 'player') return t('hud.borrow');
+        return t(target.thing.seen ? 'hud.takeOut' : 'hud.pickUp');
       case 'resident':
         // Always はなす (the user, 2026-10-24: holding something, you could only give it): あげる is in the talk.
         return t('hud.talk');
       case 'siren':
+      case 'shimajiro':
         return t('hud.talk');
       case 'seat':
         return target.bed && this.night() ? t('hud.sleep') : t('hud.sit');
@@ -648,6 +665,9 @@ export class Play {
       case 'siren':
         this.siren?.begin();
         break;
+      case 'shimajiro':
+        this.shimajiro?.begin();
+        break;
       case 'seat':
         if (target.bed && this.night()) this.sleep(target.seat, me);
         else this.sit(target.seat, me);
@@ -677,7 +697,7 @@ export class Play {
     if (c.lent && c.owner && c.owner !== 'player') {
       this.hud.toast(t('toast.borrowed').replace('{0}', this.life.nameOf(c.owner)).replace('{1}', name));
       this.life.borrowedFrom(c, 'player');
-    } else this.hud.toast(t('toast.picked').replace('{0}', name));
+    } else this.hud.toast(t(thing.seen ? 'toast.tookOut' : 'toast.picked').replace('{0}', name));
   }
 
   private putDown(at: THREE.Vector3, me: Character): void {
