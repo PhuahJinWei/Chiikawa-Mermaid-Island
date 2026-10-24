@@ -1414,6 +1414,9 @@ outlined is drawn twice, once for its pen line. To get there:
 
 **Changed**
 
+- The game's icon is the user's drawing of Hachiware's face
+  (`art/icons/icon_02hachiware.png`, 2026-10-24) on the island's sky and sea, the
+  browser tab's the face alone (`npm run icons`, `scripts/make-icons.mjs`).
 - The sun's shadow map is 1024 texels across instead of 1536 (the user,
   2026-10-24): 8.2 cm a texel over its 84 m instead of 5.5, the shadows' edges a
   touch softer, 0.35 to 1.3 ms a frame less on the dev PC (the most in the
