@@ -20,6 +20,7 @@ export type ActionId =
   | 'sword'
   | 'read'
   | 'readSeated'
+  | 'ready'
   | 'menace';
 
 /** The actions the Test panel offers the cast. The Siren's own ('menace') is not one of them, nor 'ukulele' and
@@ -58,8 +59,8 @@ export interface ActionDef {
   /** What they hold while it plays: what they play (CharacterOptions.instrument), or the sword they carry on
    * their back (CharacterOptions.own). */
   prop?: 'ukulele' | 'sword';
-  /** Done with one paw, the right: with something in that paw, the other does it instead, as one waves with the free
-   * hand (see Character.updatePose). */
+  /** Done with one paw, the pose's R arm (their left, which what they hold leaves free): with Kurimanju's can in that
+   * paw, the other does it instead, as one waves with the free hand (see Character.updatePose). */
   oneHand?: boolean;
   /** Its paws come up before or round the face (startled, crying, cheering): a paw with something in it keeps holding
    * it out where it holds it, the other doing it alone (what it held would have gone into them: see
@@ -67,6 +68,9 @@ export interface ActionDef {
   fullPawHolds?: boolean;
   /** Holds what is in their right paw open before their face, to read it (a book: see Character.placeHand). */
   reads?: boolean;
+  /** Holds what is in their right paw up ready before them in both paws, pointing ahead and up (a weapon: see
+   * Character.placeHand). */
+  readies?: boolean;
   /** The action's own face, shown over any expression chosen in the Test panel. */
   expression: (t: number) => ExpressionId;
   /** Shuts the eyes (bowing), whatever the expression. */
@@ -124,8 +128,15 @@ export const REACH_SWORD: Record<'lower' | 'upper', Point> = {
   lower: [0.06, -1.005, 0.834],
   upper: [0.06, -0.905, 0.894],
 };
+/** Everyone's paws on a weapon held up ready (the 'ready' action, かまえる), as Rakko's on his sword: before their middle,
+ * one above the other, the weapon held between them by its foot (see Character.placeHand's READY_TURN). */
+export const REACH_READY: Record<'lower' | 'upper', Point> = {
+  lower: [0.08, -0.99, 0.85],
+  upper: [0.08, -0.88, 0.9],
+};
 
-/** Reaches the left paw (the model's -x side) `w` of the way to `at`, moved by (dx, dy, dz). */
+/** Reaches the pose's left paw (the model's -x side, their own right, named as seen from before them) `w` of the
+ * way to `at`, moved by (dx, dy, dz). */
 function reachL(p: Pose, w: number, at: Point, dx = 0, dy = 0, dz = 0): void {
   p.reachL = w;
   p.reachLX = at[0] + dx;
@@ -133,7 +144,7 @@ function reachL(p: Pose, w: number, at: Point, dx = 0, dy = 0, dz = 0): void {
   p.reachLZ = at[2] + dz;
 }
 
-/** Reaches the right paw (the model's +x side) `w` of the way to `at`, moved by (dx, dy, dz). */
+/** Reaches the pose's right paw (the model's +x side, their own left) `w` of the way to `at`, moved by (dx, dy, dz). */
 function reachR(p: Pose, w: number, at: Point, dx = 0, dy = 0, dz = 0): void {
   p.reachR = w;
   p.reachRX = at[0] + dx;
@@ -474,6 +485,28 @@ export const ACTIONS: Record<ActionId, ActionDef> = {
       reachL(p, 1, REACH_SWORD.lower);
       reachR(p, 1, REACH_SWORD.upper);
       p.squash = 1 + 0.008 * Math.sin(t * 2.0);
+    },
+  },
+
+  // A weapon held up ready (かまえる: the user, 2026-10-24): what is in their paw up before them in both paws, by its
+  // foot, pointing ahead and up (see Character.placeHand), as Rakko holds his sword; determined, leaning in a little,
+  // bobbing as one ready to go. They may walk so.
+  ready: {
+    duration: Infinity,
+    fadeIn: 0.25,
+    fadeOut: 0.3,
+    allowMove: true,
+    readies: true,
+    expression: () => 'determined',
+    pose(t, p) {
+      const bob = Math.sin(t * 4.2);
+      p.armLRaise = 0.3;
+      p.armLSwing = 0.6;
+      reachL(p, 1, REACH_READY.lower);
+      reachR(p, 1, REACH_READY.upper);
+      p.leanZ = 0.02;
+      p.squash = 1 + 0.01 * bob;
+      p.rootY = 0.004 * Math.abs(bob);
     },
   },
 

@@ -64,7 +64,8 @@ export interface SavedThing {
  * What public/data/things.json lays about the island:
  * - `kept`: things with a place of their own, each by a name of its own (`id`): what it is, where it lies
  *   (x, z, and `y`, the height of what it lies on if not the ground's top: the stage's deck, a porch; or
- *   `height`, just how high it lies, on a shelf, on the forbidden cave's floor), and its turn (radians).
+ *   `height`, just how high it lies, on a shelf, on the forbidden cave's floor), its turn (radians), and
+ *   whose it is if anyone's (`owner`: Chiikawa's さすまた), so anyone else borrows it.
  * - `stands`: props that hold a thing each at their flame (the village's torches, each its brand): the
  *   prop's kind and the thing. The game finds every such prop placed (see Game, Props.brands).
  * - `daily`: what each morning leaves about an area: how many of each thing (`items`), within a box (`box`:
@@ -74,7 +75,7 @@ export interface SavedThing {
  * A thing named there that the game has no model for is left out.
  */
 export interface ThingsPlan {
-  kept: { id: string; item: ItemId; x: number; z: number; y?: number; height?: number; yaw: number }[];
+  kept: { id: string; item: ItemId; x: number; z: number; y?: number; height?: number; yaw: number; owner?: string }[];
   stands: { prop: string; item: ItemId }[];
   daily: { items: Record<string, number>; box: [number, number, number, number]; avoid?: [number, number, number, number][]; shore?: [number, number]; apart?: number }[];
 }
@@ -128,9 +129,9 @@ const _cave = new THREE.Color();
 export class Things {
   readonly list: Thing[] = [];
   readonly group = new THREE.Group();
-  /** The places some things have of their own (see Thing.home): where each lies and which way; a stand's
-   * (see ThingsPlan.stands) which stand it is (see Props.brands). */
-  readonly homes = new Map<string, { item: ItemId; at: THREE.Vector3; yaw: number; stand?: number }>();
+  /** The places some things have of their own (see Thing.home): where each lies and which way, and whose the thing
+   * is if anyone's (ThingsPlan.kept's `owner`); a stand's (see ThingsPlan.stands) which stand it is (see Props.brands). */
+  readonly homes = new Map<string, { item: ItemId; at: THREE.Vector3; yaw: number; owner?: string; stand?: number }>();
   /** A thing has gone into its stand (`filled`) or been taken out of it: the stand's prop shows it or not
    * (see Stage.setBrand). Set by the game. */
   onStand: (stand: number, filled: boolean) => void = () => {};
@@ -162,7 +163,7 @@ export class Things {
     for (const k of plan.kept) {
       if (!isItem(k.item)) continue;
       const at = new THREE.Vector3(k.x, k.height ?? groundHeight(k.x, k.z, k.y ?? Infinity), k.z);
-      this.homes.set(k.id, { item: k.item, at, yaw: k.yaw });
+      this.homes.set(k.id, { item: k.item, at, yaw: k.yaw, owner: k.owner });
     }
   }
 
@@ -392,15 +393,27 @@ export class Things {
     }
     for (const [key, home] of this.homes) {
       const lying = this.list.find((t) => t.home === key);
-      if (lying) {
-        if (lying.at.distanceTo(home.at) > 0.3) this.put(this.take(lying), home.at, home.yaw);
-        continue;
-      }
-      if (held(key)) continue;
-      this.put({ ...carried(home.item), home: key }, home.at, home.yaw);
+      if (lying && lying.at.distanceTo(home.at) > 0.3) this.put(this.take(lying), home.at, home.yaw);
     }
+    this.layHomes(held);
     const rng = seeded(day * 7349 + 11);
     for (const area of this.plan.daily) this.scatter(area, day, rng);
+  }
+
+  /** Whatever has a place of its own and lies nowhere, no one having it (`held`), made anew at its place: each morning
+   * (see morning), and as a save is loaded, for a place things.json has gained since (the user's weapons, 2026-10-24),
+   * so it lies there at once, not from the next morning. */
+  layHomes(held: (home: string) => boolean): void {
+    for (const [key, home] of this.homes) {
+      if (this.list.some((t) => t.home === key) || held(key)) continue;
+      this.put({ ...carried(home.item, home.owner ?? null), home: key }, home.at, home.yaw);
+    }
+  }
+
+  /** Whose `c` is, as things.json says, if it has a place of its own there with someone's name on it (one saved
+   * before it said so, or since: things.json has the last word); else as it was. */
+  ownerOf(c: Carried): string | null {
+    return (c.home ? this.homes.get(c.home)?.owner : undefined) ?? c.owner;
   }
 
   /** Lays a morning's things about an area (see ThingsPlan.daily). */
@@ -451,6 +464,7 @@ export class Things {
     for (const s of saved) {
       const c = restoreCarried(s);
       if (!c || !this.belongs(c)) continue;
+      c.owner = this.ownerOf(c);
       this.put(c, new THREE.Vector3(s.x, s.y, s.z), s.yaw, s.day);
     }
     this.beachDay = beachDay;

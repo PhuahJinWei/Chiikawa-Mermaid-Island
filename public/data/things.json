@@ -4,7 +4,10 @@
     { "id": "torch", "item": "torch", "x": -19.08, "z": -71.6, "y": 1.98, "yaw": 1.724 },
     { "id": "book", "item": "book", "x": -15.75, "z": -59.91, "height": 1.978, "yaw": 5.59 },
     { "id": "cave_torch_1", "item": "torch", "x": -192.53, "z": -111.19, "height": 0.33, "yaw": 1.2 },
-    { "id": "cave_torch_2", "item": "torch", "x": -194.13, "z": -110.98, "height": 0.346, "yaw": 2.9 }
+    { "id": "cave_torch_2", "item": "torch", "x": -194.13, "z": -110.98, "height": 0.346, "yaw": 2.9 },
+    { "id": "weapon02", "item": "weapon02", "x": 12.36, "z": -111.92, "height": 1.946, "yaw": 1.658, "owner": "chiikawa" },
+    { "id": "weapon03", "item": "weapon03", "x": 12.12, "z": -111.61, "height": 1.946, "yaw": 1.658, "owner": "hachiware" },
+    { "id": "weapon01", "item": "weapon01", "x": -16.25, "z": -59.25, "height": 1.978, "yaw": 5.2 }
   ],
   "stands": [{ "prop": "torch", "item": "torch" }],
   "daily": [

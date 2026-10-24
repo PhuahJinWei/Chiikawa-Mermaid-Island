@@ -15,9 +15,10 @@ Outputs:
 
 What the festival's stalls hand over, as their goods show it (stall_goods.py, whose pieces these are made
 with): a candied apple on its stick, a boat of takoyaki, a crepe, a cup of shaved ice...; the beach's shells
-and starfish; a torch to carry, its flame a part of its own (`_flame`), lit at night; and the paw you see
-them in from your own eyes, the islanders' grey-mauve. Kurimanju's can and Rakko's ukulele
-are build_props.py's, and only drawn here for their icons.
+and starfish; a torch to carry, its flame a part of its own (`_flame`), lit at night; the one book; the three
+weapons of the user's icons (Chiikawa's pink forked staff, Hachiware's blue one, the islanders' spring
+weapon with a face); and the paw you see them in from your own eyes, the islanders' grey-mauve. Kurimanju's can and Rakko's
+ukulele are build_props.py's, and only drawn here for their icons.
 
 Each stands upright (Blender's Z), its front -Y, at the cast's size (a can 0.17 m tall); its origin is where
 a paw holds it: low on its stick, round its cup, under its tray. As everything the props are made of, every
@@ -63,7 +64,16 @@ C.update({k: L.hex_color(v) for k, v in {
     "starDot": "#F8C9A6",
     # The islanders' own grey-mauve (import_characters.py ISLANDER["body"]).
     "paw": "#988584",
+    # The weapons, as the user's icons paint them (art/icons/icon_thing_weapon01 to 03): the forked staffs' pink and
+    # blue, their white teeth and grips; the spring weapon's cream head and spring, and its handle's wood.
+    "forkPink": "#F8B2D0",
+    "forkBlue": "#7AAADA",
+    "forkWhite": "#F8F6F1",
+    "baneHead": "#ECE7D3",
+    "baneWood": "#DEBD92",
 }.items()})
+# The pen's colour, for the spring weapon's face painted onto its head (build_props' lines painted onto props).
+C["ink"] = P.C["ink"]
 
 
 def at(x, y, z):
@@ -331,6 +341,308 @@ def starfish(k):
                    u=6, v=3)
 
 
+# ---------------------------------------------------------------------------- the weapons
+# The user's three (2026-10-24), after their icons (art/icons/icon_thing_weapon01 to 03) and the film's frames:
+# Chiikawa's pink forked staff and Hachiware's blue one in the jungle (`Screenshot 2026-10-23 171236`, the pink one
+# close in `171246`, the blue one in Furuhonya's paw in `171202`), and the spring weapon with a face Hitoha and
+# Futaba carry (`171359`, `171411`), and Momonga (`171118`).
+
+# A forked staff, in metres: its foot and the bottom of its fork's U, from the origin where a paw holds it (two fifths
+# up from its foot, as Chiikawa holds hers in `171236`); its staff's and its grip's radius and the grip's length; its
+# fork's right half from the bottom of the U up to its prong's tip (x, height over the U's bottom): a U, its tips
+# bending out (the user, 2026-10-24: "U-shaped but the tip bends outward", as the film's `171236`, `171246` and the
+# user's icon have them), and how thick it is along there (across, in the fork's plane), and out of the plane (a share
+# of that: the prongs are flat bands); where along the prong its teeth stand (shares of its length) on both its edges,
+# as the icon has them (the film's on the inner), how far each sticks out, how long its foot is and how thick it is.
+# Measured against Chiikawa (0.91 m) in `171236`, where hers stands by her, and Hachiware's by him: three quarters of
+# their height long (0.71 m), its U as wide as three tenths of it (0.27 m) and a quarter of it tall, its white grip a
+# sixth of its length. As thick as the user's icon draws it (the user: the first was "too thin"): its staff a
+# twenty-fifth of its length round, its prongs half as thick again.
+FORK_FOOT = -0.31
+FORK_BASE = 0.17
+FORK_STAFF = 0.0165
+FORK_GRIP = (0.0185, 0.12)
+FORK_PRONG = ((0.0, 0.0), (0.032, 0.006), (0.057, 0.025), (0.07, 0.052), (0.074, 0.085), (0.074, 0.116),
+              (0.078, 0.145), (0.089, 0.169), (0.105, 0.187), (0.124, 0.198))
+# (The fork's bottom round, the prongs flatter up to their tips: where the staff joins it, it is deeper than the staff
+# is round all across it, so the staff never shows through.)
+FORK_THICK = (0.026, 0.021)
+FORK_FLAT = (1.0, 0.6)
+FORK_TEETH = (0.42, 0.56, 0.7)
+TOOTH = (0.024, 0.028, 0.008)
+
+# The spring weapon, バネのぶき (the user, 2026-10-24: not a club; held in one paw, its head shot out on the spring
+# in its middle; here it only does what anything held does), remodelled at the user's word ("the head is oval, with
+# the face more towards the tip", the handle and the spring shorter, all of it thicker), measured in the user's two
+# drawings of it (the icon, lying; one standing, its face on its side) and the film's frames: Futaba's standing in
+# her paw and Hitoha's across both of hers in `171411`, the two hanging by their handles in `171359`.
+# - Its length: three fifths of the islanders' height in `171411`, half of it in `171359`; so 0.54 m, on theirs of
+#   0.95 m to the top of the head. Of that, as the drawings and the film agree, the head a third, the spring an eighth
+#   and the handle a half.
+# - Its head: an oval a fifth longer than it is wide (half its width and half its length), as wide as a third of the
+#   weapon is long. Its bottom sits over the spring's top.
+# - The spring: how many turns, how far of it shows between the handle and the head, how far out it reaches by the
+#   head and by the handle (narrowing down to the handle, as the drawings have it), and how thick its wire is. Wound
+#   close, a turn barely more than its wire apart, so it reads as the drawings' stacked rings. In the head's cream.
+# - The handle: how long, from its collar under the spring to its end; and its shape, turned as on a lathe, as the
+#   drawings have it (how far down it, its radius there): a collar, a waist, a swell, then tapering to a round end.
+#   It is held two fifths down it (BANE_GRIP), at the swell, which keeps its end clear of the ground in a seated paw.
+# - Its face, on the head's side to the front, as the user draws it: two dot eyes beside a zigzag mouth, nearer the
+#   tip than the spring, the face's up across the weapon, not along it (standing, its face lies on its side, its top
+#   to the right as you look at it). Where each eye and each of the mouth's corners is: along toward the tip from the
+#   head's middle, and up the face, in the head's half length and half width, as the drawings place them seen from
+#   the side. The eyes' radius and the mouth's width, painted a hair off the head (PAINT_LIFT).
+BANE_HEAD = (0.084, 0.1)
+BANE_SPRING = (3.25, 0.074, 0.046, 0.03, 0.0103)
+BANE_HANDLE = 0.285
+BANE_PROFILE = ((-0.012, 0.0), (-0.008, 0.022), (0.0, 0.0335), (0.03, 0.0383), (0.06, 0.0395), (0.1, 0.0381),
+                (0.14, 0.0335), (0.2, 0.0309), (0.26, 0.0326), (0.33, 0.0372), (0.42, 0.0363), (0.52, 0.034),
+                (0.62, 0.0309), (0.72, 0.0281), (0.82, 0.0254), (0.89, 0.0222), (0.93, 0.0194), (0.96, 0.0157),
+                (0.985, 0.0095), (1.0, 0.0))
+BANE_GRIP = 0.4
+BANE_EYES = ((0.512, 0.135), (-0.031, 0.213))
+BANE_MOUTH = ((0.579, -0.257), (0.419, -0.426), (0.193, -0.198), (-0.016, -0.363), (-0.221, -0.176))
+BANE_LINE = (0.0095, 0.0091)
+# Paint on a round thing lies this far off it: one-sided and facing out, so the pen draws no outline round it (the
+# pen outlines closed shapes; a dot or a line made as a little solid of its own came out a blot), and far enough off
+# never to flicker into it within the distance things are drawn at.
+PAINT_LIFT = 0.0009
+
+
+def sweep_bm(path, radii, flats, segments=12, cap=4):
+    """A tube along `path` (points in the XZ plane), `radii` across it there (one per point) in that plane and `flats`
+    of that out of it (along Y; one per point), both its ends rounded off: a prong, a horn."""
+    bm = bmesh.new()
+    across = Vector((0.0, 1.0, 0.0))
+    n = len(path)
+
+    def tangent(i):
+        return (path[min(i + 1, n - 1)] - path[max(i - 1, 0)]).normalized()
+
+    def ring(c, t, r, flat):
+        side = t.cross(across).normalized()
+        return [bm.verts.new(c + side * (r * math.cos(a)) + across * (r * flat * math.sin(a)))
+                for a in (2 * math.pi * j / segments for j in range(segments))]
+
+    def rounded(c, way, t, r, flat):
+        """Its rounded end past `c`, `way` out (along or against its tangent `t`): rings from its tip in."""
+        out = [[bm.verts.new(c + way * r)]]
+        for k in range(1, cap):
+            phi = math.pi / 2 * k / cap
+            out.append(ring(c + way * (r * math.cos(phi)), t, r * math.sin(phi), flat))
+        return out
+
+    t0, t1 = tangent(0), tangent(n - 1)
+    rings = rounded(path[0], -t0, t0, radii[0], flats[0])
+    rings += [ring(path[i], tangent(i), radii[i], flats[i]) for i in range(n)]
+    rings += list(reversed(rounded(path[-1], t1, t1, radii[-1], flats[-1])))
+    for lo, hi in zip(rings, rings[1:]):
+        for j in range(segments):
+            j2 = (j + 1) % segments
+            if len(lo) == 1:
+                bm.faces.new((lo[0], hi[j2], hi[j]))
+            elif len(hi) == 1:
+                bm.faces.new((lo[j], lo[j2], hi[0]))
+            else:
+                bm.faces.new((lo[j], lo[j2], hi[j2], hi[j]))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    return bm
+
+
+def along(path, share):
+    """The point `share` of the way along `path` (by its length), and the way it runs there."""
+    lengths = [(b - a).length for a, b in zip(path, path[1:])]
+    left = share * sum(lengths)
+    for (a, b), d in zip(zip(path, path[1:]), lengths):
+        if left <= d or b is path[-1]:
+            t = (b - a).normalized()
+            return a + t * min(left, d), t
+        left -= d
+    return path[-1], (path[-1] - path[-2]).normalized()
+
+
+def tooth_bm(a, b, tip, thick):
+    """A flat tooth in the XZ plane, `thick` deep: its foot from a to b, its point at `tip`."""
+    bm = bmesh.new()
+    half = Vector((0.0, thick / 2, 0.0))
+    front = [bm.verts.new(p - half) for p in (a, b, tip)]
+    back = [bm.verts.new(p + half) for p in (a, b, tip)]
+    bm.faces.new(front)
+    bm.faces.new(back)
+    for i in range(3):
+        j = (i + 1) % 3
+        bm.faces.new((front[i], back[i], back[j], front[j]))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    return bm
+
+
+def helix_bm(base, turns, height, radius, wire, steps=18, segments=8, top=None):
+    """A spring: a wire `wire` round (its radius) wound `turns` times round Z, from `base` up `height`, `radius` round to
+    the wire's middle (widening or narrowing evenly to `top` at its top, if given); its ends closed."""
+    bm = bmesh.new()
+    n = int(turns * steps)
+    top = radius if top is None else top
+    rings = []
+    for i in range(n + 1):
+        a = 2 * math.pi * turns * i / n
+        out = Vector((math.cos(a), math.sin(a), 0.0))
+        r = radius + (top - radius) * i / n
+        middle = base + out * r + Vector((0.0, 0.0, height * i / n))
+        way = (Vector((-math.sin(a), math.cos(a), 0.0)) * (r * 2 * math.pi * turns) + out * (top - radius)
+               + Vector((0.0, 0.0, height))).normalized()
+        side = way.cross(out).normalized()
+        rings.append([bm.verts.new(middle + out * (wire * math.cos(s)) + side * (wire * math.sin(s)))
+                      for s in (2 * math.pi * j / segments for j in range(segments))])
+    for lo, hi in zip(rings, rings[1:]):
+        for j in range(segments):
+            j2 = (j + 1) % segments
+            bm.faces.new((lo[j], lo[j2], hi[j2], hi[j]))
+    for end in (rings[0], rings[-1]):
+        bm.faces.new(end)
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    return bm
+
+
+def facing_out(bm, centre):
+    """Turns each of `bm`'s faces to face away from `centre` (paint on a round thing: one-sided, facing out)."""
+    for f in bm.faces:
+        f.normal_update()
+        if f.normal.dot(f.calc_center_median() - centre) < 0:
+            f.normal_flip()
+    return bm
+
+
+def on_oval(centre, axes, way):
+    """Where an oval (its middle `centre`, reaching `axes` out along X, Y and Z: a ball stretched so) is met `way` out
+    from its middle (a way out of the ball it is stretched from, a unit vector), lifted a hair off it (PAINT_LIFT)."""
+    n = Vector((way.x / axes.x, way.y / axes.y, way.z / axes.z)).normalized()
+    return centre + Vector((way.x * axes.x, way.y * axes.y, way.z * axes.z)) + n * PAINT_LIFT, n
+
+
+def oval_way(centre, axes, p):
+    """The way out from an oval's middle (as on_oval takes it) to its point nearest about `p`, a point off it a
+    little."""
+    q = p - centre
+    return Vector((q.x / axes.x, q.y / axes.y, q.z / axes.z)).normalized()
+
+
+def painted_dot_bm(centre, axes, way, size, segments=14):
+    """A dot painted on an oval (see on_oval) round where it is met `way` out, `size` its radius on it (see
+    PAINT_LIFT)."""
+    mid, n = on_oval(centre, axes, way)
+    t1 = n.cross(Vector((0.0, 0.0, 1.0)))
+    t1 = (t1 if t1.length > 1e-6 else n.cross(Vector((1.0, 0.0, 0.0)))).normalized()
+    t2 = n.cross(t1)
+    bm = bmesh.new()
+    middle = bm.verts.new(mid)
+    rim = []
+    for j in range(segments):
+        a = 2 * math.pi * j / segments
+        edge = mid + (t1 * math.cos(a) + t2 * math.sin(a)) * size
+        rim.append(bm.verts.new(on_oval(centre, axes, oval_way(centre, axes, edge))[0]))
+    for j in range(segments):
+        bm.faces.new((middle, rim[j], rim[(j + 1) % segments]))
+    return facing_out(bm, centre)
+
+
+def painted_line_bm(centre, axes, ways, width, steps=4):
+    """A line painted on an oval (see on_oval) through where it is met `ways` out, `width` wide, following its round
+    between them, its corners mitred so it keeps its width round them, its ends rounded."""
+    path = []
+    for a, b in zip(ways, ways[1:]):
+        path += [a.slerp(b, s / steps) for s in range(steps)]
+    path.append(ways[-1])
+    points = [on_oval(centre, axes, d) for d in path]
+    bm = bmesh.new()
+    left, right = [], []
+    for i, (p, n) in enumerate(points):
+        before, after = points[max(i - 1, 0)][0], points[min(i + 1, len(points) - 1)][0]
+        side = n.cross((after - before).normalized()).normalized()
+        # (At a corner, out as far as keeps the line its width along both its sides.)
+        miter = 1.0
+        if 0 < i < len(points) - 1:
+            t0, t1 = (p - before).normalized(), (after - p).normalized()
+            miter = 1.0 / max(math.cos(0.5 * t0.angle(t1, 0.0)), 0.5)
+        for out, edge in ((side, left), (-side, right)):
+            edge.append(bm.verts.new(on_oval(centre, axes, oval_way(centre, axes, p + out * (width / 2 * miter)))[0]))
+    for i in range(len(points) - 1):
+        bm.faces.new((left[i], right[i], right[i + 1], left[i + 1]))
+    facing_out(bm, centre)
+    for end in (ways[0], ways[-1]):
+        dot = painted_dot_bm(centre, axes, end, width / 2, segments=10)
+        L.append_bm(bm, dot)
+        dot.free()
+    return bm
+
+
+def fork(colour):
+    """A forked staff (Chiikawa's pink one, Hachiware's blue one): a long thin staff, a white grip round its foot, and
+    at its head a U of two prongs curling up and in at their tips, small white teeth along their outer edges; the fork
+    across (X), its face to the front (-Y), as the user's icons draw it. Upright, its fork up; origin where a paw holds
+    it (see FORK_FOOT)."""
+    def build(k):
+        # (The staff ends low in the bottom of the U, deep enough under its top that its pen never shows through.)
+        k.add(P.segment_bm(at(0, 0, FORK_FOOT + FORK_GRIP[1] - 0.01), at(0, 0, FORK_BASE - 0.004),
+                           FORK_STAFF, FORK_STAFF, segments=10), colour)
+        r, length = FORK_GRIP
+        k.add(L.capsule_bm(at(0, 0, FORK_FOOT), (0, 0, 1), length - 2 * r, r, u=12, v=8), "forkWhite")
+        # Its fork: one curve from its left prong's tip down round the bottom of the U and up to its right one's, thick
+        # at the bottom, thinner up to the tips.
+        right = [at(x, 0, FORK_BASE + z) for x, z in FORK_PRONG]
+        path = [at(-p.x, 0, p.z) for p in reversed(right[1:])] + right
+        n = len(FORK_PRONG)
+
+        def both(ends):
+            half = [ends[0] + (ends[1] - ends[0]) * (i / (n - 1)) for i in range(n)]
+            return list(reversed(half[1:])) + half
+        k.add(sweep_bm(path, both(FORK_THICK), both(FORK_FLAT), segments=14), colour)
+        # The teeth along both of each prong's edges, their feet a little into it, pointing out of it and a little up.
+        out_len, foot, thick_t = TOOTH
+        for share in FORK_TEETH:
+            p, t = along(right, share)
+            r = FORK_THICK[0] + (FORK_THICK[1] - FORK_THICK[0]) * share
+            outward = Vector((0.0, 1.0, 0.0)).cross(t).normalized()
+            for out in (outward, -outward):
+                base = p + out * (r - 0.004)
+                a, b, tip = base - t * (foot / 2), base + t * (foot / 2), base + out * out_len + t * (foot * 0.3)
+                for sx in (1, -1):
+                    mirror = (lambda q, s=sx: at(q.x * s, q.y, q.z))
+                    k.add(tooth_bm(mirror(a), mirror(b), mirror(tip), thick_t), "forkWhite")
+    return build
+
+
+def spring_weapon(k):
+    """The spring weapon (Hitoha's, Futaba's, Momonga's in the film), held in one paw: a wooden handle turned with a
+    collar, a waist and a swell, tapering to its round end; a spring wound close on its top, narrowing down to it; and
+    on that an oval head with a face on its side toward its tip, two dot eyes beside a zigzag mouth in the pen's colour,
+    the face's up across the weapon (see BANE_EYES). Upright, its head up, its face to the front (-Y) and its top to
+    the right (+X); origin where a paw holds it, on the handle's swell (BANE_GRIP)."""
+    across, length = BANE_HEAD
+    turns, shows, by_head, by_handle, wire = BANE_SPRING
+    collar = BANE_HANDLE * BANE_GRIP
+    k.add(L.lathe_bm([(r, collar - s * BANE_HANDLE) for s, r in BANE_PROFILE], segments=18), "baneWood")
+    # The spring, from a little into the collar's top up into the head, round a stem up its middle that keeps you from
+    # seeing through it between its turns.
+    join = collar + shows
+    k.add(helix_bm(at(0, 0, collar + 0.004), turns, shows + 0.002, by_handle - wire, wire, steps=24, segments=10,
+                   top=by_head - wire), "baneHead")
+    k.add(P.segment_bm(at(0, 0, collar - 0.01), at(0, 0, join + 0.02), 0.006, 0.02, segments=10), "baneHead")
+    # The head, its bottom over the spring's top: where it is as wide as the spring there.
+    centre = at(0, 0, join + length * math.sqrt(1.0 - (by_head / across) ** 2))
+    axes = Vector((across, across, length))
+    k.ball(centre, tuple(axes), "baneHead", u=24, v=16)
+
+    def face(along, up):
+        """The way out from the head's middle to the point of its front `along` toward its tip and `up` the face (see
+        BANE_EYES), seen from before it."""
+        return Vector((up, -math.sqrt(max(1.0 - along * along - up * up, 0.0)), along))
+
+    eye, line = BANE_LINE
+    for along, up in BANE_EYES:
+        k.add(painted_dot_bm(centre, axes, face(along, up), eye), "ink")
+    k.add(painted_line_bm(centre, axes, [face(along, up) for along, up in BANE_MOUTH], line), "ink")
+
+
 def book(name, collection):
     """The island's one book to read, 伝説の生物図鑑 (books.py): shut, lying flat and held flat on the paw as a tray
     is; and its two halves open, which the game shows while it is read. Its cover's picture, if built
@@ -353,7 +665,10 @@ ITEMS = {
     "okonomiyaki": okonomiyaki, "crepe": crepe, "icecream": icecream, "shavedIce": shaved_ice, "kebab": kebab,
     "castella": castella, "obanyaki": obanyaki, "steamer": steamer, "juice": juice, "ramune": ramune, "beer": beer,
     "torch": torch, "seashell": seashell, "starfish": starfish,
-    "book": book, "paw": paw,
+    "book": book,
+    # Named as the user's icons are (art/icons/icon_thing_<id>.png).
+    "weapon01": spring_weapon, "weapon02": fork("forkPink"), "weapon03": fork("forkBlue"),
+    "paw": paw,
 }
 # Things made whole, of parts with UV maps and pictures (books.py), not of the kit's pieces: each returns its parts
 # and what the game needs to know of them.
@@ -408,7 +723,8 @@ def render_icon(scene, cam, objs, path):
 
 def icon_sheet(scene, collection, built, only=None):
     """Renders every icon in ICONS' order into one sheet, ICON_COLUMNS across, and writes it and its order; with
-    `only` (some things built alone), only theirs, into the sheet as it is, if it still has ICONS' order."""
+    `only` (some things built alone), only theirs, the rest as the sheet has them, each moved to where ICONS' order
+    puts it now (a thing added before others moves them along)."""
     cam = L.setup_preview(scene)
     scene.render.film_transparent = True
     scene.render.image_settings.file_format = "PNG"
@@ -421,15 +737,25 @@ def icon_sheet(scene, collection, built, only=None):
     if only:
         try:
             with open(os.path.join(OUT, "item_icons.json"), encoding="utf-8") as f:
-                order = json.load(f)["order"]
+                old = json.load(f)
+            order, columns = old["order"], old["columns"]
         except (OSError, ValueError, KeyError):
-            order = None
-        if order != ICONS:
-            print("WARNING the icons' sheet is not in ICONS' order: build every thing to draw it afresh")
+            old, order, columns = None, [], ICON_COLUMNS
+        missing = [i for i in ICONS if i not in only and i not in order]
+        if old is None or old.get("size") != ICON or missing:
+            print("WARNING the icons' sheet lacks " + (", ".join(missing) or "its icons")
+                  + ": build every thing (or those too) to draw it afresh")
             return
         image = bpy.data.images.load(os.path.join(OUT, "item_icons.webp"))
-        sheet[...] = np.array(image.pixels[:], dtype=np.float32).reshape(sheet.shape)[::-1]
+        width, height = image.size
+        was = np.array(image.pixels[:], dtype=np.float32).reshape(height, width, 4)[::-1]
         bpy.data.images.remove(image)
+        for n, item_id in enumerate(ICONS):
+            if item_id in only:
+                continue
+            r0, c0 = divmod(order.index(item_id), columns)
+            r, c = divmod(n, ICON_COLUMNS)
+            sheet[r * ICON:(r + 1) * ICON, c * ICON:(c + 1) * ICON] = was[r0 * ICON:(r0 + 1) * ICON, c0 * ICON:(c0 + 1) * ICON]
     for n, item_id in enumerate(ICONS):
         if only and item_id not in only:
             continue

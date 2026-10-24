@@ -47,6 +47,48 @@ stage, and along every path. Not yet checked on a real phone.
 - Talking (はなす): whoever you talk with stops and says a line like them,
   for the hour and what they are doing; a first set of lines in
   `locales/ja.json` for the user to look over.
+- What is said to you goes into a text box (the user, 2026-10-23: a text
+  box with the speaker's name, typed out; `src/ui/DialogueBox.ts`): low on
+  the screen, over the buttons on a phone held upright and between the stick
+  and the buttons held sideways or on a wide screen, the speaker's name on
+  its corner, the line typed out a character at a time, wrapped the Japanese
+  way (never a 。！？ starting a line). Tap it (or the action button, then
+  つぎ, or E or Enter) for the rest of the line at once, or once it is all
+  out, the next; hold to skip through them. A line goes on its own a little
+  after it is out, so the island never waits on you; lines said while one
+  shows wait their turn. Into it go their words when you talk with them,
+  their thanks for what you give them or what they bought at your stall,
+  their greeting and asking for food, their answer to your crying or
+  starting, their leave-taking, a keeper's word that your paws are full,
+  and an owner's いいよ when you borrow: said within 5 m of you; further
+  off, over their head as before. Whoever speaks in the box keeps talking,
+  turned to you, till you have read it (15 s at most), says nothing over
+  their head meanwhile, and goes from the box once you are 7 m from them.
+  Words to anyone else (chats, the welcome's crowd, asking you to let them
+  by, borrowing) stay in bubbles.
+- Asking where someone is (the user, 2026-10-23, in place of the notebook's
+  list of everyone): talking with anyone (the cast too, the user: in their
+  own words, Chiikawa and Usagi mostly in sounds: talk.seek*.<id>), their
+  line comes with two choices, だれかさがしてる and またね. Looking for
+  someone, they ask だれをさがしてるの？ with the cast's names as buttons (the
+  keyboard's 1 to 9 and 0 too), and say where they are now: in some place
+  of the island by its name (浜辺, 村, ひみつの洞窟...), just there, at home,
+  or asleep at home. A marker then points to them for a minute or till you
+  are by them: their name and an arrow over them while they are in view,
+  else at the screen's edge, turned their way. The text box's lines can come
+  with choices (`DialogueBox.add`), and wait for one.
+- Faces (the user, 2026-10-23: a face, not a name, tells you who at a
+  glance): the user's drawings of the ten cast members' faces
+  (`art/icons/`, copied into the game by `art/blender/build_icons.py` with
+  black turned to the film's dark brown; `src/ui/Faces.ts`). The speaker's
+  face stands on a cream disc at the text box's corner, their name beside
+  it; whom to ask after is chosen by face alone (a name shows on hovering);
+  the marker is their face alone on a cream disc, a tab on its rim pointing
+  down at them while they are in view, or out toward them from the screen's
+  edge. The islanders have no face yet and show 島の子.
+- Someone at the welcome you are talking with no longer walks off when the
+  welcome ends: they go once they have parted from you, as at any other
+  change in their day.
 - Everyone who lives here can do what you can (the user, 2026-10-23: the
   same authority as the player).
   - Their paws are yours: a thing in the right paw and a pouch of six
@@ -62,6 +104,34 @@ stage, and along every path. Not yet checked on a real phone.
     it is. A slot tapped (or 1 to 6) takes what is in your paw onto its
     own stack, else into the pouch, and gives one of the slot's into your
     paw; what you pick up goes onto its stack first.
+  - The pouch says what things are, on a bar and in a bag (the user,
+    2026-10-23: on a phone only the icons had shown; then a bar always
+    there, as Minecraft's, and a big bag as their Chiikawa-Hidamari has).
+    Held sideways or on a computer, a bar along the bottom shows your paw
+    (a paw mark on its corner) and the six slots: a tap swaps, a tap on
+    your paw's puts what you hold away, and the name of what comes into
+    your paw shows over the bar a moment; holding a slot (or right-clicking
+    it) opens the bag with it picked. The ふくろ button (or Tab) opens the
+    bag over the island: your paw's slot big and the six beside it, and
+    under them what the one tapped is: its icon, name and how many, what it
+    is for (たべもの, のみもの, がっき, ほん, あかり, たからもの), a line
+    about it (`about.<id>` in ja.json, one for every thing), and a word of
+    its own: borrowed from whom, back to its place each morning, or bitten
+    into; もつ takes one into your paw, しまう puts your paw's away.
+    Dragging a slot onto another, on the bar or in the bag, moves its things
+    onto that stack or swaps the two (`Hands.move`); onto your paw, one
+    comes into it; your paw's thing dragged onto a slot does as tapping that
+    slot does. On a phone held upright the bag is the pouch's only place, so
+    the screen stays clear; held sideways the bag sets its slots and what is
+    picked side by side.
+  - The things' icons can be the user's own drawings (the user,
+    2026-10-24): `art/icons/icon_thing_<id>.png`, copied into
+    `public/ui/things/` by `build_icons.py`, show on the bar, in the bag and
+    on the card in place of the renders of the things' models, much
+    sharper in your paw's big slot (256 px against the sheet's 128). The
+    book and the torch are drawn; every other thing keeps its render till
+    it is. Three drawn weapons wait in `art/icons/` for things of their
+    own.
   - What has been bitten into goes into no pouch (the user): put away, it
     is gone, eaten up. Nor can it be put down or given: the action button
     says たべきる (のみきる) and finishes it. The same for everyone.
@@ -128,6 +198,68 @@ stage, and along every path. Not yet checked on a real phone.
     things.json no longer lays out, or that is no thing any more, is gone
     from it (`Things.belongs`), so an island saved with the three books has
     the one.
+- The three weapons the user drew icons of (2026-10-24), built after their
+  icons and the film's frames (`art/blender/build_items.py`, ids weapon01 to
+  03, as the icons are named):
+  - Chiikawa's pink forked staff and Hachiware's blue one (さすまた), as they
+    hold them in the jungle, remodelled at the user's word (the first was
+    "too thin", its tips curling in): a staff as thick as the icon draws
+    it, a white grip a sixth of its length at its foot, a U of two thick
+    flat prongs whose tips bend out, white teeth along both their edges.
+    Measured against Chiikawa (0.91 m) and Hachiware in the film's frame,
+    where each stands by them: three quarters of their height long (0.70
+    m), its U three tenths of it across (0.26 m with its teeth) and a
+    quarter of it tall. Held two fifths up from its foot, its foot just over
+    the ground at their side and its U by their face at their eyes, as in
+    the film. Out of your own eyes it is shown nearly its own size (it had
+    been shrunk to a torch's and looked "too small").
+  - The spring weapon Hitoha, Futaba and Momonga carry (バネのぶき; the
+    user: not a club, but held in one paw, its head shot out on its spring;
+    here only held, with nothing to do with it). Remodelled at the user's
+    word, after their two drawings of it (the icon, and one standing) and
+    the film's frames (the head "oval, with the face more towards the
+    tip", the handle and the spring shorter, all of it thicker):
+    - Its size is measured against the islanders holding it: three fifths
+      of their height in the frame where Futaba stands holding hers, half
+      of it where the two hang theirs. So it is 0.54 m long, its head a
+      third of that, its spring an eighth and its handle half.
+    - A cream oval head a fifth longer than it is wide (0.17 m across),
+      on a cream spring wound close, three turns narrowing down to the
+      handle.
+    - A wooden handle turned as the drawings have it: a collar under the
+      spring, a waist, a swell where the paw holds it, then tapering to a
+      round end. Held at the swell, its end stays 5 to 14 cm over the
+      ground standing or seated.
+    - Its face is on the head's side, nearer the tip: two dot eyes beside a
+      zigzag mouth, placed where the drawings place them. The face is
+      across the weapon, not along it, so standing it lies on its side, as
+      in the drawings and the film.
+    - The face is painted onto the head as one-sided dots and a strip a
+      hair off it, following the oval, which the pen leaves unlined. As
+      little solids of their own they had come out blots.
+  - The forks lie on the trio's guest house floor under the hammock, the
+    spring weapon beside the book on Hitoha and Futaba's floor, each back
+    there each morning; their drawn icons show in the pouch.
+  - A place of its own that things.json gains shows its thing as soon as a
+    saved island loads (`Things.layHomes`), not from the next morning.
+  - `build_items.py --only` can now add things: the icons' sheet keeps every
+    other thing's icon, moved to where the new order puts it.
+  - The forks are Chiikawa's and Hachiware's (the user): a `kept` thing in
+    things.json can say whose it is (`owner`), so anyone else borrows it
+    (かりる, the card saying from whom) and it goes back where it lay, as a
+    save made before it said so has it too (`Things.ownerOf`). Now and then
+    one of them takes their own out from home (at most once a day), carries
+    it a while and puts it back.
+  - かまえる (the user): with a さすまた in your paw the use button holds it up
+    ready (`Actions.ts` 'ready', `HandView.ready`). Out of your own eyes it
+    comes in from the corner, held by its foot, pointing ahead and up across
+    the view, your other paw on its staff; おろす lowers it, and you may walk
+    so. Seen, both paws hold it before the chest by its white grip, pointing
+    ahead and up, out beside the head so the face shows, a determined face,
+    as Rakko holds his sword. Whoever holds
+    one does it too now and then (Choices, `Resident.readyHeld`), Chiikawa
+    and Hachiware liking it most: in seven and a half minutes of the
+    island's life, she held hers up 18 s in all and he his 12 s.
 - The book is read (the user, 2026-10-23, with the film's frames: the
   spread with the mermaid on it, the book standing, its spine on Hitoha and
   Futaba's shelf, Hachiware reading it). `art/blender/books.py`:
@@ -146,12 +278,22 @@ stage, and along every path. Not yet checked on a real phone.
     Seated, you read it sitting.
   - Islanders read it the same way when they have it, held open under their
     face with both paws under it, standing or sitting, as Hachiware does in
-    the film; 古本屋 likes reading most. Their notebook line says 本をよんでいる.
+    the film; 古本屋 likes reading most.
   - Its cover (back, spine and front, one picture wrapped round it) and its
     spread are the user's to paint: `art/blender/build_books.py` draws a
     template for each into `art/books/_guides/` and copies the paintings
     saved over them into the game (see `art/books/README.md`). Until then
     the cover is plain cloth and the pages faint lines of writing.
+  - The user's paintings are in (2026-10-24):
+    - The cover: 伝説の!! 生物図鑑 lettered down the spine with a small
+      white creature at its foot, two creatures and a title's lines on the
+      front, and the back plain cloth.
+    - The spread: a page of writing beside 人魚 over a drawing of the
+      mermaid and the 豆知識コーナー box.
+    - Rebuilding the book takes seconds again: a painting twice the game's
+      size is now shrunk block by block (`build_signs.resize`), the same
+      average, instead of by weights that took six minutes on pictures
+      this big.
   - Light on the phone: its cover is a small picture (1024 × 640); the
     spread's (1856 × 1024, about 10 MB of graphics memory with its mipmaps)
     is fetched only as someone's open book is first drawn and let go of 8 s
@@ -232,7 +374,7 @@ stage, and along every path. Not yet checked on a real phone.
     whatever lies about is part of their choosing as soon as it lies there.
   - Gifts are kept: what you give them that is not eaten goes into their
     pouch, where it was let go of before.
-  - They grow fond of you (hearts in your notebook) for gifts (more for
+  - They grow fond of you (a heart floats up over them as they do) for gifts (more for
     what they like), for words, for answering what you do, for being
     served at your stall, a little less for being pushed. They remember
     what you gave them and speak of it. Fond of you, they come over to
@@ -359,9 +501,14 @@ stage, and along every path. Not yet checked on a real phone.
   as you look about; your paw comes up to wave, cheer, dance or wipe your
   eyes; your own words (わーい！) and marks (♪, ！, ？) show low in the
   middle of the screen, as do your hearts as you eat.
-- The notebook (ノート): where each of the cast is and what they are doing,
-  the islanders counted, and the album of photos taken with the camera
-  button, to save or share; the sound on or off.
+- Your photos: the newest under the camera button, from which the album
+  opens, each photo there to save, share or throw away. A photo just taken
+  comes in with a little pop.
+- The sound's button, a speaker by the きもち button, crossed out when off.
+- Hearts over anyone growing fonder of you (the user, 2026-10-23: in the
+  moment, not as a meter): one when they do (for a word, an answer, being
+  served at your stall, a gift), not again for a few seconds; two, one each
+  side, on reaching a whole heart more of the five.
 - The island's sound, made as it plays: the sea as near as it is, wind and
   birds, crickets at night, the waterfall, the festival's murmur, the
   feast's fire, footsteps on sand, wood, grass or in the water, Rakko's
@@ -1148,6 +1295,42 @@ outlined is drawn twice, once for its pen line. To get there:
 
 **Changed**
 
+- Who lives where (the user, 2026-10-24): Chiikawa, Hachiware and Usagi now
+  live in the orange guest house (by 12, -110.5), and Kurimanju and Shisa in
+  the tan one (by 21, -100.5), the other way round from before. Chiikawa's
+  and Hachiware's さすまた moved with them, to the same spot in their new
+  room. A save from before the swap puts anyone it had in a bed or seat of
+  a house no longer theirs where the hour has them instead.
+- Asleep, no one watches you (the user, 2026-10-24): dozing in bed, their head
+  stays at rest however you move about them, where it had turned after you.
+- Things are held in the right paw (the user, 2026-10-24, after the film's
+  frame of Chiikawa with her さすまた): what anyone holds, and the cave's
+  torch, had been in their left. Facing you, Chiikawa's and Hachiware's
+  さすまた are now on your left of them, as in the film, and かまえる points
+  out to their right. Kurimanju's can went into his left paw, so what he
+  picks up goes into his right as everyone's does. A wave or a talking
+  gesture is made with the free paw, the left, or his right while the can
+  fills his left. Out of your own eyes nothing changes; your body in the
+  water now holds things in the paw you see them in.
+- The HUD in the look of the user's other Chiikawa game, Chiikawa-Hidamari
+  (the user, 2026-10-23: this one's was "underwhelming and cheap"), in
+  `src/ui/Hud.ts` and `src/styles.css`: every control a cream face in a
+  brown ring with a white rim and a soft drop, the pink accent on what is on
+  offer, and the round Zen Maru Gothic type (from Google Fonts, in slices of
+  the letters used, kept by the service worker for play offline). The hour
+  is a chip top left, with the sun or the moon; きもち, the sound and テスト
+  are discs with their words under them top right, and the bag, the camera
+  and your newest photo go down the right (held sideways, into the top
+  row). The jump is a big disc in the bottom right corner, the verbs on
+  offer stacked over it as pills with glyphs of their own, the lowest, the
+  one on offer, in pink. The bag, the album, the test panel and the text box
+  are paper cards in ink; the name of the place you walk into and the words
+  of a moment are notices under the hour, one under the other, clear of the
+  text box (held sideways, down the left); the way in has a pink bar
+  running under the title.
+- The installed app turns with the phone (the user, 2026-10-23): it had
+  been held upright, so on Android the pouch's bar, which shows only on a
+  screen held sideways, never came up in it.
 - A little weight to everyone's step (the user chose the light one,
   2026-10-23): getting going and stopping ease in and out as a critically
   damped spring does, instead of a steady 16 m/s² both ways. From standing
@@ -1170,6 +1353,23 @@ outlined is drawn twice, once for its pen line. To get there:
   pressed at the very edge of a stone, which stops your feet, goes on as
   fast as you ran up. A jump pressed up to 0.15 s before you land is jumped
   as you land, and walked off an edge you may still jump for 0.12 s.
+- Your steps out of your own eyes toned down (the user, 2026-10-24: the view
+  shook too much, walking too): the dip 0.4 cm walking, 1 cm running, 2.5 cm
+  sprinting, the sway 0.2, 0.6 and 1.4 cm, the tilt 0.06°, 0.23° and 0.7°.
+  On flat sand your eyes now go up and down 1.4 cm walking (1.2 cm standing,
+  breathing), 2 cm running and 4.2 cm sprinting.
+- Your steps out of your own eyes (the user, 2026-10-24: sprinting felt
+  like sliding along the ground). Your eyes dip as each foot comes down and
+  sway and tilt toward the foot you stand on, more the faster you go: the
+  dip 1.2 cm walking, 2.4 cm running, 5 cm sprinting (in all your eyes now
+  go up and down 2.1, 3.3 and 6 cm, where running and sprinting had moved
+  them only 2.1 and 2.5 cm, the body's own bob eased nearly away), swaying
+  0.8, 1.6 and 3 cm and tilting 0.3°, 0.7° and 1.5° either way; nothing
+  standing still or in the air. Your steps are longer the faster you go, a
+  step every 0.55 m walking (3 a second), 0.74 m running (4) and 1.07 m
+  sprinting (6), and your footsteps sound with them, and what you hold
+  sways with them: before, a footstep sounded every 0.55 m whatever your
+  pace (11 a second sprinting), and went on sounding in the air.
 - Holding the jump jumps higher (the user, 2026-10-23: holding had made no
   difference; every jump was the same). Rising with Space or the jump button
   still held, gravity pulls you a little more than half as hard for the
@@ -2738,6 +2938,13 @@ outlined is drawn twice, once for its pen line. To get there:
 
 **Removed**
 
+- The notebook (ノート) and its page of where everyone is (the user,
+  2026-10-23: it did not help). Nine of the ten of the cast read only as
+  wandering about somewhere as wide as the beach, with nothing to do about
+  it, its hearts hardly moved, and a page that knows where everyone is sat
+  ill with seeing the island out of your own eyes, one islander of many.
+  What it kept went elsewhere: the photos with the camera, the sound to its
+  own button, the hearts over whoever grows fonder of you.
 - The onigiri (the user, 2026-10-23: it makes no sense in the game now):
   the thing to hold and its icon, its name, its model from
   `build_props.py`, and the rice ball the eat action showed in an empty
@@ -2769,6 +2976,19 @@ outlined is drawn twice, once for its pen line. To get there:
 
 **Fixed**
 
+- One thing going wrong in a frame no longer stops the game for good (the
+  user, 2026-10-23). three asks for the next frame only once a frame has
+  run, so an error thrown out of one ended the loop, and the island stood
+  still until the page was opened again. Now an error costs that frame
+  only, and the parts most likely to go wrong (the island's life, the
+  Siren, the text box, your paws, the marks over heads, the marker, what
+  lies about, the saving, the sound) are each kept apart, so one going
+  wrong every frame leaves you walking, looking about and the island
+  drawn. Each error is told once on the console, then only counted
+  (`__game.failures`). Checked by breaking the island's life for 90
+  frames: you walked on 2.6 m and the clock ran on.
+- The use button (たべる, のむ, ひく, よむ) did nothing when tapped: it had
+  never been joined to the game, so only the F key worked.
 - Sliding along walls (the user, 2026-10-23). Stopped by something, you (and
   everyone) kept only the east-west or the north-south part of the move, so
   along anything not on those lines you slowed, and stuck walking into it

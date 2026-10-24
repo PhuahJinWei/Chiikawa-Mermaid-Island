@@ -22,5 +22,25 @@ addPlugins([
 precacheAndRoute(self.__WB_MANIFEST);
 cleanupOutdatedCaches();
 registerRoute(new NavigationRoute(createHandlerBoundToURL('index.html')));
+
+// The HUD's round type (see index.html), kept as it is fetched: its slices never change under their address, so a
+// kept one is used as it is; the stylesheet naming them is used as kept and fetched again for next time.
+const FONTS = 'fonts-v1';
+const SHEETS = 'https://fonts.googleapis.com';
+registerRoute(
+  ({ url }) => url.origin === SHEETS || url.origin === 'https://fonts.gstatic.com',
+  async ({ request, url, event }) => {
+    const cache = await caches.open(FONTS);
+    const kept = await cache.match(request);
+    if (kept && url.origin !== SHEETS) return kept;
+    const fetched = fetch(request).then(async (response) => {
+      if (response.ok) await cache.put(request, response.clone());
+      return response;
+    });
+    if (!kept) return fetched;
+    (event as ExtendableEvent).waitUntil(fetched.catch(() => undefined));
+    return kept;
+  },
+);
 void self.skipWaiting();
 clientsClaim();

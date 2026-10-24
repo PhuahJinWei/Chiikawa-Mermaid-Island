@@ -166,6 +166,8 @@ export class EmoteSystem {
   camera: THREE.PerspectiveCamera | null = null;
   /** Where your own marks and words show out of your own eyes, once the game gives it. */
   own: OwnView | null = null;
+  /** Whose words go elsewhere now (into the text box: see Life.boxed), never in a bubble over their head. */
+  hush: ((host: EmoteHost) => boolean) | null = null;
   private readonly textures: Record<EmoteKind, THREE.Texture>;
   private readonly pool: THREE.Sprite[] = [];
   private readonly live: Live[] = [];
@@ -208,7 +210,8 @@ export class EmoteSystem {
 
   /** Words in a bubble over `host`'s head, for `life` seconds. */
   say(host: EmoteHost, text: string, life = 1.9): void {
-    for (const e of this.live) if (e.kind === 'bubble' && e.host === host) e.age = e.life;
+    if (this.hush?.(host)) return;
+    this.unsay(host);
     const { texture, aspect } = bubbleTexture(text);
     const sprite = this.take(texture, true);
     sprite.center.set(0.5, 0);
@@ -227,6 +230,11 @@ export class EmoteSystem {
     };
     this.live.push(e);
     this.place(e, 0);
+  }
+
+  /** The words over `host`'s head, if any, gone. */
+  unsay(host: EmoteHost): void {
+    for (const e of this.live) if (e.kind === 'bubble' && e.host === host) e.age = e.life;
   }
 
   update(dt: number): void {

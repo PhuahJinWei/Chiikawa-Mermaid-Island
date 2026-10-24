@@ -5,7 +5,7 @@
  * in the water; Rakko's ukulele at the feast (a tune of the game's own) and yours when you play it; a hum
  * from the sea at night where the Siren lurks; and the little sounds of what you do with your paws. It
  * starts with your first touch or key (browsers let a page sound only after one), and can be turned off
- * (the notebook's switch), which is kept.
+ * (the speaker button by the きもち button), which is kept.
  */
 
 /** What the island sounds like where you are this frame (see Sound.update). */

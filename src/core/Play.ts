@@ -1,9 +1,9 @@
 import * as THREE from 'three';
 import type { Character } from '../characters/Character';
 import { EMOTES, type ActionId } from '../characters/Actions';
-import { t, type StringKey } from '../i18n/I18n';
+import { has, t, type StringKey } from '../i18n/I18n';
 import type { Input } from './Input';
-import type { Hud, IconSpot, PouchView } from '../ui/Hud';
+import type { Hud, IconSpot, PouchThing } from '../ui/Hud';
 import { BITE, type HandView } from './HandView';
 import type { Focus } from './Focus';
 import { ITEMS, itemName, type Carried, type ItemId } from '../life/Items';
@@ -101,8 +101,8 @@ const flat = (a: THREE.Vector3, b: THREE.Vector3) => Math.hypot(a.x - b.x, a.z -
 export class Play {
   /** Your paw and pouch (see Hands). */
   readonly hands: Hands;
-  /** Eating, drinking, playing or reading what you hold, and for how long. */
-  private using: { kind: 'eat' | 'drink' | 'play' | 'read'; t: number } | null = null;
+  /** Eating, drinking, playing, reading or holding up ready what you hold, and for how long. */
+  private using: { kind: 'eat' | 'drink' | 'play' | 'read' | 'ready'; t: number } | null = null;
   /** The seat you sit on, if you do. */
   seat: Seat | null = null;
   private target: Target | null = null;
@@ -136,6 +136,8 @@ export class Play {
     this.seats = [...places.seats, ...places.feast.seats, ...places.homes.flatMap((h) => [...h.beds, ...h.seats])];
     this.bed = life.playerHome?.beds[0] ?? null;
     hud.onSlot = (slot) => this.swap(slot);
+    hud.onStow = () => this.stow();
+    hud.onMoveSlot = (from, to) => this.moveSlot(from, to);
     hud.onEmote = (id) => (this.emoteQueued = id);
     life.onGiftBack = (c) => {
       this.receive(c);
@@ -201,9 +203,10 @@ export class Play {
     // What you look at, shown: the ▽ over it, and the sketch of what you would put down (see Focus).
     const held = this.hands.hand ? { item: this.hands.hand.item, nibbled: this.hands.nibbled } : null;
     this.focus.update(f.dt, this.target, held, me);
-    const use = this.hand ? ITEMS[this.hand].use : null;
-    // (A book read is shut: とじる.)
-    const stop = this.using?.kind === 'read' ? 'hud.close' : 'hud.stop';
+    // (Not held up ready sitting down.)
+    const use = this.hand && !(this.seat && ITEMS[this.hand].use === 'ready') ? ITEMS[this.hand].use : null;
+    // (A book read is shut: とじる; a weapon held up ready, lowered: おろす.)
+    const stop = this.using?.kind === 'read' ? 'hud.close' : this.using?.kind === 'ready' ? 'hud.lower' : 'hud.stop';
     const useLabel = f.free && !this.sleeping && use ? t(this.using ? stop : (`hud.${use}` as StringKey)) : null;
     this.hud.setUse(useLabel);
     if (!f.buttonTaken && this.input.consumeAction() && this.label) this.act(me);
@@ -261,11 +264,13 @@ export class Play {
     hands.keep();
     this.view.set(this.hand);
     this.view.left = hands.left;
-    const shown = [hands.hand?.item ?? '', ...hands.pouch.map((s) => (s ? `${s[0].item}×${s.length}` : ''))].join(',');
+    // (Bitten into too, which its card says.)
+    const shown = [`${hands.hand?.item ?? ''}${hands.bites}`, ...hands.pouch.map((s) => (s ? `${s[0].item}×${s.length}` : ''))].join(',');
     if (shown !== this.shownPouch) {
       this.shownPouch = shown;
       this.showPouch();
-      if (!hands.hand && this.using) this.stopUsing(me);
+      // (What you were using gone from your paw, or something else in it now.)
+      if (this.using && (!hands.hand || ITEMS[hands.hand.item].use !== this.using.kind)) this.stopUsing(me);
     }
   }
 
@@ -293,16 +298,60 @@ export class Play {
     this.sound?.pouch();
   }
 
+  /** What is in your paw put away into the pouch (your paw's slot tapped): onto its own stack, else into an empty
+   * slot; bitten into, it is gone, eaten up, as with swap. */
+  stow(): void {
+    if (this.sleeping || !this.hands.hand) return;
+    if (this.using) this.stopUsing(this.hands.ch);
+    const eaten = this.hands.nibbled ? this.hands.hand : null;
+    if (!this.hands.stow()) {
+      this.hud.toast(t('toast.full'));
+      return;
+    }
+    if (eaten) this.eatenUp(eaten);
+    this.sound?.pouch();
+  }
+
+  /** Slot `from`'s things dragged onto slot `to` (see Hands.move). */
+  moveSlot(from: number, to: number): void {
+    if (this.sleeping) return;
+    this.hands.move(from, to);
+    this.sound?.pouch();
+  }
+
+  /** The pouch on the screen as it is: each slot's things (and your paw's) by name, icon and how many; for their
+   * cards, what each is for, a line about it, and a word of its own on the one that would come into your paw (see
+   * noteOn). */
   private showPouch(): void {
     const models = this.things.models;
-    const shown = (stack: Carried[] | null): PouchView['hand'] => {
-      const c = stack?.[0];
+    const shown = (stack: Carried[] | null, nibbled = false): PouchThing | null => {
+      const c = stack?.[stack.length - 1];
       if (!stack || !c) return null;
       const [column, row] = models.iconAt(c.item);
-      const icon: IconSpot = { column, row, columns: models.icons.columns, rows: models.icons.rows };
-      return { name: t(itemName(c.item)), icon, count: stack.length };
+      const icon: IconSpot = { src: models.iconOf(c.item), column, row, columns: models.icons.columns, rows: models.icons.rows };
+      const def = ITEMS[c.item];
+      const kind = def.use ?? (def.light ? 'light' : 'keep');
+      const about = `about.${c.item}`;
+      return {
+        name: t(itemName(c.item)),
+        icon,
+        count: stack.length,
+        kind: t(`pouch.kind.${kind}` as StringKey),
+        about: has(about) ? t(about) : null,
+        note: this.noteOn(c, nibbled),
+      };
     };
-    this.hud.setPouch({ hand: shown(this.hands.hand ? [this.hands.hand] : null), slots: this.hands.pouch.map(shown) });
+    const hand = this.hands.hand;
+    this.hud.setPouch({ hand: shown(hand ? [hand] : null, this.hands.nibbled), slots: this.hands.pouch.map((s) => shown(s)) });
+  }
+
+  /** A word of its own on a thing in your paws, for its card: bitten into; borrowed (whose it is); back to its place
+   * each morning; or none. */
+  private noteOn(c: Carried, nibbled: boolean): string | null {
+    if (nibbled) return t('pouch.nibbled');
+    if (c.lent && c.owner && c.owner !== 'player') return t('pouch.lent').replace('{0}', this.life.nameOf(c.owner));
+    if (c.home) return t('pouch.home');
+    return null;
   }
 
   /** Says that `c`, bitten into, is gone: eaten (or drunk) up. */
@@ -328,6 +377,10 @@ export class Play {
       // Up before your eyes and open (see HandView.read); seated, read sitting.
       me.play(this.seat ? 'readSeated' : 'read');
       this.view.read(true);
+    } else if (use === 'ready') {
+      // Up before you in both paws, pointing ahead (see HandView.ready); you may walk so.
+      me.play('ready');
+      this.view.ready(true);
     } else {
       me.play('eat');
       this.view.play(use);
@@ -337,18 +390,26 @@ export class Play {
   private stopUsing(me: Character): void {
     this.using = null;
     const act = me.actionId;
-    if (act === 'eat' || act === 'ukulele' || act === 'read' || act === 'readSeated') me.stopAction();
+    if (act === 'eat' || act === 'ukulele' || act === 'read' || act === 'readSeated' || act === 'ready') me.stopAction();
     if (this.seat) me.play('sit');
     this.view.play(null);
     this.view.read(false);
+    this.view.ready(false);
   }
 
-  /** A frame of eating, drinking or playing: walking off stops it; the last bite finishes what you eat. */
+  /** A frame of eating, drinking or playing: walking off stops it (not holding a weapon up ready, which you may walk
+   * with); the last bite finishes what you eat. */
   private useOn(f: PlayFrame, walking: boolean): void {
     const using = this.using;
     if (!using) return;
-    if (walking || !f.free) {
+    if ((walking && using.kind !== 'ready') || !f.free) {
       this.stopUsing(f.me);
+      return;
+    }
+    // (Held up ready: lowered as you sit or sleep; once anything else you did is over, up again.)
+    if (using.kind === 'ready') {
+      if (this.seat || this.sleeping) this.stopUsing(f.me);
+      else if (!f.me.actionId) f.me.play('ready');
       return;
     }
     const before = Math.floor(using.t / BITE);

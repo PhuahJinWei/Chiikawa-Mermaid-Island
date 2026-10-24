@@ -18,13 +18,15 @@ export interface Habit {
   chance?: number;
 }
 
-/** How much someone likes things by what they are for (see Choices): eaten, drunk, played, read, or kept; 1 if
- * not said. By what a thing is for, never its name, so a new kind of thing is liked as its kind is. */
+/** How much someone likes things by what they are for (see Choices): eaten, drunk, played, read, held up ready (a
+ * weapon), or kept; 1 if not said. By what a thing is for, never its name, so a new kind of thing is liked as its
+ * kind is. */
 export interface Taste {
   eat?: number;
   drink?: number;
   play?: number;
   read?: number;
+  ready?: number;
   keep?: number;
 }
 
@@ -74,11 +76,13 @@ export const HOMES: Record<string, string> = {
   player: 'hut_green@-20,-74.6',
   hitoha: 'hut_warm@-17.6,-58.4',
   futaba: 'hut_warm@-17.6,-58.4',
-  chiikawa: 'guest_tan@21,-100.5',
-  hachiware: 'guest_tan@21,-100.5',
-  usagi: 'guest_tan@21,-100.5',
-  shisa: 'guest_orange@12,-110.5',
-  kurimanju: 'guest_orange@12,-110.5',
+  // (Swapped by the user, 2026-10-24: Chiikawa, Hachiware and Usagi had lived in the tan house, Kurimanju and
+  // Shisa in the orange one.)
+  chiikawa: 'guest_orange@12,-110.5',
+  hachiware: 'guest_orange@12,-110.5',
+  usagi: 'guest_orange@12,-110.5',
+  shisa: 'guest_tan@21,-100.5',
+  kurimanju: 'guest_tan@21,-100.5',
   momonga: 'guest_tan@20,-119.5',
   furuhonya: 'guest_tan@20,-119.5',
   rakko: 'guest_orange@33,-112',
@@ -128,6 +132,8 @@ export const PROFILES: Record<string, Profile> = {
     weight: 0.8,
     hungry: 0.9,
     curious: 0.6,
+    // Her さすまた (things.json), as the film has her with it.
+    likes: { ready: 2 },
   },
   // Out on the pier's end at dawn, as PLAN.md has Hachiware fishing then.
   hachiware: {
@@ -136,6 +142,8 @@ export const PROFILES: Record<string, Profile> = {
     weight: 0.9,
     hungry: 0.9,
     curious: 0.8,
+    // His さすまた (things.json), as the film has him with it.
+    likes: { ready: 2 },
   },
   // Wherever there is food, running.
   usagi: {

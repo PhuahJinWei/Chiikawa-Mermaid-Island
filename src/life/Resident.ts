@@ -4,6 +4,7 @@ import type { ActionId } from '../characters/Actions';
 import type { Home, Seat, Spot, SpotId, Stall } from './Places';
 import type { Habit, Profile } from './profiles';
 import type { Life } from './Life';
+import type { Choice } from '../ui/DialogueBox';
 import { ITEMS, STALL_ITEM, carried, type Carried, type ItemId } from './Items';
 import { Hands } from './Hands';
 import type { Thing } from './Things';
@@ -81,6 +82,11 @@ const EAT_PACE: [number, number] = [4, 7];
 const GIFT_PACE = 3;
 /** How long they stop to talk with you (seconds). */
 const TALK = 3.6;
+/** Their words to you in the text box (see speak), they wait for you to read them at most this long
+ * (seconds). */
+const READ_MOST = 15;
+/** Asking you something (see speak's choices), they wait for your answer at most this long (seconds). */
+const CHOOSE_MOST = 40;
 /**
  * Parting from you, after anything with you (see partFrom): somewhere to be, a moment more turned to you, then
  * their leave-taking (a wave and a word) this long (seconds); seated or behind their counter, only the moment.
@@ -141,6 +147,8 @@ export const edible = (c: Carried | null): boolean => !!c && (ITEMS[c.item].use 
 export const playable = (c: Carried | null): boolean => !!c && ITEMS[c.item].use === 'play';
 /** Whether a thing is read. */
 export const readable = (c: Carried | null): boolean => !!c && ITEMS[c.item].use === 'read';
+/** Whether a thing is held up ready (かまえる: a weapon). */
+export const readyable = (c: Carried | null): boolean => !!c && ITEMS[c.item].use === 'ready';
 
 const _v = new THREE.Vector3();
 const _along = new THREE.Vector3();
@@ -779,6 +787,26 @@ export class Resident {
     }
   }
 
+  /** Holds what is in their paw up ready (a weapon: かまえる, as you do) for `seconds` where they are, before them in
+   * both paws pointing ahead and up (see Character.placeHand), facing `yaw` (NaN: as they are); a word with someone
+   * breaks off and goes back to it. */
+  *readyHeld(seconds: number, yaw = NaN): Brain {
+    if (!readyable(this.hands.hand)) return;
+    if (!Number.isNaN(yaw)) this.ch.setFacing(yaw);
+    this.ch.play('ready');
+    try {
+      for (let t = 0; t < seconds && readyable(this.hands.hand); t += yield) {
+        this.halt();
+        const other = this.ch.actionId;
+        if (other !== 'ready' && other !== 'startled' && (this.far || this.moving() < 0.25)) this.ch.play('ready');
+        yield* this.chatting();
+      }
+    } finally {
+      if (this.ch.actionId === 'ready') this.ch.stopAction();
+      this.needs.fun = Math.max(0, this.needs.fun - 0.3);
+    }
+  }
+
   /** Into their own room, one of their keepsakes put down in it (at most ROOM_KEEPS of theirs there). */
   *keepAtHome(c: Carried): Brain {
     const room = this.home.room;
@@ -1192,12 +1220,13 @@ export class Resident {
   private *leaveTaking(you: THREE.Vector3, line: string | null, seconds: number): Brain {
     this.faceTo(you);
     this.ch.play('wave');
-    if (line) this.life.say(this, line);
+    const each = () => {
+      this.halt();
+      this.faceTo(you);
+    };
     try {
-      for (let t = 0; t < seconds; t += yield) {
-        this.halt();
-        this.faceTo(you);
-      }
+      if (line) yield* this.speak(line, seconds, true, each);
+      else for (let t = 0; t < seconds; t += yield) each();
     } finally {
       if (this.ch.actionId === 'wave') this.ch.stopAction();
     }
@@ -1214,24 +1243,50 @@ export class Resident {
     return PART_LINES[kind] ?? null;
   }
 
-  /** Says `line` to whoever is at `at` (you, as you go), talking a moment (seated, as they sit), turned to
-   * them. */
-  private *sayTo(at: THREE.Vector3, line: string, seconds = TALK): Brain {
+  /** Says `line` to whoever is at `at` (you, as you go, `toYou`), talking a moment (seated, as they sit),
+   * turned to them; to you, as long as it takes you to read it (see speak). */
+  private *sayTo(at: THREE.Vector3, line: string, seconds = TALK, toYou = true, choices: readonly Choice[] = []): Brain<number> {
     if (!this.seat) this.ch.play('talk');
-    let said = false;
     try {
-      for (let t = 0; t < seconds; t += yield) {
-        this.halt();
-        this.faceTo(at);
-        // Their own words, over the talking's own bubble.
-        if (!said && t > 0.15) {
+      // (Over their head: their own words a moment in, over the talking's own bubble.)
+      return yield* this.speak(
+        line,
+        seconds,
+        toYou,
+        () => {
+          this.halt();
+          this.faceTo(at);
+        },
+        0.15,
+        choices,
+      );
+    } finally {
+      if (this.ch.actionId === 'talk') this.ch.stopAction();
+    }
+  }
+
+  /**
+   * Says `line`, doing `each` every frame meanwhile: to you (`toYou`) and near you, in the text box (see
+   * Life.boxed), till you have read it (READ_MOST at most), or with `choices`, till you have chosen one
+   * (CHOOSE_MOST at most); else over their head (`late` seconds in), for `seconds`. Done with it sooner
+   * (something else to do), it goes from the box. Which of `choices` you chose (-1: none).
+   */
+  private *speak(line: string, seconds: number, toYou: boolean, each: () => void, late = 0, choices: readonly Choice[] = []): Brain<number> {
+    const boxed = toYou ? this.life.boxed(this, line, choices) : null;
+    const most = choices.length > 0 ? CHOOSE_MOST : READ_MOST;
+    let said = !!boxed;
+    try {
+      for (let t = 0; boxed ? boxed.state !== 'done' && t < most : t < seconds; t += yield) {
+        each();
+        if (!said && t >= late) {
           this.life.say(this, line);
           said = true;
         }
       }
     } finally {
-      if (this.ch.actionId === 'talk') this.ch.stopAction();
+      if (boxed) this.life.unbox(boxed);
     }
+    return boxed?.chosen ?? -1;
   }
 
   /**
@@ -1246,27 +1301,27 @@ export class Resident {
    * have again, and put away. What it put away out of their paw, they hold again once their paw is empty.
    */
   *thank(c: Carried, from: THREE.Vector3, giver: string, back: boolean): Brain {
+    const toYou = giver === 'player';
     const thanked = function* (this: Resident): Brain {
       const held = this.hands.hand !== c ? this.hands.hand : null;
       this.hands.takeOut((x) => x === c);
       this.faceTo(from);
       try {
         if (back) {
-          yield* this.sayTo(from, words('thanks.back'), 2.4);
+          yield* this.sayTo(from, words('thanks.back'), 2.4, toYou);
           this.hands.stow();
           return;
         }
         if (this.free) this.ch.play('cheer');
-        this.life.say(this, this.life.thanks(this, 'got'));
-        for (let t = 0; t < 1.8; t += yield) {
+        yield* this.speak(this.life.thanks(this, 'got'), 1.8, toYou, () => {
           this.halt();
           this.faceTo(from);
-        }
+        });
         if (this.ch.actionId === 'cheer') this.ch.stopAction();
         this.needs.company = Math.max(0, this.needs.company - 0.3);
         if (edible(c)) {
           yield* this.eat(GIFT_PACE);
-          yield* this.sayTo(from, this.life.thanks(this, 'ate'));
+          yield* this.sayTo(from, this.life.thanks(this, 'ate'), TALK, toYou);
         } else {
           if (this.free) {
             this.ch.play('look');
@@ -1275,7 +1330,7 @@ export class Resident {
           }
           // Held on to, but for a torch, which burns in a paw and would light nothing round them.
           if (ITEMS[c.item].light) this.hands.stow();
-          yield* this.sayTo(from, this.life.thanks(this, 'kept'));
+          yield* this.sayTo(from, this.life.thanks(this, 'kept'), TALK, toYou);
         }
       } finally {
         if (this.ch.actionId === 'cheer' || this.ch.actionId === 'look') this.ch.stopAction();
@@ -1314,16 +1369,15 @@ export class Resident {
       yield* this.stand();
       this.ch.play('wave');
       try {
-        this.life.say(this, line);
-        for (let t = 0; t < 2.2; t += yield) {
+        yield* this.speak(line, 2.2, true, () => {
           this.halt();
           this.faceTo(you);
-        }
+        });
       } finally {
         if (this.ch.actionId === 'wave') this.ch.stopAction();
       }
       if (gift && this.life.playerHands?.fits(gift.item)) {
-        this.life.say(this, words('greet.gift'));
+        this.life.tell(this, words('greet.gift'));
         yield* this.handTo('player', gift);
       }
     };
@@ -1338,10 +1392,16 @@ export class Resident {
     const you = this.life.playerAt;
     if (!you) return;
     const asking = function* (this: Resident): Brain {
-      this.life.say(this, line);
-      for (let t = 0; t < 4.5; t += yield) {
+      // (Read, they still wait a moment for it.)
+      const start = this.life.now;
+      const each = () => {
         this.halt();
         this.faceTo(you);
+      };
+      yield* this.speak(line, 4.5, true, each);
+      while (this.life.now - start < 4.5) {
+        each();
+        yield;
       }
     };
     yield* this.withYou(asking.call(this));
@@ -1349,10 +1409,21 @@ export class Resident {
 
   /** You talk with them, standing at `you` (where you are as you go): they turn to you (if not seated or at a
    * counter) and say `line`, talking a moment, their eyes following you if you walk off; then part from you (see
-   * partFrom), not straight back to what they were doing. */
-  *talk(you: THREE.Vector3, line: string): Brain {
+   * partFrom), not straight back to what they were doing. With someone to `seek` (ids: see Life.sought), you
+   * may ask them after one, and they say where they are (see Life.whereIs). */
+  *talk(you: THREE.Vector3, line: string, seek: readonly string[] = []): Brain {
     this.faceTo(you);
-    yield* this.withYou(this.sayTo(you, line), true);
+    const talking = function* (this: Resident): Brain {
+      if (seek.length === 0) {
+        yield* this.sayTo(you, line);
+        return;
+      }
+      if ((yield* this.sayTo(you, line, TALK, true, [words('talk.seek'), words('talk.bye')])) !== 0) return;
+      const asked = seek.map((id) => this.life.asChoice(id));
+      const pick = yield* this.sayTo(you, this.life.own(this, 'talk.seekWho'), TALK, true, asked);
+      if (pick >= 0) yield* this.sayTo(you, this.life.whereIs(seek[pick], this));
+    };
+    yield* this.withYou(talking.call(this), true);
   }
 
   /** You hopped at them, standing at `you`: after a moment they hop back, or wave. */
@@ -1370,7 +1441,7 @@ export class Resident {
       for (let t = 0, wait = 0.2 + this.life.random() * 0.5; t < wait; t += yield) this.halt();
       // (Seated, they only say what they would; behind a counter they answer where they stand.)
       if (this.seat) {
-        if (answer.line) this.life.say(this, words(answer.line));
+        if (answer.line) this.life.tell(this, words(answer.line));
         return;
       }
       if (answer.come && this.free && flat(this.pos, you) > 2.4) {
@@ -1385,12 +1456,14 @@ export class Resident {
       const action = answer.actions[Math.floor(this.life.random() * answer.actions.length)];
       if (action === 'hop') this.ch.jump();
       else this.ch.play(action);
-      if (answer.line) this.life.say(this, words(answer.line));
+      const seconds = action === 'hop' ? 0.9 : answer.seconds;
+      const each = () => {
+        this.halt();
+        this.faceTo(you);
+      };
       try {
-        for (let t = 0; t < (action === 'hop' ? 0.9 : answer.seconds); t += yield) {
-          this.halt();
-          this.faceTo(you);
-        }
+        if (answer.line) yield* this.speak(words(answer.line), seconds, true, each);
+        else for (let t = 0; t < seconds; t += yield) each();
       } finally {
         if (this.ch.actionId === action) this.ch.stopAction();
       }

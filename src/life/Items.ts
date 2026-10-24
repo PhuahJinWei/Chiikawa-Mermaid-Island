@@ -44,10 +44,14 @@ export type ItemId =
   | 'ukulele'
   | 'seashell'
   | 'starfish'
-  | 'book';
+  | 'book'
+  | 'weapon01'
+  | 'weapon02'
+  | 'weapon03';
 
-/** What one does with a thing from the hand: eats it, drinks it, plays it, reads it; or keeps it. */
-export type ItemUse = 'eat' | 'drink' | 'play' | 'read' | null;
+/** What one does with a thing from the hand: eats it, drinks it, plays it, reads it, holds it up ready (かまえる, a
+ * weapon); or keeps it. */
+export type ItemUse = 'eat' | 'drink' | 'play' | 'read' | 'ready' | null;
 
 /** How a thing lies once put down: standing on its foot, lying on its side, or flat as it is held. */
 export type ItemRest = 'stand' | 'lie' | 'flat';
@@ -72,6 +76,9 @@ export interface ItemDef {
   /** Shown in your paw out of your own eyes at this share of its size (see HandView), where it would fill the corner
    * of the screen: the book (the user, 2026-10-23). */
   hand?: number;
+  /** Held up ready (かまえる: see Character.placeHand, HandView.ready) by this point of it (in the prop's frame, as
+   * `grip`), in both paws before them, pointing ahead and up: a staff by its foot, so nothing of it is behind the paws. */
+  ready?: [number, number, number];
 }
 
 /** A thing as someone has it (see Hands), or as it lies (see Things): what it is, and where it belongs. */
@@ -145,6 +152,14 @@ export const ITEMS: Record<ItemId, ItemDef> = {
   // The one book (the user, 2026-10-23), 伝説の生物図鑑 after the film's, on the floor before Hitoha and Futaba's
   // bookshelf (things.json): lying flat, held flat on the paw, read open before the face (see ItemModels' open books).
   book: { use: 'read', rest: 'flat', flat: true, paint: 'book_cover', hand: 0.5 },
+  // The user's three weapons (2026-10-24), after their icons and the film (art/blender/build_items.py): the islanders'
+  // spring weapon with a face, only held (the user: no more to it), shown a little smaller in your paw out of your own
+  // eyes; Chiikawa's pink forked staff and Hachiware's blue one (theirs: things.json), three quarters of her height
+  // long as the film has them, shown in your paw nearly as big as they are (the user: they had looked "too small"),
+  // held up ready (かまえる, the user) by their white grips at their feet. All lying on their sides.
+  weapon01: { use: null, rest: 'lie', hand: 0.72 },
+  weapon02: { use: 'ready', rest: 'lie', hand: 0.9, ready: [0, -0.25, 0] },
+  weapon03: { use: 'ready', rest: 'lie', hand: 0.9, ready: [0, -0.25, 0] },
 };
 
 /** Every thing there is: those above, and any other the things' build makes (art/blender/build_items.py, its
@@ -213,7 +228,8 @@ export interface IconSheet {
 /** A copy of a thing (see ItemModels.make): its body and pen, its flame if it has one, lit as `light` says; a book's
  * open halves too. */
 export interface ItemCopy extends THREE.Group {
-  userData: { item: ItemId | 'paw'; light: HeldLight; flame?: THREE.Mesh; book?: OpenBook };
+  /** `ready`: where it is held up ready, in its own frame (ItemDef.ready, as it is held). */
+  userData: { item: ItemId | 'paw'; light: HeldLight; flame?: THREE.Mesh; book?: OpenBook; ready?: THREE.Vector3 };
 }
 
 /** A book's halves open, from its prop (art/blender/books.py): each one's cloth and pages' block (`open`) and the top of
@@ -302,6 +318,30 @@ class Picture {
 const PAGES = 'models/props/book_pages.webp';
 const PAGES_FAR = 'models/props/book_pages_far.webp';
 const PAPER = '#F2F2EA';
+/** The things the user has drawn icons of (the user, 2026-10-24), as the pouch shows them in place of their renders:
+ * copied in from art/icons/ by art/blender/build_icons.py, listed in its things.json. */
+const DRAWN = 'ui/things/';
+/** Those drawings' pictures, fetched as the game starts and kept, so each shows at once the first time it is in the
+ * pouch. */
+const drawings: HTMLImageElement[] = [];
+
+/** Which things the user has drawn icons of (see DRAWN), their pictures fetched; none if there is no list. */
+async function drawnThings(): Promise<Set<string>> {
+  try {
+    const response = await fetch(`${DRAWN}things.json`);
+    if (!response.ok) return new Set();
+    const list = (await response.json()) as { things?: string[] };
+    for (const id of list.things ?? []) {
+      const picture = new Image();
+      picture.src = `${DRAWN}${id}.webp`;
+      drawings.push(picture);
+    }
+    return new Set(list.things ?? []);
+  } catch {
+    // None drawn: every thing by its render.
+    return new Set();
+  }
+}
 
 /**
  * The things' shapes, loaded once, and copies of them made as they are needed: lit as whoever holds them
@@ -322,11 +362,16 @@ export class ItemModels {
     private readonly paints: Map<string, THREE.Texture>,
     private readonly books: Map<string, BookParts>,
     readonly icons: IconSheet,
+    /** The things with icons the user drew (see DRAWN). */
+    private readonly drawn: Set<string>,
   ) {}
 
   static async load(): Promise<ItemModels> {
-    // Every thing the build made, those this file has no entry for among them (see registerItem).
-    const icons = await fetch('models/props/item_icons.json').then((r) => r.json() as Promise<{ size: number; columns: number; order: string[] }>);
+    // Every thing the build made, those this file has no entry for among them (see registerItem); and those drawn.
+    const [icons, drawn] = await Promise.all([
+      fetch('models/props/item_icons.json').then((r) => r.json() as Promise<{ size: number; columns: number; order: string[] }>),
+      drawnThings(),
+    ]);
     for (const id of icons.order) registerItem(id);
     const ids: (ItemId | 'paw')[] = [...ITEM_IDS, 'paw'];
     const loader = new THREE.TextureLoader();
@@ -365,7 +410,8 @@ export class ItemModels {
         books.set(id, { open: [o0, o1], page: [p0, p1], hinge: new THREE.Vector3(...info.hinge), swing: info.swing ?? Math.PI });
       }
     });
-    return new ItemModels(bodies, flames, feet, paints, books, { ...icons, rows: Math.ceil(icons.order.length / icons.columns) });
+    const sheet = { ...icons, rows: Math.ceil(icons.order.length / icons.columns) };
+    return new ItemModels(bodies, flames, feet, paints, books, sheet, drawn);
   }
 
   /** A thing's shape, as it is held (see heldMatrix): what every copy of it is made of. */
@@ -386,6 +432,12 @@ export class ItemModels {
     const map = this.paints.get(id) ?? null;
     const copy = createHeld(this.shape(id), { mark, map }) as ItemCopy;
     copy.userData.item = id;
+    const def = id === 'paw' ? null : ITEMS[id];
+    if (def?.ready) {
+      const held = heldMatrix(def);
+      copy.userData.ready = new THREE.Vector3(...def.ready);
+      if (held) copy.userData.ready.applyMatrix4(held);
+    }
     const flame = this.flames.get(id);
     if (flame) {
       const material = flameMaterial(FLAME_SIZE);
@@ -464,6 +516,12 @@ export class ItemModels {
   iconAt(id: ItemId): [number, number] {
     const i = Math.max(0, this.icons.order.indexOf(id));
     return [i % this.icons.columns, Math.floor(i / this.icons.columns)];
+  }
+
+  /** The address of the icon the user drew of a thing (see DRAWN), shown in place of its render; null if there is
+   * none yet. */
+  iconOf(id: ItemId): string | null {
+    return this.drawn.has(id) ? `${DRAWN}${id}.webp` : null;
   }
 }
 

@@ -432,7 +432,10 @@ stage), which have no invisible walls, while the islanders keep to them.
 Natural cliffs stay jump-only (the user, 2026-10-23): walking stops at the
 lip, a jump takes you off; deep water stops walkers too, and a jump into it
 puts you on the nearest bank.
-Wading is not slower yet.
+Out of your own eyes your steps show (2026-10-24): your eyes dip with each
+footfall and sway and tilt to the foot you stand on, gently, most when sprinting
+(2.5 cm, 1.4 cm, 0.7°; toned down at the user's word), the footsteps you hear and the paw's sway in step with them
+(`FirstPersonCamera.steps`). Wading is not slower yet.
 
 ### 6.3 Time, weather, and sim
 
@@ -523,9 +526,13 @@ you a while. The next part of their day waits till they have.
 - Character names are their katakana or hiragana forms: ちいかわ, ハチワレ,
   うさぎ, モモンガ, ヒトハ, フタバ.
 - **Fonts.** Japanese fonts are several megabytes, which would blow the 5 MB
-  load budget. The game uses the phone's built-in Japanese fonts, with a
-  rounded style preferred where the system has one. A subset of a rounded
-  web font is a later polish option.
+  load budget. Since 2026-10-23 the HUD uses Zen Maru Gothic, the round type
+  of the user's Chiikawa-Hidamari, from Google Fonts: it comes in slices of a
+  few hundred letters each, and the browser fetches only the slices holding
+  letters on the screen, after the game (it never holds the game up). The
+  service worker keeps them for offline play. Until they come, and offline on
+  a first visit, the phone's own Japanese type shows, a rounded one where the
+  system has it.
 - **Text layout.** Japanese has no spaces, so the dialogue box wraps by
   character, and the typewriter effect reveals one character at a time.
 - **My limits.** I write natural Japanese, but not at the level of a native
@@ -538,6 +545,29 @@ in `locales/ja.json`, picked in `life/lines.ts`): three of each of the cast's
 own, eight the islanders', and some for the hour (morning, evening, night)
 and what they are doing (at their stall's counter, at the feast, in the
 fields). No text box, choices or friendship yet.
+
+**Built so far (2026-10-23):** the text box (`ui/DialogueBox.ts`): what is
+said to you within 5 m (talk, thanks, greeting, asking, answering your
+crying or starting, leave-taking, a keeper's or owner's word) goes into it,
+the speaker's name on its corner, typed out a character at a time and
+wrapped the Japanese way; tap it (or the action button, つぎ, or E or Enter)
+for the rest or the next, hold to skip. A line goes on its own a little after
+it is out (the island never waits on you), and lines wait their turn. The
+speaker keeps talking, turned to you, till it is read, with nothing over
+their head; walking 7 m off closes it. Words to anyone else stay in bubbles.
+No portrait (the user asked for the name).
+Choices: the box's lines can come with buttons and wait for one (keys 1 to
+9 and 0). The first use: asking anyone (the cast too, in their own words) where one
+of the cast is (the user, in place of the notebook's list of everyone):
+after their line, だれかさがしてる or またね, then the cast's names; they say
+where that one is now (the place's name, just there, at home, asleep), and
+a marker points to them for a minute or till you are by them.
+Faces (the user, 2026-10-23: a face tells you who at a glance): the user's
+drawings of the cast's faces (`art/icons/`, `build_icons.py`) show by the
+speaker's name in the text box (the planned portrait), as the choices of
+whom to ask after (faces alone), and on the marker (the face alone, on a
+cream disc with a tab turned toward them). The islanders have none yet and
+show 島の子.
 
 ### 6.6 "Monitoring" the island
 
@@ -552,11 +582,16 @@ A **journal** (bottom-left button) with three tabs:
 
 No objectives. The journal is for curiosity, not completion.
 
-**Built so far (2026-10-22):** the notebook (ノート, by the pouch's button):
-its everyone page lists each of the cast, the place they are in and what they
-are doing, updated as you watch, and counts the islanders by what they do;
-its album page holds your photos. No compass arrow, friends or discoveries
-yet.
+**Built so far (2026-10-22), and taken out (2026-10-23):** a notebook (ノート)
+with a page of where everyone is (the cast's places and doings, the islanders
+counted) and the album of your photos. It did not help the user: its page
+nearly always read as wandering about somewhere wide, nothing could be done
+with it, its hearts hardly moved, and a page knowing where everyone is sat
+ill with seeing the island out of your own eyes as one islander of many. So
+the island is not monitored from a menu: your photos open from the newest,
+under the camera button; the sound has a speaker button by きもち; fondness
+shows as hearts floating up over whoever grows fonder of you; and asking an
+islander where someone is belongs to dialogue (6.5).
 
 ### 6.7 Small interactions (the texture of comfy)
 
@@ -579,7 +614,7 @@ out of your own eyes; your pouch keeps more. Put it down where you look
 cans back, the crab who keeps the book shop a shell), eat or drink it (a bite
 at a time), play the ukulele, carry the torch (it lights your way at night).
 The stalls hand you what they sell. The camera button takes a photo, kept
-in the notebook's album, to save or share. The island's sound is made as it
+in your album (the newest under the button), to save or share. The island's sound is made as it
 plays (`core/Sound.ts`): the waves as near as the sea is, wind and birds,
 crickets, the waterfall, the festival's murmur, the feast's fire, your
 footsteps, Rakko's ukulele tune and yours, a hum from the sea at night.
@@ -596,12 +631,14 @@ them to friends and to you, eat and drink them, play the stage's ukulele
 (others gathering to listen and dance), borrow what is someone else's and
 give it back, and put keepsakes down in their own rooms; what they do next
 out and about is chosen by what they need, what they like and what is about
-them. They grow fond of you (hearts in the notebook), remember what you gave
+them. They grow fond of you (hearts float up over them), remember what you gave
 them, come over to greet you, and ask for what you have to eat when hungry.
 You can keep a stall no one keeps today and serve whoever lines up. What
 lies about the island comes from `public/data/things.json`, so things can
 be added and scattered with nothing else to change. The pouch's six slots
-each stack up to 99 things of one kind. What has been bitten into goes into
+each stack up to 99 things of one kind; held sideways or on a computer they
+show on a bar along the bottom with your paw's, and the ふくろ button opens
+the bag over the island, which says what each thing is. What has been bitten into goes into
 no pouch, down nowhere and to no one: put away it is gone, eaten up (たべきる).
 A stall hands nothing to someone with no room for it; its keeper says so
 and they step out of the line. The onigiri is gone from the game. What you
@@ -620,7 +657,14 @@ which you read (よむ: up before your eyes and open, its one spread filling
 your view) and the islanders read too, held open under their face as
 Hachiware reads it in the film. Its cover and its spread are the user's to
 paint, over templates in `art/books/_guides/` (`art/books/README.md`); the
-spread's picture is loaded only while someone reads it.
+spread's picture is loaded only while someone reads it. The user's three
+weapons (2026-10-24), after their icons and the film: Chiikawa's pink
+さすまた and Hachiware's blue one on the trio's guest house floor (theirs:
+anyone else borrows them), three quarters of Chiikawa's height long as the
+film has them, and the islanders' spring weapon with a face beside the book,
+only held. Held, a さすまた is held up ready (かまえる) before you in both paws,
+pointing ahead, as you walk; whoever holds one does so too now and then, and
+Chiikawa and Hachiware now and then take theirs out.
 Nothing anyone holds goes into them (the user: a torch's tip had stuck into
 heads): what is held is kept clear of their head, body and clothes each
 frame, tipped and pushed out as little as it must be (`characters/Holding.ts`),
@@ -667,10 +711,12 @@ art/
     build_props.py     * palm, log, starfish, No Entry sign, butterfly
     build_village.py   * the village and the festival: huts, stage, torches, stalls, arch, banners, bunting, pier, ferry
     build_signs.py     * the signboards' templates; copies their hand-lettered paintings into the game
+    build_icons.py     * copies the cast's drawn faces into the game (the text box, choices, the marker)
     houses.py          * houses you can walk into, the watchtower stage, the festival's arch and banners
     cast.blend         * generated: the converted cast with their outfits, for viewing in Blender
   faces/<id>/          * each cast member's painted face: layers, expressions.txt and a guide
   signs/               * the signboards' hand-lettered paintings, and their templates in _guides/
+  icons/               * the cast's faces as the screen shows them, drawn by hand
     props.blend        * generated: all props
     village.blend      * generated: the village, the pier and the ferry
   previews/            * generated: front, three-quarter, side and back renders
@@ -729,7 +775,7 @@ src/
     Journal.ts
     Audio.ts           ambient, positional
   ui/
-    Hud.ts             * title, time and stats, place names, joystick ring, jump button
+    Hud.ts             * the way in, the hour, the buttons (Hidamari's look, see styles.css), the verbs over the jump, the pouch's bar and bag, notices, joystick ring
     TestPanel.ts       * actions, expressions, lineup, time of day
     DialogueBox.ts
     JournalPanel.ts
@@ -775,8 +821,9 @@ testable on desktop with a fake touch layer.
 
 ### Installable PWA
 
-- `manifest.webmanifest`: name, icons (192, 512, maskable), portrait
-  orientation, `display: standalone`, theme colour.
+- `manifest.webmanifest`: name, icons (192, 512, maskable), any orientation
+  (it turns with the phone since 2026-10-23; held sideways the pouch has its
+  bar along the bottom), `display: standalone`, theme colour.
 - Service worker caches the built app and assets so it opens offline and
   loads instantly after the first visit.
 - iOS: Safari share sheet → "Add to Home Screen". Android: Chrome shows an

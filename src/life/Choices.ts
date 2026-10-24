@@ -1,7 +1,7 @@
 import { ITEMS, type Carried, type ItemId } from './Items';
 import { t } from '../i18n/I18n';
 import type { Life } from './Life';
-import { edible, playable, readable, type Brain, type Resident } from './Resident';
+import { edible, playable, readable, readyable, type Brain, type Resident } from './Resident';
 import { FRIENDS, type Taste } from './profiles';
 import type { Thing } from './Things';
 
@@ -12,6 +12,8 @@ import type { Thing } from './Things';
  * - eat or drink what they have, as hungry as they are;
  * - play what they have (the ukulele), as much as they want some fun: at the stage if it is near;
  * - read what they have (the book), a while where they are, held open before their face as you read it;
+ * - hold up ready what they have (a weapon: かまえる), a while where they are, as you do; and now and then take
+ *   their own weapon out from where it lies (Chiikawa's, Hachiware's: things.json) to carry it and hold it up so;
  * - give one of their keepsakes to a friend about, as much as they want company (at most once a day);
  * - go over to a friend about for a word;
  * - put a keepsake down in their own room;
@@ -59,6 +61,10 @@ const PLAY: [number, number] = [30, 55];
 const STAGE_NEAR = 45;
 /** Reading: how long (seconds, from, to). */
 const READ: [number, number] = [25, 50];
+/** Holding a weapon up ready: how long (seconds, from, to); and taking their own out from where it lies: how much they
+ * like to at most (as TAKE, a little more: it is theirs). */
+const READY: [number, number] = [6, 14];
+const OWN_WEAPON = 0.08;
 
 const flat = (a: { x: number; z: number }, b: { x: number; z: number }) => Math.hypot(a.x - b.x, a.z - b.z);
 
@@ -134,9 +140,11 @@ export class Choices {
     if (tune) add((0.6 + 1.6 * r.needs.fun) * this.likes(r, tune.item), () => this.play(r, tune));
     const book = all.find((c) => readable(c));
     if (book) add((0.4 + 1.0 * r.needs.fun) * this.likes(r, book.item), () => this.read(r, book));
+    const weapon = all.find((c) => readyable(c));
+    if (weapon && !r.seat) add((0.1 + 0.35 * r.needs.fun) * this.likes(r, weapon.item), () => this.ready(r, weapon));
     for (const c of all) {
       if (c.lent) add(0.25 + 0.5 * Math.max(0, hoursNow - (r.borrowed.get(c) ?? hoursNow)), () => r.giveBack(c));
-      else if (c.home && !playable(c) && !readable(c)) add(0.8, () => r.putBack(c));
+      else if (c.home && !playable(c) && !readable(c) && !readyable(c)) add(0.8, () => r.putBack(c));
       else if (c.home) add(0.25 + (1 - r.needs.fun) * 0.6, () => r.putBack(c));
     }
 
@@ -181,8 +189,11 @@ export class Choices {
       if (d > SEE || Math.abs(t.at.y - r.pos.y) > 3 || !this.open(r, t)) continue;
       const near = 1 / (1 + d / 6);
       const theirs = !!t.owner && t.owner !== r.id;
-      // (Their own, lying about: left where they put it.)
-      if (t.owner === r.id) continue;
+      // (Their own, lying about: left where they put it; their own weapon, now and then taken out to carry.)
+      if (t.owner === r.id) {
+        if (mayTake && readyable(t) && r.hands.fits(t.item)) add(OWN_WEAPON * near * this.likes(r, t.item), () => this.takeUp(r, t));
+        continue;
+      }
       add(ADMIRE * curious * near, () => r.admire(t));
       if (!mayTake || (theirs && edible(t)) || !r.hands.fits(t.item)) continue;
       add(TAKE * curious * near * this.likes(r, t.item) * (theirs ? BORROW : 1), () => this.takeUp(r, t));
@@ -224,6 +235,12 @@ export class Choices {
     if (r.hands.hand === c) r.hands.stow();
   }
 
+  /** Holds `c` up ready a while where they are (a weapon: かまえる); done, still in their paw, carried. */
+  private *ready(r: Resident, c: Carried): Brain {
+    if (!r.hands.takeOut((x) => x === c)) return;
+    yield* r.readyHeld(READY[0] + this.life.random() * (READY[1] - READY[0]));
+  }
+
   /** Over to `friend` with `gift`. */
   private *give(r: Resident, friend: Resident, gift: Carried): Brain {
     yield* r.handTo(friend, gift);
@@ -237,6 +254,7 @@ export class Choices {
     if (edible(c) && !c.lent && r.needs.hunger > 0.3) yield* r.eat();
     else if (playable(c) && this.life.random() < 0.7) yield* this.play(r, c);
     else if (readable(c) && this.life.random() < 0.7) yield* this.read(r, c);
+    else if (readyable(c) && this.life.random() < 0.8) yield* this.ready(r, c);
     else r.hands.stow();
   }
 }

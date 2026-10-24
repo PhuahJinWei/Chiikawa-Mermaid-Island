@@ -234,8 +234,14 @@ def resize(arr, width, height):
 
     alpha = arr[..., 3:4]
     pre = np.concatenate([arr[..., :3] * alpha, alpha], axis=-1)
-    rows = np.tensordot(weights(arr.shape[0], height), pre, axes=(1, 0))
-    out = np.moveaxis(np.tensordot(rows, weights(arr.shape[1], width), axes=(1, 1)), 2, 1)
+    h, w = arr.shape[:2]
+    if h % height == 0 and w % width == 0:
+        # Shrinking by whole pixels each way (a painting at its template's twice the game's size): the same average
+        # of each block, at once. (The weights' way takes minutes on a painting that big.)
+        out = pre.reshape(height, h // height, width, w // width, 4).mean(axis=(1, 3))
+    else:
+        rows = np.tensordot(weights(h, height), pre, axes=(1, 0))
+        out = np.moveaxis(np.tensordot(rows, weights(w, width), axes=(1, 1)), 2, 1)
     a = out[..., 3:4]
     out[..., :3] = np.where(a > 1e-6, out[..., :3] / np.maximum(a, 1e-6), 0.0)
     return np.clip(out, 0.0, 1.0)

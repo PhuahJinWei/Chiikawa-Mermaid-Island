@@ -26,7 +26,9 @@ export default defineConfig({
         start_url: './',
         scope: './',
         display: 'standalone',
-        orientation: 'portrait',
+        // Either way up, as the phone is held (the user, 2026-10-23): held sideways, the HUD has the pouch's
+        // bar along the bottom (see src/styles.css).
+        orientation: 'any',
         background_color: '#6EC6F0',
         theme_color: '#6EC6F0',
         icons: [

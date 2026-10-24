@@ -51,7 +51,7 @@ import { Play } from './Play';
 import { loadSave, writeSave, type SaveData } from './Save';
 import { Sound, type Hearing } from './Sound';
 import { Album, SIDE } from './Album';
-import { Notebook } from '../ui/Notebook';
+import { AlbumView } from '../ui/AlbumView';
 import { glowUniforms } from '../world/Glow';
 
 /** Where each character stands when you are not controlling it: x, z, facing. */
@@ -96,6 +96,10 @@ const FOLLOW_DISTANCE = 7;
 /** The follow camera's lens (the lineup's, the third person's): a narrow one flattens perspective, like
  * the film's framing. Out of the eyes the lens is wider (see FirstPersonCamera). */
 const FOLLOW_FOV = 30;
+/** Told where someone is (see Life.whereIs), a marker toward them this long (seconds), or till you are this
+ * near them (metres). */
+const SOUGHT_FOR = 60;
+const SOUGHT_REACHED = 4;
 /** Where the pen is sharpest while the free camera flies: this far ahead of it. */
 const FREE_FOCUS = 12;
 /** Out of the eyes, where the pen is sharpest: this far ahead, about where those you meet stand. */
@@ -150,6 +154,7 @@ const _stick = new THREE.Vector3();
 const _caveHeld = new THREE.Vector3();
 const _seen = new THREE.Vector3();
 const _boatFlame = new THREE.Vector3();
+const _sought = new THREE.Vector3();
 const _landing = new THREE.Vector3();
 const _from = new THREE.Vector3();
 const _to = new THREE.Vector3();
@@ -159,10 +164,10 @@ const _myEyeR = new THREE.Vector3();
 const _torch = new THREE.Vector3();
 /** Kept every this many seconds of play (see save), and on leaving. */
 const SAVE_EVERY = 20;
+/** At most this many different things gone wrong in frames are told on the console (see failed). */
+const FAILURES_KEPT = 50;
 /** Sleeping through the night, you wake at this hour (the user: everyone wakes at 6:00). */
 const WAKE = 6.05;
-/** How far you walk between footsteps (metres). */
-const STRIDE = 0.55;
 /** Standing in water deeper than this (metres; wading goes to 0.25), you are taken out at the nearest shore
  * (see keepFooting); a place kept for you (see save) must be no deeper, and within this much of the ground
  * there. */
@@ -239,16 +244,18 @@ export class Game {
   private readonly standing = new THREE.Vector3(Number.NaN, 0, 0);
   private standingYaw = 0;
   private readonly saved: SaveData | null = loadSave();
-  /** The island's sound, your album of photos and your notebook (where everyone is, the album). */
+  /** The island's sound, and your album of photos (opened from the newest, by the camera's button) and the
+   * newest's picture there (an object URL, or null). */
   private readonly sound = new Sound();
   private readonly album = new Album();
-  private readonly notebook: Notebook;
+  private readonly albumView: AlbumView;
+  private lastPhoto: string | null = null;
   private handView: HandView | null = null;
-  /** How near the sea is where you hear from (see shoreness), looked at a few times a second; how far you
-   * have walked since your last footstep. */
+  /** How near the sea is where you hear from (see shoreness), looked at a few times a second; the footfalls
+   * out of your own eyes heard so far (see FirstPersonCamera.footfalls). */
   private shore = 0;
   private shoreTimer = 0;
-  private strideLeft = STRIDE;
+  private footfallsHeard = 0;
   private staged: StagedShot | null = null;
   private readonly settings: Settings;
   private readonly focus = new THREE.Vector3();
@@ -276,7 +283,12 @@ export class Game {
   /** Where the character you control is, checked a few times a second. */
   private zone: ZoneId | null = null;
   private zoneTimer = 0;
+  /** Whoever you were told of (see updateSought), by name, and for how long yet; the keyboard's 0 down. */
+  private sought: { who: Character; name: string; face: string | null; left: number } | null = null;
+  private zeroDown = false;
   private running = false;
+  /** What has gone wrong in frames (see failed): each by its part and message, and how many times. */
+  private readonly failures = new Map<string, number>();
   /** In the forbidden cave: its rowboat, the torch carried through it, whether you are rowing, and
    * where on the shore you would step out of the boat. */
   private boat: Boat | null = null;
@@ -350,29 +362,34 @@ export class Game {
         mermaids: this.siren?.mermaids.where ?? null,
       }),
     );
-    this.notebook = new Notebook(ui);
-    this.notebook.setSound(this.sound.enabled);
-    this.notebook.onSound = (on) => this.sound.setOn(on);
-    this.notebook.onPeople = () => this.life?.whereabouts((p) => this.placeName(p)) ?? { cast: [], islanders: '' };
-    this.notebook.onAlbum = async () =>
+    this.albumView = new AlbumView(ui);
+    this.hud.setSound(this.sound.enabled);
+    this.hud.onSound = (on) => this.sound.setOn(on);
+    this.albumView.onAlbum = async () =>
       (await this.album.list()).map((photo) => {
         const h = Math.floor(photo.hours);
         const m = String(Math.floor((photo.hours - h) * 60)).padStart(2, '0');
         return {
           id: photo.id,
           url: URL.createObjectURL(photo.blob),
-          label: t('note.photoLabel').replace('{0}', String(photo.day + 1)).replace('{1}', `${h}:${m}`),
+          label: t('album.label').replace('{0}', String(photo.day + 1)).replace('{1}', `${h}:${m}`),
         };
       });
-    this.notebook.onDelete = (id) => void this.album.remove(id);
+    this.albumView.onDelete = async (id) => {
+      await this.album.remove(id);
+      await this.showLastPhoto();
+    };
     this.hud.onCamera = () => this.takePhoto();
-    this.hud.onNotebook = () => this.notebook.toggle();
+    this.hud.onPhotos = () => this.albumView.toggle();
+    void this.showLastPhoto();
     this.hud.onJump = () => {
       this.input.queueJump();
       this.input.holdJump(true);
     };
     this.hud.onJumpEnd = () => this.input.holdJump(false);
     this.hud.onAction = () => this.input.queueAction();
+    // (The use button, たべる・のむ・ひく・よむ, as F is on a keyboard: on a phone it had done nothing.)
+    this.hud.onUse = () => this.input.queueUse();
     this.hud.onTest = () => this.panel.toggle();
     this.panel.onToggle = (open) => (this.viewLiftTarget = open ? 1 : 0);
     this.input.onFirstMove = () => this.hud.hideHint();
@@ -471,6 +488,9 @@ export class Game {
       });
       this.things.onStand = (i, filled) => this.stage.setBrand(i, filled);
       this.life = await Life.create(this.characters, this.crowd, this.emotes, this.things);
+      this.life.useBox(this.hud.dialogue);
+      this.life.placeAt = (p) => this.placeName(p);
+      this.life.onSought = (who, name, face) => (this.sought = { who, name, face, left: SOUGHT_FOR });
       this.makePlay(items);
       // Everyone where you left them; on a new island, at its welcome (the cast as HOMES has them).
       const cast = Object.fromEntries(Object.entries(HOMES).filter(([id]) => id !== 'player'));
@@ -572,13 +592,6 @@ export class Game {
     this.hud.toast(t('toast.morning'));
   }
 
-  /** The name of the place `p` is in, as the place names show it (in the cave, the cave's). */
-  private placeName(p: THREE.Vector3): string {
-    const zones = this.stage.zones;
-    if (this.stage.cave?.isInside(p.x, p.y + 0.3, p.z)) return zoneName('cave');
-    return zones ? zoneName(zones.at(p.x, p.z)) : '';
-  }
-
   /**
    * A photo of what you see (the camera's button): drawn now, without your paw before your eyes, read back at
    * no more than SIDE pixels on its longest side and kept in your album (see Album); the screen flashes.
@@ -599,11 +612,19 @@ export class Game {
     const hours = this.clock.hours;
     const day = this.life?.day ?? 0;
     shot.toBlob((blob) => {
-      if (blob) void this.album.add(blob, hours, day);
+      if (blob) void this.album.add(blob, hours, day).then(() => this.showLastPhoto(true));
     }, 'image/jpeg', 0.9);
     this.hud.flash();
     this.sound.shutter();
     this.hud.toast(t('toast.photo'));
+  }
+
+  /** Your newest photo by the camera's button (none, the album empty), come in with a pop if just `taken`. */
+  private async showLastPhoto(taken = false): Promise<void> {
+    const newest = await this.album.newest();
+    if (this.lastPhoto) URL.revokeObjectURL(this.lastPhoto);
+    this.lastPhoto = newest ? URL.createObjectURL(newest.blob) : null;
+    this.hud.setLastPhoto(this.lastPhoto, taken);
   }
 
   /** How near the sea is to `p`: 1 on the shore or over the water, less the further it is to any water all
@@ -645,26 +666,23 @@ export class Game {
       const d = Math.hypot(p.x - s.x, p.z - s.z);
       sirenNear = (1 - THREE.MathUtils.smoothstep(d, 30, 85)) * THREE.MathUtils.smoothstep(d, 16, 26);
     }
-    // A footstep each stride walked on your own feet: on the deck you stand on, in the water, on sand or
-    // on grass.
+    // A footstep each time a foot comes down out of your own eyes, as your eyes dip with it (longer steps as you
+    // run and sprint, none in the air: see FirstPersonCamera.steps): on the deck you stand on, in the water, on
+    // sand or on grass.
     let step: Hearing['step'] = null;
-    const speed = Math.hypot(me.velocity.x, me.velocity.z);
-    if (lookingOut && !me.ride && speed > 0.3) {
-      this.strideLeft -= speed * dt;
-      if (this.strideLeft <= 0) {
-        this.strideLeft += STRIDE;
-        const x = me.position.x;
-        const z = me.position.z;
-        const feet = me.feetY;
-        const ground = terrainHeight(x, z);
-        const water = waterLevelAt(x, z);
-        step =
-          feet < water - 0.03 ? 'water'
-          : feet > ground + 0.12 && !inCave ? 'wood'
-          : inCave || ground < water + 1.0 || zone === 'mainBeach' || zone === 'nightBeach' || zone === 'westBeach' ||
-              zone === 'festival' || zone === 'beach' || zone === 'village' ? 'sand'
-          : 'grass';
-      }
+    if (lookingOut && !me.ride && this.eyes.footfalls !== this.footfallsHeard) {
+      this.footfallsHeard = this.eyes.footfalls;
+      const x = me.position.x;
+      const z = me.position.z;
+      const feet = me.feetY;
+      const ground = terrainHeight(x, z);
+      const water = waterLevelAt(x, z);
+      step =
+        feet < water - 0.03 ? 'water'
+        : feet > ground + 0.12 && !inCave ? 'wood'
+        : inCave || ground < water + 1.0 || zone === 'mainBeach' || zone === 'nightBeach' || zone === 'westBeach' ||
+            zone === 'festival' || zone === 'beach' || zone === 'village' ? 'sand'
+        : 'grass';
     }
     return {
       dt,
@@ -987,13 +1005,43 @@ export class Game {
   }
 
   // ------------------------------------------------------------------ loop
+  /**
+   * One frame: the simulation stepped, then drawn. Whatever goes wrong in a frame costs that frame, never the
+   * game: three asks for the next frame only once this one has run, so an error thrown out of it stopped the
+   * island for good (seen 2026-10-23, from one wrong thing in the pouch). The parts of a step that can go wrong
+   * on their own are kept apart as well (see part), so one going wrong every frame leaves the rest running.
+   */
   private frame = (now: number) => {
     this.timer.update(now);
     const dt = Math.min(this.timer.getDelta(), 1 / 20);
-    this.step(dt);
-    this.draw();
-    this.updateStats(dt);
+    this.part('step', () => this.step(dt));
+    this.part('draw', () => {
+      this.draw();
+      this.updateStats(dt);
+    });
   };
+
+  /** Runs one part of a frame; if it throws, what comes after it runs all the same (see failed). */
+  private part(name: string, run: () => void): void {
+    try {
+      run();
+    } catch (error) {
+      this.failed(name, error);
+    }
+  }
+
+  /** Something gone wrong in a part of a frame: told on the console the first time, then only counted (see
+   * failures), so the same error every frame does not flood it. */
+  private failed(part: string, error: unknown): void {
+    const key = `${part}: ${error instanceof Error ? error.message : String(error)}`;
+    const seen = this.failures.get(key);
+    if (seen !== undefined) {
+      this.failures.set(key, seen + 1);
+    } else if (this.failures.size < FAILURES_KEPT) {
+      this.failures.set(key, 1);
+      console.error(`${part} went wrong; the game carries on`, error);
+    }
+  }
 
   /** Draws the frame: straight to the screen, or through the film look's finishing passes, after
    * the calm water's mirror. */
@@ -1068,13 +1116,15 @@ export class Game {
       ? { dt, hours: this.clock.hours, camera: this.camera, ctx: this.ctx, me, myEyes: _myEyes, myWant: this.player.want }
       : null;
     // Everyone who lives here goes about their day (see life/Life.ts); you, and whoever no one's day
-    // moves (the islander you are while you look out of someone else's eyes), as you are.
-    if (life && frame) life.update(frame);
+    // moves (the islander you are while you look out of someone else's eyes), as you are. (The island's life,
+    // the Siren, the text box, your paws, the marks over heads, the sound and the saving are each a part of
+    // their own: one going wrong leaves you walking, looking about and the island drawn; see frame.)
+    if (life && frame) this.part('life', () => life.update(frame));
     for (const ch of this.characters.values()) if (!living || !life?.residentOf(ch)) ch.update(dt, this.ctx);
     this.keepFooting(me);
     if (!living) for (const extra of this.crowd) extra.update(dt, this.ctx);
     if (life && frame) {
-      life.resolve(frame);
+      this.part('life', () => life.resolve(frame));
       // What a stall gave you, into your paw (or your pouch).
       const stall = life.playerServed;
       if (stall) {
@@ -1086,30 +1136,46 @@ export class Game {
         }
       }
     }
-    this.siren?.update(
-      dt,
-      this.ctx,
-      this.staged || this.lineup || this.freeCamOn ? null : me,
-      life && living ? { hours: this.clock.hours, day: life.day, camera: this.camera } : null,
+    this.part('siren', () =>
+      this.siren?.update(
+        dt,
+        this.ctx,
+        this.staged || this.lineup || this.freeCamOn ? null : me,
+        life && living ? { hours: this.clock.hours, day: life.day, camera: this.camera } : null,
+      ),
     );
+    // What is said to you, in the text box: the action button, E or Enter show the rest of a line, or the next
+    // (held, skipping through them); asked something, the keyboard's numbers choose (1 the first, 0 the tenth).
+    const box = this.hud.dialogue;
+    if (box.open && this.input.consumeAction()) box.press(() => this.input.held('KeyE') || this.input.held('Enter'));
+    const zero = this.input.held('Digit0');
+    if (box.choosing) {
+      const n = this.input.consumeSlot();
+      if (n >= 0) box.choose(n);
+      else if (zero && !this.zeroDown) box.choose(9);
+    }
+    this.zeroDown = zero;
+    this.part('dialogue', () => box.update(dt));
     this.updateCave();
     const play = this.play;
     if (play) {
       const inCave = !!this.stage.cave?.isInside(me.position.x, me.feetY + 0.3, me.position.z);
-      play.update({
-        dt,
-        me,
-        camera: this.camera,
-        lookingOut,
-        hours: this.clock.hours,
-        free: !this.staged && !this.lineup && !this.freeCamOn && !this.rowing,
-        inCave,
-        buttonTaken: this.caveLabel !== null,
-        speed: Math.hypot(me.velocity.x, me.velocity.z),
-      });
+      this.part('play', () =>
+        play.update({
+          dt,
+          me,
+          camera: this.camera,
+          lookingOut,
+          hours: this.clock.hours,
+          free: !this.staged && !this.lineup && !this.freeCamOn && !this.rowing,
+          inCave,
+          buttonTaken: this.caveLabel !== null,
+          speed: Math.hypot(me.velocity.x, me.velocity.z),
+        }),
+      );
     }
-    this.hud.setAction(this.caveLabel ?? play?.action ?? null);
-    this.emotes.update(dt);
+    this.hud.setAction(box.choosing ? null : box.open ? t('hud.next') : (this.caveLabel ?? play?.action ?? null));
+    this.part('emotes', () => this.emotes.update(dt));
     if (this.staged) {
       const c = this.staged.camera;
       this.camera.position.set(...c.position);
@@ -1128,13 +1194,14 @@ export class Game {
     // Out of their eyes you see the one you control only in the calm water; the film look's depth of
     // field leaves the ground at their feet sharp.
     for (const ch of this.characters.values()) ch.setUnseen(lookingOut && ch === me);
+    this.part('marker', () => this.updateSought(dt));
     // Your paw before your eyes, and the light of a torch you carry.
     this.camera.updateMatrixWorld();
-    play?.updateView(dt, this.camera, me, lookingOut, Math.hypot(me.velocity.x, me.velocity.z));
+    this.part('play', () => play?.updateView(dt, this.camera, me, lookingOut, Math.hypot(me.velocity.x, me.velocity.z)));
     this.stage.setHeldLight(play?.torchFlame(_torch) ?? null);
-    this.things?.update(this.camera.position);
-    this.keepUp(dt, me);
-    if (!this.staged) this.sound.update(this.hearing(dt, me, lookingOut));
+    this.part('things', () => this.things?.update(this.camera.position));
+    this.part('saving', () => this.keepUp(dt, me));
+    if (!this.staged) this.part('sound', () => this.sound.update(this.hearing(dt, me, lookingOut)));
     this.lookIntoWater(me, lookingOut, dt);
     if (this.post) this.post.focus.uniforms.uSharp.value = lookingOut ? EYE_SHARP : FOLLOW_SHARP;
     this.updateViewLift(dt);
@@ -1239,6 +1306,51 @@ export class Game {
     else this.camera.setViewOffset(w, h, 0, h * 0.3 * k, w, h);
   }
 
+  /** The name of the place `p` is in (the cave's inside, or one of the island's places); none before they are
+   * known. */
+  private placeName(p: THREE.Vector3): string {
+    if (this.stage.cave?.isInside(p.x, p.y + 0.3, p.z)) return zoneName('cave');
+    return this.stage.zones ? zoneName(this.stage.zones.at(p.x, p.z)) : '';
+  }
+
+  /** The marker toward whoever you were told of (see Life.whereIs; the user, 2026-10-23: a marker for a
+   * while), SOUGHT_FOR or till you are by them: over them while they are in view, else at the screen's edge,
+   * pointing their way. */
+  private updateSought(dt: number): void {
+    const s = this.sought;
+    if (!s) return;
+    s.left -= dt;
+    const me = this.me();
+    const by = Math.hypot(s.who.position.x - me.position.x, s.who.position.z - me.position.z) < SOUGHT_REACHED;
+    if (s.left <= 0 || by || this.staged || this.lineup) {
+      this.sought = null;
+      this.hud.setGuide(null);
+      return;
+    }
+    const p = s.who.getAnchor('top', _sought).project(this.camera);
+    // (Behind the camera, what is projected comes out mirrored.)
+    const behind = p.z > 1;
+    let x = behind ? -p.x : p.x;
+    let y = behind ? -p.y : p.y;
+    const over = !behind && Math.abs(x) < 0.9 && Math.abs(y) < 0.85;
+    if (!over) {
+      if (behind && Math.abs(x) + Math.abs(y) < 1e-3) y = -1;
+      const k = 1 / Math.max(Math.abs(x) / 0.86, Math.abs(y) / 0.72);
+      x *= k;
+      y *= k;
+    }
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    this.hud.setGuide({
+      x: ((x + 1) / 2) * w,
+      y: ((1 - y) / 2) * h,
+      angle: over ? Math.PI : Math.atan2(x * w, y * h),
+      over,
+      name: s.name,
+      face: s.face,
+    });
+  }
+
   /** Names the place the character you control walks into. */
   private updateZone(dt: number): void {
     this.zoneTimer -= dt;
@@ -1285,7 +1397,7 @@ export class Game {
     this.statsTimer = 0.5;
     const info = this.renderer.info.render;
     const fps = Math.round(this.fps);
-    this.hud.setStats(`${this.clock.label()} · ${t('info.fps')} ${fps}`);
+    this.hud.setClock(this.clock.hours, this.clock.label(), `${t('info.fps')} ${fps}`);
     const place = this.zone ? ` · ${t('info.zone')} ${zoneName(this.zone)}` : '';
     this.panel.setInfo(
       `${t('info.time')} ${this.clock.label()}${place} · ${t('info.fps')} ${fps} · ${t('info.draws')} ${info.calls} · ` +

@@ -9,3 +9,8 @@ export type StringKey = keyof typeof ja;
 export function t(key: StringKey): string {
   return ja[key] ?? key;
 }
+
+/** Whether the game's text has `key` (for words some have their own of: see Life.own). */
+export function has(key: string): key is StringKey {
+  return key in ja;
+}

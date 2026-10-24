@@ -64,6 +64,14 @@ export class Album {
     return all.reverse();
   }
 
+  /** The newest photo kept, or null. */
+  async newest(): Promise<Photo | null> {
+    const store = await this.store('readonly');
+    if (!store) return null;
+    const cursor = await request(store.openCursor(null, 'prev'));
+    return cursor ? (cursor.value as Photo) : null;
+  }
+
   async remove(id: number): Promise<void> {
     const store = await this.store('readwrite');
     if (store) await request(store.delete(id));

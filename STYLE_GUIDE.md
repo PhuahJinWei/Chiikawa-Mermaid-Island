@@ -182,6 +182,15 @@ never pushed, because it is other people's artwork.
   their sides, as Chiikawa's characters are drawn and as they sit round
   the film's bonfire. Talking, a paw lifts out at its side now and then.
   The user found paws before them for no reason odd.
+- **The HUD is the user's other Chiikawa game's.** Since 2026-10-23 every
+  control wears Chiikawa-Hidamari's shell (the user found the old one
+  "underwhelming and cheap"): a cream face with a brown ring drawn just
+  inside its edge, a white rim and a soft drop, so it reads as something to
+  press over the island at any hour. What is on offer is the accent pink,
+  the ink still legible on it. The bag, the album, the test panel and the
+  text box are paper cards in an ink border. Round is a verb, a pill a word
+  on offer, a card somewhere to look. The type is Zen Maru Gothic, round as
+  the drawings are. The HUD is never graded for the hour.
 
 ## 2. Shared costume: the island outfit
 
@@ -731,6 +740,7 @@ shading toward the water. At anchor out in the bay.
 | Fire light | — | #FFB347 core #FFE58A |
 | Moon | — | #F5F1C9 |
 | Character outline | #5A3A2E | same |
+| HUD: face / ring / ink / paper / accent | #FDF6EA / #7A5C57 / #5B4C44 / #FFFDF7 / #FFAEC8 | same |
 
 ## 6. Gaps I still have
 

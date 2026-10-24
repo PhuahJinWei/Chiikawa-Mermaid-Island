@@ -2,17 +2,19 @@ import * as THREE from 'three';
 import type { StringKey } from '../i18n/I18n';
 import type { Character, FrameContext } from '../characters/Character';
 import type { EmoteSystem } from '../characters/Emotes';
+import type { Choice, DialogueBox, Spoken } from '../ui/DialogueBox';
+import { faceOf } from '../ui/Faces';
 import { clampToWalkable, standAt, terrainHeight } from '../world/Island';
 import { Nav, type Avoid } from './Nav';
 import { Places, type Home, type Seat, type Spot, type Stall } from './Places';
 import { FRIENDS, HOMES, ISLANDER_HOMES, PROFILES, hash, islanderProfile, seeded, type Profile } from './profiles';
 import { Resident, edible, type Answer, type Block, type Brain, type Memory } from './Resident';
-import type { ActionId } from '../characters/Actions';
+import { ACTIONS, type ActionId } from '../characters/Actions';
 import { ITEMS, STALL_ITEM, carried, isItem, itemName, type Carried, type ItemId } from './Items';
 import type { Hands, SavedHands } from './Hands';
 import type { Things } from './Things';
 import { Choices } from './Choices';
-import { t } from '../i18n/I18n';
+import { has, t } from '../i18n/I18n';
 import {
   CAST_LINES,
   EVENING_LINES,
@@ -119,6 +121,14 @@ const GIFT_BACK: Record<string, ItemId> = { kurimanju: 'can', furuhonya: 'seashe
 const GIFT_BACK_AFTER = 2.2;
 /** How long what someone says to you stays over their head (seconds). */
 const SAID_FOR = 3.4;
+/** What someone says to you goes into the text box (see boxed) if you are this near them (metres); further
+ * off, over their head. In the box, it goes from it once you are this far from them. */
+const BOX_NEAR = 5;
+const BOX_AWAY = 7;
+/** Whom you may ask after (the user, 2026-10-23, after the notebook's list of everyone went: anyone, the cast
+ * too, says where they are), in this order. Someone this near you (metres) is just there. */
+const SOUGHT = ['chiikawa', 'hachiware', 'usagi', 'momonga', 'kurimanju', 'rakko', 'shisa', 'furuhonya', 'hitoha', 'futaba'];
+const SOUGHT_NEAR = 10;
 /** How those near answer what you do (the user, 2026-10-22: reacting gets a response, as hopping did): who
  * sees it within REACT_FROM, as many as `most`, each as likely as `chance`. */
 const REACT_FROM = 6;
@@ -148,6 +158,10 @@ const FOND_START = { you: 0.2, youHome: 0.45, friend: 0.6, home: 0.5, anyone: 0.
 /** What they remember: so many things at most, the oldest forgotten first; a gift is spoken of for so many
  * days after. */
 const MEMORIES = 6;
+/** A heart over someone grown fonder of you (see heartFor): only within this far of you (metres), and not again
+ * for this long (seconds) unless it is a whole heart more. */
+const HEART_NEAR = 14;
+const HEART_AGAIN = 8;
 const REMEMBER_DAYS = 3;
 /** Behind a stall's counter: you keep it within so far of its keeper's place, and leave it beyond so far. */
 const KEEP_NEAR = 0.6;
@@ -228,6 +242,8 @@ export type SettleFrom = 'clock' | 'saved' | 'welcome';
 export class Life {
   readonly residents: Resident[] = [];
   private readonly byId = new Map<string, Resident>();
+  /** When a heart last floated up over each (see heartFor). */
+  private readonly heartAt = new Map<Resident, number>();
   private readonly byCharacter = new Map<Character, Resident>();
   /** Your house, where you sleep (see Game's bed). */
   readonly playerHome: Home | null;
@@ -273,6 +289,12 @@ export class Life {
   private welcomeWordAt = 0;
   /** You took up keeping a stall, or left it: read by the game. */
   onKeeping: (stall: Stall, keeping: boolean) => void = () => {};
+  /** The name of the place a point is in (the island's places, the cave), once the game gives it. */
+  placeAt: (p: THREE.Vector3) => string = () => '';
+  /** You were told where someone is: read by the game (a marker toward them a while). */
+  onSought: (who: Character, name: string, face: string | null) => void = () => {};
+  /** The text box what is said to you goes into, once the game gives it (see useBox). */
+  private box: DialogueBox | null = null;
 
   private constructor(
     readonly nav: Nav,
@@ -357,9 +379,26 @@ export class Life {
     return FOND_START.anyone;
   }
 
-  /** `r` grows fonder of `of` by `by` (or less fond, below 0). */
+  /** `r` grows fonder of `of` by `by` (or less fond, below 0); fonder of you, a heart floats up over them (see
+   * heartFor). */
   befriend(r: Resident, of: string, by: number): void {
+    const before = of === 'player' ? this.hearts(r) : 0;
     r.fond.set(of, Math.min(1, Math.max(0, this.fondness(r, of) + by)));
+    if (of === 'player' && by > 0) this.heartFor(r, this.hearts(r) > before);
+  }
+
+  /**
+   * `r` grown fonder of you: a heart floats up over them, there and then (the user, 2026-10-23: no notebook's
+   * meter of hearts), and two, one each side, on reaching a whole heart more (`more`, see hearts). Not again
+   * for a moment (HEART_AGAIN) unless it is a whole heart more; only near you, where you would see it.
+   */
+  private heartFor(r: Resident, more: boolean): void {
+    const you = this.playerAt;
+    if (!you || r.far || !r.ch.shown || flat(you, r.pos) > HEART_NEAR) return;
+    if (!more && this.now - (this.heartAt.get(r) ?? -Infinity) < HEART_AGAIN) return;
+    this.heartAt.set(r, this.now);
+    this.emotes.spawn('heart', r.ch);
+    if (more) this.emotes.spawn('heart', r.ch, -1);
   }
 
   /** `r` remembers `m` (the oldest forgotten past MEMORIES). */
@@ -368,7 +407,7 @@ export class Life {
     while (r.memories.length > MEMORIES) r.memories.shift();
   }
 
-  /** How many hearts `r` has for you, 0 to 5 (for your notebook). */
+  /** How many hearts `r` has for you, 0 to 5: a whole heart more is two hearts floating up (see heartFor). */
   hearts(r: Resident): number {
     return Math.round(this.fondness(r, 'player') * 5);
   }
@@ -617,6 +656,9 @@ export class Life {
     if (!k) return false;
     const [x, y, z, yaw] = k.at;
     const seat = k.seat >= 0 ? this.allSeats()[k.seat] : undefined;
+    // Not a bed or seat in a house no longer theirs (who lives where can change: 2026-10-24): then where the
+    // hour has them.
+    if (seat && this.places.homes.some((h) => h !== r.home && (h.beds.includes(seat) || h.seats.includes(seat)))) return false;
     if (seat && Math.hypot(seat.at.x - x, seat.at.z - z) < 0.6 && Math.abs(seat.at.y - y) < 0.6) {
       r.place(seat.up, seat.yaw);
       r.resume = { seat, indoors: false };
@@ -702,10 +744,14 @@ export class Life {
 
   /** After loading a save from before things kept where they belong: a thing of a kind that has a place of its
    * own (the torch by your door), nowhere else, held by someone as no one's, is that one again (else the
-   * morning would make another at its place). */
+   * morning would make another at its place). Any place still empty, new since the save, gets its thing at once
+   * (see Things.layHomes); and whatever anyone carries that things.json gives an owner is that owner's (see
+   * Things.ownerOf). */
   adoptHomes(): void {
+    const held = (key: string) => this.allHands().some((h) => h.hasHome(key));
+    for (const hands of this.allHands()) for (const c of hands.all) c.owner = this.things.ownerOf(c);
     for (const [key, home] of this.things.homes) {
-      if (this.things.list.some((t) => t.home === key) || this.allHands().some((h) => h.hasHome(key))) continue;
+      if (this.things.list.some((t) => t.home === key) || held(key)) continue;
       for (const hands of this.allHands()) {
         const c = hands.all.find((x) => x.item === home.item && !x.home && !x.owner);
         if (c) {
@@ -714,6 +760,7 @@ export class Life {
         }
       }
     }
+    this.things.layHomes(held);
   }
 
   /**
@@ -760,79 +807,11 @@ export class Life {
     const at = borrower === 'player' ? this.playerAt : this.byId.get(borrower)?.pos;
     if (!owner || !at || owner.far || flat(owner.pos, at) > NOTICE || owner.busy || owner.block?.kind === 'sleep') return;
     this.notice(at, borrower === 'player' ? 'player' : (this.byId.get(borrower) as Resident));
-    this.say(owner, t('borrow.ok'));
+    if (borrower === 'player') this.tell(owner, t('borrow.ok'));
+    else this.say(owner, t('borrow.ok'));
   }
 
-  // ---------------------------------------------------------------- the notebook
-  /**
-   * Where each of the cast is (`placeAt` names the place a point is in) and what they are doing, for your
-   * notebook's page of everyone (the user: where is everyone); and the islanders, counted by what they do.
-   */
-  whereabouts(placeAt: (p: THREE.Vector3) => string): {
-    cast: { name: string; place: string; doing: string; hearts: number }[];
-    islanders: string;
-  } {
-    const cast = this.residents
-      .filter((r) => !r.id.startsWith('islander'))
-      .map((r) => ({
-        name: t(`char.${r.id}` as StringKey),
-        place: this.atHome(r) ? t('where.home') : placeAt(r.pos),
-        doing: t(this.doing(r)),
-        hearts: this.hearts(r),
-      }));
-    const counts = new Map<StringKey, number>();
-    const islanders = this.residents.filter((r) => r.id.startsWith('islander'));
-    for (const r of islanders) {
-      const kind = r.block?.kind;
-      const what: StringKey =
-        kind === 'sleep' || kind === 'home' ? 'where.count.home'
-        : kind === 'work' ? 'where.count.work'
-        : kind === 'meal' ? 'where.count.meal'
-        : kind === 'feast' ? 'where.count.feast'
-        : 'where.count.about';
-      counts.set(what, (counts.get(what) ?? 0) + 1);
-    }
-    const parts = [...counts].map(([key, n]) => t(key).replace('{0}', String(n)));
-    return { cast, islanders: t('where.islanders').replace('{0}', String(islanders.length)).replace('{1}', parts.join('・')) };
-  }
-
-  /** Whether `r` is in their own house. */
-  private atHome(r: Resident): boolean {
-    const room = r.home.room;
-    return r.indoors || (!!room && flat(r.pos, room) < 3.4 && Math.abs(r.pos.y - room.y) < 0.3);
-  }
-
-  /** What `r` is doing, in the game's words. */
-  private doing(r: Resident): StringKey {
-    if (r.busy) return 'doing.withYou';
-    if (r.chat) return 'doing.chatting';
-    const action = r.ch.actionId;
-    const eating = !!r.hands.hand && action === 'eat';
-    switch (r.block?.kind) {
-      case 'sleep':
-        return r.seat || r.indoors ? 'doing.sleeping' : 'doing.goingHome';
-      case 'home':
-        if (action === 'read' || action === 'readSeated') return 'doing.reading';
-        return this.atHome(r) ? 'doing.atHome' : 'doing.goingHome';
-      case 'wake':
-        return 'doing.waking';
-      case 'work':
-        return r.block.stall && this.isOpen(r.block.stall) ? 'doing.working' : 'doing.goingToWork';
-      case 'meal':
-        return r.line ? 'doing.queuing' : eating ? 'doing.eating' : 'doing.goingToEat';
-      case 'feast':
-        return action === 'ukulele' ? 'doing.playing' : action === 'hula' ? 'doing.dancing' : 'doing.feast';
-      default:
-        if (action === 'sword') return 'doing.sword';
-        if (action === 'ukulele') return 'doing.playing';
-        if (action === 'read' || action === 'readSeated') return 'doing.reading';
-        if (eating) return 'doing.eating';
-        if (r.profile.habits?.some((b) => b.spot === 'fields' && this.hours >= b.from && this.hours < b.to)) return 'doing.farming';
-        if (r.seat) return 'doing.resting';
-        return r.want.lengthSq() > 0.05 ? 'doing.strolling' : 'doing.idle';
-    }
-  }
-
+  // ---------------------------------------------------------------- with you
   /** You talk with `r`, standing at `from`: they stop and say something like them, for the hour and what
    * they are doing (see lines.ts); asleep, they only sleep on. */
   talk(r: Resident, from: THREE.Vector3): void {
@@ -842,7 +821,41 @@ export class Life {
     }
     if (this.now - r.talkedAt > 60) this.befriend(r, 'player', FOND.talk);
     r.talkedAt = this.now;
-    r.interrupt(r.talk(from, this.lineText(r)));
+    r.interrupt(r.talk(from, this.lineText(r), this.sought(r)));
+  }
+
+  /** Whom you may ask `r` after (see SOUGHT): the cast, but them. */
+  private sought(r: Resident): string[] {
+    return SOUGHT.filter((id) => id !== r.id && this.byId.has(id));
+  }
+
+  /** The words for `key` in `r`'s own way, if they have their own (`key`.<their id>: the cast), else
+   * anyone's. */
+  own(r: Resident, key: StringKey): string {
+    const theirs = `${key}.${r.id}`;
+    return t(has(theirs) ? theirs : key);
+  }
+
+  /** Where `id` is, in words, as `asker` says it (asked by you: see Resident.talk; the user: where they are
+   * now), and a marker toward them a while (see onSought): just there, at home (asleep), or in some place. */
+  whereIs(id: string, asker: Resident): string {
+    const r = this.byId.get(id);
+    const name = this.nameOf(id);
+    const say = (key: StringKey, place = '') => this.own(asker, key).replace('{0}', name).replace('{1}', place);
+    const place = r ? this.placeAt(r.pos) : '';
+    if (!r || (!place && !this.atHome(r))) return say('talk.seek.unknown');
+    this.onSought(r.ch, name, faceOf(id));
+    const you = this.playerAt;
+    if (r.block?.kind === 'sleep' && r.seat) return say('talk.seek.asleep');
+    if (this.atHome(r)) return say('talk.seek.home');
+    if (you && flat(r.pos, you) < SOUGHT_NEAR) return say('talk.seek.near');
+    return say('talk.seek.at', place);
+  }
+
+  /** Whether `r` is in their own room (or anywhere indoors; a bed may be up off the room's floor). */
+  private atHome(r: Resident): boolean {
+    const room = r.home.room;
+    return r.indoors || (!!room && flat(r.pos, room) < 3.4 && Math.abs(r.pos.y - room.y) < 1.5);
   }
 
   /** What `r` says to you, talking: now and then what they remember of you (a gift lately) or how fond of you
@@ -901,6 +914,38 @@ export class Life {
   /** Words over `r`'s head (see Resident.talk). */
   say(r: Resident, text: string): void {
     this.emotes.say(r.ch, text, SAID_FOR);
+  }
+
+  /** What is said to you goes into `box` (the HUD's text box), and whoever has words in it says nothing over
+   * their head meanwhile (not the talking's own えっとね either). */
+  useBox(box: DialogueBox): void {
+    this.box = box;
+    this.emotes.hush = (host) => box.speaking(this.residentOf(host as Character));
+  }
+
+  /** `r` says `text` to you (for you to answer with one of `choices`, if any): into the text box, their name
+   * and face on it, if you are near them (BOX_NEAR), and the box's line returned, to wait on till read or answered (see
+   * Resident.speak); else null, nothing said. */
+  boxed(r: Resident, text: string, choices: readonly Choice[] = []): Spoken | null {
+    const you = this.playerAt;
+    if (!this.box || !you || r.far || flat(r.pos, you) > BOX_NEAR) return null;
+    this.emotes.unsay(r.ch);
+    return this.box.add(this.nameOf(r.id), text, r, choices, faceOf(r.id));
+  }
+
+  /** `id` as a choice in the text box: by their face if they have one (see Faces), else their name. */
+  asChoice(id: string): Choice {
+    return { text: this.nameOf(id), face: faceOf(id) };
+  }
+
+  /** `r` says `text` to you: in the text box if you are near them, else over their head (see boxed). */
+  tell(r: Resident, text: string): void {
+    if (!this.boxed(r, text)) this.say(r, text);
+  }
+
+  /** `s` (see boxed) out of the text box, read or not. */
+  unbox(s: Spoken): void {
+    this.box?.drop(s);
   }
 
   private lineFor(r: Resident): StringKey {
@@ -973,6 +1018,9 @@ export class Life {
     this.lastHours = f.hours;
     const camera = f.camera.position;
     this.playerAt = f.me.position;
+    // What is said to you by someone you have gone off from (or who went off), out of the text box.
+    const you = this.playerAt;
+    this.box?.dropIf((who) => (who as Resident).far || flat((who as Resident).pos, you) > BOX_AWAY);
 
     // The welcome over once you come up the beach (or go off elsewhere, or after a while): each goes off into
     // their day, one after another.
@@ -989,7 +1037,8 @@ export class Life {
       if (r.ch === f.me) continue;
       const block = this.blockAt(r, f.hours);
       if (r.welcoming) {
-        if (this.now >= r.leavesWelcome) r.endWelcome(block);
+        // (Not while they are with you, talking or asked something: they go once they have parted from you.)
+        if (this.now >= r.leavesWelcome && !r.withPlayer) r.endWelcome(block);
         continue;
       }
       // (Not while they are with you: the hour's next part of their day waits till they have parted from you.)
@@ -1174,7 +1223,7 @@ export class Life {
     const item = STALL_GOODS(stall);
     if (first === 'player' && item && this.playerHands && !this.playerHands.fits(item)) {
       const keeper = this.byId.get(this.keepers.get(stall) ?? '');
-      if (keeper) this.say(keeper, t('stall.handsFull'));
+      if (keeper) this.tell(keeper, t('stall.handsFull'));
       this.playerDone = stall;
     } else if (first === 'player') {
       this.playerServed = stall;
@@ -1183,7 +1232,7 @@ export class Life {
       first.served = true;
       if (this.keepers.get(stall) === 'player') {
         this.befriend(first, 'player', FOND.served);
-        this.say(first, this.thanks(first, 'got'));
+        this.tell(first, this.thanks(first, 'got'));
         if (item) this.remember(first, { kind: 'served', who: 'player', item, day: this.day });
       }
     }
@@ -1312,8 +1361,11 @@ export class Life {
     const players = f.myEyes;
     for (const r of this.residents) {
       if (r.ch === f.me) continue;
-      if (r.far) {
+      // Far off, or asleep (dozing in bed: the user, 2026-10-24): their eyes on nothing, their head at rest.
+      const action = r.ch.actionId;
+      if (r.far || (action !== null && ACTIONS[action].asleep)) {
         r.ch.watch(null);
+        r.focusing = false;
         continue;
       }
       // Still on what they look at: follow it as it moves.

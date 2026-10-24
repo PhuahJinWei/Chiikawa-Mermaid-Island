@@ -1,15 +1,39 @@
+/* ------------------------------------------------------------------- THE LOOK
+   The user's other Chiikawa game's own (Chiikawa-Hidamari, css/style.css: the user chose it for this one,
+   2026-10-23, over a look they found "underwhelming and cheap"). One recipe, worn by every control: the SHELL,
+   a ring drawn a couple of pixels inside a cream face (what makes a control read as something to press rather
+   than an outlined shape), a ring lighter than the ink (so a screenful of them is not a cage), and a white rim
+   with a soft drop (what holds an opaque face off the island at any hour). Live, the one thing on offer: the
+   accent pink, the ink still legible on it. On a panel, where there is nothing to hold off, the flat shell: the
+   ring alone. Round is a verb, a pill a word on offer, a card somewhere to look. The type is Zen Maru Gothic,
+   round as the drawings are. */
 :root {
-  --ink: #5a3a2e;
-  --ink-soft: #8a6a5c;
-  --cream: #fffaf2;
-  --panel: rgba(255, 250, 242, 0.97);
-  --pink: #f7cdd3;
-  --pink-strong: #f4a3aa;
+  --ink: #5b4c44;
+  --paper: #fffdf7;
+  --face: #fdf6ea;
+  --ring: #7a5c57;
+  --rim: #ffffff;
+  --drop: 0 4px 10px rgba(91, 76, 68, 0.2);
+  --accent: #ffaec8;
+  --pink: #f6a6b6;
+  --ink-soft: rgba(91, 76, 68, 0.62);
   --sky: #6ec6f0;
   --horizon: #cfeff9;
-  --shadow: 0 6px 18px rgba(60, 40, 30, 0.18);
-  --font-ja: 'Hiragino Maru Gothic ProN', 'Hiragino Maru Gothic Pro', 'BIZ UDPGothic', 'Yu Gothic UI', 'Meiryo',
-    'Noto Sans JP', system-ui, sans-serif;
+  --shell:
+    inset 0 0 0 var(--ring-gap, 2px) var(--face),
+    inset 0 0 0 var(--ring-w, 6px) var(--ring),
+    0 0 0 3px var(--rim),
+    var(--drop);
+  --shell-live:
+    inset 0 0 0 var(--ring-w, 6px) rgba(255, 255, 255, 0.82),
+    0 0 0 3px var(--rim),
+    var(--drop);
+  --shell-flat:
+    inset 0 0 0 var(--ring-gap, 2px) var(--face),
+    inset 0 0 0 var(--ring-w, 4px) var(--ring);
+  --shell-flat-live: inset 0 0 0 var(--ring-w, 4px) rgba(255, 255, 255, 0.8);
+  --font-ja: 'Zen Maru Gothic', 'Hiragino Maru Gothic ProN', 'Hiragino Maru Gothic Pro', 'BIZ UDPGothic', 'Yu Gothic UI',
+    'Meiryo', 'Noto Sans JP', system-ui, sans-serif;
 }
 
 * {
@@ -61,288 +85,313 @@ body {
   color: inherit;
 }
 
-/* ---------------------------------------------------------------- HUD */
+/* A keyboard's place, in the accent (a touch never shows it). */
+:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.ctl-icon:focus-visible,
+.act:focus-visible {
+  outline-offset: 5px;
+}
+
+/* Said, but not shown: a label the glyph carries for anyone who can see it. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* ---------------------------------------------------------------- the corners
+   Top left the hour; top right what you do with the game (how you feel, the sound, the tests), and down the
+   right what you have (the bag, the camera and its photos); bottom left the stick, bottom right the jump and the
+   verbs on offer over it. */
 .hud-top {
   position: absolute;
-  top: calc(10px + env(safe-area-inset-top));
-  left: calc(12px + env(safe-area-inset-left));
-  right: calc(12px + env(safe-area-inset-right));
+  top: calc(12px + env(safe-area-inset-top));
+  left: calc(14px + env(safe-area-inset-left));
+  right: calc(14px + env(safe-area-inset-right));
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  gap: 8px;
+  gap: 10px;
 }
 
-.hud-title-box {
-  background: rgba(255, 250, 242, 0.85);
-  padding: 6px 12px;
-  border-radius: 14px;
-  box-shadow: var(--shadow);
-  min-width: 0;
+/* The hour: the sun or the moon, the time, a rule, how fast the game draws. */
+.hud-chip {
+  --ring-w: 3.5px;
+  --ring-gap: 2px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 40px;
+  padding: 0 14px 0 12px;
+  border-radius: 20px;
+  background: var(--face);
+  box-shadow: var(--shell);
 }
 
-.hud-title {
-  font-weight: 700;
+.chip-mark {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+}
+
+.chip-mark svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: var(--ring);
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.chip-word {
   font-size: 14px;
-}
-
-.hud-stats {
-  font-size: 11px;
-  color: var(--ink-soft);
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
 
-.hud-test {
-  pointer-events: auto;
-  border: 2px solid var(--ink);
-  background: var(--cream);
-  border-radius: 999px;
-  padding: 8px 16px;
-  min-height: 40px;
-  font-weight: 700;
-  font-size: 14px;
-  box-shadow: var(--shadow);
-  cursor: pointer;
-  flex: none;
+.chip-rule {
+  width: 1.5px;
+  height: 17px;
+  border-radius: 1px;
+  background: var(--ring);
+  opacity: 0.34;
 }
 
-.joy-base {
-  position: absolute;
-  left: 0;
-  top: 0;
-  width: 112px;
-  height: 112px;
-  margin: -56px 0 0 -56px;
-  border-radius: 50%;
-  border: 3px solid rgba(255, 255, 255, 0.9);
-  background: rgba(255, 255, 255, 0.18);
-  opacity: 0.45;
-  transition: opacity 0.15s;
+.chip-sub {
+  font-size: 11px;
+  font-weight: 500;
+  opacity: 0.7;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
-.joy-base.active {
-  opacity: 1;
-  transition: none;
+.hud-ctl {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
 }
 
-/* Sprinting, the stick held at its edge a moment: its ring and its knob go pink. */
-.joy-base.sprint {
-  border-color: var(--pink-strong);
-  background: rgba(247, 205, 211, 0.35);
-}
-
-.joy-base.sprint .joy-knob {
-  background: var(--pink);
-}
-
-.joy-knob {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 52px;
-  height: 52px;
-  border-radius: 50%;
-  background: rgba(255, 250, 242, 0.95);
-  border: 3px solid var(--ink);
-  transform: translate(-50%, -50%);
-}
-
-.jump-btn {
-  pointer-events: auto;
-  position: absolute;
-  right: calc(22px + env(safe-area-inset-right));
-  bottom: calc(40px + env(safe-area-inset-bottom));
-  width: 84px;
-  height: 84px;
-  border-radius: 50%;
-  border: 3px solid var(--ink);
-  background: var(--pink);
-  font-weight: 700;
-  font-size: 15px;
-  box-shadow: var(--shadow);
-  touch-action: none;
-  cursor: pointer;
-}
-
-.act-btn {
-  pointer-events: auto;
-  position: absolute;
-  right: calc(30px + env(safe-area-inset-right));
-  bottom: calc(140px + env(safe-area-inset-bottom));
-  min-width: 68px;
-  height: 52px;
-  padding: 0 14px;
-  border-radius: 26px;
-  border: 3px solid var(--ink);
-  background: #fff7e8;
-  font-weight: 700;
-  font-size: 15px;
-  box-shadow: var(--shadow);
-  touch-action: none;
-  cursor: pointer;
-}
-
-.act-btn:active {
-  transform: scale(0.94);
-}
-
-/* Eat, drink or play what you hold: beside the jump button. */
-.use-btn {
-  pointer-events: auto;
-  position: absolute;
-  right: calc(122px + env(safe-area-inset-right));
-  bottom: calc(52px + env(safe-area-inset-bottom));
-  min-width: 64px;
-  height: 52px;
-  padding: 0 12px;
-  border-radius: 26px;
-  border: 3px solid var(--ink);
-  background: #eaf7e6;
-  font-weight: 700;
-  font-size: 15px;
-  box-shadow: var(--shadow);
-  touch-action: none;
-  cursor: pointer;
-}
-
-.use-btn:active {
-  transform: scale(0.94);
-}
-
-/* The pouch's button, under the test toggle, showing what your paw holds; the pouch opens beside it. */
 .hud-side {
   position: absolute;
-  top: calc(62px + env(safe-area-inset-top));
-  right: calc(12px + env(safe-area-inset-right));
+  top: calc(96px + env(safe-area-inset-top));
+  right: calc(14px + env(safe-area-inset-right));
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  align-items: center;
+  gap: 10px;
 }
 
-.pouch-btn {
+/* A disc and a word under it (the shell on the disc, the word outside it): every round control up top. */
+.ctl-icon {
   pointer-events: auto;
-  width: 56px;
-  height: 56px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  width: 52px;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  transition: transform 0.12s ease;
+}
+
+.ctl-icon:active {
+  transform: translateY(2px) scale(0.96);
+}
+
+.ctl-disc {
+  --ring-w: 4px;
+  --ring-gap: 2.5px;
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
   border-radius: 50%;
-  border: 3px solid var(--ink);
-  background-color: var(--cream);
-  background-repeat: no-repeat;
+  background: var(--face);
+  color: var(--ring);
+  box-shadow: var(--shell);
+  transition: box-shadow 0.16s ease, background 0.16s ease;
+}
+
+.ctl-icon:active .ctl-disc {
+  box-shadow:
+    inset 0 0 0 var(--ring-gap) var(--face),
+    inset 0 0 0 var(--ring-w) var(--ring),
+    0 0 0 3px var(--rim),
+    0 1px 4px rgba(91, 76, 68, 0.2);
+}
+
+.ctl-disc svg {
+  width: 24px;
+  height: 24px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.1;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Over an island of any colour at any hour: white with an ink edge, carrying its own contrast. */
+.ctl-cap {
+  font-size: 10.5px;
   font-weight: 700;
-  font-size: 13px;
-  padding: 0;
+  letter-spacing: 0.02em;
+  line-height: 1.4;
   white-space: nowrap;
-  box-shadow: var(--shadow);
-  cursor: pointer;
+  color: #fff;
+  text-shadow:
+    -1.5px -1.5px 0 var(--ink), 0 -1.5px 0 var(--ink), 1.5px -1.5px 0 var(--ink), -1.5px 0 0 var(--ink),
+    1.5px 0 0 var(--ink), -1.5px 1.5px 0 var(--ink), 0 1.5px 0 var(--ink), 1.5px 1.5px 0 var(--ink);
 }
 
-.pouch-btn.open {
-  background-color: var(--pink);
+/* Open (its panel, the bag, the test panel): the accent, the one live thing. */
+.ctl-icon.is-on .ctl-disc,
+.hud:has(~ .panel.open) .hud-test .ctl-disc {
+  background: var(--accent);
+  color: var(--ink);
+  box-shadow: var(--shell-live);
 }
 
-/* The camera's and the notebook's buttons, under the pouch's. */
-.side-btn {
+/* The sound's speaker: its waves while it sounds, crossed out when not. */
+.hud-sound .speaker-off,
+.hud-sound.off .speaker-waves {
+  display: none;
+}
+
+.hud-sound.off .speaker-off {
+  display: inline;
+}
+
+.hud-sound.off .ctl-disc {
+  color: var(--ink-soft);
+}
+
+/* Your newest photo, under the camera: the album opens from it; one just taken comes in with a pop. */
+.photo-btn {
+  --ring-w: 3px;
+  --ring-gap: 2px;
   pointer-events: auto;
-  width: 56px;
-  height: 46px;
-  border-radius: 23px;
-  border: 3px solid var(--ink);
-  background: var(--cream);
-  font-weight: 700;
-  font-size: 12px;
+  width: 50px;
+  height: 40px;
+  border: none;
+  border-radius: 12px;
+  background-color: var(--face);
+  background-size: cover;
+  background-position: center;
+  box-shadow: var(--shell);
   padding: 0;
-  white-space: nowrap;
-  box-shadow: var(--shadow);
   cursor: pointer;
 }
 
-.side-btn:active {
+.photo-btn:active {
   transform: scale(0.94);
 }
 
-/* The きもち button, up beside the test toggle (pushed over to it); its panel of what you do yourself opens
-   under it, level with its right edge. */
+.photo-btn.taken {
+  animation: photo-taken 0.35s ease-out;
+}
+
+@keyframes photo-taken {
+  from {
+    transform: scale(1.35);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+
+/* The きもち panel: what you do yourself, opening under its disc. */
 .emote-box {
   position: relative;
-  margin-left: auto;
-  flex: none;
-}
-
-.emote-btn {
-  pointer-events: auto;
-  border: 2px solid var(--ink);
-  background: var(--cream);
-  border-radius: 999px;
-  padding: 8px 12px;
-  min-height: 40px;
-  font-weight: 700;
-  box-shadow: var(--shadow);
-  cursor: pointer;
-}
-
-.emote-btn:active {
-  transform: scale(0.94);
-}
-
-.emote-btn.open {
-  background: var(--pink);
 }
 
 .emotes {
   pointer-events: auto;
   position: absolute;
-  top: calc(100% + 8px);
+  top: calc(100% + 10px);
   right: 0;
   z-index: 5;
   width: max-content;
   display: grid;
   grid-template-columns: repeat(3, auto);
-  gap: 6px;
-  padding: 8px;
-  /* (The chips take their font from here: #ui button inherits it.) */
-  font-weight: 700;
+  gap: 8px;
+  padding: 12px;
+  border: 2.5px solid var(--ink);
+  border-radius: 24px;
+  background: rgba(255, 253, 247, 0.97);
+  box-shadow: 0 6px 18px rgba(91, 76, 68, 0.14);
   font-size: 13px;
-  background: rgba(255, 250, 242, 0.94);
-  border: 3px solid var(--ink);
-  border-radius: 18px;
-  box-shadow: var(--shadow);
+  font-weight: 700;
+  transform-origin: top right;
+  animation: panel-in 0.26s cubic-bezier(0.22, 1.2, 0.36, 1);
+}
+
+@keyframes panel-in {
+  from {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 
 .emote-chip {
+  --ring-w: 3px;
   position: relative;
-  min-width: 64px;
+  min-width: 70px;
   height: 40px;
-  padding: 0 10px;
+  padding: 0 12px;
+  border: none;
   border-radius: 20px;
-  border: 2px solid var(--ink);
-  background: #fff;
+  background: var(--face);
+  box-shadow: var(--shell-flat);
   white-space: nowrap;
   touch-action: none;
   cursor: pointer;
+  transition: transform 0.12s ease;
 }
 
 .emote-chip:active {
   transform: scale(0.94);
-  background: var(--pink);
+  background: var(--accent);
+  box-shadow: var(--shell-flat-live);
 }
 
-/* On an upright phone, smaller, so the three across fit beside the buttons. */
+/* On an upright phone, smaller, so the three across fit beside the side. */
 @media (max-width: 480px) {
   .emotes {
-    gap: 5px;
-    padding: 6px;
+    gap: 6px;
+    padding: 10px;
     font-size: 12px;
   }
 
   .emote-chip {
     min-width: 0;
     height: 38px;
-    padding: 0 7px;
+    padding: 0 9px;
   }
 }
 
-/* Its key, where there is a keyboard. */
+/* Its key, where there is a keyboard (only the first ten answers have one). */
 @media (hover: hover) and (pointer: fine) {
-  .emote-chip::after {
+  .emote-chip[data-key]::after,
+  .dialogue-choice[data-key]::after {
     content: attr(data-key);
     position: absolute;
     top: -6px;
@@ -351,15 +400,657 @@ body {
     height: 16px;
     border-radius: 8px;
     background: var(--ink);
-    color: var(--cream);
+    color: var(--paper);
     font-size: 10px;
     line-height: 16px;
     text-align: center;
   }
 }
 
-/* Your own words and marks, out of your own eyes: low in the middle of the screen, a bubble from you (its
-   tail down to you), the marks rising from it. */
+/* ---------------------------------------------------------------- the stick
+   Paper and a soft ink ring, under whichever thumb lands on the left; resting faint in its corner as a hint of
+   where to touch. Sprinting (held at its edge a moment), the accent. */
+.joy-base {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 116px;
+  height: 116px;
+  margin: -58px 0 0 -58px;
+  border-radius: 50%;
+  background: rgba(255, 253, 247, 0.2);
+  border: 2px solid rgba(91, 76, 68, 0.26);
+  opacity: 0.55;
+  transition: opacity 0.18s ease;
+}
+
+.joy-base.active {
+  opacity: 1;
+  transition: none;
+}
+
+.joy-knob {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  background: rgba(255, 253, 247, 0.62);
+  border: 2px solid rgba(91, 76, 68, 0.42);
+  transform: translate(-50%, -50%);
+}
+
+.joy-base.sprint {
+  border-color: var(--pink);
+  background: rgba(255, 174, 200, 0.3);
+}
+
+.joy-base.sprint .joy-knob {
+  background: var(--accent);
+  border-color: var(--ink);
+}
+
+/* ---------------------------------------------------------------- jump, and the verbs on offer
+   The jump: big, round, in the corner the right thumb rests in, its glyph in the ring's brown. Over it, the verbs
+   on offer, one pill each with its glyph, growing upward: the lowest the one on offer (the accent), any other
+   above it quieter. */
+.act {
+  --ring-w: 7px;
+  --ring-gap: 3px;
+  pointer-events: auto;
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--face);
+  color: var(--ring);
+  box-shadow: var(--shell);
+  touch-action: none;
+  cursor: pointer;
+  transition: transform 0.1s ease, box-shadow 0.16s ease;
+}
+
+.act svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.act:active {
+  transform: translateY(2px) scale(0.94);
+  box-shadow:
+    inset 0 0 0 var(--ring-gap) var(--face),
+    inset 0 0 0 var(--ring-w) var(--ring),
+    0 0 0 3px var(--rim),
+    0 1px 4px rgba(91, 76, 68, 0.2);
+}
+
+.act-jump {
+  right: calc(20px + env(safe-area-inset-right));
+  bottom: calc(26px + env(safe-area-inset-bottom));
+  width: 80px;
+  height: 80px;
+}
+
+.act-jump svg {
+  width: 38px;
+  height: 38px;
+}
+
+.hud-verbs {
+  position: absolute;
+  right: calc(20px + env(safe-area-inset-right));
+  bottom: max(calc(118px + env(safe-area-inset-bottom)), 17vh);
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: flex-end;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.ix {
+  --ring-w: 5px;
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  min-width: 64px;
+  padding: 0 14px 0 12px;
+  border: none;
+  border-radius: 23px;
+  background: var(--face);
+  box-shadow: var(--shell);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  touch-action: none;
+  cursor: pointer;
+  transform-origin: 100% 50%;
+  transition: transform 0.1s ease, background 0.16s ease;
+}
+
+.ix-mark {
+  display: grid;
+  place-items: center;
+}
+
+.ix-mark:empty {
+  display: none;
+}
+
+.ix svg {
+  flex: none;
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: var(--ring);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.ix:active {
+  transform: scale(0.94);
+}
+
+.ix.is-primary {
+  height: 46px;
+  min-width: 96px;
+  padding: 0 17px 0 14px;
+  background: var(--accent);
+  box-shadow: var(--shell-live);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.ix.is-primary svg {
+  width: 20px;
+  height: 20px;
+  stroke: var(--ink);
+}
+
+/* Coming on offer: a little bounce, once, out of the corner of your eye. */
+.ix.is-fresh {
+  animation: ix-announce 0.42s cubic-bezier(0.22, 1.2, 0.36, 1);
+}
+
+@keyframes ix-announce {
+  0% {
+    transform: scale(0.55);
+    opacity: 0;
+  }
+  55% {
+    transform: scale(1.09);
+    opacity: 1;
+  }
+  78% {
+    transform: scale(0.975);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* While someone talks to you, only the one on offer (つぎ). */
+.hud:has(.dialogue.shown:not([hidden])) .ix:not(.is-primary) {
+  display: none;
+}
+
+/* ---------------------------------------------------------------- the pouch
+   Its slots, on the bar and in the bag alike: a rounded square in ink, dashed while empty, its count on its foot;
+   your paw's with its paw mark on its corner and the accent round it. */
+.pack-slot {
+  position: relative;
+  aspect-ratio: 1;
+  padding: 0;
+  border: 2.5px solid var(--ink);
+  border-radius: 16px;
+  background-color: var(--paper);
+  background-repeat: no-repeat;
+  cursor: pointer;
+  /* (Held to show what it is, or dragged: no scrolling, zooming or the phone's own menu.) */
+  touch-action: none;
+  -webkit-touch-callout: none;
+  transition: transform 0.12s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.pack-slot:active {
+  transform: scale(0.93);
+}
+
+.pack-slot.is-empty {
+  border-color: rgba(91, 76, 68, 0.3);
+  border-style: dashed;
+  background-color: rgba(255, 253, 247, 0.55);
+}
+
+.pack-slot.is-paw {
+  box-shadow: 0 0 0 3px var(--accent), 0 0 0 4.5px rgba(91, 76, 68, 0.5);
+}
+
+.pack-paw {
+  position: absolute;
+  top: -9px;
+  left: -9px;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--face);
+  color: var(--ring);
+  box-shadow: 0 0 0 2px var(--ring), 0 0 0 3.5px var(--rim);
+  pointer-events: none;
+}
+
+.pack-paw svg {
+  width: 13px;
+  height: 13px;
+}
+
+/* How many a slot's stack has: white in an ink edge, on its foot. */
+.pack-slot:not([data-count=''])::after {
+  content: attr(data-count);
+  position: absolute;
+  right: 3px;
+  bottom: 1px;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  color: #fff;
+  text-shadow:
+    -1.5px -1.5px 0 var(--ink), 0 -1.5px 0 var(--ink), 1.5px -1.5px 0 var(--ink), -1.5px 0 0 var(--ink),
+    1.5px 0 0 var(--ink), -1.5px 1.5px 0 var(--ink), 0 1.5px 0 var(--ink), 1.5px 1.5px 0 var(--ink);
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+/* Dragged from (dashed, faint), dragged onto (lifted in ink), picked (lifted, its halo in ink). */
+.pack-slot.is-source {
+  border-style: dashed;
+  opacity: 0.4;
+}
+
+.pack-slot.is-over {
+  border-color: var(--ink);
+  box-shadow: 0 0 0 4px rgba(91, 76, 68, 0.22);
+  transform: scale(1.06);
+}
+
+.pack-slot.is-picked {
+  transform: translateY(-3px);
+  box-shadow:
+    0 0 0 3px var(--accent),
+    0 0 0 6px var(--ink),
+    0 5px 9px rgba(91, 76, 68, 0.26);
+}
+
+/* What is dragged, under your finger. */
+.pack-ghost {
+  position: absolute;
+  left: -28px;
+  top: -28px;
+  z-index: 30;
+  width: 56px;
+  height: 56px;
+  border: 3px solid var(--ink);
+  border-radius: 16px;
+  background-color: var(--paper);
+  background-repeat: no-repeat;
+  opacity: 0.94;
+  box-shadow: 0 8px 16px rgba(91, 76, 68, 0.32);
+  pointer-events: none;
+}
+
+/* The bar, on a wide screen: your paw and the six slots on a paper tray at the foot of the view, between the
+   thumbs; the name of what comes into your paw over it a moment. */
+.hotbar {
+  --ring-w: 3.5px;
+  --ring-gap: 2px;
+  pointer-events: auto;
+  position: absolute;
+  left: 50%;
+  bottom: calc(12px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  display: none;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 10px;
+  border-radius: 22px;
+  background: var(--face);
+  box-shadow: var(--shell);
+}
+
+.hotbar .pack-slot {
+  width: 46px;
+  border-radius: 13px;
+}
+
+.hotbar .pack-slot.is-paw {
+  margin-right: 6px;
+}
+
+/* (Its paw mark kept on the tray.) */
+.hotbar .pack-paw {
+  top: -6px;
+  left: -6px;
+  width: 18px;
+  height: 18px;
+}
+
+.hotbar .pack-paw svg {
+  width: 11px;
+  height: 11px;
+}
+
+.hotbar-name {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 10px);
+  transform: translate(-50%, 4px);
+  padding: 4px 14px;
+  border: 2.5px solid var(--ink);
+  border-radius: 999px;
+  background: rgba(255, 253, 247, 0.96);
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.hotbar-name.shown {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+@media (orientation: landscape) and (min-width: 600px) {
+  .hotbar {
+    display: flex;
+  }
+
+  .hotbar.is-off {
+    display: none;
+  }
+}
+
+/* The bag: a paper card over the island, its tab, its close, the slots bigger (your paw's two wide and two tall),
+   and under them what the one picked is and what to do with it. */
+.sheet {
+  pointer-events: auto;
+  position: absolute;
+  inset: 0;
+  z-index: 11;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: calc(env(safe-area-inset-top) + 16px) 16px calc(env(safe-area-inset-bottom) + 16px);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.16s ease, visibility 0s linear 0.16s;
+}
+
+.sheet.is-open {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 0.18s ease, visibility 0s;
+}
+
+.sheet-scrim {
+  position: absolute;
+  inset: 0;
+  background: rgba(91, 76, 68, 0.3);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+
+.sheet-card {
+  position: relative;
+  width: min(92vw, 420px);
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 14px;
+  border: 3px solid var(--ink);
+  border-radius: 26px;
+  background: var(--paper);
+  box-shadow: 0 10px 26px rgba(91, 76, 68, 0.24);
+  transform: scale(0.9);
+  transition: transform 0.16s cubic-bezier(0.4, 0, 0.7, 0.4);
+}
+
+.sheet.is-open .sheet-card {
+  transform: scale(1);
+  transition: transform 0.24s cubic-bezier(0.22, 1.2, 0.36, 1);
+}
+
+.sheet-tabs {
+  flex: none;
+  display: flex;
+  gap: 6px;
+  margin: 0 42px 12px 0;
+}
+
+.sheet-tab {
+  --ring-w: 3px;
+  padding: 5px 14px;
+  border: none;
+  border-radius: 999px;
+  background: none;
+  font-size: 13px;
+  font-weight: 700;
+  opacity: 0.45;
+  cursor: pointer;
+}
+
+.sheet-tab[aria-selected='true'] {
+  opacity: 1;
+  background: var(--accent);
+  box-shadow: var(--shell-flat-live);
+}
+
+.sheet-close,
+.panel-close {
+  --ring-w: 4px;
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--face);
+  color: var(--ring);
+  box-shadow: var(--shell-flat);
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  transition: transform 0.12s ease;
+}
+
+.sheet-close:active,
+.panel-close:active {
+  transform: scale(0.9);
+}
+
+.sheet-close svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.6;
+  stroke-linecap: round;
+}
+
+.bag-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 9px;
+}
+
+.bag-grid .pack-slot.is-paw {
+  grid-column: 1 / span 2;
+  grid-row: 1 / span 2;
+  margin: 4px 6px 4px 4px;
+  border-width: 3px;
+  border-radius: 20px;
+}
+
+.bag-grid .pack-slot.is-paw .pack-paw {
+  top: -10px;
+  left: -10px;
+  width: 26px;
+  height: 26px;
+}
+
+.bag-grid .pack-slot.is-paw .pack-paw svg {
+  width: 15px;
+  height: 15px;
+}
+
+/* What the one picked is: its icon, its name and how many, what it is for and a word of its own, a line about
+   it; and what to do with it. Nothing picked, how the bag is used. */
+.detail {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+  min-height: 150px;
+  margin-top: 14px;
+  padding: 10px;
+  border-radius: 18px;
+  background: rgba(91, 76, 68, 0.055);
+}
+
+.detail-hint,
+.detail-item,
+.detail .act-btn {
+  display: none;
+}
+
+.detail.is-rest .detail-hint {
+  display: block;
+}
+
+.detail.is-picked .detail-item,
+.detail.is-picked .act-btn {
+  display: flex;
+}
+
+.detail-hint {
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1.5;
+  text-align: center;
+  opacity: 0.6;
+}
+
+.detail-item {
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.detail-tile {
+  flex: none;
+  width: 64px;
+  height: 64px;
+  border: 3px solid rgba(91, 76, 68, 0.35);
+  border-radius: 16px;
+  background-color: var(--paper);
+  background-repeat: no-repeat;
+}
+
+.detail-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.detail-name {
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.detail-sub {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.detail-fam {
+  flex: none;
+  padding: 1px 8px;
+  border: 2px solid rgba(91, 76, 68, 0.35);
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.detail-meta {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 11px;
+  font-weight: 500;
+  opacity: 0.68;
+}
+
+.detail-note {
+  font-size: 12px;
+  line-height: 1.45;
+  opacity: 0.85;
+}
+
+.act-btn {
+  --ring-w: 3px;
+  align-items: center;
+  justify-content: center;
+  height: 40px;
+  padding: 0 18px;
+  border: none;
+  border-radius: 20px;
+  background: var(--face);
+  box-shadow: var(--shell-flat);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.12s ease;
+}
+
+.act-btn.is-live {
+  background: var(--accent);
+  box-shadow: var(--shell-flat-live);
+}
+
+.act-btn:active {
+  transform: scale(0.94);
+}
+
+/* ---------------------------------------------------------------- your own words and marks
+   Out of your own eyes: low in the middle of the screen, a bubble from you (its tail down to you), the marks
+   rising from it. */
 .hud-own {
   position: absolute;
   left: 50%;
@@ -374,15 +1065,14 @@ body {
   left: 0;
   bottom: 0;
   transform: translate(-50%, 8px) scale(0.85);
-  background: rgba(255, 250, 242, 0.96);
-  border: 2px solid var(--ink);
-  padding: 6px 16px;
-  border-radius: 999px;
+  padding: 8px 18px;
+  border: 2.5px solid var(--ink);
+  border-radius: 18px;
+  background: rgba(255, 253, 247, 0.96);
   font-weight: 700;
   font-size: 16px;
   width: max-content;
   max-width: min(70vw, 320px);
-  box-shadow: var(--shadow);
   opacity: 0;
   transition: opacity 0.25s ease, transform 0.25s ease;
 }
@@ -391,13 +1081,14 @@ body {
   content: '';
   position: absolute;
   left: 50%;
-  bottom: -7px;
-  width: 11px;
-  height: 11px;
-  margin-left: -6px;
-  background: inherit;
-  border-right: 2px solid var(--ink);
-  border-bottom: 2px solid var(--ink);
+  bottom: -9px;
+  width: 14px;
+  height: 14px;
+  margin-left: -7px;
+  background: rgba(255, 253, 247, 0.96);
+  border-right: 2.5px solid var(--ink);
+  border-bottom: 2.5px solid var(--ink);
+  border-bottom-right-radius: 3px;
   transform: rotate(45deg);
 }
 
@@ -463,139 +1154,97 @@ body {
   }
 }
 
-/* The notebook: where everyone is, and the album. */
-.notebook {
+/* ---------------------------------------------------------------- the album
+   Your photos, opened from the newest one by the camera: a card as the bag's; a photo opened large on a card of
+   its own, its buttons the accent. */
+.album-panel {
   pointer-events: auto;
   position: absolute;
   inset: 0;
+  z-index: 11;
   display: grid;
   place-items: center;
-  background: rgba(60, 40, 30, 0.25);
-  padding: calc(12px + env(safe-area-inset-top)) 12px calc(12px + env(safe-area-inset-bottom));
+  background: rgba(91, 76, 68, 0.3);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  padding: calc(16px + env(safe-area-inset-top)) 16px calc(16px + env(safe-area-inset-bottom));
 }
 
-.notebook-card {
-  width: min(440px, 100%);
-  max-height: min(78vh, 640px);
+.album-card {
+  position: relative;
+  width: min(92vw, 440px);
+  max-height: min(80vh, 640px);
   display: flex;
   flex-direction: column;
-  background: var(--panel);
   border: 3px solid var(--ink);
-  border-radius: 22px;
-  box-shadow: var(--shadow);
+  border-radius: 26px;
+  background: var(--paper);
+  box-shadow: 0 10px 26px rgba(91, 76, 68, 0.24);
   overflow: hidden;
+  animation: card-in 0.24s cubic-bezier(0.22, 1.2, 0.36, 1);
 }
 
-.notebook-head {
+@keyframes card-in {
+  from {
+    transform: scale(0.9);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+
+.album-head {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 10px 12px 6px;
+  min-height: 56px;
+  padding: 14px 56px 6px 14px;
 }
 
-.notebook-tabs {
-  display: flex;
-  gap: 8px;
-}
-
-.notebook-tab {
-  min-height: 38px;
-  padding: 6px 16px;
+.album-title {
+  --ring-w: 3px;
+  padding: 5px 14px;
   border-radius: 999px;
-  border: 2px solid var(--ink);
-  background: #fff;
+  background: var(--accent);
+  box-shadow: var(--shell-flat-live);
   font-weight: 700;
-  font-size: 14px;
-  cursor: pointer;
+  font-size: 13px;
 }
 
-.notebook-tab.active {
-  background: var(--pink);
-}
-
-.notebook-body {
+.album-body {
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   touch-action: pan-y;
-  padding: 4px 14px 10px;
+  padding: 6px 14px 14px;
   flex: 1;
-}
-
-.people-row {
-  display: grid;
-  grid-template-columns: 6.5em 1fr;
-  grid-template-rows: auto auto;
-  column-gap: 10px;
-  padding: 8px 0;
-  border-bottom: 1px dashed var(--ink-soft);
-}
-
-.people-name {
-  grid-row: span 2;
-  align-self: center;
-  font-weight: 700;
-  font-size: 15px;
-}
-
-.people-place {
-  font-size: 13px;
-  color: var(--ink-soft);
-}
-
-/* How fond of you each is: hearts under their name. */
-.people-hearts {
-  margin-top: 2px;
-  font-size: 11px;
-  font-weight: 400;
-  letter-spacing: 1px;
-  color: #f0708a;
-}
-
-.people-doing {
-  font-size: 14px;
-}
-
-.people-islanders {
-  padding: 10px 0 4px;
-  font-size: 13px;
-  color: var(--ink-soft);
-}
-
-.notebook-sound {
-  margin: 8px 14px 12px;
-  min-height: 40px;
-  border-radius: 999px;
-  border: 2px solid var(--ink);
-  background: #eaf7e6;
-  font-weight: 700;
-  font-size: 14px;
-  cursor: pointer;
-}
-
-.notebook-sound.off {
-  background: #f1ece6;
 }
 
 .album {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 6px;
+  gap: 9px;
 }
 
 .album-photo {
   aspect-ratio: 4 / 3;
-  border-radius: 10px;
-  border: 2px solid var(--ink-soft);
+  border: 2.5px solid var(--ink);
+  border-radius: 14px;
   background-size: cover;
   background-position: center;
   cursor: pointer;
+  transition: transform 0.12s ease;
+}
+
+.album-photo:active {
+  transform: scale(0.95);
 }
 
 .album-empty {
-  padding: 24px 6px;
+  padding: 28px 8px;
   text-align: center;
-  font-size: 14px;
-  color: var(--ink-soft);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.5;
+  opacity: 0.6;
 }
 
 .photo-viewer {
@@ -605,21 +1254,28 @@ body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  background: rgba(20, 14, 10, 0.88);
+  gap: 12px;
   padding: 16px;
+  background: rgba(58, 44, 38, 0.58);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
 }
 
 .photo-large {
-  max-width: 100%;
-  max-height: 70vh;
-  border-radius: 12px;
-  border: 3px solid var(--cream);
+  display: block;
+  max-width: min(86vw, 420px);
+  max-height: 62vh;
+  object-fit: contain;
+  border-radius: 14px;
+  box-shadow: 0 0 0 6px var(--face), 0 0 0 9px var(--ring), 0 0 0 12px var(--rim), var(--drop);
 }
 
 .photo-caption {
-  color: var(--cream);
-  font-size: 13px;
+  padding: 3px 12px;
+  border-radius: 999px;
+  background: rgba(255, 253, 247, 0.9);
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .photo-buttons {
@@ -630,107 +1286,342 @@ body {
 }
 
 .photo-button {
-  min-height: 40px;
-  padding: 8px 16px;
-  border-radius: 999px;
-  border: 2px solid var(--ink);
-  background: var(--cream);
+  --ring-w: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 76px;
+  height: 42px;
+  padding: 0 16px;
+  border: none;
+  border-radius: 21px;
+  background: var(--accent);
+  box-shadow: var(--shell-live);
   color: var(--ink);
   font-weight: 700;
-  font-size: 14px;
+  font-size: 13px;
   text-decoration: none;
   cursor: pointer;
 }
 
-.pouch {
+.photo-button:active {
+  transform: scale(0.95);
+}
+
+/* ---------------------------------------------------------------- what is said to you
+   A paper card low on the screen (over the buttons on a phone held upright, between the stick and the buttons on
+   a wide screen or one held sideways, over the bar when it shows), the speaker's name on its corner in the
+   accent, their face on a disc standing out of it, ▼ once the line is all out; what you may answer under it. */
+.dialogue {
   pointer-events: auto;
   position: absolute;
-  top: calc(62px + env(safe-area-inset-top));
-  right: calc(78px + env(safe-area-inset-right));
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 10px;
-  background: rgba(255, 250, 242, 0.94);
+  left: calc(12px + env(safe-area-inset-left));
+  right: calc(12px + env(safe-area-inset-right));
+  bottom: calc(206px + env(safe-area-inset-bottom));
+  min-height: 78px;
+  padding: 18px 20px 14px;
   border: 3px solid var(--ink);
-  border-radius: 18px;
-  box-shadow: var(--shadow);
-}
-
-.pouch-slots {
-  display: grid;
-  grid-template-columns: repeat(3, 46px);
-  gap: 6px;
-}
-
-.pouch-hand,
-.pouch-slot {
-  width: 46px;
-  height: 46px;
-  border-radius: 12px;
-  border: 2px solid var(--ink-soft);
-  background-color: #fff;
-  background-repeat: no-repeat;
-}
-
-.pouch-hand {
-  width: 54px;
-  height: 54px;
-  border: 3px solid var(--ink);
-  background-color: #fff3e2;
-}
-
-.pouch-slot {
-  position: relative;
+  border-radius: 24px;
+  background: var(--paper);
+  box-shadow: 0 8px 22px rgba(91, 76, 68, 0.22);
+  touch-action: none;
   cursor: pointer;
+  opacity: 0;
+  transform: translateY(8px);
 }
 
-/* How many a slot's stack has, on its bottom-right corner. */
-.pouch-slot:not([data-count=""])::after {
-  content: attr(data-count);
+.dialogue.shown {
+  opacity: 1;
+  transform: none;
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+/* (Held sideways it is always between them: across the screen it would cover the jump and the verbs.) */
+@media (min-width: 700px), (orientation: landscape) {
+  .dialogue {
+    left: 50%;
+    right: auto;
+    width: min(520px, 52vw);
+    margin-left: calc(min(520px, 52vw) / -2);
+    bottom: calc(24px + env(safe-area-inset-bottom));
+  }
+}
+
+.dialogue-name {
+  --ring-w: 3px;
   position: absolute;
-  right: 3px;
-  bottom: 0;
-  font-weight: 800;
-  font-size: 13px;
-  line-height: 1.2;
-  color: var(--ink);
-  text-shadow: -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff;
-  pointer-events: none;
-}
-
-.pouch-hand.empty,
-.pouch-slot.empty {
-  background-color: rgba(255, 255, 255, 0.55);
-}
-
-.pouch-slot:active {
-  transform: scale(0.94);
-}
-
-/* A word for a moment: what you picked up, that the pouch is full. */
-.hud-toast {
-  position: absolute;
-  left: 50%;
-  bottom: calc(176px + env(safe-area-inset-bottom));
-  transform: translate(-50%, 6px);
-  background: rgba(255, 250, 242, 0.94);
-  border: 2px solid var(--ink);
-  padding: 6px 14px;
+  left: 16px;
+  top: -16px;
+  padding: 3px 14px;
   border-radius: 999px;
+  background: var(--accent);
+  box-shadow: var(--shell-live);
   font-weight: 700;
   font-size: 14px;
-  width: max-content;
-  max-width: min(86vw, 420px);
-  box-shadow: var(--shadow);
+  line-height: 20px;
+  white-space: nowrap;
+}
+
+/* Japanese has no spaces: it wraps between any two characters, but never with 。、！？ or a small kana
+   starting a line. */
+.dialogue-text {
+  font-weight: 700;
+  font-size: 17px;
+  line-height: 1.6;
+  line-break: strict;
+  overflow-wrap: anywhere;
+}
+
+.dialogue-rest {
+  visibility: hidden;
+}
+
+.dialogue-next {
+  position: absolute;
+  right: 14px;
+  bottom: 6px;
+  font-size: 11px;
+  color: var(--ring);
   opacity: 0;
-  transition: opacity 0.35s ease, transform 0.35s ease;
+}
+
+.dialogue.typed .dialogue-next {
+  opacity: 1;
+  animation: dialogue-next 0.9s ease-in-out infinite;
+}
+
+@keyframes dialogue-next {
+  50% {
+    transform: translateY(3px);
+  }
+}
+
+.dialogue-face {
+  --ring-w: 3.5px;
+  display: none;
+  position: absolute;
+  left: 12px;
+  top: -48px;
+  width: 60px;
+  height: 60px;
+  padding: 5px;
+  border-radius: 50%;
+  background: var(--face);
+  box-shadow: var(--shell);
+  object-fit: contain;
+}
+
+.dialogue.faced .dialogue-face {
+  display: block;
+}
+
+.dialogue.faced .dialogue-name {
+  left: 80px;
+}
+
+.dialogue-choices {
+  display: none;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.dialogue.asks.typed .dialogue-choices {
+  display: flex;
+}
+
+.dialogue.asks .dialogue-next {
+  display: none;
+}
+
+.dialogue-choice {
+  --ring-w: 3px;
+  position: relative;
+  min-height: 40px;
+  padding: 0 16px;
+  border: none;
+  border-radius: 20px;
+  background: var(--face);
+  box-shadow: var(--shell-flat);
+  font-weight: 700;
+  font-size: 15px;
+  cursor: pointer;
+  touch-action: none;
+  transition: transform 0.12s ease;
+}
+
+.dialogue-choice:active {
+  transform: scale(0.94);
+  background: var(--accent);
+  box-shadow: var(--shell-flat-live);
+}
+
+/* Someone to choose, by their face alone (the user, 2026-10-23). */
+.dialogue-choice.face {
+  --ring-w: 3.5px;
+  width: 54px;
+  height: 54px;
+  min-height: 0;
+  padding: 4px;
+  border-radius: 50%;
+  box-shadow: var(--shell);
+}
+
+.dialogue-choice.face img {
+  display: block;
+  width: 100%;
+  height: 100%;
   pointer-events: none;
 }
 
-.hud-toast.shown {
+/* ---------------------------------------------------------------- the marker
+   Toward whoever you were told of (the user, 2026-10-23: their face, not their name): their face on a paper disc
+   in ink, a tab on its rim turned toward them: under the disc, down at them, while they are in view (the disc
+   lifted by Hud's GUIDE_LIFT, the disc's radius and the tab), else out toward them from the screen's edge. Anyone
+   without a face, their name on it. */
+.hud-guide {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+}
+
+.guide-turn {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+}
+
+.guide-turn::before {
+  content: '';
+  position: absolute;
+  left: -8px;
+  top: -35px;
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-bottom: 11px solid var(--ink);
+}
+
+.guide-disc {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 48px;
+  height: 48px;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2.5px solid var(--ink);
+  border-radius: 24px;
+  background: rgba(255, 253, 247, 0.96);
+  box-shadow: 0 0 0 2.5px var(--rim), var(--drop);
+}
+
+.guide-face {
+  width: 40px;
+  height: 40px;
+}
+
+.guide-name {
+  display: none;
+  font-weight: 700;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.hud-guide.named .guide-disc {
+  width: auto;
+  min-width: 48px;
+  padding: 0 12px;
+}
+
+.hud-guide.named .guide-face {
+  display: none;
+}
+
+.hud-guide.named .guide-name {
+  display: block;
+}
+
+/* ---------------------------------------------------------------- a word for a moment
+   Notices, as Hidamari's are: under the hour, the name of the place you walk into over what you picked up (that
+   the pouch is full...), one under the other, each taking its room only while it shows; low over the stick, the
+   hint on the way in, gone while someone talks to you. Each the cream face in the shell. */
+.hud-notes {
+  position: absolute;
+  left: 50%;
+  top: calc(96px + env(safe-area-inset-top));
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: min(60vw, 420px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  pointer-events: none;
+}
+
+.hud-toast,
+.hud-place,
+.hud-hint {
+  --ring-w: 3px;
+  --ring-gap: 2px;
+  max-width: 100%;
+  border-radius: 18px;
+  background: var(--face);
+  box-shadow: var(--shell);
+  line-height: 1.5;
+  text-align: center;
+  pointer-events: none;
+}
+
+.hud-toast,
+.hud-place {
+  max-height: 0;
+  padding: 0 16px;
+  overflow: hidden;
+  font-weight: 700;
+  font-size: 14px;
+  opacity: 0;
+  transform: translateY(-6px);
+  transition: opacity 0.35s ease, transform 0.35s ease, max-height 0.35s ease, padding 0.35s ease, margin 0.35s ease;
+}
+
+.hud-toast.shown,
+.hud-place.shown {
+  max-height: 90px;
+  padding: 6px 16px;
+  margin-bottom: 10px;
   opacity: 1;
-  transform: translate(-50%, 0);
+  transform: none;
+}
+
+.hud-place {
+  font-size: 15px;
+}
+
+.hud-place.shown {
+  padding: 6px 20px;
+}
+
+.hud-hint {
+  position: absolute;
+  left: 50%;
+  bottom: calc(230px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: min(86vw, 420px);
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  transition: opacity 0.6s;
+}
+
+.hud-hint.gone,
+.hud:has(.dialogue.shown:not([hidden])) .hud-hint {
+  opacity: 0;
 }
 
 /* The night as you sleep through it, and the morning after. */
@@ -748,89 +1639,101 @@ body {
   pointer-events: auto;
 }
 
-.jump-btn:active {
-  transform: scale(0.94);
-  background: var(--pink-strong);
-}
-
-.hud-hint {
-  position: absolute;
-  left: 50%;
-  bottom: calc(230px + env(safe-area-inset-bottom));
-  transform: translateX(-50%);
-  background: rgba(255, 250, 242, 0.9);
-  padding: 8px 14px;
-  border-radius: 14px;
-  font-size: 13px;
-  text-align: center;
-  width: max-content;
-  max-width: min(86vw, 420px);
-  box-shadow: var(--shadow);
-  transition: opacity 0.6s;
-}
-
-.hud-hint.gone {
-  opacity: 0;
-}
-
-/* The name of the place you walk into, under the title for a moment. */
-.hud-place {
-  position: absolute;
-  left: 50%;
-  top: calc(64px + env(safe-area-inset-top));
-  transform: translate(-50%, -6px);
-  background: rgba(255, 250, 242, 0.9);
-  border: 2px solid var(--ink);
-  padding: 5px 16px;
-  border-radius: 999px;
-  font-weight: 700;
-  font-size: 15px;
-  box-shadow: var(--shadow);
-  opacity: 0;
-  transition: opacity 0.5s ease, transform 0.5s ease;
-  pointer-events: none;
-}
-
-.hud-place.shown {
-  opacity: 1;
-  transform: translate(-50%, 0);
-}
-
+/* ---------------------------------------------------------------- the way in
+   The title in the round type over the sky, a pink bar running while the island loads, and where you are going. */
 .loading {
   position: absolute;
   inset: 0;
-  display: grid;
-  place-items: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
   padding: 16px;
   text-align: center;
-  background: linear-gradient(var(--sky), var(--horizon));
-  font-weight: 700;
-  font-size: 18px;
+  background: linear-gradient(#bfe6f8, var(--horizon));
   pointer-events: auto;
+  transition: opacity 0.45s ease;
+}
+
+.loading.is-gone {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.loading-title {
+  font-size: clamp(28px, 8vw, 46px);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1.3;
+  /* (Broken only at its space: ちいかわ, then 人魚の島ぐらし.) */
+  word-break: keep-all;
+  color: var(--ink);
+  text-shadow: 0 0 0 transparent, 3px 3px 0 #fff, -3px -3px 0 #fff, 3px -3px 0 #fff, -3px 3px 0 #fff;
+}
+
+.loadbar {
+  --ring-w: 3px;
+  --ring-gap: 0px;
+  width: min(64vw, 280px);
+  height: 16px;
+  border-radius: 999px;
+  background: var(--face);
+  box-shadow: var(--shell);
+  overflow: hidden;
+}
+
+.loadbar-fill {
+  width: 38%;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--pink);
+  animation: load-run 1.4s ease-in-out infinite;
+}
+
+@keyframes load-run {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(270%);
+  }
+}
+
+.loading-words {
+  font-size: 14px;
+  font-weight: 700;
 }
 
 .loading.error {
-  background: #fff0f0;
+  background: #fff3f3;
 }
 
-/* ---------------------------------------------------------------- test panel */
+.loading.error .loadbar {
+  display: none;
+}
+
+/* ---------------------------------------------------------------- the test panel
+   A card from the foot of the screen (on a wide one, its own corner), its switches in the flat shell, the one on
+   the accent. */
 .panel {
   pointer-events: auto;
   position: absolute;
   left: 0;
   right: 0;
   bottom: 0;
+  z-index: 12;
   max-height: 56%;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   touch-action: pan-y;
-  background: var(--panel);
+  background: var(--paper);
   border-top: 3px solid var(--ink);
-  border-radius: 22px 22px 0 0;
+  border-radius: 26px 26px 0 0;
   padding: 0 16px calc(16px + env(safe-area-inset-bottom));
   transform: translateY(105%);
   transition: transform 0.28s ease;
-  box-shadow: 0 -8px 24px rgba(60, 40, 30, 0.15);
+  box-shadow: 0 -8px 24px rgba(91, 76, 68, 0.15);
 }
 
 .panel.open {
@@ -843,8 +1746,8 @@ body {
   align-items: center;
   position: sticky;
   top: 0;
-  background: var(--panel);
-  padding: 10px 0 6px;
+  background: var(--paper);
+  padding: 12px 0 8px;
   z-index: 1;
 }
 
@@ -853,15 +1756,8 @@ body {
   font-size: 16px;
 }
 
-.panel-close {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  border: 2px solid var(--ink);
-  background: var(--cream);
-  font-size: 22px;
-  line-height: 1;
-  cursor: pointer;
+.panel-head .panel-close {
+  position: static;
 }
 
 .panel section {
@@ -870,9 +1766,10 @@ body {
 
 .panel h3 {
   margin: 0 0 8px;
-  font-size: 13px;
-  color: var(--ink-soft);
+  font-size: 12px;
   font-weight: 700;
+  letter-spacing: 0.04em;
+  opacity: 0.7;
 }
 
 .chips {
@@ -882,17 +1779,21 @@ body {
 }
 
 .chip {
+  --ring-w: 3px;
   min-height: 40px;
   padding: 8px 14px;
+  border: none;
   border-radius: 999px;
-  border: 2px solid var(--ink);
-  background: #fff;
-  font-size: 14px;
+  background: var(--face);
+  box-shadow: var(--shell-flat);
+  font-size: 13px;
+  font-weight: 700;
   cursor: pointer;
 }
 
 .chip.active {
-  background: var(--pink);
+  background: var(--accent);
+  box-shadow: var(--shell-flat-live);
 }
 
 .chip:active {
@@ -900,8 +1801,8 @@ body {
 }
 
 .info {
-  font-size: 13px;
-  color: var(--ink-soft);
+  font-size: 12px;
+  opacity: 0.7;
   font-variant-numeric: tabular-nums;
 }
 
@@ -913,10 +1814,68 @@ body {
     width: 420px;
     max-height: 80%;
     border: 3px solid var(--ink);
-    border-radius: 22px;
+    border-radius: 26px;
   }
 
   .panel:not(.open) {
     transform: translateY(calc(100% + 32px));
+  }
+}
+
+/* ---------------------------------------------------------------- held sideways, and on a wide screen
+   Held sideways (short), the side's controls come up into the top row beside the rest, out of the way of the
+   verbs over the jump, and the notices under that row; with the bar along the foot (landscape, wide enough), the
+   text box of what is said to you and the hint sit over it. */
+@media (max-height: 500px) {
+  .hud-side {
+    top: calc(12px + env(safe-area-inset-top));
+    right: calc(14px + env(safe-area-inset-right) + 3 * 52px + 3 * 10px);
+    flex-direction: row;
+    align-items: flex-start;
+  }
+
+  /* (Under the hour on the left: the middle is the text box's, with no room over it.) */
+  .hud-notes {
+    left: calc(14px + env(safe-area-inset-left));
+    top: calc(64px + env(safe-area-inset-top));
+    transform: none;
+    max-width: 200px;
+    align-items: flex-start;
+  }
+
+  .hud-hint {
+    bottom: calc(196px + env(safe-area-inset-bottom));
+  }
+
+  /* The bag wider than tall: its slots on the left, what the one picked is on the right. */
+  .sheet-card {
+    width: min(94vw, 660px);
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    column-gap: 14px;
+  }
+
+  .sheet-tabs {
+    grid-column: 1 / -1;
+  }
+
+  .bag-grid {
+    align-self: start;
+  }
+
+  .detail {
+    margin-top: 0;
+    min-height: 0;
+  }
+}
+
+@media (orientation: landscape) and (min-width: 600px) {
+  .dialogue {
+    bottom: calc(86px + env(safe-area-inset-bottom));
+  }
+
+  .hud-hint {
+    bottom: calc(196px + env(safe-area-inset-bottom));
   }
 }

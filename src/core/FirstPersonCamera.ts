@@ -30,10 +30,47 @@ const BOB_EASE = 9;
 const TILT_ROUND = 0.6;
 const TILT = 1;
 const MOST_PITCH = 1.55;
+/**
+ * Your own steps out of your own eyes (the user, 2026-10-24: sprinting felt like sliding along the ground): a step
+ * every STEP metres as you walk, longer as you run and sprint (STEP_RUN and STEP_SPRINT times as long); with each
+ * one your eyes dip as your foot comes down, and they sway and tilt toward the foot you stand on, a stride (two
+ * steps) to and fro: as much as DIP (metres, top to bottom), SWAY (metres, side to side) and ROLL (radians either
+ * way) walking, running and sprinting, eased in and out as you get going and stop; none in the air. (Before,
+ * only the body's own bob moved them, eased away nearly to nothing: 2 to 2.5 cm running or sprinting.)
+ */
+const STEP = 0.55;
+const STEP_RUN = 1.35;
+const STEP_SPRINT = 1.95;
+// (Toned down, the user, 2026-10-24: too much, walking too. Had been 1.2, 2.5, 5 cm; 0.8, 1.6, 3 cm; 0.3°, 0.7°,
+// 1.5°.)
+const DIP = [0.004, 0.01, 0.025];
+const SWAY = [0.002, 0.006, 0.014];
+const ROLL = [0.001, 0.004, 0.012];
 
 const _l = new THREE.Vector3();
 const _r = new THREE.Vector3();
 const _tilt = new THREE.Vector3();
+const _bob = new THREE.Vector3();
+
+/** How far `ch` is from a walk to a run (0 to 1) and from a run to a sprint, going at `speed`. */
+function paces(ch: Character, speed: number): [number, number] {
+  return [
+    THREE.MathUtils.smoothstep(speed, ch.walkSpeed * 0.95, ch.runSpeed * 0.9),
+    THREE.MathUtils.smoothstep(speed, ch.runSpeed * 1.02, ch.sprintSpeed * 0.95),
+  ];
+}
+
+/** Of the three, walking, running and sprinting, as much as `ch` is of each going at `speed`. */
+function byPace(k: number[], run: number, dash: number): number {
+  return k[0] + (k[1] - k[0]) * run + (k[2] - k[1]) * dash;
+}
+
+/** How far `ch` goes in a step out of their own eyes, going at `speed` (see STEP): for the paw you see swaying
+ * with your steps (HandView) as for the eyes. */
+export function stepLength(ch: Character, speed: number): number {
+  const [run, dash] = paces(ch, speed);
+  return STEP * byPace([1, STEP_RUN, STEP_SPRINT], run, dash);
+}
 
 /**
  * The game's camera: out of the eyes of the character you control, who is seen only in the calm water
@@ -46,12 +83,18 @@ export class FirstPersonCamera {
   pitch = 0;
   /** How far the view is narrowed: 0, the eyes' own lens, to 1, the film's. */
   zoom = 0;
+  /** Your footfalls so far, one each time a foot comes down (see STEP): the footsteps you hear (Game.hearing). */
+  footfalls = 0;
 
   private readonly look = new THREE.Vector2();
   /** The height of their feet (or their seat) and of their eyes over them, as the eyes follow them
    * (NaN: to be taken as they are). */
   private feet = NaN;
   private over = NaN;
+  /** How far your steps have gone (a half turn a step, see STEP), and how much you are on your feet, eased (0 in
+   * the air, 1 on the ground). */
+  private stride = 0;
+  private onFeet = 1;
 
   constructor(
     readonly camera: THREE.PerspectiveCamera,
@@ -99,12 +142,43 @@ export class FirstPersonCamera {
     this.pitch = clamp(this.pitch - this.look.y * turn, -PITCH, PITCH);
 
     this.follow(dt, ch);
+    // Your steps: the eyes dip with each, and sway and tilt to the foot you stand on.
+    this.steps(dt, ch, _bob);
+    camera.position.x += Math.cos(this.yaw) * _bob.x;
+    camera.position.z -= Math.sin(this.yaw) * _bob.x;
+    camera.position.y += _bob.y;
+    this.limit(camera.position, ch.feetY);
     ch.actionTilt(_tilt);
     camera.rotation.set(
       clamp(this.pitch - _tilt.x * TILT, -MOST_PITCH, MOST_PITCH),
       this.yaw + _tilt.y * TILT_ROUND,
-      _tilt.z * TILT,
+      _tilt.z * TILT + _bob.z,
       'YXZ',
+    );
+  }
+
+  /**
+   * Your steps out of your own eyes (see STEP), as they go on as you walk, counting your footfalls: into `out`, how
+   * far to your right the eyes sway (x, metres), how far up they bob (y) and how far they tilt (z, radians).
+   */
+  private steps(dt: number, ch: Character, out: THREE.Vector3): THREE.Vector3 {
+    const speed = Math.hypot(ch.velocity.x, ch.velocity.z);
+    const feet = !ch.inAir && !ch.ride;
+    this.onFeet += ((feet ? 1 : 0) - this.onFeet) * (1 - Math.exp(-dt * 12));
+    if (feet) {
+      const before = Math.floor(this.stride / Math.PI);
+      this.stride += (speed / stepLength(ch, speed)) * Math.PI * dt;
+      if (Math.floor(this.stride / Math.PI) > before && speed > 0.3) this.footfalls++;
+    }
+    const [run, dash] = paces(ch, speed);
+    const k = THREE.MathUtils.smoothstep(speed, 0.3, 1.0) * this.onFeet;
+    // Lowest as a foot comes down (each half turn), to the side of the foot stood on (a whole turn, two steps).
+    const down = Math.abs(Math.sin(this.stride));
+    const side = Math.cos(this.stride);
+    return out.set(
+      (byPace(SWAY, run, dash) / 2) * side * k,
+      byPace(DIP, run, dash) * (down - 0.5) * k,
+      byPace(ROLL, run, dash) * side * k,
     );
   }
 

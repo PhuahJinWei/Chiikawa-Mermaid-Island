@@ -1,0 +1,10 @@
+{
+  "about": "The things drawn by the user, as the pouch shows them (any other by its render in models/props/item_icons.webp); written by art/blender/build_icons.py from the drawings in art/icons/.",
+  "things": [
+    "torch",
+    "book",
+    "weapon01",
+    "weapon02",
+    "weapon03"
+  ]
+}

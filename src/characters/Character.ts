@@ -168,7 +168,9 @@ const HEAD_BEND = 1.7;
  * leaning this far forward (radians); flat, this far ahead of it and up; eaten, this far out from the mouth and
  * down from it, tipped this far back toward it. Wherever it is, it is held by its side and tipped out of them as
  * far as it must be (see Holding.ts); what they always carry in their left paw (Kurimanju's can) too, upright at
- * its tip. */
+ * its tip. (Their own right paw, as the film's Chiikawa holds her さすまた (the user, 2026-10-24: things had been
+ * held in the other): the pose's L arm and the handL anchor, on the model's -x side, which are named as they are seen
+ * from before them; their left, the pose's R arm, does one-pawed gestures, the wave and the talk.) */
 const HAND_LEAN = 0.15;
 const HAND_FLAT_AHEAD = 0.07;
 const HAND_FLAT_UP = 0.03;
@@ -191,6 +193,13 @@ const READ_OPEN = 0.45;
 const READ_TURN = new THREE.Quaternion()
   .setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI)
   .multiply(new THREE.Quaternion().setFromAxisAngle(X_AXIS, Math.PI / 2 - READ_UP));
+/** A weapon held up ready (an action that `readies`, かまえる: see Actions.ts): by its foot (ItemDef.ready) between their
+ * paws before them, leaning this far forward, pointing ahead and up, and this far out to the side of the paw that holds
+ * it, clear of their face (radians). */
+const READY_FORWARD = 0.75;
+const READY_OUT = 0.45;
+const _readyTurn = new THREE.Quaternion();
+const _readyEuler = new THREE.Euler();
 /** The cave's torch in a staged shot (see holdTorch), held up at the paw's tip leaning this far forward, and out of
  * them as far as it must be. */
 const TORCH_TURN = new THREE.Quaternion().setFromAxisAngle(X_AXIS, 0.25);
@@ -1308,24 +1317,25 @@ export class Character implements EmoteHost {
       p.armLSwing = p.armRSwing = REST_ARM.swing;
       p.armLBend = p.armRBend = REST_ARM.bend;
       p.pawLBend = p.pawRBend = REST_ARM.paw;
-      // A paw that holds a thing holds it out before their side (see placeHand), and the cave's torch up.
+      // A paw that holds a thing holds it out before their side (see placeHand), and the cave's torch up: their right
+      // (the pose's L: see HAND_LEAN).
       const breathe = 0.04 * Math.sin(tm * 2.3 + 0.8);
       if (this.torch) {
-        p.armRRaise = TORCH_ARM.raise;
-        p.armRSwing = TORCH_ARM.swing;
-        p.armRBend = TORCH_ARM.bend;
+        p.armLRaise = TORCH_ARM.raise;
+        p.armLSwing = TORCH_ARM.swing;
+        p.armLBend = TORCH_ARM.bend;
       } else if (this.hand && !this.instrument?.visible) {
-        p.armRRaise = HOLD_ARM.raise + breathe;
-        p.armRSwing = HOLD_ARM.swing;
-        p.armRBend = HOLD_ARM.bend;
-        p.pawRBend = HOLD_ARM.paw;
-      }
-      if (this.carried) {
-        // Kurimanju's can, in the other paw.
         p.armLRaise = HOLD_ARM.raise + breathe;
         p.armLSwing = HOLD_ARM.swing;
         p.armLBend = HOLD_ARM.bend;
         p.pawLBend = HOLD_ARM.paw;
+      }
+      if (this.carried) {
+        // Kurimanju's can, in the other paw, his left.
+        p.armRRaise = HOLD_ARM.raise + breathe;
+        p.armRSwing = HOLD_ARM.swing;
+        p.armRBend = HOLD_ARM.bend;
+        p.pawRBend = HOLD_ARM.paw;
       }
     }
     const g = this.gait;
@@ -1366,8 +1376,8 @@ export class Character implements EmoteHost {
     p.footRY += walk * Math.max(0, -c) * lift;
     const swing = 0.45 * amp * g.arms * (1 + 0.35 * dash);
     // (A paw that holds something sways less, as one carries a thing.)
-    p.armLSwing -= walk * s * swing * (this.carried ? HOLD_ARM.sway : 1);
-    p.armRSwing += walk * s * swing * (this.hand || this.torch ? HOLD_ARM.sway : 1);
+    p.armLSwing -= walk * s * swing * (this.hand || this.torch ? HOLD_ARM.sway : 1);
+    p.armRSwing += walk * s * swing * (this.carried ? HOLD_ARM.sway : 1);
     p.armLRaise += walk * (0.12 + 0.25 * run + 0.15 * dash);
     p.armRRaise += walk * (0.12 + 0.25 * run + 0.15 * dash);
     p.skirtY += walk * s * 0.05;
@@ -1388,23 +1398,24 @@ export class Character implements EmoteHost {
       const def = ACTIONS[a.id];
       const prev = a.t;
       a.t += dt;
-      // One paw's gesture, that paw full: the other paw's (Kurimanju's, his can in it: small, it clears him). One that
-      // brings the paws up before or round the face: a full paw keeps holding what it holds out where it was.
-      const rightFull = (!!this.hand && !this.instrument?.visible) || !!this.torch;
-      const mirror = !!def.oneHand && rightFull;
+      // One paw's gesture: made with their left (the pose's R), the paw left free of what they hold; Kurimanju's can
+      // in it and the other paw free, with that one. One that brings the paws up before or round the face: a full paw
+      // keeps holding what it holds out where it was.
+      const holding = (!!this.hand && !this.instrument?.visible) || !!this.torch;
+      const mirror = !!def.oneHand && !!this.carried && !holding;
       if (mirror) mirrorArms(this.target);
       def.pose(a.t, this.target);
       if (mirror) mirrorArms(this.target);
-      if (def.fullPawHolds && rightFull) keepArm(this.base, this.target, 'R');
-      if (def.fullPawHolds && this.carried) keepArm(this.base, this.target, 'L');
+      if (def.fullPawHolds && holding) keepArm(this.base, this.target, 'L');
+      if (def.fullPawHolds && this.carried) keepArm(this.base, this.target, 'R');
       def.tick?.(a.t, prev, this.actionCtx);
       if (a.t >= def.duration) this.stopAction();
     }
     // Seated, a paw that holds something holds it up off the ground (see HOLD_ARM).
     const seated = this.target.sit;
     if (seated > 0) {
-      if ((this.hand && !this.instrument?.visible) || this.torch) this.target.armRRaise += HOLD_ARM.seated * seated;
-      if (this.carried) this.target.armLRaise += HOLD_ARM.seated * seated;
+      if ((this.hand && !this.instrument?.visible) || this.torch) this.target.armLRaise += HOLD_ARM.seated * seated;
+      if (this.carried) this.target.armRRaise += HOLD_ARM.seated * seated;
     }
     if (this.blending) {
       this.blendT += dt;
@@ -1700,21 +1711,21 @@ export class Character implements EmoteHost {
       this.bodyPose.set(u.uSquash.value, u.uLean.value, this.height, this.parts[PART.HEAD], this.parts[PART.SKIRT], u.uSkirtFlare.value / SKIRT_FLARE);
     }
     if (this.torch && this.torchShape) {
-      // Held up in the right paw, leaning a little forward, its flame up beside their head.
-      this.placeHeld(this.torch, this.torchShape, 'upright', this.anchorLocal('handR', _grip), TORCH_TURN, this.torchFit);
+      // Held up in the right paw (handL: see HAND_LEAN), leaning a little forward, its flame up beside their head.
+      this.placeHeld(this.torch, this.torchShape, 'upright', this.anchorLocal('handL', _grip), TORCH_TURN, this.torchFit);
     }
     if (this.hand) this.placeHand();
     if (this.carried && this.carryShape) {
-      // Upright in the left paw, held by its side.
-      this.placeHeld(this.carried, this.carryShape, 'upright', this.anchorLocal('handL', _grip), CARRY_TURN, this.carryFit);
+      // Upright in the left paw (handR), held by its side.
+      this.placeHeld(this.carried, this.carryShape, 'upright', this.anchorLocal('handR', _grip), CARRY_TURN, this.carryFit);
     }
     if (this.fitting) this.fitDt = 0;
     const s = Math.sin(this.facing);
     const c = Math.cos(this.facing);
     const playing = !!this.instrument?.visible;
     if (this.ownCarried) {
-      // With their own clothes (Rakko's sword): on their back, or held up by its grip in the same hand as the
-      // can is, its point leaning forward and out.
+      // With their own clothes (Rakko's sword): on their back, or held up by its grip in his right paw (handL), its
+      // point leaning forward and out.
       this.ownCarried.visible = !!this.ownOutfit?.visible;
       if (this.holdsOwn && this.armRig) {
         // In both paws before him (see REACH_SWORD).
@@ -1756,6 +1767,19 @@ export class Character implements EmoteHost {
       hand.quaternion.copy(_turnNow).multiply(_eatTurn.setFromRotationMatrix(this.parts[PART.HEAD]).multiply(READ_TURN));
       return;
     }
+    const ready = hand.userData.ready as THREE.Vector3 | undefined;
+    if (ready && action && ACTIONS[action.id].readies) {
+      // Up before them by its foot, between their paws (see READY_FORWARD), out to its own paw's side (their right).
+      this.anchorLocal('handL', _grip);
+      this.anchorLocal('handR', _off);
+      const side = Math.sign(_grip.x - _off.x) || 1;
+      _grip.add(_off).multiplyScalar(0.5);
+      this.mesh.localToWorld(hand.position.copy(_grip));
+      _readyTurn.setFromEuler(_readyEuler.set(READY_FORWARD, 0, -side * READY_OUT, 'YXZ'));
+      hand.quaternion.copy(_turnNow).multiply(_readyTurn);
+      hand.position.sub(_off.copy(ready).multiplyScalar(hand.scale.x).applyQuaternion(hand.quaternion));
+      return;
+    }
     let way: HoldWay;
     let base: THREE.Quaternion;
     if (this.action?.id === 'eat') {
@@ -1765,7 +1789,7 @@ export class Character implements EmoteHost {
       base = _eatTurn.setFromRotationMatrix(this.parts[PART.HEAD]).multiply(HELD_TURN.eat);
     } else {
       way = this.handFlat ? 'flat' : 'upright';
-      this.anchorLocal('handR', _grip);
+      this.anchorLocal('handL', _grip);
       if (this.handFlat) {
         _grip.y += HAND_FLAT_UP;
         _grip.z += HAND_FLAT_AHEAD;

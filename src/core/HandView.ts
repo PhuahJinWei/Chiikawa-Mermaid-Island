@@ -3,6 +3,7 @@ import type { Character } from '../characters/Character';
 import type { ActionId } from '../characters/Actions';
 import { showOpen } from '../characters/Props';
 import { ITEMS, type ItemCopy, type ItemId, type ItemModels } from '../life/Items';
+import { stepLength } from './FirstPersonCamera';
 
 /**
  * What you hold, seen out of your own eyes (the user, 2026-10-22: in the right paw, at the bottom right of
@@ -34,9 +35,9 @@ const GRIP_IN = 0.24;
 const GRIP_UP = 0.2;
 /** Seconds to lower it out of sight, or to raise it. */
 const LOWER = 0.22;
-/** A step's sway (metres, at its own size) and a stride (metres walked). */
+/** A step's sway (metres, at its own size). Its strides are your eyes' (two steps: see
+ * FirstPersonCamera.stepLength), longer as you run and sprint, so it sways in step with them. */
 const BOB = 0.012;
-const STRIDE = 1.05;
 /** How far it lags as you turn (metres, at its own size, for a radian a second) and how quickly it catches
  * up. */
 const LAG = 0.02;
@@ -142,6 +143,17 @@ const READ_PAW_OUT = 0.8;
 const READ_PAW_UP = 0.06;
 const READ_PAW_FRONT = 0.012;
 const READ_PAW_TURN: [number, number] = [-0.25, 0.55];
+/** Holding a weapon up ready (かまえる, see ready): seconds to raise it and to bring it back down; how far in from the
+ * corner it comes (a share of the way to the screen's middle) and up (at its own size); how it is turned there
+ * (radians: its top away from you, pointing ahead and up; turned a little; leaning in across the view), held by its
+ * foot (ItemDef.ready), and this much bigger, nearer you; and how far up its staff from the first your other paw holds
+ * it (at its own size), reaching in from your left. */
+const READY_TIME = 0.3;
+const READY_IN = 0.3;
+const READY_UP = 0.02;
+const READY_TURN: [number, number, number] = [-0.42, -0.3, 0.55];
+const READY_GROW = 1.12;
+const READY_PAW_ALONG = 0.24;
 
 const _grip = new THREE.Vector3();
 const _off = new THREE.Vector3();
@@ -179,11 +191,14 @@ function forTheEyes(copy: THREE.Object3D): void {
 export class HandView {
   readonly group = new THREE.Group();
   private readonly paw: ItemCopy;
-  /** Your other paw, up only to hold a book open (see read). */
+  /** Your other paw, up only to hold a book open (see read) or a weapon ready (see ready). */
   private readonly pawL: ItemCopy;
   /** Reading what is in your paw (see read), and how far through bringing it up and opening it, 0 to 1. */
   private reading = false;
   private readT = 0;
+  /** Holding what is in your paw up ready (see ready), and how far up it is, 0 to 1. */
+  private readying = false;
+  private readyT = 0;
   private item: ItemCopy | null = null;
   private itemId: ItemId | null = null;
   /** What should be in it: once what is there is lowered out of sight, this comes up. */
@@ -230,6 +245,12 @@ export class HandView {
    * up to hold it; the spread as big as fits in your view (READ_FILL). */
   read(on: boolean): void {
     this.reading = on;
+  }
+
+  /** Holds what is in your paw up ready, if it is a weapon (on: かまえる), or lowers it back to the corner: in toward the
+   * middle and up, by its foot, pointing ahead and up, your other paw coming up to hold it further up its staff. */
+  ready(on: boolean): void {
+    this.readying = on;
   }
 
   /** Starts a motion (eating, drinking, playing, reaching out to take or put something); null stops it. */
@@ -286,6 +307,8 @@ export class HandView {
     this.readT = THREE.MathUtils.clamp(this.readT + (this.reading && book && !going ? dt : -dt) / READ_TIME, 0, 1);
     if (!this.group.visible) return;
     const def = this.itemId ? ITEMS[this.itemId] : null;
+    this.readyT = THREE.MathUtils.clamp(this.readyT + (this.readying && def?.use === 'ready' && !going ? dt : -dt) / READY_TIME, 0, 1);
+    const readied = smooth(this.readyT);
 
     // The view's half height and half width where it is held, and the size that keeps it as big on the
     // screen whatever the lens.
@@ -293,7 +316,7 @@ export class HandView {
     const wide = high * camera.aspect;
     const size = Math.min(high, wide) * SIZE;
     // Your steps, and your turning.
-    this.stride += (speed * dt) / STRIDE;
+    this.stride += (speed * dt) / (2 * stepLength(me, speed));
     const e = camera.matrixWorld.elements;
     const yaw = Math.atan2(-e[8], -e[10]);
     if (!Number.isNaN(this.lastYaw) && dt > 0) {
@@ -339,6 +362,14 @@ export class HandView {
       _grip.z -= k * 0.15;
       if (this.motionT > REACH) this.motion = null;
     }
+    // Held up ready (see ready): in from the corner and up, turned to point ahead.
+    if (readied > 0) {
+      _grip.x -= readied * gripX * READY_IN;
+      _grip.y += readied * READY_UP * size;
+      _e.x += (READY_TURN[0] - _e.x) * readied;
+      _e.y += (READY_TURN[1] - _e.y) * readied;
+      _e.z += (READY_TURN[2] - _e.z) * readied;
+    }
     // The gesture: up from the corner, in toward the middle, swung from its foot (what it holds with it).
     const lever = PAW_LENGTH * size;
     _grip.x -= g.across * gripX * 0.6 + Math.sin(g.roll) * lever;
@@ -369,7 +400,7 @@ export class HandView {
     }
     // (In the corner as big as it is shown there, ItemDef.hand; shut, it comes up a little smaller than it is read,
     // growing as it opens.)
-    const held = size * this.left * (def?.hand ?? 1);
+    const held = size * this.left * (def?.hand ?? 1) * (1 + (READY_GROW - 1) * readied);
     const scale = THREE.MathUtils.lerp(held, fit * THREE.MathUtils.lerp(READ_SHUT, 1, opened), rise);
     if (item && book && rise > 0) {
       _mid.multiplyScalar(scale).applyQuaternion(_held);
@@ -377,6 +408,9 @@ export class HandView {
       _v.copy(_grip).add(_mid).lerp(_target.set(0, -READ_LOW * high, -AHEAD), rise);
       _at.copy(_v).sub(_mid);
     } else if (item) showOpen(item, null);
+    // (Held up ready, by its foot: its origin that far along it from your paw.)
+    const foot = item?.userData.ready;
+    if (foot && readied > 0) _at.sub(_v.copy(foot).multiplyScalar(scale * readied).applyQuaternion(_held));
     if (item) {
       item.position.copy(_at).applyMatrix4(camera.matrixWorld);
       item.quaternion.copy(_q).multiply(_held);
@@ -398,7 +432,15 @@ export class HandView {
     // Holding a book open: your paws at its near corners, the right coming up with it, the left up from below as it
     // opens.
     const pawL = this.pawL;
-    pawL.visible = !!book && opened > 0;
+    pawL.visible = (!!book && opened > 0) || (!!foot && readied > 0.02);
+    if (foot && readied > 0.02) {
+      // Your other paw on its staff further up from the first, reaching in from your left, coming up from below as it
+      // is raised.
+      pawL.position.copy(paw.position).addScaledVector(_v.set(0, 1, 0).applyQuaternion(_held), READY_PAW_ALONG * scale);
+      pawL.position.y -= (1 - readied) * high;
+      pawL.quaternion.setFromEuler(_e.set(-0.35, 0, -0.42));
+      pawL.scale.setScalar(size);
+    }
     if (book && rise > 0) {
       this.readingPaw(book, 1, scale, _v);
       paw.position.lerp(_v, rise);

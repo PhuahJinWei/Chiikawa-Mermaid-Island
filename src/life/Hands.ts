@@ -175,6 +175,24 @@ export class Hands {
     return true;
   }
 
+  /** Slot `from`'s things into slot `to` (you dragging them there in your pouch: the user, 2026-10-23): onto its
+   * stack if it is of their kind, as many as it has room for; else the two change places. */
+  move(from: number, to: number): void {
+    if (from === to || from < 0 || to < 0 || from >= POUCH_SIZE || to >= POUCH_SIZE) return;
+    const a = this.pouch[from];
+    const b = this.pouch[to];
+    if (!a) return;
+    if (b && b[0].item === a[0].item) {
+      const n = Math.min(a.length, STACK - b.length);
+      b.push(...a.splice(a.length - n, n));
+      if (a.length === 0) this.pouch[from] = null;
+    } else {
+      this.pouch[from] = b;
+      this.pouch[to] = a;
+    }
+    this.changed = true;
+  }
+
   /** What is in their paw into their pouch (half eaten, gone); false if the pouch has no room for it. */
   stow(): boolean {
     if (!this.hand) return true;

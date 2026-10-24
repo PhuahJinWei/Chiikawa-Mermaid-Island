@@ -40,7 +40,9 @@ in Windows settings. Work laptops may block this entirely; the published
 GitHub Pages site avoids the problem.
 
 To install it like an app, open the page and use **Add to Home Screen**
-(Safari share menu on iPhone, Chrome menu on Android).
+(Safari share menu on iPhone, Chrome menu on Android). The installed app
+turns with the phone. An app installed before 2026-10-23 was held upright;
+Chrome updates it by itself within a day or so, or reinstall it.
 
 ## Controls
 
@@ -53,12 +55,22 @@ You see the island out of your own eyes, as a nameless islander.
 | Pinch on the right half | Mouse wheel | Narrow the view toward the film's lens, and back |
 | Jump button | Space | Jump; hold it to jump higher (whoever is near may hop or wave back) |
 | Action button (ひろう, かりる, おく, もどす, あげる, はなす, すわる, ねる, たつ, みせばん, わたす, たべきる, のみきる) | E or Enter | What you look at: pick it up (borrow it, if it is someone's), put down what you hold, put a torch's brand back on its pole, give it, talk, sit, sleep through the night in your own bed, get up; behind a stall's counter no one keeps today, keep it, and hand its goods to whoever lines up. What you have bitten into cannot be put down or given: たべきる / のみきる finishes it |
-| Use button (たべる, のむ, ひく, よむ) | F | Eat, drink, play or read what you hold. A book comes up before your eyes and opens; press again (とじる) or walk off to shut it |
-| Pouch (ふくろ) button, then a slot | Tab, or 1 to 6 | Your pouch of six slots, each a stack of one kind (up to 99, its count on its corner): what is in your paw goes into the pouch (onto its own stack if there is one) and one thing of the slot comes into your paw. Something you have bitten into goes into no pouch: put away, it is gone, eaten up |
+| Text box (what is said to you), or the action button (つぎ) | E or Enter | The rest of the line at once, or the next line; hold to skip through them. A line goes on its own a moment after it is all out |
+| A choice in the text box | 1 to 9, 0 | Answer what you are asked. Talking with anyone, だれかさがしてる asks where one of the cast is: they tell you, and a marker points you to them a while |
+| Use button (たべる, のむ, ひく, よむ, かまえる) | F | Eat, drink, play or read what you hold. A book comes up before your eyes and opens; press again (とじる) or walk off to shut it. A さすまた is held up ready before you in both paws, pointing ahead; you may walk so, and press again (おろす) to lower it |
+| Held sideways, or on a computer: the bar along the bottom | 1 to 6 | Your paw (its paw mark on its corner) and your pouch of six slots, each a stack of one kind (up to 99, its count on its corner). Tap a slot: what is in your paw goes into the pouch (onto its own stack if there is one) and one thing of the slot comes into your paw, its name over the bar a moment. Tap your paw's slot to put what you hold away. Drag a slot onto another to move its things there or swap the two; onto your paw, one comes into it. Hold a slot (or right-click it) to open the bag with it picked. Something you have bitten into goes into no pouch: put away, it is gone, eaten up |
+| Bag (ふくろ) button | Tab; Esc closes it | The bag, over the island: your paw's slot big and the six beside it. Tap a slot to see under them what it is: its name and how many, what it is for, a line about it, and whether it is borrowed, goes back to its place each morning or is bitten into. もつ (or tapping the picked slot again) takes one into your paw; for your paw's slot, しまう puts it away. Dragging works as on the bar. On a phone held upright the bag is the pouch's only place |
 | きもち button (top right), then one of its nine | R, then 1 to 9 | Do something yourself: wave, bow, cheer, hop, dance, chat, look about, start, cry. Whoever is near may answer it |
 | Camera (カメラ) button | | Take a photo |
-| Notebook (ノート) button | | Where everyone is and what they are doing (みんな), your photos (しゃしん), the sound on or off |
+| Your newest photo, under the camera button | | Your photos (しゃしん): open one to save, share or throw it away |
+| Speaker button (top right, by きもち) | | The sound on or off (kept for your next visit) |
 | Test (テスト) button | Test (テスト) button | Test panel: actions, expressions, lineup, whose eyes, the follow camera from behind (三人称カメラ) |
+
+The buttons wear the look of the user's other Chiikawa game, Chiikawa-Hidamari: cream faces in a
+brown ring with a white rim, the pink accent on what is on offer, paper cards for the bag, the album
+and the text box, and the round Zen Maru Gothic type (`src/styles.css`). The type comes from Google
+Fonts in slices of the letters used; the service worker keeps them, so after one visit online it shows
+offline too (until then, the device's own type).
 
 What the action button would act on is whatever is nearest the middle of your view within reach,
 and it stays so until you clearly look at something else. A small cream ▽ floats over it, bobbing,
@@ -79,11 +91,14 @@ about comes from `public/data/things.json`:
 
 - `kept`: things with a place of their own (the stage's ukulele, the torch by your door, the two torches
   lying in the forbidden cave's mouth, the one book, 伝説の生物図鑑, on the floor before Hitoha and Futaba's
-  bookshelf), back there each morning
+  bookshelf, the spring weapon with a face beside it, and Chiikawa's pink さすまた and Hachiware's blue one on the
+  trio's guest house floor under the hammock), back there each morning
   from wherever they are, your pouch and the islanders' too (the island tidies up overnight; what is
   yours to keep is what has no place of its own): an `id` of its own, the `item`, where (`x`, `z`),
   `y` if it lies on something above the ground's top (a deck, a porch) or `height` for just how high
-  it lies (a shelf, the cave's floor), and its turn (`yaw`, radians).
+  it lies (a shelf, the cave's floor), its turn (`yaw`, radians), and `owner` if it is someone's (the
+  さすまた), so anyone else borrows it (かりる) and gives it back. A place added here shows its thing as
+  soon as a saved island loads.
 - `stands`: props that hold a thing each at their flame: the village's torches, each its brand
   (`prop`, `item`). Take one off its stake and the stake is dark until it is back (もどす, or the morning).
 - `daily`: what each morning lays about an area, gone the next morning if no one took it up: how many
@@ -110,8 +125,10 @@ new thing needs nothing for this: its shape is read from its model.
 Nothing else needs changing: the islanders see whatever lies about each time they choose what to do,
 and choose by what a thing is for (eaten, drunk, played or kept), never by its name. A new kind of
 thing is built in `art/blender/build_items.py` (its icon comes with it) and named in
-`src/locales/ja.json` as `item.<id>`. With no entry in `src/life/Items.ts` it is a keepsake that lies
-on its side; give it one there to make it something eaten, drunk or played, or held flat.
+`src/locales/ja.json` as `item.<id>`, with a line about it for its card in the pouch as `about.<id>`. With no entry in `src/life/Items.ts` it is a keepsake that lies
+on its side; give it one there to make it something eaten, drunk or played, or held flat. Its icon
+in the pouch is a render of its model until you draw one: `art/icons/icon_thing_<id>.png`, copied
+in by `art/blender/build_icons.py` (see [art/icons/README.md](art/icons/README.md)).
 
 ## Rebuild the models
 
@@ -158,6 +175,10 @@ Every model comes out of Blender, driven by a Python script:
 - `art/blender/build_books.py` draws the book's two templates into
   `art/books/_guides/`, its cover and its spread, and copies your paintings
   of them into the game. See [art/books/README.md](art/books/README.md).
+- `art/blender/build_icons.py` copies the cast's faces you drew in
+  `art/icons/` into `public/ui/faces/`, for the text box, the choices and
+  the marker, and the things' icons you drew there into `public/ui/things/`,
+  for the pouch. See [art/icons/README.md](art/icons/README.md).
 
 Where everything stands is in `public/data/layout.json`: each prop's kind,
 place, turn and painted words (a key into `ja.json`), and the island's named
@@ -176,6 +197,13 @@ files.
 The book's cover and its pages are painted by hand too: a template for
 each is in `art/books/_guides/`, and your paintings go in `art/books/`. See
 [art/books/README.md](art/books/README.md).
+
+The faces the screen shows (by the speaker's name in the text box, as the
+choices of whom to ask after, and on the marker) are drawn by hand too: one
+square transparent PNG for each of the cast in `art/icons/`. Anyone without
+one shows their name. So are the things' icons in the pouch, as
+`art/icons/icon_thing_<id>.png`; a thing without one shows a render of its
+model. See [art/icons/README.md](art/icons/README.md).
 
 The signboards can be hand-lettered too: each stall's header boards (one
 painting shows across its front and down both its sides), the arch's board
@@ -214,6 +242,10 @@ Run a script from the project folder:
 
 ```bash
 "/c/Program Files/Blender Foundation/Blender 5.2/blender.exe" --background --factory-startup --python art/blender/build_books.py
+```
+
+```bash
+"/c/Program Files/Blender Foundation/Blender 5.2/blender.exe" --background --factory-startup --disable-autoexec --python art/blender/build_icons.py
 ```
 
 `--disable-autoexec` matters for the import: the downloaded .blend files
