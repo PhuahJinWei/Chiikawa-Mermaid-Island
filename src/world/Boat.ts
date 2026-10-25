@@ -44,6 +44,39 @@ const SPEED = 3;
 const PULL = 1.6;
 const DRAG = 1.1;
 const TURN = 1.1;
+/**
+ * The ways it tries each frame it is rowed, the first that leaves it afloat (see Boat.move): how much of the
+ * turn it was steered (1 all, 0 none), how far on (as a share of its way this frame; below nought, backing
+ * that share of an edging step), how far across (in edging steps, toward the side the stick wants first, then
+ * the other), and how much of its way it keeps.
+ */
+const MOVES: readonly (readonly [number, number, number, number])[] = [
+  [1, 1, 0, 1],
+  [0.5, 1, 0, 0.9],
+  [0, 1, 0, 0.8],
+  [1, 0, 0, 0.6],
+  [1, 0.6, 1, 0.7],
+  [0, 0.6, 1, 0.7],
+  [1, 0.6, -1, 0.7],
+  [0, 0.6, -1, 0.7],
+  [0, 0, 1, 0.5],
+  [0, 0, -1, 0.5],
+  [1, -1, 0, 0.5],
+  [-1, -1, 0, 0.5],
+  [0, -1, 0, 0.5],
+];
+/** Edging along rock: how fast, as a share of its top speed at the stick's full push. Held among rock: rowed for
+ * WEDGED seconds and no further than WEDGE_GO from where it was then, turned no more than WEDGE_TURN, it pushes off
+ * with an oar; how far round it it looks for open water to push off to, and how fast it goes there (metres, metres
+ * a second). */
+const EDGE = 0.25;
+const WEDGED = 0.6;
+const WEDGE_GO = 0.3;
+const WEDGE_TURN = 0.3;
+const PUSH_REACH = 2;
+const PUSH_OFF = 0.8;
+/** ぬけだす: how far round it it looks for open water (metres). */
+const FREE_REACH = 15;
 /** Its draft: the water under its keel must be at least this deep. */
 const DRAFT = 0.3;
 /** From its middle to its bow and its stern, and from its middle to its side. */
@@ -89,6 +122,12 @@ export class Boat {
   /** Walkers keep out of it while it lies on the beach. */
   private block: { walk: boolean } | null = null;
   private speed = 0;
+  /** How long it has been rowed since it was last looked at for getting nowhere (see row), how much of that with
+   * rock in its way, and where and how it lay then; and where it is being pushed off to with an oar, if it is. */
+  private wedged = 0;
+  private held = 0;
+  private readonly anchor = { x: 0, z: 0, heading: 0 };
+  private pushing: { x: number; z: number; heading: number } | null = null;
   private stroke = 0;
   private readonly hull: THREE.Mesh;
   private readonly oars: THREE.Group[] = [];
@@ -284,6 +323,8 @@ export class Boat {
     this.heading = dock.heading;
     this.pitch = this.roll = 0;
     this.speed = 0;
+    this.pushing = null;
+    this.wedged = 0;
     this.place();
   }
 
@@ -361,9 +402,19 @@ export class Boat {
     return out.set(0, TORCH_FLAME_UP, 0).applyMatrix4(this.torch.matrixWorld);
   }
 
-  /** Whether someone on foot at p is near enough to get in. */
+  /** Whether someone on foot at p is near enough to get in: within BOARD_REACH of its middle, or as near its side
+   * or its ends as anywhere it lets its rower out (see shore). Measured from its middle alone, the reach to get
+   * back in had been shorter than the way out: landed at a ledge, you could stand where it would not take you in
+   * again (the user, 2026-10-25: "unable to sometime ride the boat"). */
   canBoard(p: THREE.Vector3): boolean {
-    return !this.manned && Math.hypot(p.x - this.position.x, p.z - this.position.z) < BOARD_REACH;
+    if (this.manned) return false;
+    const dx = p.x - this.position.x;
+    const dz = p.z - this.position.z;
+    if (Math.hypot(dx, dz) < BOARD_REACH) return true;
+    const f = this.forward(_f);
+    const along = Math.max(0, Math.abs(dx * f.x + dz * f.z) - HALF_LENGTH);
+    const across = Math.max(0, Math.abs(dx * f.z - dz * f.x) - HALF_BEAM);
+    return Math.hypot(along, across) <= SHORE_REACH + 0.3;
   }
 
   /** Someone gets in: the torch goes up at the bow; drawn up on the beach, it is pushed off. */
@@ -429,20 +480,24 @@ export class Boat {
   /**
    * Rows for dt seconds toward `want` (the way the joystick points, flat, its length 0 to 1): turning
    * gently toward it and pulling ahead, the harder the further the stick is pushed; it stops short of
-   * rock and shallows, sliding along them. It turns only where it has room to swing its bow and stern;
-   * where it has not, it eases ahead to find room, and steered behind it, it backs water as it turns.
-   * The oars swing as it moves.
+   * rock and shallows. It turns only where it has room to swing its bow and stern; where it has not, it eases
+   * ahead to find room, and steered behind it, it backs water as it turns. Stopped short, it works its way as a
+   * rower would (see MOVES): on and round with less of the turn, edging along the rock to either side, backing
+   * as it turns; pressed against rock with none of those open, it pushes off with an oar toward the most open
+   * water (see pushOff). (It had tried only straight on, or on along x or z alone, and wedged among the
+   * skylight's rocks it could be held for good: the user, 2026-10-25.) The oars swing as it moves.
    */
   row(dt: number, want: THREE.Vector3): void {
     // Not while it is pushed off the beach.
     if (this.sliding || this.ashore) return;
     const push = Math.min(1, want.length());
+    let step = 0;
+    let goal = this.heading;
     if (push > 0.05) {
-      const goal = Math.atan2(want.x, want.z);
+      goal = Math.atan2(want.x, want.z);
       const turn = Math.atan2(Math.sin(goal - this.heading), Math.cos(goal - this.heading));
-      const step = Math.max(-TURN * dt, Math.min(TURN * dt, turn));
-      const turned = this.afloat(this.position.x, this.position.z, this.heading + step) || !this.afloat(this.position.x, this.position.z, this.heading);
-      if (turned) this.heading += step;
+      step = Math.max(-TURN * dt, Math.min(TURN * dt, turn));
+      const turned = this.afloat(this.position.x, this.position.z, this.heading + step);
       // Pulling ahead the more, the more the bow already points the way wanted; easing ahead where it
       // cannot turn; backing water, slowly, when the way wanted is behind it.
       const c = Math.cos(turn);
@@ -451,24 +506,151 @@ export class Boat {
     } else {
       this.speed -= this.speed * Math.min(1, DRAG * dt);
     }
-    const f = this.forward(_f);
-    const step = this.speed * dt;
-    const nx = this.position.x + f.x * step;
-    const nz = this.position.z + f.z * step;
-    if (this.afloat(nx, nz, this.heading)) {
-      this.position.x = nx;
-      this.position.z = nz;
-    } else if (this.afloat(nx, this.position.z, this.heading)) {
-      this.position.x = nx;
-      this.speed *= 0.7;
-    } else if (this.afloat(this.position.x, nz, this.heading)) {
-      this.position.z = nz;
-      this.speed *= 0.7;
+    if (this.pushing) {
+      this.glide(dt);
     } else {
-      this.speed *= 0.3;
+      const held = this.move(dt, step, push, goal);
+      // Rock in its way most of a while of rowing, and got nowhere for it (held against it, or working on and back
+      // in a narrow place, by where it was when the while began): pushed off.
+      const a = this.anchor;
+      if (push <= 0.05) this.wedged = 0;
+      if (this.wedged === 0) {
+        a.x = this.position.x;
+        a.z = this.position.z;
+        a.heading = this.heading;
+        this.held = 0;
+      }
+      if (held) this.held += dt;
+      if (push > 0.05 && (this.wedged += dt) > WEDGED) {
+        const turned = Math.abs(Math.atan2(Math.sin(this.heading - a.heading), Math.cos(this.heading - a.heading)));
+        const nowhere = Math.hypot(this.position.x - a.x, this.position.z - a.z) < WEDGE_GO && turned < WEDGE_TURN;
+        if (nowhere && this.held > WEDGED / 2) this.pushing = this.pushOff(goal);
+        this.wedged = 0;
+      }
     }
     this.stroke += Math.abs(this.speed) * dt * 2.4 + (push > 0.05 ? dt * 1.5 : 0);
     this.place();
+  }
+
+  /**
+   * One frame's way, the first of MOVES that leaves it afloat: its turn (a share of `step`) and how far on (its
+   * way this frame as a share of its speed, at least a little where it is rowed), and across (toward the side the
+   * stick wants first). Whether rock stood in the way it was rowed (it went another way, or none).
+   */
+  private move(dt: number, step: number, push: number, goal: number): boolean {
+    const f = this.forward(_f);
+    const ahead = this.speed * dt;
+    // Edging along: a little while it is rowed, toward the side the way wanted lies on first (a way turned on
+    // from its heading lies to its left, and `across` counts to its right).
+    const edge = push > 0.05 ? Math.max(Math.abs(ahead), EDGE * SPEED * push * dt) : 0;
+    const side = -Math.sign(Math.sin(goal - this.heading)) || 1;
+    let first = true;
+    for (const [turnShare, aheadShare, across, keep] of MOVES) {
+      const h = this.heading + step * turnShare;
+      const hx = Math.sin(h);
+      const hz = Math.cos(h);
+      const on = aheadShare >= 0 ? ahead * aheadShare : -edge * -aheadShare;
+      const off = across * side * edge;
+      // Across: to its right (its bow along +z, its right toward -x, as in floats).
+      const x = this.position.x + hx * on - hz * off;
+      const z = this.position.z + hz * on + hx * off;
+      if (Math.abs(on) + Math.abs(off) + Math.abs(h - this.heading) < 1e-6) continue;
+      if (!this.afloat(x, z, h)) {
+        first = false;
+        continue;
+      }
+      this.position.x = x;
+      this.position.z = z;
+      this.heading = h;
+      this.speed *= keep;
+      return !first;
+    }
+    // Along the world's x or z alone, as it always slid along a straight shore.
+    for (const [x, z] of [[this.position.x + f.x * ahead, this.position.z], [this.position.x, this.position.z + f.z * ahead]]) {
+      if (Math.abs(ahead) > 1e-6 && this.afloat(x, z, this.heading)) {
+        this.position.x = x;
+        this.position.z = z;
+        this.speed *= 0.7;
+        return true;
+      }
+    }
+    this.speed *= 0.3;
+    return true;
+  }
+
+  /**
+   * Held among rock: where to push off to with an oar, the nearest place round it (out to PUSH_REACH) where it
+   * floats with room to turn a little either way, turned as it lies or a little more, the way wanted (`goal`)
+   * first among those as near; null if there is none.
+   */
+  private pushOff(goal: number): { x: number; z: number; heading: number } | null {
+    let best: { x: number; z: number; heading: number } | null = null;
+    let bestScore = Infinity;
+    for (let d = 0.25; d <= PUSH_REACH && !best; d += 0.25) {
+      for (let a = 0; a < 16; a++) {
+        const ang = (a / 16) * 2 * Math.PI;
+        const x = this.position.x + Math.sin(ang) * d;
+        const z = this.position.z + Math.cos(ang) * d;
+        for (const turn of [0, 0.35, -0.35, 0.7, -0.7]) {
+          const h = this.heading + turn;
+          if (!this.afloat(x, z, h) || !this.afloat(x, z, h + 0.3) || !this.afloat(x, z, h - 0.3)) continue;
+          const score = Math.abs(turn) * 0.5 - Math.cos(ang - goal);
+          if (score < bestScore) {
+            bestScore = score;
+            best = { x, z, heading: h };
+          }
+        }
+      }
+    }
+    return best;
+  }
+
+  /** Pushed off with an oar (see pushOff): on to where it was pushed, slowly, turning to lie as it will there. */
+  private glide(dt: number): void {
+    const to = this.pushing;
+    if (!to) return;
+    const dx = to.x - this.position.x;
+    const dz = to.z - this.position.z;
+    const d = Math.hypot(dx, dz);
+    const go = Math.min(d, PUSH_OFF * dt);
+    if (d > 1e-6) {
+      this.position.x += (dx / d) * go;
+      this.position.z += (dz / d) * go;
+    }
+    const turn = Math.atan2(Math.sin(to.heading - this.heading), Math.cos(to.heading - this.heading));
+    this.heading += Math.max(-TURN * dt, Math.min(TURN * dt, turn));
+    this.speed = 0;
+    if (d - go < 1e-3 && Math.abs(turn) < TURN * dt) {
+      this.heading = to.heading;
+      this.pushing = null;
+    }
+  }
+
+  /**
+   * ぬけだす in the boat (see Game.unstuck): set afloat at once at the nearest open water within FREE_REACH, where it
+   * floats whichever way it is turned, as it lies; false if there is none.
+   */
+  free(): boolean {
+    if (this.sliding || this.ashore) return false;
+    const { x: x0, z: z0 } = this.position;
+    for (let r = 0; r <= FREE_REACH; r += 0.25) {
+      const ways = Math.max(1, Math.round((2 * Math.PI * r) / 0.25));
+      for (let a = 0; a < ways; a++) {
+        const x = x0 + r * Math.sin((a / ways) * 2 * Math.PI);
+        const z = z0 + r * Math.cos((a / ways) * 2 * Math.PI);
+        let open = true;
+        for (let k = 0; k < 8 && open; k++) open = this.afloat(x, z, (k / 8) * 2 * Math.PI);
+        if (!open) continue;
+        this.position.x = x;
+        this.position.z = z;
+        this.speed = 0;
+        this.wedged = 0;
+        this.pushing = null;
+        this.place();
+        return true;
+      }
+    }
+    return false;
   }
 
   /** Whether it can float with its middle at (x, z), its bow along `heading`: water deep enough under
@@ -624,14 +806,33 @@ const _f = new THREE.Vector3();
 const _tip = new THREE.Vector3();
 const _circles: number[] = [];
 
-/** Whether the boat floats with its middle at (x, z), its bow along `heading`: water deep enough under
- * its bow, its middle and its stern, and either side, with room over it for its rower. */
+/**
+ * Where under its hull the water is looked at (along it, across it, from its middle): all over it, its sides
+ * narrowing to its bow and stern, never further apart than the cave's walk grid's cells (0.25 m). Looked at only
+ * along its middle, at its ends and amidships either side, a rock smaller than the gaps between them (the
+ * skylight's, 0.75 m across) slipped in under it, and then every way it could go put one on the rock: it was held
+ * there over the rock for good (the user, 2026-10-25).
+ */
+const HULL: readonly (readonly [number, number])[] = (() => {
+  const out: [number, number][] = [];
+  const along = Math.ceil((2 * HALF_LENGTH) / 0.24);
+  for (let i = 0; i <= along; i++) {
+    const a = -HALF_LENGTH + (2 * HALF_LENGTH * i) / along;
+    const half = HALF_BEAM * Math.sqrt(Math.max(0, 1 - (a / HALF_LENGTH) ** 4));
+    const across = Math.max(1, Math.ceil((2 * half) / 0.24));
+    for (let j = 0; j <= across; j++) out.push([a, -half + (2 * half * j) / across]);
+  }
+  return out;
+})();
+
+/** Whether the boat floats with its middle at (x, z), its bow along `heading`: water deep enough all under
+ * its hull (see HULL), with room over it for its rower. */
 function floats(cave: Cave, x: number, z: number, heading: number): boolean {
   const g = cave.grid;
   const water = cave.info.water;
   const fx = Math.sin(heading);
   const fz = Math.cos(heading);
-  for (const [along, side] of [[HALF_LENGTH, 0], [0, 0], [-HALF_LENGTH, 0], [0, HALF_BEAM], [0, -HALF_BEAM], [0.6, 0], [-0.6, 0]]) {
+  for (const [along, side] of HULL) {
     const px = x + fx * along + fz * side;
     const pz = z + fz * along - fx * side;
     const k = g.at(px, pz);

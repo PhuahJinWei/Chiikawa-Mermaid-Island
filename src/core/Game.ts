@@ -9,6 +9,7 @@ import {
   climbOut,
   eyeLimit,
   footing,
+  freeSpot,
   groundHeight,
   splashDown,
   standAt,
@@ -414,6 +415,7 @@ export class Game {
     );
     this.hud.setSound(this.sound.enabled);
     this.hud.onSound = (on) => this.sound.setOn(on);
+    this.hud.onUnstuck = () => this.unstuck();
     this.cameraView = new CameraView(ui);
     forgetOldPhotos();
     this.cameraView.onShutter = (frame) => this.takePhoto(frame);
@@ -910,6 +912,31 @@ export class Game {
     if (!this.boat) return;
     const seat = this.boat.seat(_seat);
     this.me().ride = { x: seat.x, y: seat.y, z: seat.z, yaw: this.boat.heading };
+  }
+
+  /**
+   * ぬけだす, in the settings' panel (the user, 2026-10-25: a button for when you are stuck): rowing, the boat set
+   * afloat at once in the nearest open water; on foot (up off a seat first), you at the nearest open ground with room
+   * to step every way, on the island or in the cave (see freeSpot). A word says what came of it. Not asleep, nor
+   * while a shot is staged.
+   */
+  unstuck(): void {
+    if (this.staged || this.lineup || this.freeCamOn || this.play?.sleeping) return;
+    const me = this.me();
+    if (this.rowing && this.boat) {
+      const freed = this.boat.free();
+      if (freed) this.seatInBoat();
+      this.hud.toast(t(freed ? 'toast.unstuck' : 'toast.unstuckNone'));
+      return;
+    }
+    if (me.ride) {
+      if (!this.play?.seat) return;
+      this.play.standUp(me);
+    }
+    _from.set(me.position.x, me.feetY, me.position.z);
+    const found = freeSpot(_from, _landing);
+    if (found === 'moved') me.teleport(_landing.x, _landing.z, me.facing, _landing.y);
+    this.hud.toast(t(found === 'moved' ? 'toast.unstuck' : found === 'here' ? 'toast.notStuck' : 'toast.unstuckNone'));
   }
 
   // ------------------------------------------------------------------ test panel actions

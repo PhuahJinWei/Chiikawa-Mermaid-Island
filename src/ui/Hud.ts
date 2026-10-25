@@ -177,6 +177,13 @@ const SPEAKER =
   '<path class="speaker-off" d="M15.5 9.5l5 5M20.5 9.5l-5 5"/>' +
   '</svg>';
 
+/** The button to get free when you are stuck (the user, 2026-10-25): an arrow up out of a pit. */
+const UNSTUCK =
+  '<svg viewBox="0 0 24 24" aria-hidden="true">' +
+  '<path d="M4.5 13v5.5h15V13"/>' +
+  '<path d="M12 15.5V5M8.2 8.8 12 5l3.8 3.8"/>' +
+  '</svg>';
+
 /** The full screen's button (the user, 2026-10-24): four corners pointing out, or, full screen, pointing in. */
 const FULL_SCREEN =
   '<svg viewBox="0 0 24 24" aria-hidden="true">' +
@@ -286,6 +293,8 @@ export class Hud implements JoystickView {
   onMap: () => void = () => {};
   /** The sound turned on or off with its button. */
   onSound: (on: boolean) => void = () => {};
+  /** ぬけだす in the settings' panel: you are stuck somewhere. */
+  onUnstuck: () => void = () => {};
   /** Something to do picked from the きもち panel. */
   onEmote: (id: ActionId) => void = () => {};
   /** A time picked under the hour's chip, to move on to (hours past midnight). */
@@ -310,6 +319,8 @@ export class Hud implements JoystickView {
   private sound = true;
   /** The full screen's button, by the sound's; only where the browser lets a page fill the screen. */
   private readonly fullButton = setChip('hud-full', FULL_SCREEN);
+  /** ぬけだす: out of wherever you are stuck (see Game.unstuck). */
+  private readonly unstuckButton = setChip('hud-unstuck', UNSTUCK);
   private readonly emote = disc('emote-btn', svg('emote'));
   private readonly emotes = el('div', 'emotes');
   private readonly emoteChips: HTMLButtonElement[] = [];
@@ -409,7 +420,7 @@ export class Hud implements JoystickView {
     emoteBox.append(this.emote.button, this.emotes);
     const ctl = el('div', 'hud-ctl');
     const settingsBox = el('div', 'emote-box');
-    this.settings.append(this.soundButton.button, this.fullButton.button);
+    this.settings.append(this.soundButton.button, this.fullButton.button, this.unstuckButton.button);
     this.settings.hidden = true;
     settingsBox.append(this.settingsButton.button, this.settings);
     ctl.append(emoteBox, settingsBox, this.test.button);
@@ -425,6 +436,13 @@ export class Hud implements JoystickView {
       [this.mapButton.button, () => this.onMap()],
       [this.soundButton.button, () => this.onSound(this.setSound(!this.sound))],
       [this.fullButton.button, () => fillScreen(!filling())],
+      [
+        this.unstuckButton.button,
+        () => {
+          this.closeSettings();
+          this.onUnstuck();
+        },
+      ],
       [this.test.button, () => this.onTest()],
       [this.bag.button, () => this.togglePouch()],
       [this.emote.button, () => this.toggleEmotes()],
@@ -580,6 +598,7 @@ export class Hud implements JoystickView {
     this.bag.cap.textContent = t('hud.pouch');
     this.emote.cap.textContent = t('hud.emote');
     this.settingsButton.cap.textContent = t('hud.settings');
+    this.unstuckButton.word.textContent = t('hud.unstuck');
     this.showFull();
     (this.jumpButton.querySelector('.sr-only') as HTMLElement).textContent = t('hud.jump');
     this.jumpButton.setAttribute('aria-label', t('hud.jump'));

@@ -1080,6 +1080,9 @@
   "toast.picked": "{0}をひろった",
   "toast.tookOut": "{0}をとりだした",
   "toast.full": "ふくろがいっぱい",
+  "toast.unstuck": "ぬけだした",
+  "toast.notStuck": "ここからうごけるよ",
+  "toast.unstuckNone": "ちかくにぬけだせるところがない",
   "toast.served": "{0}をうけとった",
   "toast.given": "{0}をもらった",
   "toast.morning": "あさになった",
@@ -1204,6 +1207,7 @@
   "hud.soundOff": "おと：オフ",
   "hud.sound": "おと",
   "hud.settings": "せってい",
+  "hud.unstuck": "ぬけだす",
   "hud.full": "ぜんがめん",
   "hud.fullOn": "ぜんがめんにする",
   "hud.fullOff": "ぜんがめんをやめる"

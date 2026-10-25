@@ -990,6 +990,95 @@ export function standAt(x: number, z: number, feet: number, pad = 0): number {
   return underLowDeck(x, z, at) ? NaN : at;
 }
 
+/** ぬけだす (see freeSpot): how far round you it looks, in cells how big, how far a place must let you walk on for
+ * it to count as open (not a pocket you jumped into), and how far round a place you must be able to step. */
+const FREE_REACH = 9;
+const FREE_CELL = 0.5;
+const FREE_OPEN = 4;
+const FREE_ROOM = 0.35;
+
+/**
+ * For ぬけだす (the user, 2026-10-25: a button for when you are stuck): the nearest place to p (feet at p.y) where
+ * someone can stand with room to step every way, among ground that lets them walk on at least FREE_OPEN metres
+ * (or out past FREE_REACH), on the island or in the forbidden cave; into `out` (y its height). Null when there is
+ * none near, `here` when p is such a place already (you are not stuck there).
+ */
+export function freeSpot(p: THREE.Vector3, out: THREE.Vector3): 'moved' | 'here' | null {
+  if (!terrain) return null;
+  const n = Math.round((2 * FREE_REACH) / FREE_CELL) + 1;
+  const half = (n - 1) / 2;
+  const x0 = p.x - half * FREE_CELL;
+  const z0 = p.z - half * FREE_CELL;
+  // Each cell's height to stand at (the ground, or a deck up to a step over your feet), NaN where no one can.
+  const height = new Float32Array(n * n);
+  for (let j = 0; j < n; j++) {
+    for (let i = 0; i < n; i++) {
+      const x = x0 + i * FREE_CELL;
+      const z = z0 + j * FREE_CELL;
+      const y = groundHeight(x, z, p.y);
+      height[j * n + i] = Number.isFinite(y) && canStand(x, z, y) ? y : NaN;
+    }
+  }
+  // The cells joined to each other by a step's height, each group's reach from its first cell.
+  const group = new Int32Array(n * n).fill(-1);
+  const open: boolean[] = [];
+  const queue: number[] = [];
+  for (let k = 0; k < n * n; k++) {
+    if (group[k] >= 0 || Number.isNaN(height[k])) continue;
+    const id = open.length;
+    let far = false;
+    group[k] = id;
+    queue.length = 0;
+    queue.push(k);
+    const si = k % n;
+    const sj = (k - si) / n;
+    for (let q = 0; q < queue.length; q++) {
+      const c = queue[q];
+      const ci = c % n;
+      const cj = (c - ci) / n;
+      if (ci === 0 || cj === 0 || ci === n - 1 || cj === n - 1) far = true;
+      if (Math.hypot(ci - si, cj - sj) * FREE_CELL >= FREE_OPEN) far = true;
+      for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const ni = ci + di;
+        const nj = cj + dj;
+        if (ni < 0 || nj < 0 || ni >= n || nj >= n) continue;
+        const m = nj * n + ni;
+        if (group[m] >= 0 || Number.isNaN(height[m]) || Math.abs(height[m] - height[c]) > STEP_UP) continue;
+        group[m] = id;
+        queue.push(m);
+      }
+    }
+    open.push(far);
+  }
+  // The nearest cell of open ground with room round it; p itself first, if it is one.
+  const roomy = (x: number, z: number, y: number) =>
+    canStand(x, z, y) &&
+    [[FREE_ROOM, 0], [-FREE_ROOM, 0], [0, FREE_ROOM], [0, -FREE_ROOM]].every(([dx, dz]) => {
+      const h = groundHeight(x + dx, z + dz, y);
+      return Math.abs(h - y) <= STEP_UP && canStand(x + dx, z + dz, h);
+    });
+  const at = Math.round(half) * n + Math.round(half);
+  if (group[at] >= 0 && open[group[at]] && roomy(p.x, p.z, p.y)) return 'here';
+  let best = -1;
+  let bestD = Infinity;
+  for (let k = 0; k < n * n; k++) {
+    if (group[k] < 0 || !open[group[k]]) continue;
+    const i = k % n;
+    const j = (k - i) / n;
+    const d = Math.hypot(i - half, j - half);
+    if (d >= bestD) continue;
+    const x = x0 + i * FREE_CELL;
+    const z = z0 + j * FREE_CELL;
+    if (!roomy(x, z, height[k])) continue;
+    best = k;
+    bestD = d;
+  }
+  if (best < 0) return null;
+  const i = best % n;
+  out.set(x0 + i * FREE_CELL, height[best], z0 + ((best - i) / n) * FREE_CELL);
+  return 'moved';
+}
+
 /** Whether someone standing at (x, z) at height `at` would be under a deck too low to stand under (HEADROOM): one
  * more than a step over their feet (no deck they could step up onto). Islanders had walked in under a hut's
  * stairs between its rails and stood stuck there, the tread they wanted over their heads (the user's screenshot,

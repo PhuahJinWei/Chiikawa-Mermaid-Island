@@ -11,6 +11,15 @@ stage, and along every path. Not yet checked on a real phone.
 
 **Added**
 
+- 「ぬけだす」 in the せってい panel, for when you are stuck (the user,
+  2026-10-25). In the cave's boat, it sets the boat afloat at once in the
+  nearest open water, where it can turn any way, with you still in it. On
+  foot, it gets you up off a seat if you are on one. Then it takes you to the
+  nearest ground with room to step every way (`freeSpot` in
+  `src/world/Island.ts`), on the island or in the cave. That ground must let
+  you walk on 4 m, so a pocket you jumped into does not count. A word says
+  what came of it: 「ぬけだした」, 「ここからうごけるよ」 where you are not
+  stuck, or 「ちかくにぬけだせるところがない」.
 - Finding your way (the user, 2026-10-25: players got lost in the jungle, found
   島二郎's shop hard to reach with few ways there and harder to come back from,
   and the path from the waterfall to the stepping stones was not joined up).
@@ -3428,6 +3437,49 @@ outlined is drawn twice, once for its pen line. To get there:
 
 **Fixed**
 
+- The cave's boat (the user, 2026-10-25: sometimes it would not take you in,
+  and the skylight's small rocks could hold it fast). All in
+  `src/world/Boat.ts`:
+  - Whether it floats was judged from seven points under its hull. A rock
+    smaller than the gaps between them, as the skylight's (0.75 m across)
+    are, slipped in under it. Then every way it could go put a point on the
+    rock, and it was held there over the rock. Now the water is looked at all
+    under the hull, its sides narrowing to its ends, the points no further
+    apart than the cave grid's cells.
+  - Stopped by rock, it had tried only straight on, or along x or z alone.
+    Now it works its way as a rower would: on with less of the turn, edging
+    along the rock to either side, backing as it turns. Rowed against rock
+    for a while and getting nowhere, it pushes off with an oar to the
+    nearest water with room to turn.
+  - Rowed into each of the skylight's rocks from 39 approaches, it had been
+    held fast in 12 of them: no way of the stick got it 2.5 m off in 5 s.
+    From 106 approaches it is now held in none. Some way of the stick brings
+    it out into open water, half the time within 0.8 s and every time within
+    5.3 s.
+  - You could get out onto a shore up to 2.1 m from its side, but got back
+    in only within 1.9 m of its middle. Of 513 places it lets you out round
+    the cave's water, 286 had not let you back in at once. Now its reach is
+    measured from its sides and ends, as far as it lets you out, and every
+    one of them does.
+- The stall counter's grey frame flickered where its uprights cross its top
+  and bottom rails (the user, 2026-10-25, with the crossings circled). The
+  uprights' fronts lay in the rails' plane. Of one colour, that had shown
+  as one face, so `art/blender/check_flicker.py` let such pairs be. Painted,
+  each shows its own patch of the map, and the depth buffer flips between
+  them.
+  - The checker now compares the paint as well as the colour, and found the
+    same in the guest houses' window frames and rafters, the plank hut's
+    frames and shelf, 島二郎's room logs and baskets, and the stage's ring
+    beams crossing at its corners.
+  - The Painter now draws such painted pieces apart before joining them
+    (`_part` in `art/blender/paintmap.py`). Of each pair, all but the
+    biggest piece is made thinner across that plane, 4 mm a side for each
+    step back. Pieces that meet each other take different steps (the four
+    beams of a ring take none and one by turns). No step may bring a face
+    into another piece's plane. A piece too thin to thin (the guest
+    houses' 1.2 cm gable chevrons, crossing at the top) is moved whole by
+    a step instead, in toward the house first.
+  - Every painted prop was rebuilt, and every prop is now flicker-free.
 - The festival stalls' steps looked glitchy (the user, 2026-10-25). Their
   painted wood was streaked green-grey on a slant. The painted wood's damp
   (`art/blender/paintmap.py`) climbs from the ground up a piece, and it had

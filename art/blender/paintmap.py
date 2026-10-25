@@ -21,6 +21,7 @@ exporter has flipped them (see Painter.finish).
 
 import math
 import os
+from collections import defaultdict
 
 import bmesh
 import bpy
@@ -817,8 +818,15 @@ class Painter:
         for a piece with no patch of its own, or None to leave it its own colours; by default a grained
         piece is wood, painted with `wood`'s params."""
         import houses as H
-        records = []
+        choices = []
         for piece in pieces:
+            spec = piece[3] if len(piece) > 3 else None
+            choices.append(None if spec is not None else auto(piece) if auto is not None else (
+                ("wood", dict(wood or {})) if len(piece) > 2 and piece[2] is not None else None))
+        _part([piece[0] for piece in pieces], [(len(p) > 3 and p[3] is not None) or c is not None
+                                               for p, c in zip(pieces, choices)])
+        records = []
+        for piece, choice in zip(pieces, choices):
             bm = piece[0]
             spec = piece[3] if len(piece) > 3 else None
             patch = spec(bm) if callable(spec) else spec
@@ -826,8 +834,6 @@ class Painter:
             faces = [(f.normal.copy(), [loop.vert.co.copy() for loop in f.loops]) for f in bm.faces]
             fitted, painted = False, None
             if patch is None:
-                choice = auto(piece) if auto is not None else (
-                    ("wood", dict(wood or {})) if len(piece) > 2 and piece[2] is not None else None)
                 if choice is not None:
                     kind, params = choice
                     self.seed += 1
@@ -1021,6 +1027,151 @@ class Painter:
         Xc = np.clip(X, 0, image.shape[1] - 1)
         Yc = np.clip(Y, 0, image.shape[0] - 1)
         image[Yc, Xc] = col
+
+
+# Faces this close to one plane (m) are in it, as check_flicker.py counts them; a piece is drawn back from
+# such a plane by PART a step, enough for the depth buffer to tell them apart 50 m off and more.
+IN_PLANE, PART = 0.002, 0.004
+
+
+def _part(bms, painted):
+    """Draws painted pieces apart where a face of one lies in the plane of another's, facing the same way,
+    and the two overlap (a window's jamb under its lintel, the ring beams crossing at the stage's corners,
+    the stall counter's uprights behind its rails). Of one colour, such faces had shown as one; painted,
+    each shows its own patch of the map, and the depth buffer cannot tell which is in front, so the
+    nearer flickers from one to the other (the user, 2026-10-25). One of the two is made thinner across
+    that plane, by PART on each side for each step back, so the other's face lies in front of it. Pieces are bmeshes,
+    changed in place; `painted` says which are painted (a pair of unpainted ones is left be)."""
+    planes = defaultdict(list)
+    boxes = []
+    for k, bm in enumerate(bms):
+        bm.normal_update()
+        pts = np.array([v.co[:] for v in bm.verts]) if bm.verts else np.zeros((1, 3))
+        boxes.append((pts.min(axis=0), pts.max(axis=0)))
+        for tri in bm.calc_loop_triangles():
+            n = tri[0].face.normal
+            if n.length < 0.5:
+                continue
+            corners = np.array([l.vert.co[:] for l in tri])
+            d = float(np.array(n[:]) @ corners[0])
+            key = (round(n.x, 2), round(n.y, 2), round(n.z, 2))
+            planes[key + (math.floor(d / IN_PLANE),)].append((k, corners, d))
+    pairs = set()
+    for (nx, ny, nz, b), members in planes.items():
+        near = members + planes.get((nx, ny, nz, b + 1), [])
+        if len({k for k, _, _ in near}) < 2:
+            continue
+        n = np.array((nx, ny, nz)) / np.linalg.norm((nx, ny, nz))
+        u = np.cross(n, (0.0, 0.0, 1.0) if abs(n[2]) < 0.9 else (1.0, 0.0, 0.0))
+        u /= np.linalg.norm(u)
+        v = np.cross(n, u)
+        flat = [(k, _shrunk(np.stack([c @ u, c @ v], axis=1), 0.003), d) for k, c, d in near]
+        for i in range(len(flat)):
+            ki, ti, di = flat[i]
+            for j in range(i + 1, len(flat)):
+                kj, tj, dj = flat[j]
+                if ki == kj or not (painted[ki] or painted[kj]) or abs(di - dj) > IN_PLANE:
+                    continue
+                (lo_i, hi_i), (lo_j, hi_j) = boxes[ki], boxes[kj]
+                if (lo_i > hi_j + 0.01).any() or (lo_j > hi_i + 0.01).any() or not _overlap(ti, tj):
+                    continue
+                pairs.add((min(ki, kj), max(ki, kj), tuple(np.round(np.abs(n), 3))))
+    # Across each plane's way, every piece in such a pair takes a step back: the biggest first, at none, then
+    # each in turn the first step none of the pieces it meets has (four beams in a ring, crossing at its
+    # corners, take none and one by turns: drawn back one for one, two of a pair could still meet in a
+    # plane) and that brings none of its faces into the plane of another piece's, of any colour (a hut's
+    # shelf board, drawn back, had come to lie in the plane of the dark board beside it).
+    volume = [float(np.prod(np.maximum(hi - lo, 1e-3))) for lo, hi in boxes]
+    centre = (np.min([lo for lo, _ in boxes], axis=0) + np.max([hi for _, hi in boxes], axis=0)) / 2
+    tris = [[(np.array(t[0].face.normal[:]), [l.vert.index for l in t]) for t in bm.calc_loop_triangles()
+             if t[0].face.normal.length > 0.5] for bm in bms]
+    for bm in bms:
+        bm.verts.ensure_lookup_table()
+        bm.verts.index_update()
+
+    def drawn_back(k, n, s):
+        """Piece k's vertices drawn back s steps across n: made thinner by s steps a side, or, too thin for
+        that (a gable's chevron strips, 1.2 cm, crossing at its top), moved whole s steps, in toward the
+        prop's middle first, onto what it is fixed to (moved out, a strip came to lie in the plane of the
+        gable window's pane, a mesh of its own the painter does not see)."""
+        co = np.array([v.co[:] for v in bms[k].verts])
+        along = co @ n
+        middle, half = (along.max() + along.min()) / 2, (along.max() - along.min()) / 2
+        if half > 2 * s * PART:
+            return [co - np.outer((along - middle) * (s * PART / half), n)]
+        inward = -n if middle > centre @ n else n
+        return [co + inward * (s * PART), co - inward * (s * PART)]
+
+    def lands_on_another(k, n, co):
+        """Whether piece k, its vertices at `co`, has a face across n in the plane of another piece's face,
+        facing the same way and overlapping it."""
+        lo, hi = co.min(axis=0) - 0.01, co.max(axis=0) + 0.01
+        u = np.cross(n, (0.0, 0.0, 1.0) if abs(n[2]) < 0.9 else (1.0, 0.0, 0.0))
+        u /= np.linalg.norm(u)
+        v = np.cross(n, u)
+        mine = [(fn, co[ix]) for fn, ix in tris[k] if abs(fn @ n) > 0.999]
+        for m, bm in enumerate(bms):
+            if m == k or (boxes[m][0] > hi).any() or (lo > boxes[m][1]).any():
+                continue
+            other = np.array([vert.co[:] for vert in bm.verts])
+            for fn, ix in tris[m]:
+                if abs(fn @ n) <= 0.999:
+                    continue
+                c = other[ix]
+                for gn, g in mine:
+                    if gn @ fn > 0.999 and abs(fn @ (g[0] - c[0])) <= IN_PLANE and _overlap(
+                            _shrunk(np.stack([g @ u, g @ v], axis=1), 0.003),
+                            _shrunk(np.stack([c @ u, c @ v], axis=1), 0.003)):
+                        return True
+        return False
+
+    for axis in {a for _, _, a in pairs}:
+        meets = defaultdict(set)
+        for ki, kj, a in pairs:
+            if a == axis:
+                meets[ki].add(kj)
+                meets[kj].add(ki)
+        n = np.array(axis) / np.linalg.norm(axis)
+        step = {}
+        for k in sorted(meets, key=lambda k: (-volume[k], k)):
+            taken = {step[m] for m in meets[k] if m in step}
+            for s in range(len(meets) + 4):
+                if s in taken:
+                    continue
+                if not s:
+                    step[k] = 0
+                    break
+                co = next((c for c in drawn_back(k, n, s) if not lands_on_another(k, n, c)), None)
+                if co is None:
+                    continue
+                step[k] = s
+                for vert, p in zip(bms[k].verts, co):
+                    vert.co = Vector(p)
+                bms[k].normal_update()
+                boxes[k] = (co.min(axis=0), co.max(axis=0))
+                break
+
+
+def _shrunk(tri, by):
+    """A 2D triangle drawn in toward its middle by `by`, so faces that only touch do not count."""
+    c = tri.mean(axis=0)
+    out = []
+    for p in tri:
+        r = np.linalg.norm(p - c)
+        out.append(c + (p - c) * max(0.0, (r - by) / r) if r > 0 else c)
+    return np.array(out)
+
+
+def _overlap(a, b):
+    """Whether two 2D triangles overlap with area (separating axes)."""
+    for tri in (a, b):
+        for i in range(3):
+            e = tri[(i + 1) % 3] - tri[i]
+            axis = np.array([-e[1], e[0]])
+            pa, pb = a @ axis, b @ axis
+            if pa.max() <= pb.min() or pb.max() <= pa.min():
+                return False
+    return True
 
 
 def _write_webp(path, img, quality):

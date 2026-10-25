@@ -27,6 +27,7 @@ PLANE = 0.002      # faces this close to one plane count as in it (m)
 SHRINK = 0.003     # each triangle shrunk this much before testing, so faces only touching do not count
 COLOUR = 0.03      # a difference in any colour channel above this shows
 AHEAD, COVERED = 0.003, 0.02
+PAINT_SAME = 0.002 # two faces painted from points of the map this close (in its UVs) show the same paint
 ROLES = ("_glow", "_spot", "_lamp", "_pane", "_flame", "_inside", "_far", "_board", "_label")
 BLENDER = os.environ.get("BLENDER_DIR", r"C:\Program Files\Blender Foundation\Blender 5.2")
 
@@ -135,6 +136,9 @@ def load(path):
             arr = arr / (65535.0 if dtype == "<u2" else 255.0)
         return arr.astype(np.float64)
 
+    # A painted prop's paint UVs are its last map (after a baked house's night map), u below nought where
+    # a face keeps its own colour (see paintmap.Painter.finish).
+    painted = os.path.exists(path[:-4] + "_paint.webp")
     meshes = []
     for node in j["nodes"]:
         if "mesh" not in node:
@@ -145,7 +149,9 @@ def load(path):
             col = accessor(p["attributes"]["COLOR_0"])[:, :3] if "COLOR_0" in p["attributes"] else np.ones((len(pos), 3))
             idx = accessor(p["indices"]).astype(np.int64).reshape(-1, 3) if "indices" in p else \
                 np.arange(len(pos)).reshape(-1, 3)
-            meshes.append((node.get("name", "?"), pos, col, idx))
+            maps = sorted(k for k in p["attributes"] if k.startswith("TEXCOORD_"))
+            uv = accessor(p["attributes"][maps[-1]]) if painted and maps else None
+            meshes.append((node.get("name", "?"), pos, col, idx, uv))
     return meshes
 
 
@@ -248,9 +254,22 @@ def seen(points, n, tris, nrm):
     return False
 
 
+def paint_at(tri, uv, point):
+    """The paint UV a triangle gives a point in its plane, or None where it keeps its own colour."""
+    if uv is None or uv[:, 0].min() < 0.0:
+        return None
+    e1, e2, q = tri[1] - tri[0], tri[2] - tri[0], point - tri[0]
+    g = np.array([[e1 @ e1, e1 @ e2], [e1 @ e2, e2 @ e2]])
+    try:
+        s, t = np.linalg.solve(g, [q @ e1, q @ e2])
+    except np.linalg.LinAlgError:
+        return None
+    return uv[0] + (uv[1] - uv[0]) * s + (uv[2] - uv[0]) * t
+
+
 def scan(path):
-    tris, cols, owners = [], [], []
-    for name, pos, col, idx in load(path):
+    tris, cols, owners, uvs = [], [], [], []
+    for name, pos, col, idx, uv in load(path):
         r = role(name)
         if r == "label":   # the game draws painted words pulled forward in the depth test
             continue
@@ -258,6 +277,7 @@ def scan(path):
             tris.append(pos[f])
             cols.append(col[f].mean(axis=0))
             owners.append(r)
+            uvs.append(uv[f] if uv is not None else None)
     tris, cols = np.array(tris), np.array(cols)
     nrm = np.cross(tris[:, 1] - tris[:, 0], tris[:, 2] - tris[:, 0])
     area = np.linalg.norm(nrm, axis=1) / 2
@@ -296,8 +316,6 @@ def scan(path):
                 done.add((i, k))
                 if "far" in (owners[i], owners[k]) and owners[i] != owners[k]:
                     continue     # the far version is never drawn with the rest
-                if owners[i] == owners[k] and np.abs(cols[i] - cols[k]).max() <= COLOUR:
-                    continue     # one colour in one mesh: nothing to see
                 if not overlap(flat[i], flat[k]):
                     continue
                 poly = clip(list(flat[i]), list(flat[k]))
@@ -306,6 +324,12 @@ def scan(path):
                 c = np.mean(poly, axis=0)
                 front = max(d[i], d[k])
                 points = [p[0] * u + p[1] * v + n * front for p in [c] + [c + (q - c) * 0.7 for q in poly]]
+                if owners[i] == owners[k] and np.abs(cols[i] - cols[k]).max() <= COLOUR:
+                    # One colour in one mesh: nothing to see, unless they are painted differently there (two
+                    # pieces of one colour showing two patches of the painted map, or one painted and one not).
+                    pi, pk = (paint_at(tris[j], uvs[j], points[0]) for j in (i, k))
+                    if (pi is None) == (pk is None) and (pi is None or np.abs(pi - pk).max() < PAINT_SAME):
+                        continue
                 if seen(points, n, tris, nrm):
                     a_name = f"{owners[i]}:{name_of(cols[i])}"
                     b_name = f"{owners[k]}:{name_of(cols[k])}"
