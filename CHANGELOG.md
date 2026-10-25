@@ -3428,6 +3428,17 @@ outlined is drawn twice, once for its pen line. To get there:
 
 **Fixed**
 
+- A flat brown square on a hut's floor round where you stand (the user,
+  2026-10-25, with a screenshot from a room's rug). It was the pen's line
+  under the floor board, 1 cm below its top. The pen pushes each corner of
+  an outline out by its width at that corner's distance (`src/world/Ink.ts`).
+  A corner behind the camera had taken a distance below nought, so it was
+  pushed the other way and as wide as the pen goes. Where the board's
+  underside crossed the camera, the face was dragged up over the floor. Now
+  a corner behind the camera takes the pen at its distance, as a corner in
+  front does. Checked in every kind of villager hut, at the doors and on the
+  stalls' floors, the old pen against the new: the square is gone and the
+  lines are otherwise as before.
 - The text box covered the face of whoever you talked with (the user,
   2026-10-25, with a screenshot of an islander's face behind it). While
   something is said to you the box sits at the foot of the screen, where the

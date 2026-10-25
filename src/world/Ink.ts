@@ -156,7 +156,13 @@ void main() {
 #else
   float push = 1.0 - smoothstep(0.3, 0.6, facing);
 #endif
-  clip.xy += dir * penAt(-mvPosition.z) * push * 2.0 / uResolution * clip.w;
+  // A corner behind the camera (a hut's floor, a deck you stand on) takes the pen at its distance on
+  // either side: its push weighed by its depth below nought flipped the push the other way and to the
+  // widest pen, and the face, clipped where it crosses the camera, came up through what lies over it (a
+  // floor board's underside, 1 cm down, as a brown square on the room's floor round you; the user,
+  // 2026-10-25).
+  float depth = abs(clip.w);
+  clip.xy += dir * penAt(depth) * push * 2.0 / uResolution * depth;
   gl_Position = clip;
   #include <fog_vertex>
 }
