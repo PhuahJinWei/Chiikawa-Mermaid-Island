@@ -1,5 +1,5 @@
 /** Something you may answer with: words, or someone, shown by their face (see Faces) if they have one. */
-export type Choice = string | { readonly text: string; readonly face: string | null };
+export type Choice = string | { readonly text: string; readonly face: string | null; readonly mark?: string };
 
 /** A line in the text box (see DialogueBox.add): who says it, as named, with their face if they have one (see
  * Faces), and what; whoever says it (for the game to know them by); what you may answer it with, if anything,
@@ -184,7 +184,15 @@ export class DialogueBox {
         button.type = 'button';
         const text = typeof choice === 'string' ? choice : choice.text;
         const face = typeof choice === 'string' ? null : choice.face;
-        if (face) {
+        const mark = typeof choice === 'string' ? undefined : choice.mark;
+        if (mark) {
+          // A sign in a disc as the faces are (the user, 2026-10-25: a word among the faces looked odd), the words
+          // its name.
+          button.classList.add('face', 'mark');
+          button.textContent = mark;
+          button.title = text;
+          button.setAttribute('aria-label', text);
+        } else if (face) {
           const picture = el('img', '');
           picture.src = face;
           picture.alt = '';

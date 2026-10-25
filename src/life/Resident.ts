@@ -1481,7 +1481,7 @@ export class Resident {
         }
         if (kind === 'seek') {
           // Whom to ask after, or やっぱりいい (the user, 2026-10-24: there was no way out): back to the talk.
-          const asked = [...seek.map((id) => this.life.asChoice(id)), words('talk.never')];
+          const asked = [...seek.map((id) => this.life.asChoice(id)), { text: words('talk.never'), face: null, mark: '×' }];
           const who = yield* this.sayTo(you, this.life.line(this, 'talk.seekWho'), TALK, true, asked);
           if (who >= 0 && who < seek.length) yield* this.sayTo(you, this.life.whereIs(seek[who], this));
           else if (who >= seek.length) {

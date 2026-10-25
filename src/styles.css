@@ -1643,15 +1643,18 @@ body {
 }
 
 /* ---------------------------------------------------------------- what is said to you
-   A paper card low on the screen (over the buttons on a phone held upright, between the stick and the buttons on
-   a wide screen or one held sideways, over the boxes' bar), the speaker's name on its corner in the
-   accent, their face on a disc standing out of it, ▼ once the line is all out; what you may answer under it. */
+   A paper card at the foot of the screen (across it on a phone held upright, between the stick and the buttons'
+   corner on a wide screen or one held sideways), the speaker's name on its corner in the accent, their face on a
+   disc standing out of it, ▼ once the line is all out; what you may answer under it. While it shows, the boxes'
+   bar, the jump and the verbs are put away and it sits where they were, low enough that whoever speaks to you
+   stands over it, their face clear (the user, 2026-10-25: it had covered the face of whoever you talked with).
+   Your answers are in it, giving among them, so none of those is wanted while it shows. */
 .dialogue {
   pointer-events: auto;
   position: absolute;
   left: calc(12px + env(safe-area-inset-left));
   right: calc(12px + env(safe-area-inset-right));
-  bottom: calc(240px + env(safe-area-inset-bottom));
+  bottom: calc(12px + env(safe-area-inset-bottom));
   /* One steady size (the user, 2026-10-24: a box that moves is hard to read): room for two lines of words (the
      longest line is 31 characters) and the answers, the words at its top and the answers at its foot, so nothing
      moves as a line types out or from one line to the next. On a phone held upright the three answers take two
@@ -1676,7 +1679,7 @@ body {
   transition: opacity 0.18s ease, transform 0.18s ease;
 }
 
-/* (Held sideways it is always between them: across the screen it would cover the jump and the verbs.) */
+/* (Held sideways it is always between them, the stick's side left free to walk off with.) */
 @media (min-width: 700px), (orientation: landscape) {
   .dialogue {
     min-height: 150px;
@@ -1684,8 +1687,14 @@ body {
     right: auto;
     width: min(520px, 52vw);
     margin-left: calc(min(520px, 52vw) / -2);
-    bottom: calc(86px + env(safe-area-inset-bottom));
   }
+}
+
+.hud:has(.dialogue:not([hidden])) .hotbar,
+.hud:has(.dialogue:not([hidden])) .act-jump,
+.hud:has(.dialogue:not([hidden])) .hud-verbs {
+  visibility: hidden;
+  pointer-events: none;
 }
 
 .dialogue-name {
@@ -1824,6 +1833,14 @@ body {
   width: 100%;
   height: 100%;
   pointer-events: none;
+}
+
+/* None of them (やっぱりいい): a ✕ in a disc the faces' size, in the pen's colour (over #ui button's inherited font). */
+#ui .dialogue-choice.mark {
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--ink);
 }
 
 /* ---------------------------------------------------------------- the marker

@@ -392,6 +392,9 @@ stage, and along every path. Not yet checked on a real phone.
   is yours, his thanks naming food (「ほう、たこやきかッ。ありがたくいただくッ」),
   and the last gift spoken of another time. Neither he nor the Siren takes
   the mermaid's scale (the island's secret).
+- やっぱりいい among the faces of whom to ask after is a ✕ in a disc the
+  faces' size (the user, 2026-10-25: a word among the faces looked odd), its
+  words its name on hovering (`Choice.mark` in DialogueBox).
 - Someone at the welcome you are talking with no longer walks off when the
   welcome ends: they go once they have parted from you, as at any other
   change in their day.
@@ -3425,6 +3428,15 @@ outlined is drawn twice, once for its pen line. To get there:
 
 **Fixed**
 
+- The text box covered the face of whoever you talked with (the user,
+  2026-10-25, with a screenshot of an islander's face behind it). While
+  something is said to you the box sits at the foot of the screen, where the
+  boxes' bar, the jump and the verbs were: those are put away till it shuts
+  (your answers, giving among them, are in the box), and the ▽ over the
+  speaker's head is left out. Its steady size is as it was. Held sideways it
+  came down about 75 px, upright about 230 px: an islander's or the cast's
+  face shows over it at talking distance (the shortest, such as Rakko, from
+  the eyes up at 2 m). The view is not moved.
 - The HUD, looked over at phone and desktop sizes (the user, 2026-10-25: is the
   buttons' arrangement good, not too crowded?):
   - The きもち panel ran off the left of an upright phone's screen (30 px of it,

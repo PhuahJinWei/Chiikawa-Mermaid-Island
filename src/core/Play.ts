@@ -224,9 +224,9 @@ export class Play {
     this.target = able ? this.aim(f) : null;
     this.label = able ? this.labelFor(this.target) : null;
     // What you look at, shown: the ▽ over it, and the sketch of what you would put down (see Focus); through
-    // your camera, nothing (not in the photo).
+    // your camera, nothing (not in the photo); nor while something is said to you, over the face of whoever says it.
     const held = this.hands.hand ? { item: this.hands.hand.item, nibbled: this.hands.nibbled } : null;
-    if (f.framing) this.focus.hide();
+    if (f.framing || this.hud.dialogue.open) this.focus.hide();
     else this.focus.update(f.dt, this.target, held, me);
     // (Not held up ready sitting down.)
     const use = this.hand && !(this.seat && ITEMS[this.hand].use === 'ready') ? ITEMS[this.hand].use : null;
