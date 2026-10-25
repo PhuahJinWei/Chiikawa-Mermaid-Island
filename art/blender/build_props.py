@@ -581,6 +581,92 @@ def build_sign(collection):
     return [sign, label], info
 
 
+# The signposts at the forks of the paths through the jungle (the user, 2026-10-25: players lost their
+# way to 島二郎's and to the stepping stones, and back): a post of the No Entry sign's weathered wood, and
+# arms, each a plank cut to a point, the way it points, nailed to it over the islanders' heads. The post:
+# how thick, how tall over the ground, how far set in. An arm (a prop of its own, placed with the post
+# and turned the way it points, each `lift` metres up it: see Placed.lift in src/world/Props.ts): how
+# long from the post's middle to its point, how far its back end sticks out behind the post, how tall,
+# how thick, how long its point is cut; the face its words are painted on, on each side (the user's
+# lettering, art/signs/), and how far in from its point it starts.
+SIGNPOST = {"post": 0.085, "height": 1.85, "sunk": 0.3}
+SIGNPOST_ARM = {"reach": 0.66, "back": 0.06, "tall": 0.15, "thick": 0.028, "point": 0.09,
+                "face": (0.5, 0.11), "face_from": 0.1}
+
+
+def build_signpost(collection):
+    """A signpost's post (see SIGNPOST): square, weathered, its top cut to a low point. Its arms are
+    props of their own (build_signpost_arm), so each can point its own way."""
+    s, h, sunk = SIGNPOST["post"], SIGNPOST["height"], SIGNPOST["sunk"]
+    pieces = [(box_bm(Vector((0.0, 0.0, (h - sunk) / 2)), (s, s, h + sunk), bevel=0.006), SIGN["post"])]
+    cap = bmesh.new()
+    corners = [cap.verts.new((x * s * 0.54, y * s * 0.54, h)) for x, y in ((-1, -1), (1, -1), (1, 1), (-1, 1))]
+    tip = cap.verts.new((0.0, 0.0, h + s * 0.35))
+    for a, b in zip(corners, corners[1:] + corners[:1]):
+        cap.faces.new((a, b, tip))
+    pieces.append((cap, SIGN["edge"]))
+    import paintmap as PM
+    painter = PM.Painter("signpost")
+    post = painter.join("signpost", pieces, collection, sharp=SHARP, grained=False,
+                        auto=paint_auto(bare=(SIGN["post"], SIGN["edge"])))
+    info = {"footprint": {"box": [s / 2 + 0.01, s / 2 + 0.01]}, "height": round(h + s * 0.35, 3)}
+    info.update(painter.finish(OUT_MODELS))
+    return [post], info
+
+
+def build_signpost_arm(collection):
+    """One arm of a signpost (see SIGNPOST_ARM): a plank pointing -Y from the post's middle, cut to a point,
+    its middle at the arm's own height (the game sets it `lift` up the post). Its words are painted on both
+    its sides, each read from its own side, the same words on both."""
+    a = SIGNPOST_ARM
+    reach, back, tall, t, point = a["reach"], a["back"], a["tall"], a["thick"], a["point"]
+    # Its outline in (y, z): the back end, along its foot to the point, back along its top (round the -X
+    # side the right way, the +X side the other).
+    outline = [(back, -tall / 2), (-(reach - point), -tall / 2), (-reach, 0.0), (-(reach - point), tall / 2),
+               (back, tall / 2)]
+    pieces = []
+    for side in (1.0, -1.0):
+        bm = bmesh.new()
+        ring = list(reversed(outline)) if side > 0 else outline
+        bm.faces.new([bm.verts.new((side * t / 2, y, z)) for y, z in ring])
+        pieces.append((bm, SIGN["board"]))
+    edges = bmesh.new()
+    ring = outline + [outline[0]]
+    for (ya, za), (yb, zb) in zip(ring, ring[1:]):
+        edges.faces.new((edges.verts.new((t / 2, ya, za)), edges.verts.new((t / 2, yb, zb)),
+                         edges.verts.new((-t / 2, yb, zb)), edges.verts.new((-t / 2, ya, za))))
+    pieces.append((edges, SIGN["edge"]))
+    # Two nails' heads where it is nailed to the post, on each side.
+    for side in (1.0, -1.0):
+        for z in (-tall * 0.22, tall * 0.22):
+            pieces.append((box_bm(Vector((side * (t / 2 + 0.0015), -0.005, z)), (0.004, 0.012, 0.012)), SIGN["post"]))
+    import paintmap as PM
+    painter = PM.Painter("signpost_arm")
+    arm = painter.join("signpost_arm", pieces, collection, sharp=SHARP, grained=False,
+                       auto=paint_auto(bare=(SIGN["board"], SIGN["edge"])))
+    # The words' faces: from just past the post toward the point, on each side, each read from its own
+    # side (its top-left where a reader there sees it; U across, V down).
+    fw, fh = a["face"]
+    y_mid = -(a["face_from"] + fw / 2)
+    labels = []
+    for k, side in enumerate((1.0, -1.0)):
+        face = bmesh.new()
+        x = side * (t / 2 + 0.003)
+        # A reader on this side looking at it has the arm's root on their right on +X, on their left on -X.
+        right = 1.0 if side > 0 else -1.0
+        tl = face.verts.new((x, y_mid - right * fw / 2, fh / 2))
+        tr = face.verts.new((x, y_mid + right * fw / 2, fh / 2))
+        br = face.verts.new((x, y_mid + right * fw / 2, -fh / 2))
+        bl = face.verts.new((x, y_mid - right * fw / 2, -fh / 2))
+        face.faces.new((tl, bl, br, tr))
+        labels.append(object_with_uv(f"signpost_arm_label{'' if k == 0 else k}", face,
+                                     [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)], collection))
+    words = {"size": [fw, fh], "colour": "#3B2620", "sharp": 2}
+    info = {"height": round(tall / 2, 3), "labels": [words, {**words, "repeat": 0}]}
+    info.update(painter.finish(OUT_MODELS))
+    return [arm, *labels], info
+
+
 def heart_leaf_bm(at, out, size):
     """A small heart-shaped leaf on a vine, its face toward `out`, as the film's vines have them."""
     side = UP.cross(out).normalized() if abs(out.dot(UP)) < 0.95 else Vector((1.0, 0.0, 0.0))
@@ -883,6 +969,8 @@ BUILDERS = {
     "ukulele": build_ukulele,
     "sign": build_sign,
     "sign_hanging": build_sign_hanging,
+    "signpost": build_signpost,
+    "signpost_arm": build_signpost_arm,
     "fence": build_fence,
     "butterfly": build_butterfly,
     "quay": build_quay,

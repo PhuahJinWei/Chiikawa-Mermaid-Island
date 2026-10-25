@@ -21,6 +21,8 @@ export interface Placed {
   scale?: number;
   /** Height of its origin; the ground under it when left out. */
   y?: number;
+  /** Metres over that (a signpost's arm, up its post). */
+  lift?: number;
   /** Floats on the sea, bobbing gently. */
   float?: boolean;
   /** Words painted on its label faces: keys into the game's text, one per face. */
@@ -909,7 +911,7 @@ export class Props {
       if (!model) return;
       const angle = THREE.MathUtils.degToRad(p.turn ?? 0);
       const scale = p.scale ?? 1;
-      const y = p.float ? waterLevel : (p.y ?? terrainHeight(p.x, p.z) - (model.info.sink ?? 0));
+      const y = (p.float ? waterLevel : (p.y ?? terrainHeight(p.x, p.z) - (model.info.sink ?? 0))) + (p.lift ?? 0);
       const matrix = new THREE.Matrix4().compose(
         new THREE.Vector3(p.x, y, p.z),
         new THREE.Quaternion().setFromAxisAngle(up, angle),

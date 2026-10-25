@@ -74,8 +74,16 @@ const GLYPH: Record<string, string> = {
     '<path d="M2.9 8.4h3.4l1.4-2.2h8.6l1.4 2.2h3.4v9.9a1 1 0 0 1-1 1H3.9a1 1 0 0 1-1-1Z"/><circle cx="12" cy="13.3" r="3.3"/>' +
     '<path d="M18.4 11h1.1"/>',
   close: '<path d="M6.5 6.5 17.5 17.5M17.5 6.5 6.5 17.5"/>',
+  // A paper map folded in three, a path wandering across it.
+  map:
+    '<path d="M3.6 6.4 9 4.3l6 2.1 5.4-2.1v13.3L15 19.7l-6-2.1-5.4 2.1Z"/><path d="M9 4.3v13.3M15 6.4v13.3"/>' +
+    '<path d="M5.6 14.4c1.6-.4 2.2-1.6 3.4-1.8M11 11.6c1.4.2 2.2-.8 3.4-.6M16.8 9.4c.8-.4 1.3-.9 1.7-1.5"/>',
   // A round face, smiling: how you feel, and what you do with it.
   emote: '<circle cx="12" cy="12" r="8.4"/><path d="M8.6 13.6a4.2 4.2 0 0 0 6.8 0"/><path d="M9.2 9.6h.01M14.8 9.6h.01"/>',
+  // A cog: the settings (the sound, the full screen).
+  settings:
+    '<circle cx="12" cy="12" r="2.9"/><circle cx="12" cy="12" r="6.6"/>' +
+    '<path d="M12 3.2v2.2M12 18.6v2.2M3.2 12h2.2M18.6 12h2.2M5.8 5.8l1.5 1.5M16.7 16.7l1.5 1.5M18.2 5.8l-1.5 1.5M7.3 16.7l-1.5 1.5"/>',
   // Three sliders: the test panel's switches.
   test: '<path d="M5 6.5h14M5 12h14M5 17.5h14"/><circle cx="9" cy="6.5" r="1.9"/><circle cx="15" cy="12" r="1.9"/><circle cx="8" cy="17.5" r="1.9"/>',
   sun: '<circle cx="12" cy="12" r="4.2"/><path d="M12 3.1v2.3M12 18.6v2.3M3.1 12h2.3M18.6 12h2.3M5.7 5.7l1.6 1.6M16.7 16.7l1.6 1.6M18.3 5.7l-1.6 1.6M7.3 16.7l-1.6 1.6"/>',
@@ -229,6 +237,17 @@ function disc(className: string, glyph: string): { button: HTMLButtonElement; fa
   return { button, face, cap };
 }
 
+/** One of the settings in their panel (see Hud.settings): its glyph and what it does now, in words. */
+function setChip(className: string, glyph: string): { button: HTMLButtonElement; word: HTMLSpanElement } {
+  const button = el('button', `emote-chip set-chip ${className}`);
+  button.type = 'button';
+  const mark = el('span', 'set-mark');
+  mark.innerHTML = glyph;
+  const word = el('span', 'set-word');
+  button.append(mark, word);
+  return { button, word };
+}
+
 /** One of the boxes, on the bar (its key with it: the keyboard's 1 to 7) or in the bag; the paw mark on it shows
  * while it is in your paw (see .is-held). */
 function slotButton(slot: number, key: boolean): HTMLButtonElement {
@@ -263,6 +282,8 @@ export class Hud implements JoystickView {
   onMoveSlot: (from: number, to: number) => void = () => {};
   /** The camera's button: your camera held up (see CameraView). */
   onCamera: () => void = () => {};
+  /** The map's button: the island's map opened or shut (see MapView). */
+  onMap: () => void = () => {};
   /** The sound turned on or off with its button. */
   onSound: (on: boolean) => void = () => {};
   /** Something to do picked from the きもち panel. */
@@ -281,15 +302,20 @@ export class Hud implements JoystickView {
   /** The times to move on to, opening under the hour's chip (see TIMES). */
   private readonly times = el('div', 'times');
   private readonly test = disc('hud-test', svg('test'));
-  private readonly soundButton = disc('hud-sound', SPEAKER);
+  /** The settings' disc, and its panel opening under it (as the きもち panel does): the sound and the full screen,
+   * which are set once and left (the user, 2026-10-25: the top corner had six discs). */
+  private readonly settingsButton = disc('settings-btn', svg('settings'));
+  private readonly settings = el('div', 'emotes settings');
+  private readonly soundButton = setChip('hud-sound', SPEAKER);
   private sound = true;
   /** The full screen's button, by the sound's; only where the browser lets a page fill the screen. */
-  private readonly fullButton = disc('hud-full', FULL_SCREEN);
+  private readonly fullButton = setChip('hud-full', FULL_SCREEN);
   private readonly emote = disc('emote-btn', svg('emote'));
   private readonly emotes = el('div', 'emotes');
   private readonly emoteChips: HTMLButtonElement[] = [];
   private readonly bag = disc('bag-btn', svg('bag'));
   private readonly camera = disc('camera-btn', svg('camera'));
+  private readonly mapButton = disc('map-btn', svg('map'));
   private readonly joyBase = el('div', 'joy-base');
   private readonly joyKnob = el('div', 'joy-knob');
   private readonly jumpButton = el('button', 'act act-jump');
@@ -382,21 +408,27 @@ export class Hud implements JoystickView {
     const emoteBox = el('div', 'emote-box');
     emoteBox.append(this.emote.button, this.emotes);
     const ctl = el('div', 'hud-ctl');
-    ctl.append(emoteBox, this.soundButton.button, this.fullButton.button, this.test.button);
+    const settingsBox = el('div', 'emote-box');
+    this.settings.append(this.soundButton.button, this.fullButton.button);
+    this.settings.hidden = true;
+    settingsBox.append(this.settingsButton.button, this.settings);
+    ctl.append(emoteBox, settingsBox, this.test.button);
     this.fullButton.button.hidden = !canFillScreen();
     for (const change of ['fullscreenchange', 'webkitfullscreenchange']) document.addEventListener(change, () => this.showFull());
     // The test panel's toggle only in dev mode (?dev in the address; the user, 2026-10-24).
     this.test.button.hidden = !DEV_MODE;
     top.append(timeBox, ctl);
     const side = el('div', 'hud-side');
-    side.append(this.bag.button, this.camera.button);
+    side.append(this.bag.button, this.mapButton.button, this.camera.button);
     for (const [button, call] of [
       [this.camera.button, () => this.onCamera()],
+      [this.mapButton.button, () => this.onMap()],
       [this.soundButton.button, () => this.onSound(this.setSound(!this.sound))],
       [this.fullButton.button, () => fillScreen(!filling())],
       [this.test.button, () => this.onTest()],
       [this.bag.button, () => this.togglePouch()],
       [this.emote.button, () => this.toggleEmotes()],
+      [this.settingsButton.button, () => this.toggleSettings()],
     ] as const) {
       button.addEventListener('click', call);
     }
@@ -447,6 +479,7 @@ export class Hud implements JoystickView {
     window.addEventListener('keydown', (e) => {
       if (e.code === 'Escape' && this.sheet.classList.contains('is-open')) this.togglePouch();
       if (e.code === 'Escape') this.closeTimes();
+      if (e.code === 'Escape') this.closeSettings();
     });
 
     EMOTES.forEach((id, i) => {
@@ -529,6 +562,13 @@ export class Hud implements JoystickView {
       this.onAction();
     });
     window.addEventListener('resize', () => this.hide());
+    // With a mouse and keys and no touch screen, the stick's resting hint and the jump's button are left out
+    // (WASD and Space do them; the user, 2026-10-25); the first touch brings them back.
+    const touchless = navigator.maxTouchPoints === 0 && window.matchMedia('(pointer: fine)').matches;
+    root.classList.toggle('no-touch', touchless);
+    window.addEventListener('pointerdown', (e) => {
+      if (e.pointerType === 'touch') root.classList.remove('no-touch');
+    });
     this.refresh();
     this.hide();
   }
@@ -536,10 +576,10 @@ export class Hud implements JoystickView {
   refresh(): void {
     this.test.cap.textContent = t('hud.test');
     this.camera.cap.textContent = t('hud.camera');
+    this.mapButton.cap.textContent = t('hud.map');
     this.bag.cap.textContent = t('hud.pouch');
     this.emote.cap.textContent = t('hud.emote');
-    this.soundButton.cap.textContent = t('hud.sound');
-    this.fullButton.cap.textContent = t('hud.full');
+    this.settingsButton.cap.textContent = t('hud.settings');
     this.showFull();
     (this.jumpButton.querySelector('.sr-only') as HTMLElement).textContent = t('hud.jump');
     this.jumpButton.setAttribute('aria-label', t('hud.jump'));
@@ -643,6 +683,7 @@ export class Hud implements JoystickView {
       return;
     }
     this.closeEmotes();
+    this.closeSettings();
     if (this.sheet.classList.contains('is-open')) this.togglePouch();
     this.times.hidden = false;
     this.chip?.classList.add('is-on');
@@ -659,6 +700,7 @@ export class Hud implements JoystickView {
       this.emotes.hidden = false;
       this.emote.button.classList.add('is-on');
       this.closeTimes();
+      this.closeSettings();
       if (this.sheet.classList.contains('is-open')) this.togglePouch();
     } else {
       this.closeEmotes();
@@ -668,6 +710,24 @@ export class Hud implements JoystickView {
   closeEmotes(): void {
     this.emotes.hidden = true;
     this.emote.button.classList.remove('is-on');
+  }
+
+  /** Opens the settings' panel, or shuts it (the other panels and the pouch shut first). */
+  toggleSettings(): void {
+    if (!this.settings.hidden) {
+      this.closeSettings();
+      return;
+    }
+    this.closeEmotes();
+    this.closeTimes();
+    if (this.sheet.classList.contains('is-open')) this.togglePouch();
+    this.settings.hidden = false;
+    this.settingsButton.button.classList.add('is-on');
+  }
+
+  closeSettings(): void {
+    this.settings.hidden = true;
+    this.settingsButton.button.classList.remove('is-on');
   }
 
   get emotesOpen(): boolean {
@@ -888,8 +948,8 @@ export class Hud implements JoystickView {
     const button = this.soundButton.button;
     button.classList.toggle('off', !on);
     const label = t(on ? 'hud.soundOn' : 'hud.soundOff');
+    this.soundButton.word.textContent = label;
     button.setAttribute('aria-label', label);
-    button.title = label;
     return on;
   }
 
@@ -899,8 +959,18 @@ export class Hud implements JoystickView {
     const button = this.fullButton.button;
     button.classList.toggle('is-on', on);
     const label = t(on ? 'hud.fullOff' : 'hud.fullOn');
+    this.fullButton.word.textContent = label;
     button.setAttribute('aria-label', label);
-    button.title = label;
+  }
+
+  /** The map's button lit while the map is open (see MapView), the bag and the panels shut as it opens. */
+  setMapOpen(open: boolean): void {
+    this.mapButton.button.classList.toggle('is-on', open);
+    if (!open) return;
+    this.closeEmotes();
+    this.closeTimes();
+    this.closeSettings();
+    if (this.sheet.classList.contains('is-open')) this.togglePouch();
   }
 
   /** All of the HUD shown, or put away while your camera is held up (the bag and the きもち panel shut first). */
@@ -908,6 +978,7 @@ export class Hud implements JoystickView {
     if (!on) {
       this.closeEmotes();
       this.closeTimes();
+      this.closeSettings();
       if (this.sheet.classList.contains('is-open')) this.togglePouch();
     }
     this.root.hidden = !on;

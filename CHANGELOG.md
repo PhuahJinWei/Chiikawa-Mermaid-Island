@@ -11,6 +11,39 @@ stage, and along every path. Not yet checked on a real phone.
 
 **Added**
 
+- Finding your way (the user, 2026-10-25: players got lost in the jungle, found
+  島二郎's shop hard to reach with few ways there and harder to come back from,
+  and the path from the waterfall to the stepping stones was not joined up).
+  Checked with the islanders' way-finding: the path from the waterfall down into
+  the gorge's head, the obvious way to his shop, ran into the rockfall and
+  ended; on foot his shop was 410 m from the plaza (450 m back), over the
+  tableland, down the west coast and wading the river's mouth, mostly with no
+  path; and the path up to the stones began 53 m from any other.
+  - A narrow way past the rockfall along the river's edge, at the foot of the
+    gorge's south wall: the blocks reaching into it taken out, the rest of the
+    heap lying as it did (build_island.py, ROCKFALL's `pass`). The path down
+    the gorge goes on to 島二郎's again: 254 m from the plaza, the same back.
+  - Two ways trodden through the jungle (WAYS): from the waterfall's bank to
+    the foot of the ramp up to the stones, and from the ravine's path to the
+    narrow way. The 5 trees, their crowns and the 20 small plants that stood
+    on them are left out; the rest of the jungle and the butterflies are as
+    they were.
+  - Signposts at the forks: 8 posts of the No Entry sign's weathered wood, 20
+    arms cut to a point and turned the way they point, over the islanders'
+    heads, to 村, 森の滝, 島二郎, 飛び石 and 北の崖 (build_props.py
+    signpost and signpost_arm; an arm is placed with its post and set `lift`
+    metres up it). Their words are in the font until painted: templates for
+    the five are in art/signs/_guides/.
+  - The island's map: a ちず button by the bag (or M), a card over the island
+    with the island from above, its paths, the sea and the river, its places
+    named (飛び石 is a named place now), and where you stand marked with the
+    way you look (src/ui/MapView.ts). It is the colour map the ground is
+    painted with, the sea laid over it from the island's heights, drawn once
+    the first time it opens: nothing more to download and nothing to draw
+    while it is shut. It shows places, never people.
+  - Checked in the game: the player walks the narrow way both ways and up the
+    new way onto the tableland without catching on anything; the map at
+    desktop and phone sizes, upright and sideways.
 - 島二郎 himself (the user, 2026-10-25: "lets try modeling 島二郎 himself",
   with their drawings of him from the front and three-quarters and a frame
   of the film). He stands in his shop by his stove, his hands down at his
@@ -3392,6 +3425,19 @@ outlined is drawn twice, once for its pen line. To get there:
 
 **Fixed**
 
+- The HUD, looked over at phone and desktop sizes (the user, 2026-10-25: is the
+  buttons' arrangement good, not too crowded?):
+  - The きもち panel ran off the left of an upright phone's screen (30 px of it,
+    手をふる and the others down its left side cut off): it now opens under the
+    top row's right end, never wider than the screen.
+  - The sound and the full screen, set once and left, are in a せってい panel
+    under a cog by きもち (おと：オン / オフ, ぜんがめんにする / やめる), as the
+    hour's chip opens the times: the top right corner had six discs over the
+    island on an upright phone, now five; held sideways, five in one row.
+  - With a mouse and keys and no touch screen, the jump button and the stick's
+    resting ring are left out (Space and WASD do them; a drag on the left still
+    shows the stick) and the verbs come down into the jump's place. The first
+    touch brings them back.
 - The frame rate with many about (the user, 2026-10-24: it drops on a phone
   with many characters near). Measured at the night feast with 31 about on
   the dev PC, the characters are a small share of the frame (about 1 ms of

@@ -144,7 +144,7 @@ PLANTED_ROUND = [("stall_pink", -6.5, -13.51, 1.6), ("stall_blue", 6.5, -13.51, 
                  ("basket", 4.25, -39.16, 16.0), ("basket", 5.55, -88.91, 40.0), ("basket", 10.44, -84.61, 300.0),
                  ("torch", 3.05, -88.39, 0.0), ("torch", 5.05, -86.73, 0.0), ("torch", 8.59, -83.8, 0.0),
                  ("torch", 10.6, -82.14, 0.0)]
-PLANTED_KINDS = ("stall_", "banner", "bunting_", "lanterns", "basket", "torch", "bonfire")
+PLANTED_KINDS = ("stall_", "banner", "bunting_", "lanterns", "basket", "torch", "bonfire", "signpost")
 # The village, as the film's: its houses in groups of their own, not round a ring. A sandy plaza
 # where the islanders gather, the watchtower stage at its north-east corner; the local houses' lane
 # to the fields, its stilt huts facing each other across it, and a yard to the north-west with the
@@ -430,8 +430,11 @@ PLANTED_BOULDERS = {"from": -78.0, "to": -146.0, "gap": (4.5, 9.0), "radius": (0
 # staggered; `across` metres either side of the gorge's line. Each layer's blocks' radii across (a
 # range) and up (as a share of it), `big` of them half as big again; how many lie on the ground
 # layer, and on those, within `on` (x and across ranges), none higher than `cap`; the smaller blocks
-# at its foot (x, count).
-ROCKFALL = {"rows": [-70.5, -66.0, -61.5, -57.0], "across": 12.4, "seal": 3.9, "gap": 4.8,
+# at its foot (x, count). Since 2026-10-25 a narrow way runs past it along the south wall's foot, so the
+# path down the gorge goes on to 島二郎's again (the user: players lost finding his shop, and the way back
+# from it): every block reaching south of `pass` metres from the gorge's line is taken out once all are
+# laid, and any left lying on nothing, so the rest of the heap lies as it did.
+ROCKFALL = {"rows": [-70.5, -66.0, -61.5, -57.0], "across": 12.4, "seal": 3.9, "gap": 4.8, "pass": 9.3,
             "radius": [((2.6, 3.6), (0.55, 0.85)), ((2.2, 3.1), (0.55, 0.85)), ((1.6, 2.5), (0.6, 0.9))],
             "big": 0.2, "layers": (12, 5), "on": [((-69.0, -58.5), 11.0), ((-67.0, -60.5), 8.5)], "cap": 9.6,
             "toe": [(-73.6, 2), (-53.6, 3)], "seed": 141}
@@ -636,6 +639,18 @@ TRODDEN = [
     ([(-172.6, -154.8), (-172.55, -158.2), (-172.5, -162.0)], 4.2),                   # along its front
     ([(-25.5, -91.5), (-28.6, -87.6), (-32.4, -84.3)], 1.5),                          # from the yard to the plank hut on the grass
 ]
+# Ways trodden through the jungle since it was planted (the user, 2026-10-25: players got lost finding
+# 島二郎's shop and the stepping stones, and finding their way back), painted and kept clear as TRODDEN's
+# are; the trees, palms and plants that stood on them are left out as they were drawn (see in_new_way), so
+# the jungle round them stands as it did. From the waterfall's bank to the foot of the ramp up onto the
+# tableland, where the path to the stones begins (it had begun 50 m from any other); and from the path down
+# into the gorge's head past the rockfall along the river's edge (see ROCKFALL's `pass`) to the riverside path
+# on to 島二郎's, which the rockfall had cut off.
+WAYS = [
+    ([(-13.9, -189.4), (-13.8, -201.8), (-15.3, -215.3), (-17.3, -221.8), (-24.0, -230.5), (-30.0, -238.0)], 2.0),
+    ([(-44.0, -200.4), (-48.5, -196.0), (-52.0, -191.8), (-57.0, -190.1), (-63.0, -189.6), (-69.0, -189.1),
+      (-75.2, -187.9)], 1.8),
+]
 # The paths as trodden, not ruled, as the film's jungle paths are (`jungle 6`): each of PATHS rounded
 # at its corners and wandering a little from side to side (`wander`: how far, a share of its width, in
 # waves about `wander_len` metres long), swelling and narrowing (`swell`: its width's range, over about
@@ -733,12 +748,12 @@ _WALKED = []
 
 
 def walked_paths():
-    """The paths as trodden (see PATH_WALK): for each of PATHS and TRODDEN, the points of its line (x
+    """The paths as trodden (see PATH_WALK): for each of PATHS, TRODDEN and WAYS, the points of its line (x
     and z arrays), rounded at its corners, every half metre along it and moved across it as it wanders,
     and its half width at each."""
     if not _WALKED:
         w = PATH_WALK
-        for n, (points, width) in enumerate(PATHS + TRODDEN):
+        for n, (points, width) in enumerate(PATHS + TRODDEN + WAYS):
             p = np.asarray(points, dtype=float)
             for _ in range(3):
                 cut = [p[0]]
@@ -768,12 +783,14 @@ def path_field(x, z, trodden=True):
     """How far (x, z) lies outside the edge of the nearest path as trodden, in metres (less than 0 on
     it), its edge a little ragged: from the distances worked out once every PATH_RASTER metres over the
     map, near the paths (see walked_paths); without TRODDEN's unless `trodden`, as the jungle's edge
-    tufts and clover were planted along the paths (see plant_ground)."""
+    tufts and clover were planted along the paths (see plant_ground), and without WAYS' if it is "old" (the
+    paths as they were before them)."""
     if trodden not in _PATH_FIELD:
         n = int(round(SIZE / PATH_RASTER)) + 1
         x0, z0 = CENTRE[0] - SIZE / 2, CENTRE[1] - SIZE / 2
         field = np.full((n, n), 50.0)
-        for px, pz, half in walked_paths()[:None if trodden else len(PATHS)]:
+        upto = {True: None, "old": len(PATHS) + len(TRODDEN), False: len(PATHS)}[trodden]
+        for px, pz, half in walked_paths()[:upto]:
             for k in range(len(px) - 1):
                 ax, az, bx, bz, h0, h1 = px[k], pz[k], px[k + 1], pz[k + 1], half[k], half[k + 1]
                 reach = max(h0, h1) + 6.0
@@ -1215,6 +1232,8 @@ def rockfall():
     # How mossy each block is, some bare, from a generator of its own so the heap lies as it does.
     mossy = np.random.default_rng(f["seed"] + 1)
     blocks = []
+    # Each block's layer and radius across, for taking out what reaches into the narrow way (see `pass`).
+    laid = []
 
     def floor_at(x, z):
         return float(ground_height(np.array([x]), np.array([z]))[0])
@@ -1240,6 +1259,7 @@ def rockfall():
         reach = K.footprint(game, cx, cz, floor - 0.5, floor + 2.5) if layer == 0 else None
         block = K.Block(cx, cz, float(game[:, 1].max()), reach, {"notch": None, "crown": False, "rockfall": True})
         blocks.append((bm, cols, block, game))
+        laid.append((layer, ra))
 
     rows = f["rows"]
     for i, x0 in enumerate(rows):
@@ -1266,6 +1286,27 @@ def rockfall():
                 continue
             taken.append((x, u))
             lay(x, u, f["radius"][layer], layer)
+    # The narrow way past it along the south wall's foot (see `pass`): out with every block whose stone shows
+    # in it, then with any block on the layers over the ground's that is left lying on nothing.
+    kept = []
+    for _, _, _, g in blocks:
+        u, _ = gorge_across(g[:, 0], g[:, 2])
+        shows = g[:, 1] > ground_height(g[:, 0], g[:, 2]) + 0.1
+        kept.append(not bool(np.any(shows & (u > f["pass"]))))
+    loose = True
+    while loose:
+        loose = False
+        for i, ((_, _, block, g), (layer, ra)) in enumerate(zip(blocks, laid)):
+            if not kept[i] or layer == 0:
+                continue
+            under = [h[np.hypot(h[:, 0] - block.cx, h[:, 2] - block.cz) < 0.6 * ra][:, 1]
+                     for k, (_, _, _, h) in enumerate(blocks) if k != i and kept[k]]
+            under = [h.max() for h in under if len(h)]
+            support = max(under) if under else floor_at(block.cx, block.cz)
+            if float(g[:, 1].min()) > support - 0.05:
+                kept[i] = False
+                loose = True
+    blocks = [b for b, k in zip(blocks, kept) if k]
     # How high each block and whatever lies on it reach, over its feet.
     for _, _, block, _ in blocks:
         for _, _, other, g in blocks:
@@ -2518,9 +2559,10 @@ def build_plants(collection, outlines):
         return (GORGE["from"] - 6.0 <= x <= GORGE["reach"]
                 and float(gorge_across(np.array([x]), np.array([z]))[1][0]) < 1.0)
 
-    def kept_out(x, z, sea=True):
-        # Nor on a path as trodden (see PATH_WALK): the jungle was planted round PATHS' own lines.
-        if float(path_field(np.array([x]), np.array([z]))[0]) < -0.3:
+    def kept_out(x, z, sea=True, ways=True):
+        # Nor on a path as trodden (see PATH_WALK): the jungle was planted round PATHS' own lines. (Without
+        # `ways`, as the paths were before WAYS were trodden.)
+        if float(path_field(np.array([x]), np.array([z]), trodden=True if ways else "old")[0]) < -0.3:
             return True
         # Nor in the water where it was planted on dry ground: the bay quay's shaping had raised the
         # sand along the north coast's beach too, and the gorge's river now runs on further (see
@@ -2556,13 +2598,21 @@ def build_plants(collection, outlines):
         # the understory), `more` further for a tree.
         return any(math.hypot(x - hx_, z - hz_) < PROP_ROOM[kind] - 0.6 + more for kind, hx_, hz_, _ in LATE_HOUSES)
 
+    def in_new_way(x, z, more=0.0):
+        # On or beside one of the ways trodden since the jungle was planted (see WAYS): within as far as it
+        # wanders and swells from its line, `more` further for a tree.
+        return any(float(polyline_distance(np.array([x]), np.array([z]), points)[0]) < 0.82 * width + 0.3 + more
+                   for points, width in WAYS)
+
     def keep_out(x, z):
         return in_rockfall(x, z) or kept_out(x, z) or in_boulder(x, z) or in_late_house(x, z)
 
     def since_planted(x, z):
         # Left out only by what came after the jungle was planted, the rockfall and the river running on in
-        # the gorge's head, the houses built since: it would have grown before, when they were not there.
-        return (in_rockfall(x, z) or in_run_on(x, z) or in_late_house(x, z)) and not kept_out(x, z, sea=False)
+        # the gorge's head, the houses built since, the ways trodden since: it would have grown before, when
+        # they were not there.
+        return (((in_rockfall(x, z) or in_run_on(x, z) or in_late_house(x, z)) and not kept_out(x, z, sea=False))
+                or (in_new_way(x, z) and not kept_out(x, z, sea=False, ways=False)))
 
     variants.keep_out = keep_out
 
@@ -2607,7 +2657,7 @@ def build_plants(collection, outlines):
         grow = np.random.default_rng(int(rng.integers(1 << 31)))
         y = at(x, z)
         built, tops = PL.big_tree(grow, lambda dx, dy, x=x, z=z, y=y: at(x + dx, z - dy) - y)
-        if in_rockfall(x, z) or in_late_house(x, z, more=3.0):
+        if in_rockfall(x, z) or in_late_house(x, z, more=3.0) or in_new_way(x, z, more=3.0):
             left_out["trunks"].append([round(x, 2), round(z, 2), 1.9])
             left_out["crowns"] += [[round(x + lx, 2), round(y + lz, 2), round(z - ly, 2), round(r, 2)] for lx, ly, lz, r in tops]
             continue
@@ -2705,9 +2755,10 @@ def build_plants(collection, outlines):
             continue
         seed = int(rng.integers(1 << 31))
         base = at(cx, cz)
-        # None in the rockfall, nor over a house built since: their places are still drawn and taken, so
-        # the jungle round them stands as it did.
-        kept = [t for t in trees if not in_rockfall(t[0], t[1]) and not in_late_house(t[0], t[1], more=1.2)]
+        # None in the rockfall, nor over a house built since, nor on a way trodden since: their places are
+        # still drawn and taken, so the jungle round them stands as it did.
+        kept = [t for t in trees if not in_rockfall(t[0], t[1]) and not in_late_house(t[0], t[1], more=1.2)
+                and not in_new_way(t[0], t[1], more=1.2)]
         if len(kept) < len(trees):
             _, drawn, _ = PL.clump(np.random.default_rng(seed), [(tx - cx, -(tz - cz), height, at(tx, tz) - base)
                                                                  for tx, tz, height in trees])
@@ -3143,7 +3194,7 @@ def build_plants(collection, outlines):
     # walked_paths), where the paths' own tufts don't already run.
     edged = 0
     tufted = Spacing(2.0)
-    for px, pz, half in walked_paths()[len(PATHS):]:
+    for px, pz, half in walked_paths()[len(PATHS):len(PATHS) + len(TRODDEN)]:
         tx, tz = np.gradient(px), np.gradient(pz)
         length = np.hypot(tx, tz) + 1e-9
         for k in range(len(px)):

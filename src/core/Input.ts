@@ -42,6 +42,7 @@ export class Input {
   private pouchQueued = false;
   private emotesQueued = false;
   private cameraQueued = false;
+  private mapQueued = false;
   private joyId: number | null = null;
   private readonly joyOrigin = new THREE.Vector2();
   private readonly joyVec = new THREE.Vector2();
@@ -200,10 +201,18 @@ export class Input {
     return c;
   }
 
+  /** The island's map opened or shut from the keyboard (M). */
+  consumeMap(): boolean {
+    const m = this.mapQueued;
+    this.mapQueued = false;
+    return m;
+  }
+
   /** Everything pressed and not yet taken, forgotten (the jump, the action, the use, a number, the pouch, the
-   * きもち panel, the camera): while your camera is held up, the keys are its own (see CameraView). */
+   * きもち panel, the camera, the map): while your camera is held up, the keys are its own (see CameraView). */
   dropQueued(): void {
     this.jumpQueued = this.actionQueued = this.useQueued = this.pouchQueued = this.emotesQueued = this.cameraQueued = false;
+    this.mapQueued = false;
     this.slotQueued = -1;
   }
 
@@ -278,6 +287,7 @@ export class Input {
     if (/^Digit[1-9]$/.test(e.code) && !e.repeat) this.slotQueued = Number(e.code.slice(5)) - 1;
     if (e.code === 'KeyR' && !e.repeat) this.emotesQueued = true;
     if (e.code === 'KeyC' && !e.repeat) this.cameraQueued = true;
+    if (e.code === 'KeyM' && !e.repeat) this.mapQueued = true;
     if (e.code === 'Tab') {
       e.preventDefault();
       if (!e.repeat) this.pouchQueued = true;

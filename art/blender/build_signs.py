@@ -56,6 +56,9 @@ BOARDS = {
     "sign": ["#E2E8CF"], "sign_hanging": ["#D9B483"],
     # 島二郎's board over its front and its standing sign, painted a pale cream; its menu's plaques.
     "restaurant": ["#EAE5D3", "#EAE5D3", "#EFE6CF", "#EFE6CF", "#EFE6CF"],
+    # The signposts' arms at the jungle paths' forks (build_props.py), the No Entry sign's pale wood, a face on
+    # each side showing the same words.
+    "signpost_arm": ["#E2E8CF", "#E2E8CF"],
 }
 # The words on the templates: in the game's own font where there is one (--font-ja in
 # src/styles.css), this strong, laid out as the game lays them out (paintLabels in Props.ts).

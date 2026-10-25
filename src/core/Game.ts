@@ -55,6 +55,7 @@ import { Play } from './Play';
 import { loadSave, writeSave, type SaveData } from './Save';
 import { Sound, type Hearing } from './Sound';
 import { CameraView, forgetOldPhotos, type Frame } from '../ui/CameraView';
+import { MapView } from '../ui/MapView';
 import { glowUniforms } from '../world/Glow';
 
 /** Where each character stands when you are not controlling it: x, z, facing. */
@@ -179,6 +180,8 @@ const PHOTO_SIDE = 1600;
 const PHOTO_RATIO = 2;
 const ZOOM_EASE = 9;
 const ZERO = new THREE.Vector3();
+/** The way the camera looks, for the map (see MapView). */
+const _mapLook = new THREE.Vector3();
 const _fwd = new THREE.Vector3();
 const _right = new THREE.Vector3();
 const _want = new THREE.Vector3();
@@ -287,6 +290,8 @@ export class Game {
   /** Your camera, held up (the camera's button, or C: see CameraView), and the zoom the eyes had before it was;
    * the zoom a chip of its asks for, eased to (null: none). */
   private readonly cameraView: CameraView;
+  /** The island's map (the map's button, or M: see MapView). */
+  private readonly mapView: MapView;
   private framing = false;
   private zoomBefore = 0;
   private zoomGoal: number | null = null;
@@ -414,6 +419,9 @@ export class Game {
     this.cameraView.onShutter = (frame) => this.takePhoto(frame);
     this.cameraView.onClose = () => this.setFraming(false);
     this.cameraView.onZoom = (times) => (this.zoomGoal = this.eyes.zoomFor(times));
+    this.mapView = new MapView(ui);
+    this.mapView.onClose = () => this.hud.setMapOpen(false);
+    this.hud.onMap = () => this.toggleMap();
     this.hud.onCamera = () => this.setFraming(true);
     this.hud.onTime = (hours) => void this.passTime(hours);
     this.hud.onJump = () => {
@@ -677,6 +685,17 @@ export class Game {
     this.passing = false;
     if (!sleeping) await this.hud.fade(false);
     return true;
+  }
+
+  /** The island's map opened (not with your camera held up, nor before the island is yours) or shut. */
+  private toggleMap(): void {
+    if (this.mapView.isOpen) {
+      this.mapView.close();
+      return;
+    }
+    if (this.framing || !this.running || this.staged) return;
+    this.hud.setMapOpen(true);
+    this.mapView.open();
   }
 
   /**
@@ -1219,6 +1238,7 @@ export class Game {
     // Your camera held up or put away from the keyboard; held up, what is pressed is the camera's (see CameraView).
     if (this.input.consumeCamera()) this.setFraming(!this.framing);
     if (this.framing) this.input.dropQueued();
+    if (this.input.consumeMap()) this.toggleMap();
     const me = this.me();
     const lookingOut = this.lookingOut;
     // Out of their eyes, the one you control faces the way you look; the rest face the way they walk.
@@ -1365,6 +1385,11 @@ export class Game {
     }
     // (Its zoom chips only out of your own eyes: the follow camera and the free one zoom as they do.)
     if (this.framing) this.cameraView.update(lookingOut ? this.eyes.magnified : null, this.eyes.mostZoom);
+    // Where you are and the way you look, on the map while it is open.
+    if (this.mapView.isOpen) {
+      this.camera.getWorldDirection(_mapLook);
+      this.mapView.update(me.position.x, me.position.z, _mapLook.x, _mapLook.z);
+    }
     // Out of their eyes you see the one you control only in the calm water; the film look's depth of
     // field leaves the ground at their feet sharp.
     for (const ch of this.characters.values()) ch.setUnseen(lookingOut && ch === me);
