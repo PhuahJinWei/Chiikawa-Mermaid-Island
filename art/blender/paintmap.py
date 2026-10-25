@@ -541,7 +541,12 @@ def wood(d, p, *, grain_lines=30.0, grain_dark=0.26, light=0.12, knots=2, weathe
         g_col = grey if grey is not None else col.mean(axis=-1, keepdims=True) * 1.15
         col = mix(col, np.broadcast_to(g_col, col.shape), patch * 0.55)
     if damp > 0.0:
-        foot = 1.0 - smoothstep(0.05, 0.75, world[..., 2])
+        # The damp climbs a piece's upright faces from the ground. A face lying flat has no foot for it to
+        # climb: low down (a stall's step, its floor's underside) it had taken the damp whole, darkened and
+        # greened, its streaks (drawn up the face by height, and its height there the same everywhere)
+        # smeared across it on a slant (the user saw a stall's step "glitching", 2026-10-25).
+        upright = 1.0 - smoothstep(0.5, 0.85, np.abs(d["normal"][..., 2]))
+        foot = (1.0 - smoothstep(0.05, 0.75, world[..., 2])) * upright
         streak = fbm(world[..., 0] * 9.0 + world[..., 1] * 9.0, world[..., 2] * 2.0, seed=93, octaves=3)
         col = col * (1.0 - damp * foot * (0.55 + 0.45 * streak))[..., None]
         col = mix(col, np.broadcast_to(hexc("#4F5A3A"), col.shape), damp * 0.25 * foot)
@@ -844,7 +849,11 @@ class Painter:
 
     def _hide(self):
         """Leaves out of the fitted patches what never shows: faces with another face within 3 cm
-        before them (pressed to the wall, butted in, inside the room's own logs)."""
+        before them all over (pressed to the wall, butted in, inside the room's own logs), and faces lying
+        face down on the ground at the prop's origin (a stall's floor and steps). Looked for at
+        its middle and toward each corner: looked for at its middle only, a face with a thin piece lying
+        over that one spot was taken for hidden (a stall's floor under its middle plank line, left
+        unpainted)."""
         from mathutils.bvhtree import BVHTree
         verts, polys = [], []
         for obj, _ in self.objects:
@@ -864,9 +873,14 @@ class Painter:
                     if painted is not None and not painted[j]:
                         shown.append(False)
                         continue
+                    # Face down at the prop's origin, the ground it stands on, it lies on the ground. (Not
+                    # below it: the pier's origin is its deck's top, and its planks' undersides show.)
+                    if nrm.z < -0.9 and max(abs(c.z) for c in corners) < 0.01:
+                        shown.append(False)
+                        continue
                     centre = sum(corners, Vector()) / len(corners)
-                    hit = tree.ray_cast(centre + nrm * 0.002, nrm, 0.03)
-                    shown.append(hit[0] is None)
+                    looks = [centre] + [centre.lerp(c, 0.7) for c in corners]
+                    shown.append(any(tree.ray_cast(p + nrm * 0.002, nrm, 0.03)[0] is None for p in looks))
                 records[k] = (patch, faces, fitted, shown)
                 if isinstance(patch, BoxPatch):
                     sides = {patch.side_of(nrm) for (nrm, _), s in zip(faces, shown) if s}

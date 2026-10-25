@@ -3428,6 +3428,26 @@ outlined is drawn twice, once for its pen line. To get there:
 
 **Fixed**
 
+- The festival stalls' steps looked glitchy (the user, 2026-10-25). Their
+  painted wood was streaked green-grey on a slant. The painted wood's damp
+  (`art/blender/paintmap.py`) climbs from the ground up a piece, and it had
+  been laid on flat faces too. A tread 10 cm up took it whole, and its
+  streaks, drawn up a face by height, ran across the flat top on a slant.
+  Now damp climbs only upright faces. Every painted prop got the same rule
+  and was rebuilt: the huts, the stalls, the stage, the pier, the guest
+  houses, 島二郎's shop, the arch, the torch, the bonfire, the signs and
+  signposts, the log, the fence and the quay. All are flicker-free.
+  - The stall's floor was left unpainted on top: one ray from a face's middle
+    judged whether it showed, and a plank line lay over that spot. Each face
+    is now looked at from its middle and toward each corner.
+  - Faces lying face down on the ground at a prop's origin are no longer
+    painted. The pier's origin is its deck's top, so the undersides of its
+    planks, below it, keep their paint. All told the maps hold 32.1 M texels
+    instead of 33.1 M, still eight layers in the game.
+  - The props build's props (log, signs, signposts, fence, quay) had not
+    been rebuilt since 2026-10-21. They now take the wood painting the
+    houses' code has had since then, and the fence, quay and signs' maps
+    come out half as big.
 - A flat brown square on a hut's floor round where you stand (the user,
   2026-10-25, with a screenshot from a room's rug). It was the pen's line
   under the floor board, 1 cm below its top. The pen pushes each corner of
